@@ -28,20 +28,23 @@ export const WelcomeScreen = ({
     window.addEventListener("mousemove", handleMouseMove);
     return () => window.removeEventListener("mousemove", handleMouseMove);
   }, [mouseX, mouseY]);
-  return <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-black">
-      {/* Animated Background */}
-      <div className="absolute inset-0">
-        <div className="absolute inset-0 gradient-ocean opacity-80" />
-        <motion.div className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full blur-[100px]" style={{
-        background: "radial-gradient(circle, #a855f7 0%, transparent 70%)"
-      }} animate={{
-        x: [0, 100, 0],
-        y: [0, -50, 0]
-      }} transition={{
-        duration: 20,
-        repeat: Infinity,
-        ease: "easeInOut"
-      }} />
+  return <div className="min-h-screen flex items-center justify-center p-4 relative bg-black">
+      {/* Background container with overflow hidden */}
+      <div className="absolute inset-0 overflow-hidden">
+        {/* Animated Background */}
+        <div className="absolute inset-0">
+          <div className="absolute inset-0 gradient-ocean opacity-80" />
+          <motion.div className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full blur-[100px]" style={{
+          background: "radial-gradient(circle, #a855f7 0%, transparent 70%)"
+        }} animate={{
+          x: [0, 100, 0],
+          y: [0, -50, 0]
+        }} transition={{
+          duration: 20,
+          repeat: Infinity,
+          ease: "easeInOut"
+        }} />
+        </div>
       </div>
 
       {/* Floating Particles */}
