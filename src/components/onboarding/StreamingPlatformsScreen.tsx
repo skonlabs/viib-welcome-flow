@@ -280,13 +280,13 @@ export const StreamingPlatformsScreen = ({ onContinue }: StreamingPlatformsScree
                     <AnimatePresence>
                       {isSelected && (
                         <motion.div
-                          className="absolute top-3 right-3 w-10 h-10 rounded-full bg-white/90 backdrop-blur-xl flex items-center justify-center shadow-2xl"
+                          className="absolute top-2 right-2 w-6 h-6 rounded-full bg-white/90 backdrop-blur-xl flex items-center justify-center shadow-lg"
                           initial={{ scale: 0, rotate: -180 }}
                           animate={{ scale: 1, rotate: 0 }}
                           exit={{ scale: 0, rotate: 180 }}
                           transition={{ type: "spring", stiffness: 300, damping: 15 }}
                         >
-                          <Check className="w-5 h-5 text-primary" strokeWidth={3} />
+                          <Check className="w-3.5 h-3.5 text-primary" strokeWidth={3} />
                         </motion.div>
                       )}
                     </AnimatePresence>
