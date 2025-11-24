@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { motion } from "framer-motion";
-import { Check } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Check, ArrowRight } from "lucide-react";
 
 interface VisualTasteScreenProps {
   onContinue: (selections: string[]) => void;
@@ -11,12 +11,12 @@ export const VisualTasteScreen = ({ onContinue }: VisualTasteScreenProps) => {
   const [selectedPosters, setSelectedPosters] = useState<string[]>([]);
 
   const posters = [
-    { id: "1", title: "Epic Sci-Fi", mood: "Expansive", gradient: "from-blue-900 via-indigo-800 to-purple-900" },
-    { id: "2", title: "Intimate Drama", mood: "Emotional", gradient: "from-rose-900 via-pink-800 to-red-900" },
-    { id: "3", title: "Mystery Thriller", mood: "Tense", gradient: "from-slate-900 via-gray-800 to-zinc-900" },
-    { id: "4", title: "Feel-Good Comedy", mood: "Uplifting", gradient: "from-amber-700 via-orange-600 to-yellow-700" },
-    { id: "5", title: "Nature Documentary", mood: "Inspiring", gradient: "from-emerald-900 via-teal-800 to-cyan-900" },
-    { id: "6", title: "Historical Epic", mood: "Grand", gradient: "from-amber-900 via-brown-800 to-stone-900" },
+    { id: "1", title: "Epic Sci-Fi", mood: "Expansive Worlds", gradient: "from-blue-600 via-indigo-700 to-purple-800", image: "🚀" },
+    { id: "2", title: "Intimate Drama", mood: "Deep Emotions", gradient: "from-rose-600 via-pink-700 to-red-800", image: "❤️" },
+    { id: "3", title: "Mystery Thriller", mood: "Edge of Seat", gradient: "from-slate-700 via-gray-800 to-zinc-900", image: "🔍" },
+    { id: "4", title: "Feel-Good Comedy", mood: "Pure Joy", gradient: "from-amber-500 via-orange-600 to-yellow-600", image: "😄" },
+    { id: "5", title: "Nature Documentary", mood: "Awe & Wonder", gradient: "from-emerald-600 via-teal-700 to-cyan-800", image: "🌿" },
+    { id: "6", title: "Historical Epic", mood: "Grand Scale", gradient: "from-amber-700 via-brown-800 to-stone-900", image: "⚔️" },
   ];
 
   const togglePoster = (posterId: string) => {
@@ -28,88 +28,132 @@ export const VisualTasteScreen = ({ onContinue }: VisualTasteScreenProps) => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
+    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-black">
       {/* Background */}
-      <div className="absolute inset-0 gradient-aurora" />
+      <div className="absolute inset-0 gradient-aurora opacity-50" />
 
       {/* Content */}
       <motion.div
-        className="relative z-10 w-full max-w-5xl"
-        initial={{ opacity: 0, y: 20 }}
+        className="relative z-10 w-full max-w-6xl"
+        initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
+        transition={{ duration: 0.8 }}
       >
-        <div className="space-y-10">
+        <div className="space-y-12">
           {/* Header */}
-          <div className="text-center space-y-3">
-            <h2 className="text-3xl font-light text-foreground">
-              What draws you in?
+          <motion.div
+            className="text-center space-y-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.2 }}
+          >
+            <h2 className="text-4xl md:text-5xl font-bold">
+              <span className="text-gradient">What speaks to you?</span>
             </h2>
-            <p className="text-sm text-muted-foreground">
-              Select at least 2 visual styles that appeal to you
+            <p className="text-muted-foreground text-lg">
+              Pick at least 2 visual styles that capture your attention
             </p>
-          </div>
+          </motion.div>
 
           {/* Poster Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            {posters.map((poster, index) => (
-              <motion.div
-                key={poster.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05, duration: 0.4 }}
-                className="relative"
-              >
-                <button
-                  onClick={() => togglePoster(poster.id)}
-                  className={`relative w-full aspect-[2/3] rounded-2xl bg-gradient-to-br ${poster.gradient} overflow-hidden transition-all duration-300 group ${
-                    selectedPosters.includes(poster.id)
-                      ? "ring-2 ring-primary shadow-lg shadow-primary/20 scale-[1.02]"
-                      : "hover:scale-[1.02]"
-                  }`}
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+            {posters.map((poster, index) => {
+              const isSelected = selectedPosters.includes(poster.id);
+              
+              return (
+                <motion.div
+                  key={poster.id}
+                  initial={{ opacity: 0, y: 30 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ 
+                    delay: index * 0.08,
+                    type: "spring",
+                    stiffness: 100
+                  }}
+                  className="relative group"
                 >
-                  {/* Selected Indicator */}
-                  {selectedPosters.includes(poster.id) && (
-                    <motion.div
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      className="absolute top-3 right-3 z-10 w-8 h-8 rounded-full bg-primary flex items-center justify-center shadow-lg"
-                    >
-                      <Check className="w-5 h-5 text-background" />
-                    </motion.div>
-                  )}
-                  
-                  {/* Overlay */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-                  
-                  {/* Content */}
-                  <div className="absolute bottom-0 left-0 right-0 p-4 space-y-1">
-                    <p className="text-sm font-normal text-white">
-                      {poster.title}
-                    </p>
-                    <p className="text-xs text-white/60">
-                      {poster.mood}
-                    </p>
-                  </div>
-                </button>
-              </motion.div>
-            ))}
+                  <motion.button
+                    onClick={() => togglePoster(poster.id)}
+                    whileHover={{ scale: 1.05, y: -10 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="relative w-full aspect-[2/3] rounded-3xl overflow-hidden"
+                  >
+                    <div className={`absolute inset-0 bg-gradient-to-br ${poster.gradient} transition-all duration-300`} />
+                    
+                    <AnimatePresence>
+                      {isSelected && (
+                        <>
+                          <motion.div
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            exit={{ scale: 0 }}
+                            className="absolute top-4 right-4 z-10 w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-2xl"
+                          >
+                            <Check className="w-6 h-6 text-black" />
+                          </motion.div>
+                          
+                          <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="absolute inset-0 ring-4 ring-white rounded-3xl"
+                          />
+                        </>
+                      )}
+                    </AnimatePresence>
+                    
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
+                    
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 p-6 text-white">
+                      <motion.span 
+                        className="text-6xl"
+                        animate={{
+                          scale: isSelected ? [1, 1.2, 1] : 1,
+                        }}
+                        transition={{ duration: 0.3 }}
+                      >
+                        {poster.image}
+                      </motion.span>
+                    </div>
+                    
+                    <div className="absolute bottom-0 left-0 right-0 p-6 space-y-1 text-white">
+                      <p className="text-lg font-bold">
+                        {poster.title}
+                      </p>
+                      <p className="text-sm text-white/70">
+                        {poster.mood}
+                      </p>
+                    </div>
+                    
+                    {!isSelected && (
+                      <div className="absolute inset-0 bg-black/20 group-hover:bg-black/0 transition-colors" />
+                    )}
+                  </motion.button>
+                </motion.div>
+              );
+            })}
           </div>
 
           {/* Action */}
-          <div className="flex justify-center pt-4">
+          <motion.div
+            className="flex justify-center pt-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.6 }}
+          >
             <Button
               onClick={() => onContinue(selectedPosters)}
               disabled={selectedPosters.length < 2}
               size="lg"
-              className="px-10 h-12 bg-primary/10 hover:bg-primary/20 border border-primary/30 hover:border-primary/50 text-foreground disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-300"
+              className="group px-12 h-14 text-lg font-medium bg-gradient-to-r from-primary to-accent hover:shadow-2xl hover:shadow-primary/50 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-300 hover:scale-105"
             >
               {selectedPosters.length < 2 
-                ? `Select ${2 - selectedPosters.length} more`
+                ? `Select ${2 - selectedPosters.length} more to continue`
                 : `Continue with ${selectedPosters.length} selections`
               }
+              <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-2 transition-transform" />
             </Button>
-          </div>
+          </motion.div>
         </div>
       </motion.div>
     </div>
