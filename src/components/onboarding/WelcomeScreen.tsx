@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { motion, useMotionValue, useTransform } from "framer-motion";
-import { ArrowRight, Sparkles } from "lucide-react";
+import { ArrowRight, Sparkles, Lock } from "lucide-react";
 import { useEffect } from "react";
 
 interface WelcomeScreenProps {
@@ -125,9 +125,6 @@ export const WelcomeScreen = ({ onContinue }: WelcomeScreenProps) => {
               Experience the future of content discovery. ViiB understands your vibe, 
               your mood, and delivers the perfect watch—every single time.
             </p>
-            <p className="text-sm text-muted-foreground/70 pt-2">
-              Private by design · No noise · Only what matters
-            </p>
           </motion.div>
 
           {/* CTA Button */}
@@ -154,6 +151,19 @@ export const WelcomeScreen = ({ onContinue }: WelcomeScreenProps) => {
                 transition={{ duration: 0.5 }}
               />
             </Button>
+          </motion.div>
+
+          {/* Privacy Note */}
+          <motion.div
+            className="flex items-center justify-center gap-2 pt-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 1.0, duration: 0.8 }}
+          >
+            <Lock className="w-3 h-3 text-muted-foreground/60" />
+            <p className="text-xs text-muted-foreground/60">
+              Private by design · No noise · Only what matters
+            </p>
           </motion.div>
 
           {/* Badges */}
