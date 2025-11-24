@@ -172,7 +172,7 @@ export const WelcomeScreen = ({
           </motion.div>
 
           {/* Privacy Note */}
-          <motion.div className="flex items-center justify-center gap-2 pt-2" initial={{
+          <motion.div className="flex items-center justify-center gap-2 pt-1" initial={{
           opacity: 0
         }} animate={{
           opacity: 1
