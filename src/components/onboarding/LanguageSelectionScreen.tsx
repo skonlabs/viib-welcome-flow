@@ -119,7 +119,7 @@ export const LanguageSelectionScreen = ({ onContinue }: LanguageSelectionScreenP
 
           {/* Language Grid */}
           <motion.div
-            className="grid grid-cols-2 md:grid-cols-3 gap-3"
+            className="grid grid-cols-2 md:grid-cols-3 gap-2"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.4 }}
@@ -129,11 +129,11 @@ export const LanguageSelectionScreen = ({ onContinue }: LanguageSelectionScreenP
               [...Array(6)].map((_, i) => (
                 <div
                   key={i}
-                  className="p-5 rounded-2xl glass-subtle animate-pulse"
+                  className="p-3 rounded-xl glass-subtle animate-pulse"
                 >
-                  <div className="flex flex-col items-center gap-2">
-                    <div className="w-12 h-12 bg-white/10 rounded-full" />
-                    <div className="w-20 h-4 bg-white/10 rounded" />
+                  <div className="flex flex-col items-center gap-1">
+                    <div className="w-8 h-8 bg-white/10 rounded-full" />
+                    <div className="w-16 h-3 bg-white/10 rounded" />
                   </div>
                 </div>
               ))
@@ -151,7 +151,7 @@ export const LanguageSelectionScreen = ({ onContinue }: LanguageSelectionScreenP
                     transition={{ delay: index * 0.03, type: "spring" }}
                     whileHover={{ scale: 1.05, y: -4 }}
                     whileTap={{ scale: 0.95 }}
-                    className={`relative p-5 rounded-2xl transition-all duration-300 ${
+                    className={`relative p-3 rounded-xl transition-all duration-300 ${
                       isSelected
                         ? "bg-white/10 ring-2 ring-primary shadow-lg shadow-primary/20"
                         : "glass-subtle hover:bg-white/5"
@@ -163,16 +163,16 @@ export const LanguageSelectionScreen = ({ onContinue }: LanguageSelectionScreenP
                           initial={{ scale: 0 }}
                           animate={{ scale: 1 }}
                           exit={{ scale: 0 }}
-                          className="absolute top-2 right-2 w-6 h-6 rounded-full bg-primary flex items-center justify-center text-xs font-bold"
+                          className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-primary flex items-center justify-center text-xs font-bold"
                         >
                           {priority}
                         </motion.div>
                       )}
                     </AnimatePresence>
 
-                    <div className="flex flex-col items-center gap-2">
-                      <span className="text-4xl">{lang.flag}</span>
-                      <span className="text-foreground font-medium">
+                    <div className="flex flex-col items-center gap-1">
+                      <span className="text-2xl">{lang.flag}</span>
+                      <span className="text-foreground font-medium text-sm">
                         {lang.name}
                       </span>
                     </div>
