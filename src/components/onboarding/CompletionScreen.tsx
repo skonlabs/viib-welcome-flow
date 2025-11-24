@@ -11,22 +11,18 @@ export const CompletionScreen = ({ userName, onComplete }: CompletionScreenProps
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-black">
       {/* Animated Background */}
-      <div className="absolute inset-0">
-        <div className="absolute inset-0 gradient-electric opacity-30" />
-        <motion.div
-          className="absolute top-1/3 left-1/3 w-[500px] h-[500px] rounded-full blur-[120px]"
-          style={{ background: "radial-gradient(circle, #a855f7 0%, transparent 70%)" }}
-          animate={{
-            scale: [1, 1.3, 1],
-            opacity: [0.3, 0.6, 0.3],
-          }}
-          transition={{
-            duration: 4,
-            repeat: Infinity,
-            ease: "easeInOut",
-          }}
-        />
-      </div>
+      <div className="absolute inset-0 gradient-electric opacity-20" />
+      <motion.div
+        className="absolute inset-0"
+        animate={{
+          background: [
+            "radial-gradient(ellipse at 20% 30%, #a855f720 0%, transparent 50%)",
+            "radial-gradient(ellipse at 80% 70%, #ec489920 0%, transparent 50%)",
+            "radial-gradient(ellipse at 20% 30%, #a855f720 0%, transparent 50%)",
+          ],
+        }}
+        transition={{ duration: 10, repeat: Infinity }}
+      />
 
       {/* Confetti */}
       <div className="absolute inset-0 pointer-events-none">
