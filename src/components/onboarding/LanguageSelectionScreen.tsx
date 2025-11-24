@@ -184,16 +184,14 @@ export const LanguageSelectionScreen = ({ onContinue }: LanguageSelectionScreenP
 
           {/* Priority Hint */}
           {selectedLanguages.length > 1 && (
-            <motion.div
-              className="glass-card rounded-2xl p-4 text-center"
+            <motion.p
+              className="text-xs text-muted-foreground text-center flex items-center justify-center gap-2"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
             >
-              <p className="text-sm text-muted-foreground flex items-center justify-center gap-2">
-                <GripVertical className="w-4 h-4" />
-                Numbers show your priority order
-              </p>
-            </motion.div>
+              <GripVertical className="w-3 h-3" />
+              Numbers show your priority order
+            </motion.p>
           )}
 
           {/* Actions */}
