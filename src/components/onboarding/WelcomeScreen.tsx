@@ -60,12 +60,12 @@ export const WelcomeScreen = ({
       </div>
 
       {/* Main Content */}
-      <motion.div className="relative z-10 text-center max-w-4xl mx-auto" style={{
+      <motion.div className="relative z-10 text-center max-w-4xl mx-auto overflow-visible" style={{
       rotateX,
       rotateY,
       transformStyle: "preserve-3d"
     }}>
-        <motion.div className="space-y-8" initial={{
+        <motion.div className="space-y-8 overflow-visible" initial={{
         opacity: 0,
         y: 40
       }} animate={{
