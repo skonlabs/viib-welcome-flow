@@ -21,12 +21,20 @@ export const PhoneEntryScreen = ({ onContinue, onBack }: PhoneEntryScreenProps) 
   const [phone, setPhone] = useState("");
   const [error, setError] = useState("");
 
+  const formatPhoneNumber = (value: string) => {
+    const digits = value.replace(/\D/g, "");
+    if (digits.length <= 3) return digits;
+    if (digits.length <= 6) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+    return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6, 10)}`;
+  };
+
   const handleContinue = () => {
-    if (phone.length < 10) {
+    const digits = phone.replace(/\D/g, "");
+    if (digits.length < 10) {
       setError("Please enter a valid phone number");
       return;
     }
-    onContinue(phone, countryCode);
+    onContinue(digits, countryCode);
   };
 
   return (
@@ -99,9 +107,10 @@ export const PhoneEntryScreen = ({ onContinue, onBack }: PhoneEntryScreenProps) 
                 </Select>
                 <Input
                   type="tel"
-                  value={phone}
+                  value={formatPhoneNumber(phone)}
                   onChange={(e) => {
-                    setPhone(e.target.value.replace(/\D/g, ""));
+                    const digits = e.target.value.replace(/\D/g, "");
+                    setPhone(digits.slice(0, 10));
                     setError("");
                   }}
                   placeholder="(555) 123-4567"
