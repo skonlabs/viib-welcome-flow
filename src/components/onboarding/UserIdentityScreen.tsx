@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { motion, AnimatePresence } from "framer-motion";
-import { Waves, Zap, Sparkles, Compass, ArrowRight } from "lucide-react";
+import { Waves, Zap, Sparkles, Compass, ArrowRight, Check } from "lucide-react";
 import calmImage from "@/assets/vibe-calm.png";
 import energeticImage from "@/assets/vibe-energetic.png";
 import curiousImage from "@/assets/vibe-curious.png";
@@ -415,20 +415,20 @@ export const UserIdentityScreen = ({ onContinue }: UserIdentityScreenProps) => {
                           </motion.p>
                         </div>
 
-                        {/* Selection checkmark */}
-                        <AnimatePresence>
-                          {isSelected && (
-                            <motion.div
-                              className="absolute top-6 right-6 w-10 h-10 rounded-full bg-white/90 backdrop-blur-xl flex items-center justify-center shadow-2xl"
-                              initial={{ scale: 0, rotate: -180 }}
-                              animate={{ scale: 1, rotate: 0 }}
-                              exit={{ scale: 0, rotate: 180 }}
-                              transition={{ type: "spring", stiffness: 300, damping: 15 }}
-                            >
-                              <div className="w-4 h-4 rounded-full bg-gradient-to-br from-primary to-accent shadow-lg" />
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
+                    {/* Selection checkmark */}
+                    <AnimatePresence>
+                      {isSelected && (
+                        <motion.div
+                          className="absolute top-2 right-2 w-6 h-6 rounded-full bg-white/90 backdrop-blur-xl flex items-center justify-center shadow-lg"
+                          initial={{ scale: 0, rotate: -180 }}
+                          animate={{ scale: 1, rotate: 0 }}
+                          exit={{ scale: 0, rotate: 180 }}
+                          transition={{ type: "spring", stiffness: 300, damping: 15 }}
+                        >
+                          <Check className="w-3.5 h-3.5 text-primary" strokeWidth={3} />
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                       </div>
                     </div>
                   </motion.button>
