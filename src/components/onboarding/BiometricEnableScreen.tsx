@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
-import { Fingerprint, ArrowRight } from "lucide-react";
+import { Fingerprint, ArrowRight, Lock } from "lucide-react";
 
 interface BiometricEnableScreenProps {
   onEnable: () => void;
@@ -95,14 +95,13 @@ export const BiometricEnableScreen = ({ onEnable, onSkip }: BiometricEnableScree
 
           {/* Security Badge */}
           <motion.div
-            className="glass-card rounded-2xl p-6 text-center"
+            className="flex items-center justify-center gap-2 text-xs text-muted-foreground/80"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.8 }}
           >
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              🔒 Your biometric data never leaves your device and is secured by your phone's built-in encryption
-            </p>
+            <Lock className="w-3 h-3" />
+            <p>Your biometric data never leaves your device and is secured by your phone's built-in encryption</p>
           </motion.div>
         </div>
       </motion.div>
