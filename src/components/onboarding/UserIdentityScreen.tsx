@@ -200,16 +200,22 @@ export const UserIdentityScreen = ({ onContinue }: UserIdentityScreenProps) => {
                 className="relative group"
                 whileHover={{ scale: 1.02 }}
                 transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                initial={{ scale: 1.02 }}
+                animate={{ scale: 1 }}
               >
-                {/* Border glow */}
-                <div
-                  className="absolute -inset-1 bg-gradient-to-r from-primary via-accent to-primary rounded-2xl blur-xl opacity-0 group-focus-within:opacity-50 transition-opacity duration-500"
+                {/* Border glow - initially visible to draw attention */}
+                <motion.div
+                  className="absolute -inset-1 bg-gradient-to-r from-primary via-accent to-primary rounded-2xl blur-xl transition-opacity duration-500"
                   style={{ backgroundSize: '200% 200%' }}
+                  initial={{ opacity: 0.6 }}
+                  animate={{ opacity: name ? 0 : 0 }}
+                  whileFocus={{ opacity: 0.5 }}
                 />
                 <Input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Enter your name"
+                  autoFocus
                   className="relative h-16 text-lg bg-black/40 border-white/20 focus:border-primary/50 focus:bg-black/60 transition-all duration-300 backdrop-blur-2xl text-foreground placeholder:text-muted-foreground/50 rounded-2xl shadow-2xl"
                 />
               </motion.div>
