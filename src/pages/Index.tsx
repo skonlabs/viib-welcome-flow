@@ -5,18 +5,19 @@ const Index = () => {
   const navigate = useNavigate();
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background gradient-ocean">\
-      <div className="text-center space-y-6">
-        <h1 className="text-5xl font-light text-foreground tracking-wide">
-          ViiB Demo
+    <div className="flex min-h-screen items-center justify-center bg-black relative overflow-hidden">
+      <div className="absolute inset-0 gradient-ocean opacity-70" />
+      <div className="relative z-10 text-center space-y-8">
+        <h1 className="text-6xl font-bold">
+          <span className="text-gradient">ViiB</span>
         </h1>
         <p className="text-xl text-muted-foreground">
-          Experience the onboarding flow
+          Experience the cinematic onboarding
         </p>
         <Button
           onClick={() => navigate("/onboarding")}
           size="lg"
-          className="px-8 py-6 text-lg font-light bg-primary/10 hover:bg-primary/20 border border-primary/30 hover:border-primary/50 text-foreground transition-all duration-300"
+          className="px-12 h-14 text-lg font-medium bg-gradient-to-r from-primary to-accent hover:shadow-2xl hover:shadow-primary/50 transition-all duration-300 hover:scale-105"
         >
           Start Onboarding
         </Button>
