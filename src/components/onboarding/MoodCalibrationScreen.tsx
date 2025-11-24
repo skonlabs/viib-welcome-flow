@@ -11,41 +11,21 @@ export const MoodCalibrationScreen = ({ onContinue }: MoodCalibrationScreenProps
   const [energy, setEnergy] = useState([50]);
   const [positivity, setPositivity] = useState([50]);
 
-  const getMoodGradient = () => {
-    const energyValue = energy[0];
-    const positivityValue = positivity[0];
-
-    if (energyValue > 60 && positivityValue > 60) {
-      return "linear-gradient(135deg, hsl(45, 100%, 60%), hsl(30, 100%, 50%))";
-    } else if (energyValue < 40 && positivityValue > 60) {
-      return "linear-gradient(135deg, hsl(200, 80%, 60%), hsl(160, 70%, 50%))";
-    } else if (energyValue > 60 && positivityValue < 40) {
-      return "linear-gradient(135deg, hsl(0, 70%, 60%), hsl(280, 60%, 50%))";
-    } else {
-      return "linear-gradient(135deg, hsl(240, 60%, 50%), hsl(280, 60%, 60%))";
-    }
-  };
-
   const getMoodLabel = () => {
-    const energyValue = energy[0];
-    const positivityValue = positivity[0];
+    const e = energy[0];
+    const p = positivity[0];
 
-    if (energyValue > 60 && positivityValue > 60) return "Excited & Joyful";
-    if (energyValue < 40 && positivityValue > 60) return "Calm & Content";
-    if (energyValue > 60 && positivityValue < 40) return "Intense & Focused";
-    if (energyValue < 40 && positivityValue < 40) return "Reflective & Quiet";
-    return "Balanced & Steady";
+    if (e > 65 && p > 65) return "Excited & Joyful";
+    if (e < 35 && p > 65) return "Peaceful & Content";
+    if (e > 65 && p < 35) return "Intense & Driven";
+    if (e < 35 && p < 35) return "Contemplative & Quiet";
+    return "Balanced & Open";
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6 relative overflow-hidden">
-      {/* Dynamic Background */}
-      <motion.div
-        className="absolute inset-0 animate-gradient"
-        style={{ background: getMoodGradient() }}
-        animate={{ background: getMoodGradient() }}
-        transition={{ duration: 0.8 }}
-      />
+    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Background */}
+      <div className="absolute inset-0 gradient-sunset" />
 
       {/* Content */}
       <motion.div
@@ -54,66 +34,80 @@ export const MoodCalibrationScreen = ({ onContinue }: MoodCalibrationScreenProps
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6 }}
       >
-        <div className="glass-card rounded-3xl p-8 space-y-8">
+        <div className="space-y-12">
+          {/* Header */}
           <div className="text-center space-y-4">
-            <h2 className="text-2xl font-light text-foreground">
-              How are you feeling right now?
+            <h2 className="text-3xl font-light text-foreground">
+              How are you feeling?
             </h2>
-            
-            {/* Mood Visualization */}
+            <p className="text-muted-foreground text-sm">
+              We'll match content to your current state
+            </p>
+          </div>
+
+          {/* Mood Visualization */}
+          <div className="flex justify-center">
             <motion.div
-              className="w-40 h-40 mx-auto rounded-full flex items-center justify-center relative"
-              style={{ background: getMoodGradient() }}
-              animate={{ scale: [1, 1.05, 1] }}
-              transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+              className="relative w-48 h-48"
+              animate={{ scale: [1, 1.02, 1] }}
+              transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
             >
-              <div className="absolute inset-4 rounded-full bg-background/20 backdrop-blur-sm flex items-center justify-center">
-                <p className="text-lg font-light text-foreground text-center px-4">
-                  {getMoodLabel()}
-                </p>
+              <div className="absolute inset-0 rounded-full bg-gradient-to-br from-primary/20 to-accent/20 blur-xl" />
+              <div className="relative glass-card rounded-full w-full h-full flex items-center justify-center">
+                <div className="text-center px-6">
+                  <p className="text-lg font-light text-foreground">
+                    {getMoodLabel()}
+                  </p>
+                </div>
               </div>
             </motion.div>
           </div>
 
-          {/* Energy Slider */}
-          <div className="space-y-3">
-            <div className="flex justify-between text-sm text-muted-foreground">
-              <span>Calm</span>
-              <span>Energy Level</span>
-              <span>Energized</span>
+          {/* Sliders */}
+          <div className="space-y-8 glass-card rounded-2xl p-8">
+            {/* Energy Slider */}
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Relaxed</span>
+                <span className="text-xs text-foreground/60 uppercase tracking-wider">Energy</span>
+                <span className="text-sm text-muted-foreground">Energized</span>
+              </div>
+              <Slider
+                value={energy}
+                onValueChange={setEnergy}
+                max={100}
+                step={1}
+                className="cursor-pointer"
+              />
             </div>
-            <Slider
-              value={energy}
-              onValueChange={setEnergy}
-              max={100}
-              step={1}
-              className="cursor-pointer"
-            />
-          </div>
 
-          {/* Positivity Slider */}
-          <div className="space-y-3">
-            <div className="flex justify-between text-sm text-muted-foreground">
-              <span>Somber</span>
-              <span>Mood Tone</span>
-              <span>Uplifted</span>
+            {/* Positivity Slider */}
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Serious</span>
+                <span className="text-xs text-foreground/60 uppercase tracking-wider">Tone</span>
+                <span className="text-sm text-muted-foreground">Uplifting</span>
+              </div>
+              <Slider
+                value={positivity}
+                onValueChange={setPositivity}
+                max={100}
+                step={1}
+                className="cursor-pointer"
+              />
             </div>
-            <Slider
-              value={positivity}
-              onValueChange={setPositivity}
-              max={100}
-              step={1}
-              className="cursor-pointer"
-            />
           </div>
 
           {/* Continue Button */}
-          <Button
-            onClick={() => onContinue({ energy: energy[0], positivity: positivity[0] })}
-            className="w-full h-14 text-lg font-light bg-primary hover:bg-primary/90 transition-all duration-300 hover:scale-[1.02]"
-          >
-            Tune My Vibe
-          </Button>
+          <div className="flex justify-center">
+            <Button
+              onClick={() => onContinue({ energy: energy[0], positivity: positivity[0] })}
+              size="lg"
+              className="px-10 h-12 bg-primary/10 hover:bg-primary/20 border border-primary/30 hover:border-primary/50 text-foreground transition-all duration-300"
+            >
+              Continue
+            </Button>
+          </div>
         </div>
       </motion.div>
     </div>

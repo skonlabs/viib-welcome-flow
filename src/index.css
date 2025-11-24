@@ -8,72 +8,68 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    /* ViiB Design System - Cinematic & Emotional */
-    --background: 248 60% 12%;
-    --foreground: 240 20% 98%;
+    /* ViiB Premium Design System */
+    --background: 220 20% 8%;
+    --foreground: 210 15% 96%;
 
-    --card: 248 50% 15%;
-    --card-foreground: 240 20% 98%;
+    --card: 220 18% 12%;
+    --card-foreground: 210 15% 96%;
 
-    --popover: 248 50% 15%;
-    --popover-foreground: 240 20% 98%;
+    --popover: 220 18% 12%;
+    --popover-foreground: 210 15% 96%;
 
-    --primary: 263 70% 65%;
-    --primary-foreground: 240 20% 98%;
+    --primary: 200 80% 55%;
+    --primary-foreground: 220 20% 8%;
 
-    --secondary: 248 40% 25%;
-    --secondary-foreground: 240 20% 98%;
+    --secondary: 220 15% 18%;
+    --secondary-foreground: 210 15% 96%;
 
-    --muted: 248 35% 20%;
-    --muted-foreground: 240 10% 65%;
+    --muted: 220 15% 15%;
+    --muted-foreground: 210 8% 60%;
 
-    --accent: 45 90% 65%;
-    --accent-foreground: 248 60% 12%;
+    --accent: 340 75% 65%;
+    --accent-foreground: 220 20% 8%;
 
     --destructive: 0 70% 60%;
-    --destructive-foreground: 240 20% 98%;
+    --destructive-foreground: 210 15% 96%;
 
-    --border: 248 30% 25%;
-    --input: 248 40% 20%;
-    --ring: 263 70% 65%;
+    --border: 220 15% 20%;
+    --input: 220 15% 16%;
+    --ring: 200 80% 55%;
 
-    --radius: 1rem;
+    --radius: 0.75rem;
     
-    /* ViiB Custom Gradients */
-    --gradient-calm: linear-gradient(135deg, hsl(195, 50%, 70%) 0%, hsl(140, 50%, 65%) 100%);
-    --gradient-warm: linear-gradient(135deg, hsl(340, 65%, 75%) 0%, hsl(45, 80%, 70%) 100%);
-    --gradient-focus: linear-gradient(135deg, hsl(248, 60%, 12%) 0%, hsl(263, 70%, 35%) 100%);
-    --gradient-hero: linear-gradient(135deg, hsl(248, 60%, 12%) 0%, hsl(210, 60%, 30%) 100%);
+    /* Premium Gradients */
+    --gradient-ocean: linear-gradient(135deg, #0a1628 0%, #1a2f4a 50%, #2a4a6a 100%);
+    --gradient-sunset: linear-gradient(135deg, #2d1b3d 0%, #4a2545 50%, #8b3a62 100%);
+    --gradient-aurora: linear-gradient(135deg, #0f1419 0%, #1e3a5f 50%, #2a5f7f 100%);
+    --gradient-twilight: linear-gradient(135deg, #1a1625 0%, #2d2440 50%, #3d3050 100%);
     
-    /* ViiB Glow Effects */
-    --glow-primary: 0 0 40px hsl(263 70% 65% / 0.4);
-    --glow-accent: 0 0 30px hsl(45 90% 65% / 0.3);
-    
-    /* Transitions */
-    --transition-smooth: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-    --transition-bounce: all 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    /* Sophisticated Shadows */
+    --shadow-soft: 0 4px 24px rgba(0, 0, 0, 0.4);
+    --shadow-strong: 0 8px 48px rgba(0, 0, 0, 0.6);
+    --glow-primary: 0 0 48px rgba(56, 189, 248, 0.15);
+    --glow-accent: 0 0 32px rgba(244, 114, 182, 0.15);
 
-    --sidebar-background: 0 0% 98%;
-
-    --sidebar-foreground: 240 5.3% 26.1%;
-
-    --sidebar-primary: 240 5.9% 10%;
-
-    --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-background: 220 20% 8%;
+    --sidebar-foreground: 210 15% 96%;
+    --sidebar-primary: 200 80% 55%;
+    --sidebar-primary-foreground: 220 20% 8%;
+    --sidebar-accent: 220 15% 18%;
+    --sidebar-accent-foreground: 210 15% 96%;
+    --sidebar-border: 220 15% 20%;
+    --sidebar-ring: 200 80% 55%;
   }
 }
 
 @layer utilities {
   .glass-card {
-    @apply bg-card/40 backdrop-blur-xl border border-border/50;
+    @apply bg-card/60 backdrop-blur-2xl border border-border/30;
+    box-shadow: var(--shadow-soft);
+  }
+  
+  .glass-subtle {
+    @apply bg-card/30 backdrop-blur-xl border border-border/20;
   }
   
   .glow-primary {
@@ -84,20 +80,20 @@ All colors MUST be HSL.
     box-shadow: var(--glow-accent);
   }
   
-  .gradient-calm {
-    background: var(--gradient-calm);
+  .gradient-ocean {
+    background: var(--gradient-ocean);
   }
   
-  .gradient-warm {
-    background: var(--gradient-warm);
+  .gradient-sunset {
+    background: var(--gradient-sunset);
   }
   
-  .gradient-focus {
-    background: var(--gradient-focus);
+  .gradient-aurora {
+    background: var(--gradient-aurora);
   }
   
-  .gradient-hero {
-    background: var(--gradient-hero);
+  .gradient-twilight {
+    background: var(--gradient-twilight);
   }
   
   .animate-breathe {

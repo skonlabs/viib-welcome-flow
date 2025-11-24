@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
+import { ArrowRight } from "lucide-react";
 
 interface WelcomeScreenProps {
   onContinue: () => void;
@@ -7,92 +8,77 @@ interface WelcomeScreenProps {
 
 export const WelcomeScreen = ({ onContinue }: WelcomeScreenProps) => {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-6 relative overflow-hidden">
-      {/* Animated Background */}
-      <div className="absolute inset-0 gradient-hero animate-gradient" />
+    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Subtle Animated Background */}
+      <div className="absolute inset-0 gradient-ocean" />
       
-      {/* Floating Particles */}
-      <div className="absolute inset-0">
-        {[...Array(20)].map((_, i) => (
-          <motion.div
-            key={i}
-            className="absolute w-1 h-1 bg-primary/30 rounded-full"
-            initial={{
-              x: Math.random() * window.innerWidth,
-              y: Math.random() * window.innerHeight,
-            }}
-            animate={{
-              y: [null, Math.random() * window.innerHeight],
-              x: [null, Math.random() * window.innerWidth],
-            }}
-            transition={{
-              duration: Math.random() * 10 + 10,
-              repeat: Infinity,
-              ease: "linear",
-            }}
-          />
-        ))}
-      </div>
+      {/* Ambient Glow */}
+      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/5 rounded-full blur-3xl" />
+      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-accent/5 rounded-full blur-3xl" />
 
       {/* Content */}
       <motion.div
-        className="relative z-10 text-center space-y-8"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.8 }}
+        className="relative z-10 text-center max-w-2xl mx-auto space-y-12"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 1 }}
       >
         {/* Logo */}
         <motion.div
-          className="flex items-center justify-center"
-          animate={{ scale: [1, 1.05, 1] }}
-          transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2, duration: 0.8 }}
+          className="space-y-6"
         >
-          <div className="relative">
-            <h1 className="text-6xl font-light tracking-wider text-foreground glow-primary">
-              ViiB
-            </h1>
-            <div className="absolute inset-0 blur-xl bg-primary/30 animate-pulse-glow" />
-          </div>
+          <h1 className="text-7xl md:text-8xl font-extralight tracking-tight text-foreground">
+            ViiB
+          </h1>
+          <div className="h-px w-24 mx-auto bg-gradient-to-r from-transparent via-primary to-transparent" />
         </motion.div>
 
-        {/* Welcome Text */}
+        {/* Tagline */}
         <motion.div
-          className="space-y-4 max-w-md"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.3, duration: 0.8 }}
+          className="space-y-4"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5, duration: 0.8 }}
         >
-          <h2 className="text-3xl font-light text-foreground">
-            Welcome to ViiB
+          <h2 className="text-2xl md:text-3xl font-light text-foreground/90 tracking-wide">
+            Discover content that resonates
           </h2>
-          <p className="text-lg text-muted-foreground tracking-wide">
-            Your personal space for discovering what truly feels right.
+          <p className="text-base md:text-lg text-muted-foreground max-w-md mx-auto leading-relaxed">
+            A personalized streaming companion that understands your mood, taste, and the perfect moment to watch.
           </p>
         </motion.div>
 
-        {/* CTA Button */}
+        {/* CTA */}
         <motion.div
-          initial={{ opacity: 0, y: 10 }}
+          initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.6, duration: 0.8 }}
+          transition={{ delay: 0.8, duration: 0.8 }}
+          className="pt-4"
         >
           <Button
             onClick={onContinue}
             size="lg"
-            className="relative px-12 py-6 text-lg font-light tracking-wide bg-primary/90 hover:bg-primary border-2 border-primary/50 glow-primary transition-all duration-300 hover:scale-105"
+            className="group relative px-8 md:px-12 h-14 text-base font-normal bg-primary/10 hover:bg-primary/20 border border-primary/30 hover:border-primary/50 text-foreground transition-all duration-500 overflow-hidden"
           >
-            Begin Your Vibe
+            <span className="relative z-10 flex items-center gap-2">
+              Begin your journey
+              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+            </span>
+            <div className="absolute inset-0 bg-gradient-to-r from-primary/0 via-primary/10 to-primary/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
           </Button>
         </motion.div>
 
-        {/* Footer Microcopy */}
+        {/* Privacy Note */}
         <motion.p
-          className="text-sm text-muted-foreground/70 tracking-wider"
+          className="text-xs text-muted-foreground/60 tracking-wider uppercase"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 0.9, duration: 0.8 }}
+          transition={{ delay: 1.1, duration: 0.8 }}
         >
-          Private by design · No noise · Only what matters
+          Private · Personalized · Effortless
         </motion.p>
       </motion.div>
     </div>
