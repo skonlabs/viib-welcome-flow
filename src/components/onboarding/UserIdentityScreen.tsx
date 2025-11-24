@@ -455,8 +455,8 @@ export const UserIdentityScreen = ({ onContinue }: UserIdentityScreenProps) => {
                         transition={{ duration: 1, ease: "easeInOut" }}
                       />
                       
-                      {/* Content with 3D depth */}
-                      <div className="relative z-10 flex flex-col items-center gap-6 p-10 sm:p-12">
+                      {/* Content with 3D depth - Optimized spacing */}
+                      <div className="relative z-10 flex flex-col items-center gap-4 p-6 sm:p-8">
                         {/* Icon with pulsing glow */}
                         <motion.div
                           className="relative"
@@ -483,15 +483,15 @@ export const UserIdentityScreen = ({ onContinue }: UserIdentityScreenProps) => {
                             }}
                           />
                           <Icon 
-                            className="relative w-16 h-16 sm:w-20 sm:h-20 text-white drop-shadow-2xl" 
+                            className="relative w-12 h-12 sm:w-14 sm:h-14 text-white drop-shadow-2xl" 
                             strokeWidth={1.5}
                           />
                         </motion.div>
                         
                         {/* Label with letter animation */}
-                        <div className="flex flex-col items-center gap-2">
+                        <div className="flex flex-col items-center gap-1">
                           <motion.span 
-                            className="font-bold text-xl sm:text-2xl text-white drop-shadow-lg text-center tracking-wide"
+                            className="font-bold text-lg sm:text-xl text-white drop-shadow-lg text-center tracking-wide"
                             animate={{
                               scale: isSelected ? [1, 1.05, 1] : 1,
                             }}
@@ -505,7 +505,7 @@ export const UserIdentityScreen = ({ onContinue }: UserIdentityScreenProps) => {
                           
                           {/* Description text */}
                           <motion.p
-                            className="text-sm text-white/70 text-center font-medium"
+                            className="text-xs text-white/70 text-center font-medium"
                             initial={{ opacity: 0, y: 5 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: 0.2 }}
