@@ -11,7 +11,7 @@ export const VisualDNARevealScreen = ({ selections, onContinue }: VisualDNARevea
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-black">
       {/* Animated Background */}
-      <div className="absolute inset-0 gradient-electric opacity-30" />
+      <div className="absolute inset-0 gradient-electric opacity-20" />
       <motion.div
         className="absolute inset-0"
         animate={{

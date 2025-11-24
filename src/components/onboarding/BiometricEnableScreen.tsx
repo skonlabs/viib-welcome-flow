@@ -11,11 +11,16 @@ export const BiometricEnableScreen = ({ onEnable, onSkip }: BiometricEnableScree
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-black">
       {/* Background */}
-      <div className="absolute inset-0 gradient-ocean opacity-60" />
+      <div className="absolute inset-0 gradient-electric opacity-20" />
       <motion.div
-        className="absolute bottom-1/4 left-1/4 w-96 h-96 rounded-full blur-[100px] opacity-40"
-        style={{ background: "radial-gradient(circle, #a855f7 0%, transparent 70%)" }}
-        animate={{ scale: [1, 1.3, 1], opacity: [0.4, 0.6, 0.4] }}
+        className="absolute inset-0"
+        animate={{
+          background: [
+            "radial-gradient(ellipse at 20% 30%, #a855f720 0%, transparent 50%)",
+            "radial-gradient(ellipse at 80% 70%, #ec489920 0%, transparent 50%)",
+            "radial-gradient(ellipse at 20% 30%, #a855f720 0%, transparent 50%)",
+          ],
+        }}
         transition={{ duration: 10, repeat: Infinity }}
       />
 

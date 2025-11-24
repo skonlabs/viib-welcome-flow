@@ -30,7 +30,18 @@ export const VisualTasteScreen = ({ onContinue }: VisualTasteScreenProps) => {
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-black">
       {/* Background */}
-      <div className="absolute inset-0 gradient-aurora opacity-50" />
+      <div className="absolute inset-0 gradient-electric opacity-20" />
+      <motion.div
+        className="absolute inset-0"
+        animate={{
+          background: [
+            "radial-gradient(ellipse at 20% 30%, #a855f720 0%, transparent 50%)",
+            "radial-gradient(ellipse at 80% 70%, #ec489920 0%, transparent 50%)",
+            "radial-gradient(ellipse at 20% 30%, #a855f720 0%, transparent 50%)",
+          ],
+        }}
+        transition={{ duration: 10, repeat: Infinity }}
+      />
 
       {/* Content */}
       <motion.div

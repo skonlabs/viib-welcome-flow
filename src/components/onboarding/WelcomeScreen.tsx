@@ -28,45 +28,19 @@ export const WelcomeScreen = ({ onContinue }: WelcomeScreenProps) => {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-black">
-      {/* Animated Gradient Background */}
+      {/* Animated Background */}
+      <div className="absolute inset-0 gradient-electric opacity-20" />
       <motion.div
         className="absolute inset-0"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 2 }}
-      >
-        <div className="absolute inset-0 gradient-ocean" />
-        <motion.div
-          className="absolute top-0 right-0 w-[800px] h-[800px] rounded-full blur-[120px] opacity-30"
-          style={{
-            background: "radial-gradient(circle, #a855f7 0%, transparent 70%)",
-          }}
-          animate={{
-            scale: [1, 1.2, 1],
-            opacity: [0.3, 0.5, 0.3],
-          }}
-          transition={{
-            duration: 8,
-            repeat: Infinity,
-            ease: "easeInOut",
-          }}
-        />
-        <motion.div
-          className="absolute bottom-0 left-0 w-[600px] h-[600px] rounded-full blur-[100px] opacity-30"
-          style={{
-            background: "radial-gradient(circle, #06b6d4 0%, transparent 70%)",
-          }}
-          animate={{
-            scale: [1.2, 1, 1.2],
-            opacity: [0.3, 0.5, 0.3],
-          }}
-          transition={{
-            duration: 10,
-            repeat: Infinity,
-            ease: "easeInOut",
-          }}
-        />
-      </motion.div>
+        animate={{
+          background: [
+            "radial-gradient(ellipse at 20% 30%, #a855f720 0%, transparent 50%)",
+            "radial-gradient(ellipse at 80% 70%, #ec489920 0%, transparent 50%)",
+            "radial-gradient(ellipse at 20% 30%, #a855f720 0%, transparent 50%)",
+          ],
+        }}
+        transition={{ duration: 10, repeat: Infinity }}
+      />
 
       {/* Floating Particles */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
