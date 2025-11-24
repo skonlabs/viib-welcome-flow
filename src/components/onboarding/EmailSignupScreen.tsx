@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { motion } from "framer-motion";
 import { ArrowRight, Eye, EyeOff, Check, X } from "lucide-react";
+import { BackButton } from "./BackButton";
 
 interface EmailSignupScreenProps {
   onContinue: (email: string, password: string) => void;
@@ -38,6 +39,8 @@ export const EmailSignupScreen = ({ onContinue, onBack }: EmailSignupScreenProps
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-black">
+      <BackButton onClick={onBack} />
+      
       {/* Background */}
       <div className="absolute inset-0">
         <div className="absolute inset-0 gradient-ocean opacity-80" />
