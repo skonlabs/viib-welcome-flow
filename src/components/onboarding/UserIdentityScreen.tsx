@@ -7,12 +7,14 @@ import calmImage from "@/assets/vibe-calm.png";
 import energeticImage from "@/assets/vibe-energetic.png";
 import curiousImage from "@/assets/vibe-curious.png";
 import adventureImage from "@/assets/vibe-adventure.png";
+import { BackButton } from "./BackButton";
 
 interface UserIdentityScreenProps {
   onContinue: (data: { name: string; vibe: string }) => void;
+  onBack: () => void;
 }
 
-export const UserIdentityScreen = ({ onContinue }: UserIdentityScreenProps) => {
+export const UserIdentityScreen = ({ onContinue, onBack }: UserIdentityScreenProps) => {
   const [name, setName] = useState("");
   const [selectedVibe, setSelectedVibe] = useState("");
 
@@ -67,6 +69,8 @@ export const UserIdentityScreen = ({ onContinue }: UserIdentityScreenProps) => {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 sm:p-6 relative overflow-hidden bg-black">
+      <BackButton onClick={onBack} />
+      
       {/* Cinematic Multi-Layer Background */}
       <div className="absolute inset-0">
         {/* Base gradient */}

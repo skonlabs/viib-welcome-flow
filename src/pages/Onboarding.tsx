@@ -141,18 +141,41 @@ export default function Onboarding() {
     navigate("/");
   };
 
+  // Back navigation handlers
+  const handleBackToWelcome = () => setCurrentStep("welcome");
+  const handleBackToEntry = () => setCurrentStep("entry");
+  const handleBackToBiometric = () => {
+    // Go back to the authentication screen they came from
+    if (onboardingData.entryMethod === "phone") {
+      setCurrentStep("otp");
+    } else if (onboardingData.entryMethod === "email") {
+      setCurrentStep("email");
+    } else {
+      setCurrentStep("entry");
+    }
+  };
+  const handleBackToIdentity = () => setCurrentStep("identity");
+  const handleBackToPlatforms = () => setCurrentStep("platforms");
+  const handleBackToLanguages = () => setCurrentStep("languages");
+  const handleBackToMood = () => setCurrentStep("mood");
+  const handleBackToTaste = () => setCurrentStep("taste");
+  const handleBackToDNA = () => setCurrentStep("dna");
+  const handleBackToSocial = () => setCurrentStep("social");
+  const handleBackToRecommendations = () => setCurrentStep("recommendations");
+  const handleBackToFeedback = () => setCurrentStep("feedback");
+
   return (
     <div className="min-h-screen bg-black">
       {currentStep === "welcome" && (
         <WelcomeScreen onContinue={handleWelcomeContinue} />
       )}
       {currentStep === "entry" && (
-        <EntryMethodScreen onSelectMethod={handleEntryMethod} />
+        <EntryMethodScreen onSelectMethod={handleEntryMethod} onBack={handleBackToWelcome} />
       )}
       {currentStep === "phone" && (
         <PhoneEntryScreen
           onContinue={handlePhoneEntry}
-          onBack={() => setCurrentStep("entry")}
+          onBack={handleBackToEntry}
         />
       )}
       {currentStep === "otp" && (
@@ -166,53 +189,57 @@ export default function Onboarding() {
       {currentStep === "email" && (
         <EmailSignupScreen
           onContinue={handleEmailSignup}
-          onBack={() => setCurrentStep("entry")}
+          onBack={handleBackToEntry}
         />
       )}
       {currentStep === "biometric" && (
         <BiometricEnableScreen
           onEnable={() => handleBiometric(true)}
           onSkip={() => handleBiometric(false)}
+          onBack={handleBackToBiometric}
         />
       )}
       {currentStep === "identity" && (
-        <UserIdentityScreen onContinue={handleIdentity} />
+        <UserIdentityScreen onContinue={handleIdentity} onBack={handleBackToBiometric} />
       )}
       {currentStep === "platforms" && (
-        <StreamingPlatformsScreen onContinue={handlePlatforms} />
+        <StreamingPlatformsScreen onContinue={handlePlatforms} onBack={handleBackToIdentity} />
       )}
       {currentStep === "languages" && (
-        <LanguageSelectionScreen onContinue={handleLanguages} />
+        <LanguageSelectionScreen onContinue={handleLanguages} onBack={handleBackToPlatforms} />
       )}
       {currentStep === "mood" && (
-        <MoodCalibrationScreen onContinue={handleMood} />
+        <MoodCalibrationScreen onContinue={handleMood} onBack={handleBackToLanguages} />
       )}
       {currentStep === "taste" && (
-        <VisualTasteScreen onContinue={handleTaste} />
+        <VisualTasteScreen onContinue={handleTaste} onBack={handleBackToMood} />
       )}
       {currentStep === "dna" && (
         <VisualDNARevealScreen
           selections={onboardingData.visualTaste}
           onContinue={handleDNAContinue}
+          onBack={handleBackToTaste}
         />
       )}
       {currentStep === "social" && (
         <SocialConnectionScreen
           onInvite={handleSocial}
           onSkip={handleSocial}
+          onBack={handleBackToDNA}
         />
       )}
       {currentStep === "recommendations" && (
         <RecommendationRevealScreen
           userName={onboardingData.name}
           onContinue={handleRecommendations}
+          onBack={handleBackToSocial}
         />
       )}
       {currentStep === "feedback" && (
-        <FeedbackCaptureScreen onContinue={handleFeedback} />
+        <FeedbackCaptureScreen onContinue={handleFeedback} onBack={handleBackToRecommendations} />
       )}
       {currentStep === "companion" && (
-        <CompanionIntroScreen onContinue={handleCompanion} />
+        <CompanionIntroScreen onContinue={handleCompanion} onBack={handleBackToFeedback} />
       )}
       {currentStep === "completion" && (
         <CompletionScreen

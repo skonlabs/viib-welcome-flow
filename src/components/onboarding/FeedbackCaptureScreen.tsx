@@ -2,12 +2,14 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { ThumbsUp, ThumbsDown, Meh, ArrowRight } from "lucide-react";
+import { BackButton } from "./BackButton";
 
 interface FeedbackCaptureScreenProps {
   onContinue: (feedback: string) => void;
+  onBack: () => void;
 }
 
-export const FeedbackCaptureScreen = ({ onContinue }: FeedbackCaptureScreenProps) => {
+export const FeedbackCaptureScreen = ({ onContinue, onBack }: FeedbackCaptureScreenProps) => {
   const [selectedFeedback, setSelectedFeedback] = useState<string>("");
 
   const feedbackOptions = [
@@ -19,6 +21,8 @@ export const FeedbackCaptureScreen = ({ onContinue }: FeedbackCaptureScreenProps
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-black">
+      <BackButton onClick={onBack} />
+      
       {/* Background */}
       <div className="absolute inset-0">
         <div className="absolute inset-0 gradient-ocean opacity-80" />

@@ -2,12 +2,14 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import { Check, ArrowRight } from "lucide-react";
+import { BackButton } from "./BackButton";
 
 interface VisualTasteScreenProps {
   onContinue: (selections: string[]) => void;
+  onBack: () => void;
 }
 
-export const VisualTasteScreen = ({ onContinue }: VisualTasteScreenProps) => {
+export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps) => {
   const [selectedPosters, setSelectedPosters] = useState<string[]>([]);
 
   const posters = [
@@ -29,6 +31,8 @@ export const VisualTasteScreen = ({ onContinue }: VisualTasteScreenProps) => {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-black">
+      <BackButton onClick={onBack} />
+      
       {/* Background */}
       <div className="absolute inset-0">
         <div className="absolute inset-0 gradient-ocean opacity-80" />

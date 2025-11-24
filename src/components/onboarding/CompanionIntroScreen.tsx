@@ -1,14 +1,18 @@
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { ArrowRight, Sparkles, Brain, Zap } from "lucide-react";
+import { BackButton } from "./BackButton";
 
 interface CompanionIntroScreenProps {
   onContinue: () => void;
+  onBack: () => void;
 }
 
-export const CompanionIntroScreen = ({ onContinue }: CompanionIntroScreenProps) => {
+export const CompanionIntroScreen = ({ onContinue, onBack }: CompanionIntroScreenProps) => {
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-black">
+      <BackButton onClick={onBack} />
+      
       {/* Background */}
       <div className="absolute inset-0">
         <div className="absolute inset-0 gradient-ocean opacity-80" />

@@ -4,9 +4,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Check, ArrowRight, GripVertical } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { BackButton } from "./BackButton";
 
 interface LanguageSelectionScreenProps {
   onContinue: (languages: string[]) => void;
+  onBack: () => void;
 }
 
 // Map language codes to flag emojis
@@ -28,7 +30,7 @@ const languageFlags: Record<string, string> = {
   "sv": "🇸🇪",
 };
 
-export const LanguageSelectionScreen = ({ onContinue }: LanguageSelectionScreenProps) => {
+export const LanguageSelectionScreen = ({ onContinue, onBack }: LanguageSelectionScreenProps) => {
   const [selectedLanguages, setSelectedLanguages] = useState<string[]>([]);
   const [languages, setLanguages] = useState<Array<{ code: string; name: string; flag: string }>>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -76,6 +78,8 @@ export const LanguageSelectionScreen = ({ onContinue }: LanguageSelectionScreenP
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-black">
+      <BackButton onClick={onBack} />
+      
       {/* Background */}
       <div className="absolute inset-0">
         <div className="absolute inset-0 gradient-ocean opacity-80" />

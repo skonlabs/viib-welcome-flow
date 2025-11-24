@@ -3,12 +3,14 @@ import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { Slider } from "@/components/ui/slider";
 import { ArrowRight } from "lucide-react";
+import { BackButton } from "./BackButton";
 
 interface MoodCalibrationScreenProps {
   onContinue: (mood: { energy: number; positivity: number }) => void;
+  onBack: () => void;
 }
 
-export const MoodCalibrationScreen = ({ onContinue }: MoodCalibrationScreenProps) => {
+export const MoodCalibrationScreen = ({ onContinue, onBack }: MoodCalibrationScreenProps) => {
   const [energy, setEnergy] = useState([50]);
   const [positivity, setPositivity] = useState([50]);
 
@@ -27,6 +29,8 @@ export const MoodCalibrationScreen = ({ onContinue }: MoodCalibrationScreenProps
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-black">
+      <BackButton onClick={onBack} />
+      
       {/* Background */}
       <div className="absolute inset-0">
         <div className="absolute inset-0 gradient-ocean opacity-80" />
