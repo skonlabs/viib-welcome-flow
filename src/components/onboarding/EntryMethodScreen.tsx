@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
-import { Mail, Phone, Apple, ArrowRight } from "lucide-react";
+import { Mail, Phone, Apple, ArrowRight, Lock } from "lucide-react";
 
 interface EntryMethodScreenProps {
   onSelectMethod: (method: "email" | "phone" | "apple") => void;
@@ -97,14 +97,17 @@ export const EntryMethodScreen = ({ onSelectMethod }: EntryMethodScreenProps) =>
           </motion.div>
 
           {/* Privacy Note */}
-          <motion.p
-            className="text-center text-sm font-medium text-foreground/80 tracking-wide"
+          <motion.div
+            className="flex items-center justify-center gap-2 pt-1"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.7 }}
           >
-            Your data stays yours. Always
-          </motion.p>
+            <Lock className="w-3 h-3 text-muted-foreground/60" />
+            <p className="text-xs text-muted-foreground/60">
+              Your data stays yours. Always
+            </p>
+          </motion.div>
         </div>
       </motion.div>
     </div>
