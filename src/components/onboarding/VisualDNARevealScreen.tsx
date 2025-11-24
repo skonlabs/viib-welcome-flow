@@ -1,15 +1,19 @@
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { ArrowRight, Sparkles } from "lucide-react";
+import { BackButton } from "./BackButton";
 
 interface VisualDNARevealScreenProps {
   selections: string[];
   onContinue: () => void;
+  onBack: () => void;
 }
 
-export const VisualDNARevealScreen = ({ selections, onContinue }: VisualDNARevealScreenProps) => {
+export const VisualDNARevealScreen = ({ selections, onContinue, onBack }: VisualDNARevealScreenProps) => {
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-black">
+      <BackButton onClick={onBack} />
+      
       {/* Animated Background */}
       <div className="absolute inset-0">
         <div className="absolute inset-0 gradient-ocean opacity-80" />

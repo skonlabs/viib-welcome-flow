@@ -1,13 +1,15 @@
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { ArrowRight, Sparkles, Info } from "lucide-react";
+import { BackButton } from "./BackButton";
 
 interface RecommendationRevealScreenProps {
   userName: string;
   onContinue: () => void;
+  onBack: () => void;
 }
 
-export const RecommendationRevealScreen = ({ userName, onContinue }: RecommendationRevealScreenProps) => {
+export const RecommendationRevealScreen = ({ userName, onContinue, onBack }: RecommendationRevealScreenProps) => {
   const recommendations = [
     {
       title: "Cosmic Odyssey",
@@ -28,6 +30,8 @@ export const RecommendationRevealScreen = ({ userName, onContinue }: Recommendat
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-black">
+      <BackButton onClick={onBack} />
+      
       {/* Background */}
       <div className="absolute inset-0">
         <div className="absolute inset-0 gradient-ocean opacity-80" />

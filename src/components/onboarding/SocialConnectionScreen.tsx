@@ -1,15 +1,19 @@
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { Users, ArrowRight, UserPlus } from "lucide-react";
+import { BackButton } from "./BackButton";
 
 interface SocialConnectionScreenProps {
   onInvite: () => void;
   onSkip: () => void;
+  onBack: () => void;
 }
 
-export const SocialConnectionScreen = ({ onInvite, onSkip }: SocialConnectionScreenProps) => {
+export const SocialConnectionScreen = ({ onInvite, onSkip, onBack }: SocialConnectionScreenProps) => {
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-black">
+      <BackButton onClick={onBack} />
+      
       {/* Background */}
       <div className="absolute inset-0">
         <div className="absolute inset-0 gradient-ocean opacity-80" />

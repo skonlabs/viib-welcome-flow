@@ -2,12 +2,14 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import { Check, ArrowRight } from "lucide-react";
+import { BackButton } from "./BackButton";
 
 interface StreamingPlatformsScreenProps {
   onContinue: (platforms: string[]) => void;
+  onBack: () => void;
 }
 
-export const StreamingPlatformsScreen = ({ onContinue }: StreamingPlatformsScreenProps) => {
+export const StreamingPlatformsScreen = ({ onContinue, onBack }: StreamingPlatformsScreenProps) => {
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
 
   const platforms = [
@@ -29,6 +31,8 @@ export const StreamingPlatformsScreen = ({ onContinue }: StreamingPlatformsScree
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 sm:p-6 relative overflow-hidden bg-black">
+      <BackButton onClick={onBack} />
+      
       {/* Cinematic Multi-Layer Background */}
       <div className="absolute inset-0">
         {/* Base gradient */}
