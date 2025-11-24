@@ -16,6 +16,7 @@ export const UserIdentityScreen = ({ onContinue }: UserIdentityScreenProps) => {
     { 
       id: "calm", 
       label: "Calm & Reflective", 
+      description: "For peaceful, thoughtful moments",
       icon: Waves,
       gradient: "from-blue-400/20 via-cyan-500/30 to-teal-400/20",
       glowColor: "rgba(34, 211, 238, 0.4)",
@@ -24,6 +25,7 @@ export const UserIdentityScreen = ({ onContinue }: UserIdentityScreenProps) => {
     { 
       id: "energetic", 
       label: "Bold & Exciting", 
+      description: "For high-energy, thrilling experiences",
       icon: Zap,
       gradient: "from-orange-400/20 via-red-500/30 to-pink-400/20",
       glowColor: "rgba(249, 115, 22, 0.4)",
@@ -32,6 +34,7 @@ export const UserIdentityScreen = ({ onContinue }: UserIdentityScreenProps) => {
     { 
       id: "curious", 
       label: "Curious & Wonder", 
+      description: "For exploring the mysterious",
       icon: Sparkles,
       gradient: "from-purple-400/20 via-pink-500/30 to-fuchsia-400/20",
       glowColor: "rgba(168, 85, 247, 0.4)",
@@ -40,6 +43,7 @@ export const UserIdentityScreen = ({ onContinue }: UserIdentityScreenProps) => {
     { 
       id: "adventure", 
       label: "Adventure & Discovery", 
+      description: "For journeys into the unknown",
       icon: Compass,
       gradient: "from-green-400/20 via-emerald-500/30 to-lime-400/20",
       glowColor: "rgba(16, 185, 129, 0.4)",
@@ -460,18 +464,30 @@ export const UserIdentityScreen = ({ onContinue }: UserIdentityScreenProps) => {
                         </motion.div>
                         
                         {/* Label with letter animation */}
-                        <motion.span 
-                          className="font-bold text-xl sm:text-2xl text-white drop-shadow-lg text-center tracking-wide"
-                          animate={{
-                            scale: isSelected ? [1, 1.05, 1] : 1,
-                          }}
-                          transition={{
-                            duration: 1.5,
-                            repeat: isSelected ? Infinity : 0,
-                          }}
-                        >
-                          {vibe.label}
-                        </motion.span>
+                        <div className="flex flex-col items-center gap-2">
+                          <motion.span 
+                            className="font-bold text-xl sm:text-2xl text-white drop-shadow-lg text-center tracking-wide"
+                            animate={{
+                              scale: isSelected ? [1, 1.05, 1] : 1,
+                            }}
+                            transition={{
+                              duration: 1.5,
+                              repeat: isSelected ? Infinity : 0,
+                            }}
+                          >
+                            {vibe.label}
+                          </motion.span>
+                          
+                          {/* Description text */}
+                          <motion.p
+                            className="text-sm text-white/70 text-center font-medium"
+                            initial={{ opacity: 0, y: 5 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.2 }}
+                          >
+                            {vibe.description}
+                          </motion.p>
+                        </div>
 
                         {/* Selection checkmark with bounce */}
                         <AnimatePresence>
