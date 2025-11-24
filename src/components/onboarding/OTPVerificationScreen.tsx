@@ -20,6 +20,16 @@ export const OTPVerificationScreen = ({
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
+  const formatPhoneNumber = (phoneNumber: string) => {
+    const cleaned = phoneNumber.replace(/\D/g, "");
+    if (cleaned.length === 11 && cleaned.startsWith("1")) {
+      return `+1 (${cleaned.slice(1, 4)}) ${cleaned.slice(4, 7)}-${cleaned.slice(7)}`;
+    } else if (cleaned.length === 10) {
+      return `(${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6)}`;
+    }
+    return phoneNumber;
+  };
+
   useEffect(() => {
     inputRefs.current[0]?.focus();
   }, []);
@@ -103,7 +113,7 @@ export const OTPVerificationScreen = ({
               Check your phone
             </h2>
             <p className="text-muted-foreground">
-              We sent a code to <span className="text-foreground font-medium">{phone}</span>
+              We sent a code to <span className="text-foreground font-medium">{formatPhoneNumber(phone)}</span>
             </p>
           </motion.div>
 
