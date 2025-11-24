@@ -114,7 +114,7 @@ export const OTPVerificationScreen = ({
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
           >
-            <div className="flex gap-3 justify-center" onPaste={handlePaste}>
+            <div className="flex gap-2 sm:gap-3 justify-center" onPaste={handlePaste}>
               {otp.map((digit, index) => (
                 <motion.div
                   key={index}
@@ -130,7 +130,7 @@ export const OTPVerificationScreen = ({
                     value={digit}
                     onChange={(e) => handleChange(index, e.target.value)}
                     onKeyDown={(e) => handleKeyDown(index, e)}
-                    className="w-14 h-16 text-center text-2xl font-bold bg-white/5 border-white/10 focus:border-primary focus:bg-white/10 focus:ring-2 focus:ring-primary/50 transition-all"
+                    className="w-12 h-14 sm:w-14 sm:h-16 text-center text-xl sm:text-2xl font-bold bg-white/5 border-white/10 focus:border-primary focus:bg-white/10 focus:ring-2 focus:ring-primary/50 transition-all"
                   />
                 </motion.div>
               ))}
