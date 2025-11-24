@@ -7,13 +7,22 @@ interface EntryMethodScreenProps {
 }
 
 export const EntryMethodScreen = ({ onSelectMethod }: EntryMethodScreenProps) => {
-  const method = { 
-    id: "phone" as const, 
-    icon: Phone, 
-    label: "Continue with Phone",
-    gradient: "from-primary to-accent",
-    iconColor: "text-white"
-  };
+  const methods = [
+    { 
+      id: "phone" as const, 
+      icon: Phone, 
+      label: "Continue with Phone",
+      description: "We'll send you a verification code",
+      gradient: "from-primary to-accent"
+    },
+    { 
+      id: "email" as const, 
+      icon: Mail, 
+      label: "Continue with Email",
+      description: "Sign in with your email address",
+      gradient: "from-secondary to-primary"
+    }
+  ];
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-black">
@@ -58,43 +67,47 @@ export const EntryMethodScreen = ({ onSelectMethod }: EntryMethodScreenProps) =>
             </p>
           </motion.div>
 
-          {/* Phone Entry Button */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4, type: "spring", stiffness: 100 }}
-            className="pt-4"
-          >
-            <motion.button
-              onClick={() => onSelectMethod(method.id)}
-              className={`w-full group relative overflow-hidden rounded-3xl p-8 bg-gradient-to-r ${method.gradient} shadow-2xl shadow-primary/20 transition-all duration-300`}
-              whileHover={{ scale: 1.03, y: -8 }}
-              whileTap={{ scale: 0.97 }}
-            >
-              <div className="relative z-10 flex flex-col items-center gap-6">
-                <motion.div 
-                  className="w-20 h-20 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center"
-                  whileHover={{ rotate: [0, -10, 10, -10, 0] }}
-                  transition={{ duration: 0.5 }}
-                >
-                  <method.icon className={`w-10 h-10 ${method.iconColor}`} strokeWidth={2.5} />
-                </motion.div>
-                <div className="text-center space-y-2">
-                  <span className="text-white font-semibold text-2xl block">
-                    {method.label}
-                  </span>
-                  <span className="text-white/70 text-sm">
-                    We'll send you a verification code
-                  </span>
-                </div>
-                <ArrowRight className="w-6 h-6 text-white/70 group-hover:translate-x-2 group-hover:text-white transition-all duration-300" />
-              </div>
+          {/* Sign-in Methods */}
+          <div className="space-y-4">
+            {methods.map((method, index) => (
               <motion.div
-                className="absolute inset-0 bg-gradient-to-r from-accent to-secondary opacity-0 group-hover:opacity-100"
-                transition={{ duration: 0.3 }}
-              />
-            </motion.button>
-          </motion.div>
+                key={method.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 + index * 0.1, type: "spring", stiffness: 100 }}
+              >
+                <motion.button
+                  onClick={() => onSelectMethod(method.id)}
+                  className={`w-full group relative overflow-hidden rounded-3xl p-6 bg-gradient-to-r ${method.gradient} shadow-2xl shadow-primary/20 transition-all duration-300`}
+                  whileHover={{ scale: 1.02, y: -4 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  <div className="relative z-10 flex items-center gap-6">
+                    <motion.div 
+                      className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center flex-shrink-0"
+                      whileHover={{ rotate: [0, -10, 10, -10, 0] }}
+                      transition={{ duration: 0.5 }}
+                    >
+                      <method.icon className="w-8 h-8 text-white" strokeWidth={2.5} />
+                    </motion.div>
+                    <div className="flex-1 text-left space-y-1">
+                      <span className="text-white font-semibold text-xl block">
+                        {method.label}
+                      </span>
+                      <span className="text-white/70 text-sm">
+                        {method.description}
+                      </span>
+                    </div>
+                    <ArrowRight className="w-6 h-6 text-white/70 group-hover:translate-x-2 group-hover:text-white transition-all duration-300 flex-shrink-0" />
+                  </div>
+                  <motion.div
+                    className="absolute inset-0 bg-gradient-to-r from-accent to-secondary opacity-0 group-hover:opacity-100"
+                    transition={{ duration: 0.3 }}
+                  />
+                </motion.button>
+              </motion.div>
+            ))}
+          </div>
 
           {/* Privacy Note */}
           <motion.div
