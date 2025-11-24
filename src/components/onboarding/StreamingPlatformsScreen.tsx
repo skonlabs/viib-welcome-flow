@@ -286,7 +286,7 @@ export const StreamingPlatformsScreen = ({ onContinue }: StreamingPlatformsScree
                           exit={{ scale: 0, rotate: 180 }}
                           transition={{ type: "spring", stiffness: 300, damping: 15 }}
                         >
-                          <div className="w-4 h-4 rounded-full bg-gradient-to-br from-primary to-accent shadow-lg" />
+                          <Check className="w-5 h-5 text-primary" strokeWidth={3} />
                         </motion.div>
                       )}
                     </AnimatePresence>
