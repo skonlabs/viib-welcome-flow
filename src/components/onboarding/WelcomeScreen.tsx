@@ -76,7 +76,7 @@ export const WelcomeScreen = ({
         ease: "easeOut"
       }}>
           {/* Logo with Glow Effect */}
-          <motion.div className="relative inline-block" initial={{
+          <motion.div className="relative inline-block px-8" initial={{
           scale: 0.8,
           opacity: 0
         }} animate={{
