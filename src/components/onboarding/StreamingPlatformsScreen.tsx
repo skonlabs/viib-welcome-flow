@@ -28,21 +28,80 @@ export const StreamingPlatformsScreen = ({ onContinue }: StreamingPlatformsScree
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-black">
-      {/* Background */}
+    <div className="min-h-screen flex items-center justify-center p-4 sm:p-6 relative overflow-hidden bg-black">
+      {/* Cinematic Multi-Layer Background */}
       <div className="absolute inset-0">
-        <div className="absolute inset-0 gradient-ocean opacity-80" />
-        <motion.div
-          className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full blur-[100px]"
-          style={{ background: "radial-gradient(circle, #a855f7 0%, transparent 70%)" }}
-          animate={{
-            x: [0, 100, 0],
-            y: [0, -50, 0],
+        {/* Base gradient */}
+        <div className="absolute inset-0 bg-gradient-to-br from-black via-purple-950/20 to-black" />
+        
+        {/* Animated mesh gradients */}
+        <div
+          className="absolute top-0 left-0 w-full h-full opacity-40"
+          style={{ 
+            background: "radial-gradient(ellipse 80% 50% at 50% -20%, rgba(168, 85, 247, 0.15), transparent 50%), radial-gradient(ellipse 60% 50% at 80% 50%, rgba(59, 130, 246, 0.1), transparent 50%)"
           }}
-          transition={{
-            duration: 20,
-            repeat: Infinity,
-            ease: "easeInOut",
+        />
+
+        {/* Floating orbs with parallax effect */}
+        {[...Array(5)].map((_, i) => (
+          <motion.div
+            key={`orb-${i}`}
+            className="absolute rounded-full blur-[80px] opacity-20"
+            style={{ 
+              width: `${200 + i * 80}px`,
+              height: `${200 + i * 80}px`,
+              background: `radial-gradient(circle, ${
+                i % 3 === 0 ? '#a855f7' : i % 3 === 1 ? '#3b82f6' : '#ec4899'
+              } 0%, transparent 70%)`,
+              left: `${10 + i * 15}%`,
+              top: `${20 + i * 10}%`,
+            }}
+            animate={{
+              x: [0, 100 + i * 30, -50 + i * 20, 0],
+              y: [0, -80 + i * 15, 60 - i * 10, 0],
+              scale: [1, 1.3, 0.8, 1],
+            }}
+            transition={{
+              duration: 20 + i * 5,
+              repeat: Infinity,
+              ease: "easeInOut",
+              delay: i * 2,
+            }}
+          />
+        ))}
+
+        {/* Floating particles */}
+        {[...Array(20)].map((_, i) => (
+          <motion.div
+            key={`particle-${i}`}
+            className="absolute w-1 h-1 bg-white rounded-full"
+            style={{
+              left: `${Math.random() * 100}%`,
+              top: `${Math.random() * 100}%`,
+            }}
+            animate={{
+              y: [-20, -100],
+              opacity: [0, 1, 0],
+              scale: [0, 1.5, 0],
+            }}
+            transition={{
+              duration: 3 + Math.random() * 4,
+              repeat: Infinity,
+              delay: Math.random() * 5,
+              ease: "easeOut"
+            }}
+          />
+        ))}
+
+        {/* Grid overlay */}
+        <div 
+          className="absolute inset-0 opacity-[0.03]"
+          style={{
+            backgroundImage: `
+              linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px),
+              linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)
+            `,
+            backgroundSize: '50px 50px'
           }}
         />
       </div>
@@ -50,28 +109,51 @@ export const StreamingPlatformsScreen = ({ onContinue }: StreamingPlatformsScree
       {/* Content */}
       <motion.div
         className="relative z-10 w-full max-w-4xl"
-        initial={{ opacity: 0, y: 30 }}
+        initial={{ opacity: 0, y: 40 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.8 }}
+        transition={{ duration: 1, ease: [0.23, 1, 0.32, 1] }}
       >
-        <div className="space-y-12">
+        <div className="space-y-16">
           {/* Header */}
           <motion.div
-            className="text-center space-y-4"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.2 }}
+            className="text-center space-y-5"
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2, duration: 0.8, ease: [0.23, 1, 0.32, 1] }}
           >
-            <h2 className="text-4xl md:text-5xl font-bold">
-              <span className="text-gradient">Your streaming world</span>
-            </h2>
-            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
+            <motion.div
+              initial={{ scale: 0.8, rotateX: -20 }}
+              animate={{ scale: 1, rotateX: 0 }}
+              transition={{ delay: 0.3, type: "spring", stiffness: 80, damping: 20 }}
+            >
+              <h2 className="text-4xl sm:text-5xl md:text-6xl font-bold relative inline-block">
+                <span 
+                  className="text-gradient relative z-10"
+                  style={{
+                    backgroundSize: '200% 200%'
+                  }}
+                >
+                  Your streaming world
+                </span>
+              </h2>
+            </motion.div>
+            <motion.p 
+              className="text-muted-foreground text-lg sm:text-xl max-w-2xl mx-auto"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.5, duration: 0.6 }}
+            >
               Select the platforms you have access to. We'll only recommend content you can actually watch.
-            </p>
+            </motion.p>
           </motion.div>
 
           {/* Platform Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <motion.div
+            className="grid grid-cols-2 md:grid-cols-3 gap-5 sm:gap-6"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.6 }}
+          >
             {platforms.map((platform, index) => {
               const isSelected = selectedPlatforms.includes(platform.id);
               
@@ -79,86 +161,181 @@ export const StreamingPlatformsScreen = ({ onContinue }: StreamingPlatformsScree
                 <motion.button
                   key={platform.id}
                   onClick={() => togglePlatform(platform.id)}
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
+                  initial={{ opacity: 0, scale: 0.5, y: 50, rotateX: -30 }}
+                  animate={{ opacity: 1, scale: 1, y: 0, rotateX: 0 }}
                   transition={{ 
-                    delay: index * 0.05,
+                    delay: 0.7 + (0.1 * index),
                     type: "spring",
-                    stiffness: 200
+                    stiffness: 120,
+                    damping: 12
                   }}
-                  whileHover={{ scale: 1.05, y: -8 }}
-                  whileTap={{ scale: 0.95 }}
-                  className="relative group"
+                  whileHover={{ 
+                    scale: 1.08, 
+                    y: -12,
+                    rotateY: 5,
+                    transition: { type: "spring", stiffness: 300, damping: 20 }
+                  }}
+                  whileTap={{ scale: 0.92 }}
+                  className="relative overflow-hidden rounded-3xl group perspective-1000"
+                  style={{ transformStyle: 'preserve-3d' }}
                 >
-                  <div 
-                    className={`relative aspect-video rounded-2xl overflow-hidden transition-all duration-300 ${
-                      isSelected 
-                        ? "ring-2 ring-white shadow-2xl" 
-                        : "ring-1 ring-white/10 hover:ring-white/30"
-                    }`}
-                    style={{
-                      background: isSelected 
-                        ? `linear-gradient(135deg, ${platform.color}40, ${platform.color}20)`
-                        : "rgba(255, 255, 255, 0.03)"
+                  {/* Multi-layer glow effect */}
+                  <div
+                    className="absolute -inset-2 rounded-3xl blur-2xl transition-opacity duration-500"
+                    style={{ 
+                      background: `radial-gradient(circle at center, ${platform.color}66, transparent 60%)`,
+                      opacity: isSelected ? 0.7 : 0
                     }}
-                  >
-                    <div className="absolute inset-0 backdrop-blur-sm" />
+                  />
+
+                  {/* Outer glow ring */}
+                  <div
+                    className="absolute -inset-1 rounded-3xl transition-opacity duration-500"
+                    style={{ 
+                      background: `conic-gradient(from 0deg, ${platform.color}66, transparent, ${platform.color}66)`,
+                      opacity: isSelected ? 0.6 : 0
+                    }}
+                  />
+
+                  {/* Card container */}
+                  <div className={`relative aspect-video overflow-hidden rounded-3xl border transition-all duration-500 ${
+                    isSelected
+                      ? "border-white/50 shadow-2xl"
+                      : "border-white/10 shadow-lg hover:border-white/30"
+                  }`}>
+                    {/* Background gradient */}
+                    <div 
+                      className="absolute inset-0"
+                      style={{
+                        background: isSelected 
+                          ? `linear-gradient(135deg, ${platform.color}40, ${platform.color}20)`
+                          : "rgba(255, 255, 255, 0.03)"
+                      }}
+                    />
                     
+                    {/* Enhanced glass effect */}
+                    <div className="absolute inset-0 bg-black/30 backdrop-blur-2xl" />
+                    <div className="absolute inset-0 bg-white/[0.02]" />
+
+                    {/* Selection wave effect */}
                     <AnimatePresence>
                       {isSelected && (
-                        <motion.div
-                          initial={{ scale: 0 }}
-                          animate={{ scale: 1 }}
-                          exit={{ scale: 0 }}
-                          className="absolute top-3 right-3 z-10 w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-lg"
-                        >
-                          <Check className="w-5 h-5 text-black" />
-                        </motion.div>
+                        <>
+                          <motion.div
+                            className="absolute inset-0 bg-gradient-to-br from-white/30 via-white/10 to-transparent"
+                            initial={{ scale: 0, opacity: 1 }}
+                            animate={{ scale: 2, opacity: 0 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 1, ease: "easeOut" }}
+                          />
+                          <motion.div
+                            className="absolute inset-0 bg-gradient-to-tl from-white/20 via-white/5 to-transparent"
+                            initial={{ scale: 0, opacity: 0.8 }}
+                            animate={{ scale: 2, opacity: 0 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 1.2, ease: "easeOut", delay: 0.1 }}
+                          />
+                        </>
                       )}
                     </AnimatePresence>
+
+                    {/* Orbiting particles on selection */}
+                    {isSelected && (
+                      <>
+                        {[...Array(8)].map((_, i) => (
+                          <motion.div
+                            key={i}
+                            className="absolute w-1.5 h-1.5 rounded-full"
+                            style={{ 
+                              backgroundColor: platform.color,
+                              left: '50%',
+                              top: '50%',
+                              boxShadow: `0 0 10px ${platform.color}`
+                            }}
+                            animate={{
+                              x: [0, Math.cos(i * 45 * Math.PI / 180) * 60],
+                              y: [0, Math.sin(i * 45 * Math.PI / 180) * 60],
+                              scale: [0, 1.5, 0],
+                              opacity: [0, 1, 0],
+                            }}
+                            transition={{
+                              duration: 2,
+                              repeat: Infinity,
+                              delay: i * 0.1,
+                              ease: "easeOut"
+                            }}
+                          />
+                        ))}
+                      </>
+                    )}
                     
-                    <div className="relative h-full flex items-center justify-center p-4">
-                      <span className="text-white font-bold text-lg text-center">
+                    {/* Content */}
+                    <div className="relative z-10 h-full flex items-center justify-center p-4">
+                      <span className="text-white font-bold text-lg sm:text-xl text-center drop-shadow-lg">
                         {platform.name}
                       </span>
                     </div>
 
-                    {isSelected && (
-                      <motion.div
-                        className="absolute inset-0"
-                        style={{ backgroundColor: platform.color }}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 0.15 }}
-                      />
-                    )}
+                    {/* Selection checkmark */}
+                    <AnimatePresence>
+                      {isSelected && (
+                        <motion.div
+                          className="absolute top-3 right-3 w-10 h-10 rounded-full bg-white/90 backdrop-blur-xl flex items-center justify-center shadow-2xl"
+                          initial={{ scale: 0, rotate: -180 }}
+                          animate={{ scale: 1, rotate: 0 }}
+                          exit={{ scale: 0, rotate: 180 }}
+                          transition={{ type: "spring", stiffness: 300, damping: 15 }}
+                        >
+                          <div className="w-4 h-4 rounded-full bg-gradient-to-br from-primary to-accent shadow-lg" />
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </div>
                 </motion.button>
               );
             })}
-          </div>
+          </motion.div>
 
-          {/* Actions */}
+          {/* Continue Button */}
           <motion.div
-            className="flex flex-col items-center gap-4 pt-4"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.5 }}
+            className="flex flex-col items-center gap-4 pt-8"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 1.3, ease: [0.23, 1, 0.32, 1] }}
           >
-            <Button
-              onClick={() => onContinue(selectedPlatforms)}
-              disabled={selectedPlatforms.length === 0}
-              size="lg"
-              className="group px-12 h-14 text-lg font-medium bg-gradient-to-r from-primary to-accent hover:shadow-2xl hover:shadow-primary/50 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-300 hover:scale-105"
+            <motion.div
+              whileHover={{ scale: 1.05, y: -4 }}
+              whileTap={{ scale: 0.95 }}
+              transition={{ type: "spring", stiffness: 300, damping: 20 }}
             >
-              Continue with {selectedPlatforms.length || "0"} {selectedPlatforms.length === 1 ? 'platform' : 'platforms'}
-              <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-2 transition-transform" />
-            </Button>
-            <button
+              <div className="relative group">
+                {/* Static glow on hover */}
+                <div
+                  className="absolute -inset-2 bg-gradient-to-r from-primary to-accent blur-xl rounded-full opacity-0 group-hover:opacity-50 transition-opacity duration-500"
+                />
+
+                <Button
+                  onClick={() => onContinue(selectedPlatforms)}
+                  disabled={selectedPlatforms.length === 0}
+                  size="lg"
+                  className="relative group px-20 h-16 text-lg font-bold bg-gradient-to-r from-primary via-accent to-primary bg-[length:200%_100%] hover:bg-[position:100%_0] disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-700 overflow-hidden rounded-full shadow-2xl border border-white/20"
+                >
+                  <span className="relative z-10 flex items-center gap-3">
+                    Continue with {selectedPlatforms.length || "0"} {selectedPlatforms.length === 1 ? 'platform' : 'platforms'}
+                    <ArrowRight className="w-5 h-5" />
+                  </span>
+                </Button>
+              </div>
+            </motion.div>
+            
+            <motion.button
               onClick={() => onContinue([])}
               className="text-muted-foreground hover:text-foreground transition-colors text-sm"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
             >
               Skip for now
-            </button>
+            </motion.button>
           </motion.div>
         </div>
       </motion.div>
