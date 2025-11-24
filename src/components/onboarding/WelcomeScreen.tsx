@@ -79,7 +79,7 @@ export const WelcomeScreen = ({
         ease: "easeOut"
       }}>
           {/* Logo with Glow Effect */}
-          <motion.div className="relative inline-block px-16 overflow-visible" initial={{
+          <motion.div className="relative inline-block px-20 w-auto overflow-visible" initial={{
           scale: 0.8,
           opacity: 0
         }} animate={{
@@ -90,7 +90,7 @@ export const WelcomeScreen = ({
           duration: 1,
           type: "spring"
         }}>
-            <motion.div className="absolute -inset-8 rounded-full blur-3xl opacity-50" style={{
+            <motion.div className="absolute -inset-12 rounded-full blur-3xl opacity-50" style={{
             background: "radial-gradient(circle, #a855f7 0%, #ec4899 50%, transparent 70%)"
           }} animate={{
             scale: [1, 1.1, 1],
@@ -100,8 +100,8 @@ export const WelcomeScreen = ({
             repeat: Infinity,
             ease: "easeInOut"
           }} />
-            <h1 className="relative text-8xl md:text-9xl font-bold tracking-tighter leading-none py-4">
-              <span className="text-gradient">ViiB</span>
+            <h1 className="relative text-8xl md:text-9xl font-bold tracking-tighter leading-none py-4 whitespace-nowrap">
+              <span className="text-gradient inline-block">ViiB</span>
             </h1>
           </motion.div>
 
