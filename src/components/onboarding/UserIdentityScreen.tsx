@@ -3,6 +3,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { motion, AnimatePresence } from "framer-motion";
 import { Waves, Zap, Sparkles, Compass, ArrowRight } from "lucide-react";
+import calmImage from "@/assets/vibe-calm.png";
+import energeticImage from "@/assets/vibe-energetic.png";
+import curiousImage from "@/assets/vibe-curious.png";
+import adventureImage from "@/assets/vibe-adventure.png";
 
 interface UserIdentityScreenProps {
   onContinue: (data: { name: string; vibe: string }) => void;
@@ -18,6 +22,7 @@ export const UserIdentityScreen = ({ onContinue }: UserIdentityScreenProps) => {
       label: "Calm & Reflective", 
       description: "For peaceful, thoughtful moments",
       icon: Waves,
+      image: calmImage,
       gradient: "from-blue-400/20 via-cyan-500/30 to-teal-400/20",
       glowColor: "rgba(34, 211, 238, 0.4)",
       particleColor: "#22d3ee"
@@ -27,6 +32,7 @@ export const UserIdentityScreen = ({ onContinue }: UserIdentityScreenProps) => {
       label: "Bold & Exciting", 
       description: "For high-energy, thrilling experiences",
       icon: Zap,
+      image: energeticImage,
       gradient: "from-orange-400/20 via-red-500/30 to-pink-400/20",
       glowColor: "rgba(249, 115, 22, 0.4)",
       particleColor: "#f97316"
@@ -36,6 +42,7 @@ export const UserIdentityScreen = ({ onContinue }: UserIdentityScreenProps) => {
       label: "Curious & Wonder", 
       description: "For exploring the mysterious",
       icon: Sparkles,
+      image: curiousImage,
       gradient: "from-purple-400/20 via-pink-500/30 to-fuchsia-400/20",
       glowColor: "rgba(168, 85, 247, 0.4)",
       particleColor: "#a855f7"
@@ -45,6 +52,7 @@ export const UserIdentityScreen = ({ onContinue }: UserIdentityScreenProps) => {
       label: "Adventure & Discovery", 
       description: "For journeys into the unknown",
       icon: Compass,
+      image: adventureImage,
       gradient: "from-green-400/20 via-emerald-500/30 to-lime-400/20",
       glowColor: "rgba(16, 185, 129, 0.4)",
       particleColor: "#10b981"
@@ -343,17 +351,34 @@ export const UserIdentityScreen = ({ onContinue }: UserIdentityScreenProps) => {
                         ? "border-white/50 shadow-2xl"
                         : "border-white/10 shadow-lg hover:border-white/30"
                     }`}>
-                      {/* Animated gradient background */}
+                      {/* Background Image */}
+                      <motion.div
+                        className="absolute inset-0"
+                        animate={{
+                          scale: isSelected ? [1, 1.1, 1] : 1,
+                        }}
+                        transition={{
+                          duration: 20,
+                          repeat: Infinity,
+                          ease: "linear"
+                        }}
+                      >
+                        <img 
+                          src={vibe.image} 
+                          alt={vibe.label}
+                          className="w-full h-full object-cover"
+                        />
+                      </motion.div>
+
+                      {/* Animated gradient overlay */}
                       <motion.div 
-                        className={`absolute inset-0 bg-gradient-to-br ${vibe.gradient}`}
+                        className={`absolute inset-0 bg-gradient-to-br ${vibe.gradient} mix-blend-overlay`}
                         style={{ backgroundSize: '200% 200%' }}
                         animate={{
                           backgroundPosition: isSelected ? ['0% 0%', '100% 100%', '0% 0%'] : '0% 0%',
-                          scale: isSelected ? [1, 1.05, 1] : 1,
                         }}
                         transition={{
                           backgroundPosition: { duration: 5, repeat: Infinity, ease: "linear" },
-                          scale: { duration: 2, repeat: Infinity }
                         }}
                       />
                       
