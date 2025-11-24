@@ -29,18 +29,22 @@ export const WelcomeScreen = ({ onContinue }: WelcomeScreenProps) => {
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-black">
       {/* Animated Background */}
-      <div className="absolute inset-0 gradient-electric opacity-20" />
-      <motion.div
-        className="absolute inset-0"
-        animate={{
-          background: [
-            "radial-gradient(ellipse at 20% 30%, #a855f720 0%, transparent 50%)",
-            "radial-gradient(ellipse at 80% 70%, #ec489920 0%, transparent 50%)",
-            "radial-gradient(ellipse at 20% 30%, #a855f720 0%, transparent 50%)",
-          ],
-        }}
-        transition={{ duration: 10, repeat: Infinity }}
-      />
+      <div className="absolute inset-0">
+        <div className="absolute inset-0 gradient-ocean opacity-80" />
+        <motion.div
+          className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full blur-[100px]"
+          style={{ background: "radial-gradient(circle, #a855f7 0%, transparent 70%)" }}
+          animate={{
+            x: [0, 100, 0],
+            y: [0, -50, 0],
+          }}
+          transition={{
+            duration: 20,
+            repeat: Infinity,
+            ease: "easeInOut",
+          }}
+        />
+      </div>
 
       {/* Floating Particles */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
