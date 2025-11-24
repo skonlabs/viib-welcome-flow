@@ -318,11 +318,12 @@ export const StreamingPlatformsScreen = ({ onContinue }: StreamingPlatformsScree
                   onClick={() => onContinue(selectedPlatforms)}
                   disabled={selectedPlatforms.length === 0}
                   size="lg"
-                  className="relative group px-20 h-16 text-lg font-bold bg-gradient-to-r from-primary via-accent to-primary bg-[length:200%_100%] hover:bg-[position:100%_0] disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-700 overflow-hidden rounded-full shadow-2xl border border-white/20"
+                  className="relative group px-8 sm:px-16 h-12 sm:h-16 text-base sm:text-lg font-bold bg-gradient-to-r from-primary via-accent to-primary bg-[length:200%_100%] hover:bg-[position:100%_0] disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-700 overflow-hidden rounded-full shadow-2xl border border-white/20"
                 >
-                  <span className="relative z-10 flex items-center gap-3">
-                    Continue with {selectedPlatforms.length || "0"} {selectedPlatforms.length === 1 ? 'platform' : 'platforms'}
-                    <ArrowRight className="w-5 h-5" />
+                  <span className="relative z-10 flex items-center gap-2 sm:gap-3">
+                    <span className="hidden sm:inline">Continue with {selectedPlatforms.length || "0"} {selectedPlatforms.length === 1 ? 'platform' : 'platforms'}</span>
+                    <span className="sm:hidden">Continue ({selectedPlatforms.length || "0"})</span>
+                    <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5" />
                   </span>
                 </Button>
               </div>
