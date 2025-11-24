@@ -79,33 +79,31 @@ export const WelcomeScreen = ({
         ease: "easeOut"
       }}>
           {/* Logo with Glow Effect */}
-          <div className="relative w-full flex justify-center py-8">
-            <motion.div className="relative" initial={{
-            scale: 0.8,
-            opacity: 0
+          <motion.div className="relative inline-block" initial={{
+          scale: 0.8,
+          opacity: 0
+        }} animate={{
+          scale: 1,
+          opacity: 1
+        }} transition={{
+          delay: 0.3,
+          duration: 1,
+          type: "spring"
+        }}>
+            <motion.div className="absolute -inset-4 rounded-full blur-3xl opacity-50" style={{
+            background: "radial-gradient(circle, #a855f7 0%, #ec4899 50%, transparent 70%)"
           }} animate={{
-            scale: 1,
-            opacity: 1
+            scale: [1, 1.1, 1],
+            opacity: [0.5, 0.7, 0.5]
           }} transition={{
-            delay: 0.3,
-            duration: 1,
-            type: "spring"
-          }}>
-              <motion.div className="absolute -inset-12 rounded-full blur-3xl opacity-50" style={{
-              background: "radial-gradient(circle, #a855f7 0%, #ec4899 50%, transparent 70%)"
-            }} animate={{
-              scale: [1, 1.1, 1],
-              opacity: [0.5, 0.7, 0.5]
-            }} transition={{
-              duration: 3,
-              repeat: Infinity,
-              ease: "easeInOut"
-            }} />
-              <h1 className="relative text-8xl md:text-9xl font-bold tracking-tighter px-8 leading-tight">
-                <span className="text-gradient inline-block px-2">ViiB</span>
-              </h1>
-            </motion.div>
-          </div>
+            duration: 3,
+            repeat: Infinity,
+            ease: "easeInOut"
+          }} />
+            <h1 className="relative text-8xl md:text-9xl font-bold tracking-tighter">
+              <span className="text-gradient inline-block px-4">ViiB</span>
+            </h1>
+          </motion.div>
 
           {/* Tagline */}
           <motion.div className="space-y-6 max-w-2xl mx-auto" initial={{
