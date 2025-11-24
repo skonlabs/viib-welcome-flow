@@ -122,9 +122,8 @@ export const EntryMethodScreen = ({ onSelectMethod }: EntryMethodScreenProps) =>
             animate={{ opacity: 1 }}
             transition={{ delay: 0.7 }}
           >
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              🔒 Your privacy matters. We use enterprise-grade encryption 
-              and never share your data.
+            <p className="text-sm text-muted-foreground/70">
+              Your data stays yours. Always
             </p>
           </motion.div>
         </div>
