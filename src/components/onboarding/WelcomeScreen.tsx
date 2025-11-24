@@ -101,8 +101,8 @@ export const WelcomeScreen = ({
               repeat: Infinity,
               ease: "easeInOut"
             }} />
-              <h1 className="relative text-8xl md:text-9xl font-bold tracking-tighter px-8">
-                <span className="text-gradient">ViiB</span>
+              <h1 className="relative text-8xl md:text-9xl font-bold tracking-tighter px-8 text-gradient">
+                ViiB
               </h1>
             </motion.div>
           </div>
