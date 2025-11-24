@@ -1,0 +1,123 @@
+import { Button } from "@/components/ui/button";
+import { motion } from "framer-motion";
+import { ArrowRight, Sparkles } from "lucide-react";
+
+interface VisualDNARevealScreenProps {
+  selections: string[];
+  onContinue: () => void;
+}
+
+export const VisualDNARevealScreen = ({ selections, onContinue }: VisualDNARevealScreenProps) => {
+  return (
+    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-black">
+      {/* Animated Background */}
+      <div className="absolute inset-0 gradient-electric opacity-30" />
+      <motion.div
+        className="absolute inset-0"
+        animate={{
+          background: [
+            "radial-gradient(ellipse at 20% 30%, #a855f720 0%, transparent 50%)",
+            "radial-gradient(ellipse at 80% 70%, #ec489920 0%, transparent 50%)",
+            "radial-gradient(ellipse at 20% 30%, #a855f720 0%, transparent 50%)",
+          ],
+        }}
+        transition={{ duration: 10, repeat: Infinity }}
+      />
+
+      {/* Content */}
+      <motion.div
+        className="relative z-10 w-full max-w-4xl"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 1 }}
+      >
+        <div className="space-y-12">
+          {/* Header */}
+          <motion.div
+            className="text-center space-y-6"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+          >
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+            >
+              <Sparkles className="w-16 h-16 mx-auto text-gradient" />
+            </motion.div>
+            <h2 className="text-4xl md:text-5xl font-bold text-gradient">
+              This is your Visual DNA
+            </h2>
+            <p className="text-xl text-muted-foreground">
+              Your unique taste signature is taking shape...
+            </p>
+          </motion.div>
+
+          {/* Mosaic Grid */}
+          <motion.div
+            className="grid grid-cols-3 gap-4 max-w-3xl mx-auto"
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.6, type: "spring", stiffness: 100 }}
+          >
+            {selections.slice(0, 3).map((_, index) => (
+              <motion.div
+                key={index}
+                className="aspect-video rounded-2xl bg-gradient-to-br from-primary/20 to-accent/20 border border-white/10"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.8 + index * 0.1 }}
+                whileHover={{ scale: 1.05 }}
+              >
+                <div className="w-full h-full flex items-center justify-center text-4xl">
+                  {["🎬", "✨", "🎭"][index]}
+                </div>
+              </motion.div>
+            ))}
+          </motion.div>
+
+          {/* DNA Strands Animation */}
+          <motion.div
+            className="flex justify-center gap-2"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 1.2 }}
+          >
+            {[...Array(5)].map((_, i) => (
+              <motion.div
+                key={i}
+                className="w-2 h-20 rounded-full bg-gradient-to-t from-primary to-accent"
+                animate={{
+                  scaleY: [1, 1.5, 1],
+                  opacity: [0.5, 1, 0.5],
+                }}
+                transition={{
+                  duration: 1.5,
+                  repeat: Infinity,
+                  delay: i * 0.2,
+                }}
+              />
+            ))}
+          </motion.div>
+
+          {/* Continue */}
+          <motion.div
+            className="flex justify-center"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 1.5 }}
+          >
+            <Button
+              onClick={onContinue}
+              size="lg"
+              className="px-12 h-14 text-lg font-medium bg-gradient-to-r from-primary to-accent hover:shadow-2xl hover:shadow-primary/50 transition-all duration-300 hover:scale-105"
+            >
+              Continue Building My Profile
+              <ArrowRight className="ml-2 w-5 h-5" />
+            </Button>
+          </motion.div>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
