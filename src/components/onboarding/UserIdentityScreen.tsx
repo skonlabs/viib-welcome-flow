@@ -73,18 +73,10 @@ export const UserIdentityScreen = ({ onContinue }: UserIdentityScreenProps) => {
         <div className="absolute inset-0 bg-gradient-to-br from-black via-purple-950/20 to-black" />
         
         {/* Animated mesh gradients - Layer 1 */}
-        <motion.div
-          className="absolute top-0 left-0 w-full h-full"
+        <div
+          className="absolute top-0 left-0 w-full h-full opacity-40"
           style={{ 
             background: "radial-gradient(ellipse 80% 50% at 50% -20%, rgba(168, 85, 247, 0.15), transparent 50%), radial-gradient(ellipse 60% 50% at 80% 50%, rgba(59, 130, 246, 0.1), transparent 50%)"
-          }}
-          animate={{
-            opacity: [0.3, 0.6, 0.3],
-          }}
-          transition={{
-            duration: 8,
-            repeat: Infinity,
-            ease: "easeInOut"
           }}
         />
 
@@ -106,7 +98,6 @@ export const UserIdentityScreen = ({ onContinue }: UserIdentityScreenProps) => {
               x: [0, 100 + i * 30, -50 + i * 20, 0],
               y: [0, -80 + i * 15, 60 - i * 10, 0],
               scale: [1, 1.3, 0.8, 1],
-              opacity: [0.2, 0.4, 0.2],
             }}
             transition={{
               duration: 20 + i * 5,
@@ -140,8 +131,8 @@ export const UserIdentityScreen = ({ onContinue }: UserIdentityScreenProps) => {
           />
         ))}
 
-        {/* Grid overlay with animation */}
-        <motion.div 
+        {/* Grid overlay */}
+        <div 
           className="absolute inset-0 opacity-[0.03]"
           style={{
             backgroundImage: `
@@ -149,13 +140,6 @@ export const UserIdentityScreen = ({ onContinue }: UserIdentityScreenProps) => {
               linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)
             `,
             backgroundSize: '50px 50px'
-          }}
-          animate={{
-            opacity: [0.02, 0.05, 0.02],
-          }}
-          transition={{
-            duration: 4,
-            repeat: Infinity,
           }}
         />
       </div>
@@ -181,35 +165,14 @@ export const UserIdentityScreen = ({ onContinue }: UserIdentityScreenProps) => {
               transition={{ delay: 0.3, type: "spring", stiffness: 80, damping: 20 }}
             >
               <h2 className="text-4xl sm:text-5xl md:text-6xl font-bold relative inline-block">
-                <motion.span 
+                <span 
                   className="text-gradient relative z-10"
-                  animate={{
-                    backgroundPosition: ['0% 50%', '100% 50%', '0% 50%']
-                  }}
-                  transition={{
-                    duration: 5,
-                    repeat: Infinity,
-                    ease: "linear"
-                  }}
                   style={{
                     backgroundSize: '200% 200%'
                   }}
                 >
                   Tell us about yourself
-                </motion.span>
-                {/* Shimmer effect */}
-                <motion.div
-                  className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent blur-sm"
-                  animate={{
-                    x: ['-200%', '200%']
-                  }}
-                  transition={{
-                    duration: 3,
-                    repeat: Infinity,
-                    repeatDelay: 2,
-                    ease: "easeInOut"
-                  }}
-                />
+                </span>
               </h2>
             </motion.div>
             <motion.p 
@@ -238,25 +201,10 @@ export const UserIdentityScreen = ({ onContinue }: UserIdentityScreenProps) => {
                 whileHover={{ scale: 1.02 }}
                 transition={{ type: "spring", stiffness: 300, damping: 20 }}
               >
-                {/* Animated border glow */}
-                <motion.div
-                  className="absolute -inset-1 bg-gradient-to-r from-primary via-accent to-primary rounded-2xl blur-xl opacity-0 group-focus-within:opacity-100 transition-opacity duration-500"
+                {/* Border glow */}
+                <div
+                  className="absolute -inset-1 bg-gradient-to-r from-primary via-accent to-primary rounded-2xl blur-xl opacity-0 group-focus-within:opacity-50 transition-opacity duration-500"
                   style={{ backgroundSize: '200% 200%' }}
-                  animate={{
-                    backgroundPosition: name ? ['0% 50%', '100% 50%', '0% 50%'] : '0% 50%',
-                    opacity: name ? [0.3, 0.7, 0.3] : 0
-                  }}
-                  transition={{
-                    backgroundPosition: { duration: 3, repeat: Infinity },
-                    opacity: { duration: 2, repeat: Infinity }
-                  }}
-                />
-                {/* Shimmer on hover */}
-                <motion.div
-                  className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -skew-x-12"
-                  initial={{ x: '-100%' }}
-                  whileHover={{ x: '200%' }}
-                  transition={{ duration: 0.8 }}
                 />
                 <Input
                   value={name}
@@ -312,36 +260,20 @@ export const UserIdentityScreen = ({ onContinue }: UserIdentityScreenProps) => {
                     style={{ transformStyle: 'preserve-3d' }}
                   >
                     {/* Multi-layer glow effect */}
-                    <motion.div
+                    <div
                       className="absolute -inset-2 rounded-3xl blur-2xl transition-opacity duration-500"
                       style={{ 
-                        background: `radial-gradient(circle at center, ${vibe.glowColor}, transparent 60%)`
-                      }}
-                      initial={{ opacity: 0 }}
-                      animate={{ 
-                        opacity: isSelected ? [0.6, 1, 0.6] : 0,
-                        scale: isSelected ? [1, 1.1, 1] : 1,
-                      }}
-                      whileHover={{ opacity: 0.7, scale: 1.05 }}
-                      transition={{ 
-                        opacity: { duration: 2, repeat: Infinity },
-                        scale: { duration: 2, repeat: Infinity }
+                        background: `radial-gradient(circle at center, ${vibe.glowColor}, transparent 60%)`,
+                        opacity: isSelected ? 0.7 : 0
                       }}
                     />
 
                     {/* Outer glow ring */}
-                    <motion.div
-                      className="absolute -inset-1 rounded-3xl"
+                    <div
+                      className="absolute -inset-1 rounded-3xl transition-opacity duration-500"
                       style={{ 
-                        background: `conic-gradient(from 0deg, ${vibe.glowColor}, transparent, ${vibe.glowColor})`
-                      }}
-                      animate={{
-                        rotate: isSelected ? 360 : 0,
+                        background: `conic-gradient(from 0deg, ${vibe.glowColor}, transparent, ${vibe.glowColor})`,
                         opacity: isSelected ? 0.6 : 0
-                      }}
-                      transition={{
-                        rotate: { duration: 3, repeat: Infinity, ease: "linear" },
-                        opacity: { duration: 0.5 }
                       }}
                     />
 
@@ -371,29 +303,14 @@ export const UserIdentityScreen = ({ onContinue }: UserIdentityScreenProps) => {
                       </motion.div>
 
                       {/* Animated gradient overlay */}
-                      <motion.div 
+                      <div 
                         className={`absolute inset-0 bg-gradient-to-br ${vibe.gradient} mix-blend-overlay`}
                         style={{ backgroundSize: '200% 200%' }}
-                        animate={{
-                          backgroundPosition: isSelected ? ['0% 0%', '100% 100%', '0% 0%'] : '0% 0%',
-                        }}
-                        transition={{
-                          backgroundPosition: { duration: 5, repeat: Infinity, ease: "linear" },
-                        }}
                       />
                       
-                      {/* Enhanced glass effect with noise texture */}
+                      {/* Enhanced glass effect */}
                       <div className="absolute inset-0 bg-black/30 backdrop-blur-2xl" />
-                      <motion.div 
-                        className="absolute inset-0 bg-white/[0.02]"
-                        animate={{
-                          opacity: [0.02, 0.05, 0.02]
-                        }}
-                        transition={{
-                          duration: 3,
-                          repeat: Infinity
-                        }}
-                      />
+                      <div className="absolute inset-0 bg-white/[0.02]" />
 
                       {/* Selection wave effect */}
                       <AnimatePresence>
@@ -450,58 +367,36 @@ export const UserIdentityScreen = ({ onContinue }: UserIdentityScreenProps) => {
                       {/* Shimmer effect on hover */}
                       <motion.div
                         className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -skew-x-12"
-                        initial={{ x: '-100%' }}
-                        whileHover={{ x: '200%' }}
+                        initial={{ x: '-100%', opacity: 0 }}
+                        whileHover={{ x: '200%', opacity: 1 }}
                         transition={{ duration: 1, ease: "easeInOut" }}
                       />
                       
                       {/* Content with 3D depth - Optimized spacing */}
                       <div className="relative z-10 flex flex-col items-center gap-4 p-6 sm:p-8">
-                        {/* Icon with pulsing glow */}
-                        <motion.div
-                          className="relative"
-                          animate={{
-                            rotateY: isSelected ? [0, 10, -10, 0] : 0,
-                            scale: isSelected ? [1, 1.15, 1] : 1,
-                          }}
-                          transition={{
-                            duration: 3,
-                            repeat: isSelected ? Infinity : 0,
-                          }}
-                        >
+                        {/* Icon with subtle animation */}
+                        <div className="relative">
                           {/* Icon glow */}
-                          <motion.div
+                          <div
                             className="absolute inset-0 blur-xl rounded-full"
-                            style={{ backgroundColor: vibe.particleColor }}
-                            animate={{
-                              scale: isSelected ? [1, 1.5, 1] : 1,
-                              opacity: isSelected ? [0.3, 0.6, 0.3] : 0,
-                            }}
-                            transition={{
-                              duration: 2,
-                              repeat: Infinity,
+                            style={{ 
+                              backgroundColor: vibe.particleColor,
+                              opacity: isSelected ? 0.4 : 0
                             }}
                           />
                           <Icon 
                             className="relative w-12 h-12 sm:w-14 sm:h-14 text-white drop-shadow-2xl" 
                             strokeWidth={1.5}
                           />
-                        </motion.div>
+                        </div>
                         
-                        {/* Label with letter animation */}
+                        {/* Label */}
                         <div className="flex flex-col items-center gap-1">
-                          <motion.span 
+                          <span 
                             className="font-bold text-lg sm:text-xl text-white drop-shadow-lg text-center tracking-wide"
-                            animate={{
-                              scale: isSelected ? [1, 1.05, 1] : 1,
-                            }}
-                            transition={{
-                              duration: 1.5,
-                              repeat: isSelected ? Infinity : 0,
-                            }}
                           >
                             {vibe.label}
-                          </motion.span>
+                          </span>
                           
                           {/* Description text */}
                           <motion.p
@@ -514,7 +409,7 @@ export const UserIdentityScreen = ({ onContinue }: UserIdentityScreenProps) => {
                           </motion.p>
                         </div>
 
-                        {/* Selection checkmark with bounce */}
+                        {/* Selection checkmark */}
                         <AnimatePresence>
                           {isSelected && (
                             <motion.div
@@ -524,16 +419,7 @@ export const UserIdentityScreen = ({ onContinue }: UserIdentityScreenProps) => {
                               exit={{ scale: 0, rotate: 180 }}
                               transition={{ type: "spring", stiffness: 300, damping: 15 }}
                             >
-                              <motion.div 
-                                className="w-4 h-4 rounded-full bg-gradient-to-br from-primary to-accent shadow-lg"
-                                animate={{
-                                  scale: [1, 1.2, 1],
-                                }}
-                                transition={{
-                                  duration: 1,
-                                  repeat: Infinity,
-                                }}
-                              />
+                              <div className="w-4 h-4 rounded-full bg-gradient-to-br from-primary to-accent shadow-lg" />
                             </motion.div>
                           )}
                         </AnimatePresence>
@@ -558,33 +444,9 @@ export const UserIdentityScreen = ({ onContinue }: UserIdentityScreenProps) => {
               transition={{ type: "spring", stiffness: 300, damping: 20 }}
             >
               <div className="relative group">
-                {/* Orbiting glow effect */}
-                <motion.div
-                  className="absolute -inset-4 rounded-full blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"
-                  style={{
-                    background: 'conic-gradient(from 0deg, rgba(168, 85, 247, 0.6), rgba(236, 72, 153, 0.6), rgba(168, 85, 247, 0.6))'
-                  }}
-                  animate={{
-                    rotate: 360
-                  }}
-                  transition={{
-                    duration: 3,
-                    repeat: Infinity,
-                    ease: "linear"
-                  }}
-                />
-                
-                {/* Pulsing glow */}
-                <motion.div
-                  className="absolute -inset-2 bg-gradient-to-r from-primary to-accent blur-xl rounded-full"
-                  animate={{
-                    opacity: name && selectedVibe ? [0.3, 0.7, 0.3] : 0,
-                    scale: name && selectedVibe ? [1, 1.2, 1] : 1,
-                  }}
-                  transition={{
-                    duration: 2,
-                    repeat: Infinity,
-                  }}
+                {/* Static glow on hover */}
+                <div
+                  className="absolute -inset-2 bg-gradient-to-r from-primary to-accent blur-xl rounded-full opacity-0 group-hover:opacity-50 transition-opacity duration-500"
                 />
 
                 <Button
@@ -593,33 +455,9 @@ export const UserIdentityScreen = ({ onContinue }: UserIdentityScreenProps) => {
                   size="lg"
                   className="relative group px-20 h-16 text-lg font-bold bg-gradient-to-r from-primary via-accent to-primary bg-[length:200%_100%] hover:bg-[position:100%_0] disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-700 overflow-hidden rounded-full shadow-2xl border border-white/20"
                 >
-                  {/* Shimmer effect */}
-                  <motion.div
-                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -skew-x-12"
-                    animate={{
-                      x: ['-200%', '200%']
-                    }}
-                    transition={{
-                      duration: 2,
-                      repeat: Infinity,
-                      repeatDelay: 1,
-                      ease: "easeInOut"
-                    }}
-                  />
-                  
                   <span className="relative z-10 flex items-center gap-3">
                     Continue
-                    <motion.div
-                      animate={{
-                        x: name && selectedVibe ? [0, 5, 0] : 0
-                      }}
-                      transition={{
-                        duration: 1.5,
-                        repeat: Infinity,
-                      }}
-                    >
-                      <ArrowRight className="w-5 h-5" />
-                    </motion.div>
+                    <ArrowRight className="w-5 h-5" />
                   </span>
                 </Button>
               </div>
