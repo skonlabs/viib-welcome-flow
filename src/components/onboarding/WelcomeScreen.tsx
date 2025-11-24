@@ -125,6 +125,9 @@ export const WelcomeScreen = ({ onContinue }: WelcomeScreenProps) => {
               Experience the future of content discovery. ViiB understands your vibe, 
               your mood, and delivers the perfect watch—every single time.
             </p>
+            <p className="text-sm text-muted-foreground/70 pt-2">
+              Private by design · No noise · Only what matters
+            </p>
           </motion.div>
 
           {/* CTA Button */}
