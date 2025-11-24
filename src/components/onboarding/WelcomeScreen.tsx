@@ -127,11 +127,32 @@ export const WelcomeScreen = ({ onContinue }: WelcomeScreenProps) => {
             </p>
           </motion.div>
 
+          {/* Badges */}
+          <motion.div
+            className="flex items-center justify-center gap-8 text-sm text-muted-foreground"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.9, duration: 0.8 }}
+          >
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+              AI-Powered
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-secondary animate-pulse" />
+              Personalized
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-accent animate-pulse" />
+              Intuitive
+            </div>
+          </motion.div>
+
           {/* CTA Button */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.9, duration: 0.8 }}
+            transition={{ delay: 1.1, duration: 0.8 }}
             className="pt-6"
           >
             <Button
@@ -155,36 +176,15 @@ export const WelcomeScreen = ({ onContinue }: WelcomeScreenProps) => {
 
           {/* Privacy Note */}
           <motion.div
-            className="flex items-center justify-center gap-2 pt-4"
+            className="flex items-center justify-center gap-2 pt-2"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ delay: 1.0, duration: 0.8 }}
+            transition={{ delay: 1.3, duration: 0.8 }}
           >
             <Lock className="w-3 h-3 text-muted-foreground/60" />
             <p className="text-xs text-muted-foreground/60">
               Private by design · No noise · Only what matters
             </p>
-          </motion.div>
-
-          {/* Badges */}
-          <motion.div
-            className="flex items-center justify-center gap-8 pt-8 text-sm text-muted-foreground"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 1.2, duration: 0.8 }}
-          >
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-              AI-Powered
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-secondary animate-pulse" />
-              Personalized
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-accent animate-pulse" />
-              Intuitive
-            </div>
           </motion.div>
         </motion.div>
       </motion.div>
