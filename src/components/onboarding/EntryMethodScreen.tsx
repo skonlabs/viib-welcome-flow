@@ -116,16 +116,14 @@ export const EntryMethodScreen = ({ onSelectMethod }: EntryMethodScreenProps) =>
           </div>
 
           {/* Privacy Note */}
-          <motion.div
-            className="glass-card rounded-2xl p-6 text-center"
+          <motion.p
+            className="text-center text-sm font-medium text-foreground/80 tracking-wide"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.7 }}
           >
-            <p className="text-sm text-muted-foreground/70">
-              Your data stays yours. Always
-            </p>
-          </motion.div>
+            Your data stays yours. Always
+          </motion.p>
         </div>
       </motion.div>
     </div>
