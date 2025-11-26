@@ -1,7 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Apple, Menu } from "lucide-react";
 import { useState } from "react";
-import viibLogoNew from "@/assets/viib-logo-new.png";
 
 const LandingHeader = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -12,11 +11,9 @@ const LandingHeader = () => {
         <div className="flex items-center justify-between h-24">
           {/* Logo */}
           <a href="/" className="flex items-center gap-3 group">
-            <img
-              src={viibLogoNew}
-              alt="ViiB"
-              className="h-20 w-auto transition-transform group-hover:scale-105 drop-shadow-[0_0_15px_rgba(168,85,247,0.4)]"
-            />
+            <h1 className="text-4xl md:text-5xl font-bold tracking-tighter">
+              <span className="text-gradient">ViiB</span>
+            </h1>
           </a>
 
           {/* Desktop Navigation */}
