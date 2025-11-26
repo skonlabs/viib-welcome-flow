@@ -933,11 +933,11 @@ export type Database = {
         Row: {
           country: string | null
           created_at: string
-          date_of_birth: string | null
           email: string | null
           full_name: string | null
           id: string
           is_active: boolean
+          is_age_over_18: boolean
           is_email_verified: boolean
           is_phone_verified: boolean
           language_preference: string | null
@@ -951,11 +951,11 @@ export type Database = {
         Insert: {
           country?: string | null
           created_at?: string
-          date_of_birth?: string | null
           email?: string | null
           full_name?: string | null
           id?: string
           is_active?: boolean
+          is_age_over_18: boolean
           is_email_verified?: boolean
           is_phone_verified?: boolean
           language_preference?: string | null
@@ -969,11 +969,11 @@ export type Database = {
         Update: {
           country?: string | null
           created_at?: string
-          date_of_birth?: string | null
           email?: string | null
           full_name?: string | null
           id?: string
           is_active?: boolean
+          is_age_over_18?: boolean
           is_email_verified?: boolean
           is_phone_verified?: boolean
           language_preference?: string | null
