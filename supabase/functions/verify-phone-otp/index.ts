@@ -45,7 +45,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({
           success: false,
-          error: "No valid verification code found. Please request a new code."
+          error: "Your code has expired or is invalid. Please request a new code."
         }),
         {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -61,7 +61,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({
           success: false,
-          error: "Invalid verification code. Please try again."
+          error: "The code you entered is incorrect. Please check and try again."
         }),
         {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -79,6 +79,17 @@ serve(async (req) => {
     if (updateError) {
       console.error('Database update error:', updateError);
       throw new Error('Failed to verify code');
+    }
+
+    // Update user's phone verification status
+    const { error: userUpdateError } = await supabaseClient
+      .from('users')
+      .update({ is_phone_verified: true })
+      .eq('phone_number', normalizedPhone);
+
+    if (userUpdateError) {
+      console.error('Failed to update user verification status:', userUpdateError);
+      // Don't throw error here - verification was successful, just log the issue
     }
 
     console.log('Phone number verified successfully:', normalizedPhone);
