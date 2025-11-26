@@ -109,7 +109,7 @@ export const OTPVerificationScreen = ({
         .maybeSingle();
 
       if (existingUser?.is_phone_verified && existingUser?.signup_method === 'phone') {
-        setError("This phone number is already verified. Please sign in instead.");
+        setError("This phone number is already registered. Please sign in to continue.");
         setOtp(["", "", "", "", "", ""]);
         inputRefs.current[0]?.focus();
         setLoading(false);
