@@ -123,6 +123,7 @@ export default function Onboarding() {
           signup_method: 'phone',
           onboarding_completed: false,
           is_active: false, // Only activate after onboarding completion
+          is_phone_verified: true, // Mark phone as verified
         });
       
       if (error && error.code !== '23505') { // Ignore duplicate key errors

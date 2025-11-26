@@ -120,6 +120,7 @@ serve(async (req) => {
         signup_method: 'email',
         onboarding_completed: false,
         is_active: false, // Only activate after onboarding completion
+        is_email_verified: true, // Mark email as verified
       });
 
     if (userError) {
