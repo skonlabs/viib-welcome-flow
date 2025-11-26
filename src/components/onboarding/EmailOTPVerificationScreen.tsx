@@ -92,6 +92,21 @@ export const EmailOTPVerificationScreen = ({
     setError("");
 
     try {
+      // First check if email is already verified
+      const { data: existingUser } = await supabase
+        .from('users')
+        .select('is_email_verified, signup_method')
+        .eq('email', email)
+        .maybeSingle();
+
+      if (existingUser?.is_email_verified && existingUser?.signup_method === 'email') {
+        setError("This email is already verified. Please sign in instead.");
+        setOtp(["", "", "", "", "", ""]);
+        inputRefs.current[0]?.focus();
+        setLoading(false);
+        return;
+      }
+
       const { data, error: invokeError } = await supabase.functions.invoke("verify-email-otp", {
         body: { email, otp: code, password },
       });

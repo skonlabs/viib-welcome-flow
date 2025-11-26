@@ -101,6 +101,21 @@ export const OTPVerificationScreen = ({
     setError("");
 
     try {
+      // First check if phone is already verified
+      const { data: existingUser } = await supabase
+        .from('users')
+        .select('is_phone_verified, signup_method')
+        .eq('phone_number', phone)
+        .maybeSingle();
+
+      if (existingUser?.is_phone_verified && existingUser?.signup_method === 'phone') {
+        setError("This phone number is already verified. Please sign in instead.");
+        setOtp(["", "", "", "", "", ""]);
+        inputRefs.current[0]?.focus();
+        setLoading(false);
+        return;
+      }
+
       const { data, error: invokeError } = await supabase.functions.invoke("verify-phone-otp", {
         body: { phoneNumber: phone, otpCode: code },
       });
