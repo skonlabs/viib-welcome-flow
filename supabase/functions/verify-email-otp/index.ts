@@ -96,6 +96,16 @@ serve(async (req) => {
       
       // If user already exists, that's actually okay - they can just sign in
       if (authError.message?.includes('already been registered') || authError.status === 422) {
+        // Update the verification flag for existing user
+        const { error: updateError } = await supabase
+          .from('users')
+          .update({ is_email_verified: true })
+          .eq('email', email);
+
+        if (updateError) {
+          console.error('Failed to update existing user verification status:', updateError);
+        }
+
         return new Response(
           JSON.stringify({ 
             success: true,
