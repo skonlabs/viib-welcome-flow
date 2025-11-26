@@ -3,6 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { motion } from "framer-motion";
 import { ArrowRight, Lock, AlertCircle } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import {
   Select,
   SelectContent,
@@ -21,6 +23,7 @@ export const PhoneEntryScreen = ({ onContinue, onBack }: PhoneEntryScreenProps) 
   const [countryCode, setCountryCode] = useState("+1");
   const [phone, setPhone] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const formatPhoneNumber = (value: string) => {
     const digits = value.replace(/\D/g, "");
@@ -29,13 +32,37 @@ export const PhoneEntryScreen = ({ onContinue, onBack }: PhoneEntryScreenProps) 
     return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6, 10)}`;
   };
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     const digits = phone.replace(/\D/g, "");
     if (digits.length < 10) {
       setError("Please enter a valid phone number");
       return;
     }
-    onContinue(digits, countryCode);
+
+    setLoading(true);
+    setError("");
+
+    try {
+      const fullPhone = `${countryCode}${digits}`;
+      
+      const { error: otpError } = await supabase.auth.signInWithOtp({
+        phone: fullPhone,
+      });
+
+      if (otpError) {
+        setError(otpError.message);
+        toast.error("Failed to send verification code");
+        return;
+      }
+
+      toast.success("Verification code sent!");
+      onContinue(digits, countryCode);
+    } catch (err) {
+      setError("Failed to send verification code");
+      toast.error("Something went wrong");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -180,6 +207,8 @@ export const PhoneEntryScreen = ({ onContinue, onBack }: PhoneEntryScreenProps) 
                 size="2xl"
                 variant="gradient"
                 className="w-full shadow-[0_20px_50px_-15px_rgba(168,85,247,0.4)]"
+                disabled={loading}
+                loading={loading}
               >
                 Send Code
                 <ArrowRight className="ml-2 w-5 h-5" />

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { WelcomeScreen } from "@/components/onboarding/WelcomeScreen";
 import { EntryMethodScreen } from "@/components/onboarding/EntryMethodScreen";
 import { PhoneEntryScreen } from "@/components/onboarding/PhoneEntryScreen";
@@ -103,8 +104,31 @@ export default function Onboarding() {
     navigateToStep("otp");
   };
 
-  const handleOTPVerify = (otp: string) => {
+  const handleOTPVerify = async (otp: string) => {
     console.log("OTP verified:", otp);
+    
+    // Create user record in public.users table
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (user) {
+        const { error } = await supabase
+          .from('users')
+          .upsert({
+            id: user.id,
+            phone_number: `${onboardingData.countryCode}${onboardingData.phone}`,
+            signup_method: 'phone',
+            onboarding_completed: false,
+          });
+        
+        if (error) {
+          console.error('Error creating user record:', error);
+        }
+      }
+    } catch (error) {
+      console.error('Error in handleOTPVerify:', error);
+    }
+    
     navigateToStep("biometric");
   };
 
