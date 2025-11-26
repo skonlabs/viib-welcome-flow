@@ -685,6 +685,27 @@ export type Database = {
           },
         ]
       }
+      user_roles: {
+        Row: {
+          created_at: string | null
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_social_recommendations: {
         Row: {
           created_at: string
@@ -1063,6 +1084,13 @@ export type Database = {
           title_id: string
         }[]
       }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
       log_recommendation_outcome: {
         Args: {
           p_rating_value: Database["public"]["Enums"]["rating_value"]
@@ -1100,6 +1128,7 @@ export type Database = {
       }
     }
     Enums: {
+      app_role: "admin" | "moderator" | "user"
       content_type: "movie" | "series" | "documentary" | "short" | "other"
       device_type: "mobile" | "tv" | "tablet" | "web" | "other"
       discovery_source:
@@ -1297,6 +1326,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      app_role: ["admin", "moderator", "user"],
       content_type: ["movie", "series", "documentary", "short", "other"],
       device_type: ["mobile", "tv", "tablet", "web", "other"],
       discovery_source: [
