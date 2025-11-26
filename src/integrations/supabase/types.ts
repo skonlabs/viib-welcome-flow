@@ -44,6 +44,38 @@ export type Database = {
         }
         Relationships: []
       }
+      emotion_to_intent_map: {
+        Row: {
+          created_at: string
+          emotion_id: string
+          id: string
+          intent_type: string
+          weight: number
+        }
+        Insert: {
+          created_at?: string
+          emotion_id: string
+          id?: string
+          intent_type: string
+          weight: number
+        }
+        Update: {
+          created_at?: string
+          emotion_id?: string
+          id?: string
+          intent_type?: string
+          weight?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "emotion_to_intent_map_emotion_id_fkey"
+            columns: ["emotion_id"]
+            isOneToOne: false
+            referencedRelation: "emotion_master"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       emotion_transformation_map: {
         Row: {
           from_emotion_id: string
@@ -870,6 +902,90 @@ export type Database = {
         }
         Relationships: []
       }
+      viib_intent_classified_titles: {
+        Row: {
+          confidence_score: number
+          created_at: string
+          id: string
+          intent_type: string
+          source: string | null
+          title_id: string
+          updated_at: string
+        }
+        Insert: {
+          confidence_score: number
+          created_at?: string
+          id?: string
+          intent_type: string
+          source?: string | null
+          title_id: string
+          updated_at?: string
+        }
+        Update: {
+          confidence_score?: number
+          created_at?: string
+          id?: string
+          intent_type?: string
+          source?: string | null
+          title_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "viib_intent_classified_titles_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: false
+            referencedRelation: "titles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "viib_intent_classified_titles_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: false
+            referencedRelation: "viib_recommendation_debug"
+            referencedColumns: ["title_id"]
+          },
+        ]
+      }
+      viib_title_intent_stats: {
+        Row: {
+          intent_count: number
+          last_computed_at: string
+          primary_confidence_score: number | null
+          primary_intent_type: string | null
+          title_id: string
+        }
+        Insert: {
+          intent_count?: number
+          last_computed_at?: string
+          primary_confidence_score?: number | null
+          primary_intent_type?: string | null
+          title_id: string
+        }
+        Update: {
+          intent_count?: number
+          last_computed_at?: string
+          primary_confidence_score?: number | null
+          primary_intent_type?: string | null
+          title_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "viib_title_intent_stats_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: true
+            referencedRelation: "titles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "viib_title_intent_stats_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: true
+            referencedRelation: "viib_recommendation_debug"
+            referencedColumns: ["title_id"]
+          },
+        ]
+      }
       viib_weight_config: {
         Row: {
           context_weight: number
@@ -937,6 +1053,16 @@ export type Database = {
           title_id: string
         }[]
       }
+      get_top_recommendations_with_intent: {
+        Args: { p_limit: number; p_user_id: string }
+        Returns: {
+          base_viib_score: number
+          final_score: number
+          intent_alignment_score: number
+          social_priority_score: number
+          title_id: string
+        }[]
+      }
       log_recommendation_outcome: {
         Args: {
           p_rating_value: Database["public"]["Enums"]["rating_value"]
@@ -947,7 +1073,15 @@ export type Database = {
         }
         Returns: undefined
       }
+      refresh_viib_title_intent_stats: {
+        Args: { p_title_id: string }
+        Returns: undefined
+      }
       viib_autotune_weights: { Args: { p_days?: number }; Returns: string }
+      viib_intent_alignment_score: {
+        Args: { p_title_id: string; p_user_id: string }
+        Returns: number
+      }
       viib_score: {
         Args: { p_title_id: string; p_user_id: string }
         Returns: number
@@ -955,6 +1089,10 @@ export type Database = {
       viib_score_components: {
         Args: { p_title_id: string; p_user_id: string }
         Returns: Record<string, unknown>
+      }
+      viib_score_with_intent: {
+        Args: { p_title_id: string; p_user_id: string }
+        Returns: number
       }
       viib_social_priority_score: {
         Args: { p_title_id: string; p_user_id: string }
