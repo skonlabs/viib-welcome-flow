@@ -14,7 +14,7 @@ serve(async (req) => {
   try {
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_ANON_KEY") ?? ""
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
     const { phoneNumber, otpCode } = await req.json();
@@ -70,7 +70,7 @@ serve(async (req) => {
       );
     }
 
-    // Mark as verified
+    // Mark as verified in phone_verifications table
     const { error: updateError } = await supabaseClient
       .from('phone_verifications')
       .update({ verified: true })
@@ -81,18 +81,26 @@ serve(async (req) => {
       throw new Error('Failed to verify code');
     }
 
-    // Update user's phone verification status
-    const { error: userUpdateError } = await supabaseClient
+    // Create or update user record with phone verification
+    const { error: upsertError } = await supabaseClient
       .from('users')
-      .update({ is_phone_verified: true })
-      .eq('phone_number', normalizedPhone);
+      .upsert({
+        phone_number: normalizedPhone,
+        signup_method: 'phone',
+        is_phone_verified: true,
+        onboarding_completed: false,
+        is_active: false, // Only activate after onboarding completion
+      }, {
+        onConflict: 'phone_number',
+        ignoreDuplicates: false
+      });
 
-    if (userUpdateError) {
-      console.error('Failed to update user verification status:', userUpdateError);
-      // Don't throw error here - verification was successful, just log the issue
+    if (upsertError) {
+      console.error('Failed to create/update user record:', upsertError);
+      throw new Error('Failed to create user account');
     }
 
-    console.log('Phone number verified successfully:', normalizedPhone);
+    console.log('Phone number verified and user record created/updated:', normalizedPhone);
 
     return new Response(
       JSON.stringify({

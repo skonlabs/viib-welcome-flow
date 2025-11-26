@@ -109,30 +109,8 @@ export default function Onboarding() {
   const handleOTPVerify = async (otp: string) => {
     console.log("OTP verified:", otp);
     
-    // The verification is already done by the edge function
-    // Now create/update user record in public.users table
-    try {
-      // For phone auth, we don't have a Supabase auth user yet
-      // So we create a user record directly in the users table
-      const fullPhone = `${onboardingData.countryCode}${onboardingData.phone}`;
-      
-      const { error } = await supabase
-        .from('users')
-        .insert({
-          phone_number: fullPhone,
-          signup_method: 'phone',
-          onboarding_completed: false,
-          is_active: false, // Only activate after onboarding completion
-          is_phone_verified: true, // Mark phone as verified
-        });
-      
-      if (error && error.code !== '23505') { // Ignore duplicate key errors
-        console.error('Error creating user record:', error);
-      }
-    } catch (error) {
-      console.error('Error in handleOTPVerify:', error);
-    }
-    
+    // The verification flag is already set by the edge function
+    // Just navigate to next step
     navigateToStep("biometric");
   };
 
@@ -209,21 +187,38 @@ export default function Onboarding() {
     console.log("Onboarding completed with data:", onboardingData);
     
     try {
-      // Get current user
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (user) {
-        // Update user record to mark onboarding as complete and activate account
+      // For phone signups, we don't have auth.user, so update by phone number
+      if (onboardingData.entryMethod === 'phone') {
+        const fullPhone = `${onboardingData.countryCode}${onboardingData.phone}`;
         const { error } = await supabase
           .from('users')
           .update({
             onboarding_completed: true,
-            is_active: true, // Activate account now that onboarding is complete
+            is_active: true, // Activate account ONLY after onboarding is complete
+            full_name: onboardingData.name,
           })
-          .eq('id', user.id);
+          .eq('phone_number', fullPhone);
         
         if (error) {
-          console.error('Error updating user record:', error);
+          console.error('Error updating phone user record:', error);
+        }
+      } else {
+        // For email signups, update by auth user id
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (user) {
+          const { error } = await supabase
+            .from('users')
+            .update({
+              onboarding_completed: true,
+              is_active: true, // Activate account ONLY after onboarding is complete
+              full_name: onboardingData.name,
+            })
+            .eq('id', user.id);
+          
+          if (error) {
+            console.error('Error updating email user record:', error);
+          }
         }
       }
     } catch (error) {
