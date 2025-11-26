@@ -267,14 +267,6 @@ export const UserIdentityScreen = ({ onContinue, onBack }: UserIdentityScreenPro
                 initial={{ scale: 1.02 }}
                 animate={{ scale: 1 }}
               >
-                {/* Border glow - initially visible to draw attention */}
-                <motion.div
-                  className="absolute -inset-1 bg-gradient-to-r from-primary via-accent to-primary rounded-2xl blur-xl transition-opacity duration-500"
-                  style={{ backgroundSize: '200% 200%' }}
-                  initial={{ opacity: 0.6 }}
-                  animate={{ opacity: name ? 0 : 0.6 }}
-                  whileFocus={{ opacity: 0.5 }}
-                />
                 <Input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
