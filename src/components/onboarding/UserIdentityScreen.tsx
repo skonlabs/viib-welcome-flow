@@ -8,6 +8,7 @@ import energeticImage from "@/assets/vibe-energetic.png";
 import curiousImage from "@/assets/vibe-curious.png";
 import adventureImage from "@/assets/vibe-adventure.png";
 import { BackButton } from "./BackButton";
+import { FloatingParticles } from "./FloatingParticles";
 
 interface UserIdentityScreenProps {
   onContinue: (data: { name: string; vibe: string }) => void;
@@ -107,27 +108,7 @@ export const UserIdentityScreen = ({ onContinue, onBack }: UserIdentityScreenPro
       </div>
 
       {/* Floating Particles */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        {[...Array(50)].map((_, i) => (
-          <motion.div
-            key={i}
-            className="absolute w-1 h-1 bg-white rounded-full"
-            style={{
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`
-            }}
-            animate={{
-              y: [0, -30, 0],
-              opacity: [0, 1, 0]
-            }}
-            transition={{
-              duration: Math.random() * 3 + 2,
-              repeat: Infinity,
-              delay: Math.random() * 2
-            }}
-          />
-        ))}
-      </div>
+      <FloatingParticles />
 
       <BackButton onClick={onBack} />
       
@@ -173,27 +154,7 @@ export const UserIdentityScreen = ({ onContinue, onBack }: UserIdentityScreenPro
         ))}
 
         {/* Floating particles */}
-        {[...Array(20)].map((_, i) => (
-          <motion.div
-            key={`particle-${i}`}
-            className="absolute w-1 h-1 bg-white rounded-full"
-            style={{
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
-            }}
-            animate={{
-              y: [-20, -100],
-              opacity: [0, 1, 0],
-              scale: [0, 1.5, 0],
-            }}
-            transition={{
-              duration: 3 + Math.random() * 4,
-              repeat: Infinity,
-              delay: Math.random() * 5,
-              ease: "easeOut"
-            }}
-          />
-        ))}
+        <FloatingParticles count={20} />
 
         {/* Grid overlay */}
         <div 

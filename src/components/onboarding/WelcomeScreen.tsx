@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { motion, useMotionValue, useTransform } from "framer-motion";
 import { ArrowRight, Sparkles, Lock } from "lucide-react";
 import { useEffect } from "react";
+import { FloatingParticles } from "./FloatingParticles";
 interface WelcomeScreenProps {
   onContinue: () => void;
 }
@@ -67,27 +68,7 @@ export const WelcomeScreen = ({
       </div>
 
       {/* Floating Particles */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        {[...Array(50)].map((_, i) => (
-          <motion.div
-            key={i}
-            className="absolute w-1 h-1 bg-white rounded-full"
-            style={{
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`
-            }}
-            animate={{
-              y: [0, -30, 0],
-              opacity: [0, 1, 0]
-            }}
-            transition={{
-              duration: Math.random() * 3 + 2,
-              repeat: Infinity,
-              delay: Math.random() * 2
-            }}
-          />
-        ))}
-      </div>
+      <FloatingParticles />
 
       {/* Main Content */}
       <motion.div className="relative z-10 text-center max-w-4xl mx-auto overflow-visible" style={{
