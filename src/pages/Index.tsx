@@ -7,13 +7,13 @@ const Index = () => {
     <div className="min-h-screen bg-black overflow-hidden">
       <LandingHeader />
 
-      {/* Animated Background */}
-      <div className="fixed inset-0 gradient-ocean opacity-70" />
-      <div className="fixed inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,0.01),transparent_50%)]" />
-
-      {/* Floating Orbs */}
-      <div className="fixed top-20 left-10 w-96 h-96 bg-primary/10 rounded-full blur-[120px] animate-float" />
-      <div className="fixed bottom-20 right-10 w-96 h-96 bg-accent/10 rounded-full blur-[120px] animate-float [animation-delay:2s]" />
+      {/* Background container with overflow hidden */}
+      <div className="absolute inset-0 overflow-hidden">
+        {/* Animated Background */}
+        <div className="absolute inset-0">
+          <div className="absolute inset-0 gradient-ocean opacity-80" />
+        </div>
+      </div>
 
       {/* Hero Section */}
       <section className="relative min-h-screen flex items-center justify-center px-4 pt-32 pb-20">
