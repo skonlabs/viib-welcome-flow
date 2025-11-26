@@ -128,17 +128,7 @@ export const EmailOTPVerificationScreen = ({
         return;
       }
 
-      // Sign in the user
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (signInError) {
-        setError("Account created but sign in failed. Please try logging in.");
-        return;
-      }
-
+      // OTP verified successfully - proceed to next step
       onContinue();
     } catch (err) {
       console.error("Verification error:", err);
