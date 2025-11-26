@@ -1,9 +1,15 @@
 import { Button } from "@/components/ui/button";
 import { Apple, PlayCircle, Users, Heart, Sparkles, ArrowRight, Star } from "lucide-react";
 import LandingHeader from "@/components/LandingHeader";
-import { motion } from "framer-motion";
+import { motion, useScroll, useTransform } from "framer-motion";
 
 const Index = () => {
+  const { scrollYProgress } = useScroll();
+  
+  // Parallax transforms for different orbs
+  const orb1Y = useTransform(scrollYProgress, [0, 1], [0, -200]);
+  const orb2Y = useTransform(scrollYProgress, [0, 1], [0, 200]);
+  const particlesY = useTransform(scrollYProgress, [0, 1], [0, -100]);
   return (
     <div className="min-h-screen bg-black overflow-hidden relative">
       <LandingHeader />
@@ -16,7 +22,8 @@ const Index = () => {
           <motion.div
             className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full blur-[100px]"
             style={{
-              background: "radial-gradient(circle, #a855f7 0%, transparent 70%)"
+              background: "radial-gradient(circle, #a855f7 0%, transparent 70%)",
+              y: orb1Y
             }}
             animate={{
               x: [0, 100, 0],
@@ -31,7 +38,8 @@ const Index = () => {
           <motion.div
             className="absolute bottom-1/4 right-1/4 w-96 h-96 rounded-full blur-[100px]"
             style={{
-              background: "radial-gradient(circle, #0ea5e9 0%, transparent 70%)"
+              background: "radial-gradient(circle, #0ea5e9 0%, transparent 70%)",
+              y: orb2Y
             }}
             animate={{
               x: [0, -80, 0],
@@ -47,7 +55,10 @@ const Index = () => {
       </div>
 
       {/* Floating Particles - spans entire page */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+      <motion.div 
+        className="fixed inset-0 overflow-hidden pointer-events-none"
+        style={{ y: particlesY }}
+      >
         {[...Array(50)].map((_, i) => (
           <motion.div
             key={i}
@@ -67,7 +78,7 @@ const Index = () => {
             }}
           />
         ))}
-      </div>
+      </motion.div>
 
       {/* Hero Section */}
       <section className="relative min-h-screen flex items-center justify-center px-4 pt-32 pb-20">
