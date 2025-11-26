@@ -123,7 +123,7 @@ export const PhoneEntryScreen = ({
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 border border-primary/30 mb-4">
               <Lock className="w-8 h-8 text-primary" />
             </div>
-            <h2 className="text-3xl font-bold text-gradient">Crea your account</h2>
+            <h2 className="text-3xl font-bold text-gradient">Create your account</h2>
             <p className="text-muted-foreground">
               We'll send you a verification code
             </p>
