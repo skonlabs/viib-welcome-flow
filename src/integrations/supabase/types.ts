@@ -938,6 +938,8 @@ export type Database = {
           full_name: string | null
           id: string
           is_active: boolean
+          is_email_verified: boolean
+          is_phone_verified: boolean
           language_preference: string | null
           onboarding_completed: boolean
           phone_number: string | null
@@ -953,6 +955,8 @@ export type Database = {
           full_name?: string | null
           id?: string
           is_active?: boolean
+          is_email_verified?: boolean
+          is_phone_verified?: boolean
           language_preference?: string | null
           onboarding_completed?: boolean
           phone_number?: string | null
@@ -968,6 +972,8 @@ export type Database = {
           full_name?: string | null
           id?: string
           is_active?: boolean
+          is_email_verified?: boolean
+          is_phone_verified?: boolean
           language_preference?: string | null
           onboarding_completed?: boolean
           phone_number?: string | null
