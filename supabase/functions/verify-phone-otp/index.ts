@@ -95,10 +95,12 @@ serve(async (req) => {
     );
   } catch (error: any) {
     console.error('Error in verify-phone-otp:', error);
+    
+    // Return user-friendly error message instead of technical details
     return new Response(
       JSON.stringify({ 
         success: false,
-        error: error?.message || "An error occurred" 
+        error: "Unable to verify code. Please try again." 
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
