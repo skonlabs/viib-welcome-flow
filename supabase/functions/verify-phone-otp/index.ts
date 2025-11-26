@@ -81,26 +81,48 @@ serve(async (req) => {
       throw new Error('Failed to verify code');
     }
 
-    // Create or update user record with phone verification
-    const { error: upsertError } = await supabaseClient
+    // Check if user already exists with this phone number
+    const { data: existingUser, error: checkError } = await supabaseClient
       .from('users')
-      .upsert({
-        phone_number: normalizedPhone,
-        signup_method: 'phone',
-        is_phone_verified: true,
-        onboarding_completed: false,
-        is_active: false, // Only activate after onboarding completion
-      }, {
-        onConflict: 'phone_number',
-        ignoreDuplicates: false
-      });
+      .select('id')
+      .eq('phone_number', normalizedPhone)
+      .maybeSingle();
 
-    if (upsertError) {
-      console.error('Failed to create/update user record:', upsertError);
-      throw new Error('Failed to create user account');
+    if (checkError) {
+      console.error('Error checking existing user:', checkError);
+      throw new Error('Failed to verify user');
     }
 
-    console.log('Phone number verified and user record created/updated:', normalizedPhone);
+    if (existingUser) {
+      // Update existing user
+      const { error: updateUserError } = await supabaseClient
+        .from('users')
+        .update({ is_phone_verified: true })
+        .eq('phone_number', normalizedPhone);
+
+      if (updateUserError) {
+        console.error('Failed to update user record:', updateUserError);
+        throw new Error('Failed to update user account');
+      }
+      console.log('Existing user updated with phone verification:', normalizedPhone);
+    } else {
+      // Create new user record
+      const { error: insertError } = await supabaseClient
+        .from('users')
+        .insert({
+          phone_number: normalizedPhone,
+          signup_method: 'phone',
+          is_phone_verified: true,
+          onboarding_completed: false,
+          is_active: false, // Only activate after onboarding completion
+        });
+
+      if (insertError) {
+        console.error('Failed to create user record:', insertError);
+        throw new Error('Failed to create user account');
+      }
+      console.log('New user created with phone verification:', normalizedPhone);
+    }
 
     return new Response(
       JSON.stringify({
