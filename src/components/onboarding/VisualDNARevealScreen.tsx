@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { ArrowRight, Sparkles } from "lucide-react";
 import { BackButton } from "./BackButton";
+import { FloatingParticles } from "./FloatingParticles";
 
 interface VisualDNARevealScreenProps {
   selections: string[];
@@ -52,27 +53,7 @@ export const VisualDNARevealScreen = ({ selections, onContinue, onBack }: Visual
       </div>
 
       {/* Floating Particles */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        {[...Array(50)].map((_, i) => (
-          <motion.div
-            key={i}
-            className="absolute w-1 h-1 bg-white rounded-full"
-            style={{
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`
-            }}
-            animate={{
-              y: [0, -30, 0],
-              opacity: [0, 1, 0]
-            }}
-            transition={{
-              duration: Math.random() * 3 + 2,
-              repeat: Infinity,
-              delay: Math.random() * 2
-            }}
-          />
-        ))}
-      </div>
+      <FloatingParticles />
 
       {/* Content */}
       <motion.div
