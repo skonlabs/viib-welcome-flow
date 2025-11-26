@@ -42,27 +42,46 @@ export const PhoneEntryScreen = ({ onContinue, onBack }: PhoneEntryScreenProps) 
     <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-black">
       <BackButton onClick={onBack} />
       
-      {/* Background */}
-      <div className="absolute inset-0">
-        <div className="absolute inset-0 gradient-ocean opacity-80" />
-        <motion.div
-          className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full blur-[100px]"
-          style={{ background: "radial-gradient(circle, #a855f7 0%, transparent 70%)" }}
-          animate={{
-            x: [0, 100, 0],
-            y: [0, -50, 0],
-          }}
-          transition={{
-            duration: 20,
-            repeat: Infinity,
-            ease: "easeInOut",
-          }}
-        />
+      {/* Background container - fixed positioning */}
+      <div className="fixed inset-0 overflow-hidden">
+        <div className="absolute inset-0">
+          <div className="absolute inset-0 gradient-ocean opacity-40" />
+          <motion.div 
+            className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full blur-[80px] opacity-40"
+            style={{
+              background: "radial-gradient(circle, #a855f7 0%, transparent 70%)"
+            }}
+            animate={{
+              x: [0, 100, 0],
+              y: [0, -50, 0]
+            }}
+            transition={{
+              duration: 20,
+              repeat: Infinity,
+              ease: "easeInOut"
+            }}
+          />
+          <motion.div 
+            className="absolute bottom-1/4 right-1/4 w-96 h-96 rounded-full blur-[80px] opacity-30"
+            style={{
+              background: "radial-gradient(circle, #0ea5e9 0%, transparent 70%)"
+            }}
+            animate={{
+              x: [0, -80, 0],
+              y: [0, 40, 0]
+            }}
+            transition={{
+              duration: 25,
+              repeat: Infinity,
+              ease: "easeInOut"
+            }}
+          />
+        </div>
       </div>
 
       {/* Floating Particles */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        {[...Array(30)].map((_, i) => (
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        {[...Array(50)].map((_, i) => (
           <motion.div
             key={i}
             className="absolute w-1 h-1 bg-white rounded-full"

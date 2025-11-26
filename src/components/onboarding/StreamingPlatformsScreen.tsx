@@ -33,82 +33,66 @@ export const StreamingPlatformsScreen = ({ onContinue, onBack }: StreamingPlatfo
     <div className="min-h-screen flex items-center justify-center p-4 sm:p-6 relative overflow-hidden bg-black">
       <BackButton onClick={onBack} />
       
-      {/* Cinematic Multi-Layer Background */}
-      <div className="absolute inset-0">
-        {/* Base gradient */}
-        <div className="absolute inset-0 bg-gradient-to-br from-black via-purple-950/20 to-black" />
-        
-        {/* Animated mesh gradients */}
-        <div
-          className="absolute top-0 left-0 w-full h-full opacity-40"
-          style={{ 
-            background: "radial-gradient(ellipse 80% 50% at 50% -20%, rgba(168, 85, 247, 0.15), transparent 50%), radial-gradient(ellipse 60% 50% at 80% 50%, rgba(59, 130, 246, 0.1), transparent 50%)"
-          }}
-        />
-
-        {/* Floating orbs with parallax effect */}
-        {[...Array(5)].map((_, i) => (
-          <motion.div
-            key={`orb-${i}`}
-            className="absolute rounded-full blur-[80px] opacity-20"
-            style={{ 
-              width: `${200 + i * 80}px`,
-              height: `${200 + i * 80}px`,
-              background: `radial-gradient(circle, ${
-                i % 3 === 0 ? '#a855f7' : i % 3 === 1 ? '#3b82f6' : '#ec4899'
-              } 0%, transparent 70%)`,
-              left: `${10 + i * 15}%`,
-              top: `${20 + i * 10}%`,
+      {/* Background container - fixed positioning */}
+      <div className="fixed inset-0 overflow-hidden">
+        <div className="absolute inset-0">
+          <div className="absolute inset-0 gradient-ocean opacity-40" />
+          <motion.div 
+            className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full blur-[80px] opacity-40"
+            style={{
+              background: "radial-gradient(circle, #a855f7 0%, transparent 70%)"
             }}
             animate={{
-              x: [0, 100 + i * 30, -50 + i * 20, 0],
-              y: [0, -80 + i * 15, 60 - i * 10, 0],
-              scale: [1, 1.3, 0.8, 1],
+              x: [0, 100, 0],
+              y: [0, -50, 0]
             }}
             transition={{
-              duration: 20 + i * 5,
+              duration: 20,
               repeat: Infinity,
-              ease: "easeInOut",
-              delay: i * 2,
+              ease: "easeInOut"
             }}
           />
-        ))}
+          <motion.div 
+            className="absolute bottom-1/4 right-1/4 w-96 h-96 rounded-full blur-[80px] opacity-30"
+            style={{
+              background: "radial-gradient(circle, #0ea5e9 0%, transparent 70%)"
+            }}
+            animate={{
+              x: [0, -80, 0],
+              y: [0, 40, 0]
+            }}
+            transition={{
+              duration: 25,
+              repeat: Infinity,
+              ease: "easeInOut"
+            }}
+          />
+        </div>
+      </div>
 
-        {/* Floating particles */}
-        {[...Array(20)].map((_, i) => (
+      {/* Floating Particles */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        {[...Array(50)].map((_, i) => (
           <motion.div
-            key={`particle-${i}`}
+            key={i}
             className="absolute w-1 h-1 bg-white rounded-full"
             style={{
               left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
+              top: `${Math.random() * 100}%`
             }}
             animate={{
-              y: [-20, -100],
-              opacity: [0, 1, 0],
-              scale: [0, 1.5, 0],
+              y: [0, -30, 0],
+              opacity: [0, 1, 0]
             }}
             transition={{
-              duration: 3 + Math.random() * 4,
+              duration: Math.random() * 3 + 2,
               repeat: Infinity,
-              delay: Math.random() * 5,
-              ease: "easeOut"
+              delay: Math.random() * 2
             }}
           />
         ))}
-
-        {/* Grid overlay */}
-        <div 
-          className="absolute inset-0 opacity-[0.03]"
-          style={{
-            backgroundImage: `
-              linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px),
-              linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)
-            `,
-            backgroundSize: '50px 50px'
-          }}
-        />
       </div>
+
 
       {/* Content */}
       <motion.div
