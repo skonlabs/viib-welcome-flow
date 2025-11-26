@@ -3,6 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { motion } from "framer-motion";
 import { ArrowRight, RefreshCw } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface OTPVerificationScreenProps {
   phone: string;
@@ -18,6 +20,9 @@ export const OTPVerificationScreen = ({
   onChangeNumber,
 }: OTPVerificationScreenProps) => {
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+  const [timer, setTimer] = useState(30);
+  const [loading, setLoading] = useState(false);
+  const [resending, setResending] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   const formatPhoneNumber = (phoneNumber: string) => {
@@ -34,6 +39,15 @@ export const OTPVerificationScreen = ({
     inputRefs.current[0]?.focus();
   }, []);
 
+  useEffect(() => {
+    if (timer > 0) {
+      const interval = setInterval(() => {
+        setTimer((prev) => prev - 1);
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [timer]);
+
   const handleChange = (index: number, value: string) => {
     if (value.length > 1) value = value[0];
     if (!/^\d*$/.test(value)) return;
@@ -47,7 +61,7 @@ export const OTPVerificationScreen = ({
     }
 
     if (newOtp.every((digit) => digit) && newOtp.join("").length === 6) {
-      setTimeout(() => onContinue(newOtp.join("")), 300);
+      setTimeout(() => handleVerify(newOtp.join("")), 300);
     }
   };
 
@@ -63,7 +77,62 @@ export const OTPVerificationScreen = ({
     const newOtp = pastedData.slice(0, 6).split("");
     setOtp([...newOtp, ...Array(6 - newOtp.length).fill("")]);
     if (newOtp.length === 6) {
-      setTimeout(() => onContinue(newOtp.join("")), 300);
+      setTimeout(() => handleVerify(newOtp.join("")), 300);
+    }
+  };
+
+  const handleVerify = async (otpCode?: string) => {
+    const code = otpCode || otp.join("");
+    if (code.length !== 6) {
+      toast.error("Please enter complete verification code");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const { error: verifyError } = await supabase.auth.verifyOtp({
+        phone,
+        token: code,
+        type: 'sms',
+      });
+
+      if (verifyError) {
+        toast.error("Invalid verification code");
+        setOtp(["", "", "", "", "", ""]);
+        inputRefs.current[0]?.focus();
+        return;
+      }
+
+      toast.success("Phone verified successfully!");
+      onContinue(code);
+    } catch (err) {
+      toast.error("Verification failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    setResending(true);
+    
+    try {
+      const { error: otpError } = await supabase.auth.signInWithOtp({
+        phone,
+      });
+
+      if (otpError) {
+        toast.error("Failed to resend code");
+        return;
+      }
+
+      toast.success("Verification code sent!");
+      setTimer(30);
+      onResend();
+    } catch (err) {
+      toast.error("Failed to resend code");
+    } finally {
+      setResending(false);
     }
   };
 
@@ -190,11 +259,16 @@ export const OTPVerificationScreen = ({
 
             <div className="flex justify-center gap-6 text-sm">
               <button
-                onClick={onResend}
-                className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
+                onClick={timer === 0 ? handleResend : undefined}
+                disabled={timer > 0 || resending}
+                className={`flex items-center gap-2 ${
+                  timer > 0 || resending
+                    ? "text-muted-foreground/50 cursor-not-allowed"
+                    : "text-muted-foreground hover:text-foreground cursor-pointer"
+                } transition-colors`}
               >
-                <RefreshCw className="w-4 h-4" />
-                Resend Code
+                <RefreshCw className={`w-4 h-4 ${resending ? 'animate-spin' : ''}`} />
+                {resending ? "Sending..." : timer > 0 ? `Resend in ${timer}s` : "Resend Code"}
               </button>
               <button
                 onClick={onChangeNumber}
