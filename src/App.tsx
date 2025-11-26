@@ -7,6 +7,8 @@ import { ProtectedRoute } from "@/components/app/ProtectedRoute";
 import Index from "./pages/Index";
 import Onboarding from "./pages/app/Onboarding";
 import Home from "./pages/app/Home";
+import Login from "./pages/Login";
+import ForgotPassword from "./pages/ForgotPassword";
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
 import About from "./pages/About";
@@ -22,6 +24,8 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/app/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
           <Route path="/app/onboarding" element={<Onboarding />} />
           <Route path="/app/onboarding/:step" element={<Onboarding />} />

@@ -23,14 +23,42 @@ export const useAuth = () => {
 
   const checkSession = async () => {
     try {
-      // Get user_id from localStorage (set after onboarding completion)
-      const userId = localStorage.getItem('viib_user_id');
+      // Check for session in localStorage (remember me) or sessionStorage
+      const sessionData = localStorage.getItem('viib_session') || sessionStorage.getItem('viib_session');
       
-      if (!userId) {
-        setLoading(false);
+      if (!sessionData) {
+        // Fallback to old method
+        const userId = localStorage.getItem('viib_user_id');
+        if (!userId) {
+          setLoading(false);
+          return;
+        }
+        await fetchUserData(userId);
         return;
       }
 
+      const { userId, rememberMe, timestamp } = JSON.parse(sessionData);
+      
+      // Check if session expired (30 days for remember me)
+      if (rememberMe) {
+        const thirtyDays = 30 * 24 * 60 * 60 * 1000;
+        if (Date.now() - timestamp > thirtyDays) {
+          localStorage.removeItem('viib_session');
+          localStorage.removeItem('viib_user_id');
+          setLoading(false);
+          return;
+        }
+      }
+
+      await fetchUserData(userId);
+    } catch (error) {
+      console.error('Error checking session:', error);
+      setLoading(false);
+    }
+  };
+
+  const fetchUserData = async (userId: string) => {
+    try {
       // Fetch user from database
       const { data: userData, error: userError } = await supabase
         .from('users')
@@ -59,7 +87,7 @@ export const useAuth = () => {
       // Check admin status
       await checkAdminStatus(userData.id);
     } catch (error) {
-      console.error('Error checking session:', error);
+      console.error('Error fetching user data:', error);
       setLoading(false);
     }
   };
@@ -83,6 +111,8 @@ export const useAuth = () => {
 
   const signOut = async () => {
     localStorage.removeItem('viib_user_id');
+    localStorage.removeItem('viib_session');
+    sessionStorage.removeItem('viib_session');
     setUser(null);
     setIsAdmin(false);
     window.location.href = '/';
