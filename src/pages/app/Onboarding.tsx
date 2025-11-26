@@ -234,7 +234,7 @@ export default function Onboarding() {
           phone={`${onboardingData.countryCode} ${onboardingData.phone}`}
           onContinue={handleOTPVerify}
           onResend={() => console.log("Resend OTP")}
-          onChangeNumber={() => setCurrentStep("phone")}
+          onChangeNumber={() => navigateToStep("phone")}
         />
       )}
       {currentStep === "email" && (
