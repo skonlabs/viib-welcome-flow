@@ -81,81 +81,18 @@ serve(async (req) => {
 
     console.log('OTP matched successfully!');
 
-    // Create user in Supabase Auth
-    const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true, // Auto-confirm since we verified via OTP
-    });
-
-    if (authError) {
-      console.error('Auth error:', authError);
-      
-      // If user already exists, that's actually okay - they can just sign in
-      if (authError.message?.includes('already been registered') || authError.status === 422) {
-        // Update the verification flag for existing user
-        const { error: updateError } = await supabase
-          .from('users')
-          .update({ is_email_verified: true })
-          .eq('email', email);
-
-        if (updateError) {
-          console.error('Failed to update existing user verification status:', updateError);
-        }
-
-        // Mark verification as complete AFTER updating user
-        await supabase
-          .from('email_verifications')
-          .update({ verified: true })
-          .eq('id', verification.id);
-
-        return new Response(
-          JSON.stringify({ 
-            success: true,
-            message: 'Email verified successfully. Please sign in.'
-          }),
-          {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            status: 200,
-          }
-        );
-      }
-      
-      throw new Error('Failed to create user account');
-    }
-
-    // Create user record in public.users table only if user was just created
-    const { error: userError } = await supabase
-      .from('users')
-      .insert({
-        id: authData.user.id,
-        email,
-        signup_method: 'email',
-        onboarding_completed: false,
-        is_active: false, // Only activate after onboarding completion
-        is_email_verified: true, // Mark email as verified
-      });
-
-    if (userError) {
-      console.error('User creation error:', userError);
-      // If user record already exists, that's okay too
-      if (!userError.message?.includes('duplicate key')) {
-        throw new Error('Failed to create user profile');
-      }
-    }
-
-    // ONLY mark verification as complete AFTER user record is successfully created
+    // Mark verification as complete - that's ALL this function does
     await supabase
       .from('email_verifications')
       .update({ verified: true })
       .eq('id', verification.id);
 
-    console.log('User created successfully');
+    console.log('Email OTP verified successfully');
 
     return new Response(
       JSON.stringify({ 
         success: true,
-        user: authData.user 
+        message: 'Email verified successfully'
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

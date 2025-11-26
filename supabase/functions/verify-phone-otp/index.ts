@@ -70,50 +70,7 @@ serve(async (req) => {
       );
     }
 
-    // Check if user already exists with this phone number
-    const { data: existingUser, error: checkError } = await supabaseClient
-      .from('users')
-      .select('id')
-      .eq('phone_number', normalizedPhone)
-      .maybeSingle();
-
-    if (checkError) {
-      console.error('Error checking existing user:', checkError);
-      throw new Error('Failed to verify user');
-    }
-
-    if (existingUser) {
-      // Update existing user
-      const { error: updateUserError } = await supabaseClient
-        .from('users')
-        .update({ is_phone_verified: true })
-        .eq('phone_number', normalizedPhone);
-
-      if (updateUserError) {
-        console.error('Failed to update user record:', updateUserError);
-        throw new Error('Failed to update user account');
-      }
-      console.log('Existing user updated with phone verification:', normalizedPhone);
-    } else {
-      // Create new user record
-      const { error: insertError } = await supabaseClient
-        .from('users')
-        .insert({
-          phone_number: normalizedPhone,
-          signup_method: 'phone',
-          is_phone_verified: true,
-          onboarding_completed: false,
-          is_active: false, // Only activate after onboarding completion
-        });
-
-      if (insertError) {
-        console.error('Failed to create user record:', insertError);
-        throw new Error('Failed to create user account');
-      }
-      console.log('New user created with phone verification:', normalizedPhone);
-    }
-
-    // ONLY mark verification as complete AFTER user record is successfully created/updated
+    // Mark verification as complete - that's ALL this function does
     const { error: updateError } = await supabaseClient
       .from('phone_verifications')
       .update({ verified: true })
@@ -121,11 +78,10 @@ serve(async (req) => {
 
     if (updateError) {
       console.error('Database update error:', updateError);
-      // Don't throw here - user record was created successfully
-      console.error('Warning: Could not mark verification as used, but user was created');
+      throw new Error('Failed to verify code');
     }
 
-    console.log('Phone number verified and user record created/updated:', normalizedPhone);
+    console.log('Phone number verified successfully:', normalizedPhone);
 
     return new Response(
       JSON.stringify({

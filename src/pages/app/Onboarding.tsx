@@ -109,18 +109,80 @@ export default function Onboarding() {
   const handleOTPVerify = async (otp: string) => {
     console.log("OTP verified:", otp);
     
-    // The verification flag is already set by the edge function
-    // Just navigate to next step
+    // Create user record in database AFTER successful verification
+    try {
+      const fullPhone = `${onboardingData.countryCode}${onboardingData.phone}`;
+      
+      const { error } = await supabase
+        .from('users')
+        .insert({
+          phone_number: fullPhone,
+          signup_method: 'phone',
+          is_phone_verified: true,
+          onboarding_completed: false,
+          is_active: false,
+        });
+      
+      if (error && error.code !== '23505') {
+        console.error('Error creating user record:', error);
+      }
+    } catch (error) {
+      console.error('Error in handleOTPVerify:', error);
+    }
+    
     navigateToStep("biometric");
   };
 
-  const handleEmailSignup = (email: string, password: string) => {
+  const handleEmailOTPVerify = async () => {
+    // Create user record in database AFTER successful verification
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (user) {
+        const { error } = await supabase
+          .from('users')
+          .insert({
+            id: user.id,
+            email: onboardingData.email,
+            signup_method: 'email',
+            is_email_verified: true,
+            onboarding_completed: false,
+            is_active: false,
+          });
+        
+        if (error && error.code !== '23505') {
+          console.error('Error creating user record:', error);
+        }
+      }
+    } catch (error) {
+      console.error('Error in handleEmailOTPVerify:', error);
+    }
+    
+    navigateToStep("biometric");
+  };
+
+  const handleEmailSignup = async (email: string, password: string) => {
     setOnboardingData((prev) => ({ ...prev, email, password }));
+    
+    // Create auth user FIRST, then send OTP
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/`,
+        }
+      });
+      
+      if (error) {
+        console.error('Error creating auth user:', error);
+        // If user already exists, just proceed to OTP
+      }
+    } catch (error) {
+      console.error('Error in handleEmailSignup:', error);
+    }
+    
     navigateToStep("email-otp");
-  };
-
-  const handleEmailOTPVerify = () => {
-    navigateToStep("biometric");
   };
 
   const handleResendEmailOTP = async () => {
