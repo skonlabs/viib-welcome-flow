@@ -2,26 +2,46 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { motion } from "framer-motion";
 import { ArrowRight, Eye, EyeOff, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { FloatingParticles } from "@/components/onboarding/FloatingParticles";
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
+import { z } from "zod";
+
+const emailSchema = z.string().trim().email({ message: "Please enter a valid email address" });
+const phoneSchema = z.string().trim().regex(/^\+?[1-9]\d{1,14}$/, { message: "Please enter a valid phone number" });
 
 export default function Login() {
-  const [emailOrPhone, setEmailOrPhone] = useState("");
+  const [activeTab, setActiveTab] = useState("email");
+  
+  // Email login state
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
+  
+  // Phone login state
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [otp, setOtp] = useState("");
+  
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const navigate = useNavigate();
 
-  const isEmail = emailOrPhone.includes('@');
+  const handleEmailLogin = async () => {
+    if (!email.trim() || !password.trim()) {
+      setError("Please enter your email and password");
+      return;
+    }
 
-  const handleLogin = async () => {
-    if (!emailOrPhone || !password) {
-      setError("Please enter your credentials");
+    try {
+      emailSchema.parse(email);
+    } catch {
+      setError("Please enter a valid email address");
       return;
     }
 
@@ -29,40 +49,163 @@ export default function Login() {
     setError("");
 
     try {
-      const { data, error: loginError } = await supabase.functions.invoke("verify-password", {
-        body: { 
-          email: isEmail ? emailOrPhone : null,
-          phone: !isEmail ? emailOrPhone : null,
-          password 
-        },
+      const { data, error: invokeError } = await supabase.functions.invoke("verify-password", {
+        body: { email, password },
       });
 
-      if (loginError || !data?.success) {
-        setError(data?.error || "Invalid credentials");
+      if (invokeError) {
+        setError("Unable to sign in. Please check your credentials.");
         return;
       }
 
-      // Store user session
+      if (data?.error) {
+        setError(data.error);
+        return;
+      }
+
+      if (data?.success && data?.userId) {
+        const sessionData = {
+          userId: data.userId,
+          rememberMe,
+          timestamp: Date.now()
+        };
+
+        if (rememberMe) {
+          localStorage.setItem('viib_session', JSON.stringify(sessionData));
+        } else {
+          sessionStorage.setItem('viib_session', JSON.stringify(sessionData));
+        }
+        
+        localStorage.setItem('viib_user_id', data.userId);
+        navigate("/app/home");
+      } else {
+        setError("Sign in failed. Please try again.");
+      }
+    } catch (err) {
+      setError("Something went wrong. Please try again later.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSendPhoneOTP = async () => {
+    if (!phoneNumber.trim()) {
+      setError("Please enter your phone number");
+      return;
+    }
+
+    try {
+      phoneSchema.parse(phoneNumber);
+    } catch {
+      setError("Please enter a valid phone number");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+
+    try {
+      // Check if user exists
+      const { data: user, error: userError } = await supabase
+        .from("users")
+        .select("id, is_active, is_phone_verified")
+        .eq("phone_number", phoneNumber)
+        .maybeSingle();
+
+      if (userError) {
+        setError("Unable to sign in. Please try again.");
+        return;
+      }
+
+      if (!user) {
+        setError("No account found with this phone number. Please sign up first.");
+        return;
+      }
+
+      if (!user.is_active) {
+        setError("Your account is inactive. Please contact support.");
+        return;
+      }
+
+      if (!user.is_phone_verified) {
+        setError("Your phone number is not verified. Please complete signup first.");
+        return;
+      }
+
+      // Send OTP
+      const { data, error: invokeError } = await supabase.functions.invoke("send-phone-otp", {
+        body: { phoneNumber },
+      });
+
+      if (invokeError || data?.error) {
+        setError("Unable to send verification code. Please try again.");
+        return;
+      }
+
+      setOtpSent(true);
+    } catch (err) {
+      setError("Something went wrong. Please try again later.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyPhoneOTP = async () => {
+    if (otp.length !== 6) {
+      setError("Please enter the 6-digit code");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+
+    try {
+      // Verify OTP
+      const { data, error: invokeError } = await supabase.functions.invoke("verify-phone-otp", {
+        body: { phoneNumber, otpCode: otp },
+      });
+
+      if (invokeError) {
+        setError("Unable to verify code. Please try again.");
+        return;
+      }
+
+      if (!data?.success) {
+        setError(data?.error || "Invalid verification code");
+        return;
+      }
+
+      // Get user ID
+      const { data: user, error: userError } = await supabase
+        .from("users")
+        .select("id")
+        .eq("phone_number", phoneNumber)
+        .eq("is_active", true)
+        .eq("is_phone_verified", true)
+        .maybeSingle();
+
+      if (userError || !user) {
+        setError("Unable to complete sign in. Please try again.");
+        return;
+      }
+
+      // Store session
       const sessionData = {
-        userId: data.userId,
+        userId: user.id,
         rememberMe,
         timestamp: Date.now()
       };
 
       if (rememberMe) {
-        // Store for 30 days
         localStorage.setItem('viib_session', JSON.stringify(sessionData));
       } else {
-        // Store for current session only
         sessionStorage.setItem('viib_session', JSON.stringify(sessionData));
       }
       
-      localStorage.setItem('viib_user_id', data.userId);
-
-      // Navigate to app
-      navigate('/app/home');
+      localStorage.setItem('viib_user_id', user.id);
+      navigate("/app/home");
     } catch (err) {
-      setError("Unable to sign in. Please try again.");
+      setError("Something went wrong. Please try again later.");
     } finally {
       setLoading(false);
     }
@@ -142,99 +285,236 @@ export default function Login() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
           >
-            <div className="space-y-3">
-              <label className="text-sm text-muted-foreground">
-                Email or Phone
-              </label>
-              <Input
-                type="text"
-                value={emailOrPhone}
-                onChange={(e) => {
-                  setEmailOrPhone(e.target.value);
-                  setError("");
-                }}
-                placeholder="you@example.com or +1234567890"
-                className="h-14 text-lg bg-white/5 border-white/10 focus:border-primary/50 focus:bg-white/10"
-              />
-            </div>
+            <Tabs value={activeTab} onValueChange={(value) => {
+              setActiveTab(value);
+              setError("");
+              setOtpSent(false);
+              setOtp("");
+            }} className="w-full">
+              <TabsList className="grid w-full grid-cols-2 bg-white/5">
+                <TabsTrigger value="email">Email</TabsTrigger>
+                <TabsTrigger value="phone">Phone</TabsTrigger>
+              </TabsList>
 
-            <div className="space-y-3">
-              <label className="text-sm text-muted-foreground">
-                Password
-              </label>
-              <div className="relative">
-                <Input
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => {
-                    setPassword(e.target.value);
-                    setError("");
-                  }}
-                  placeholder="Enter your password"
-                  className="h-14 text-lg bg-white/5 border-white/10 focus:border-primary/50 focus:bg-white/10 pr-12"
-                  onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                </button>
-              </div>
-            </div>
+              {/* Email Login Tab */}
+              <TabsContent value="email" className="space-y-6 mt-6">
+                {/* Email */}
+                <div className="space-y-3">
+                  <label className="text-sm text-muted-foreground">
+                    Email Address
+                  </label>
+                  <Input
+                    type="email"
+                    value={email}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      setError("");
+                    }}
+                    placeholder="you@example.com"
+                    className="h-14 text-lg bg-white/5 border-white/10 focus:border-primary/50 focus:bg-white/10"
+                  />
+                </div>
 
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Checkbox 
-                  id="remember" 
-                  checked={rememberMe}
-                  onCheckedChange={(checked) => setRememberMe(checked as boolean)}
-                />
-                <label 
-                  htmlFor="remember" 
-                  className="text-sm text-muted-foreground cursor-pointer"
+                {/* Password */}
+                <div className="space-y-3">
+                  <label className="text-sm text-muted-foreground">
+                    Password
+                  </label>
+                  <div className="relative">
+                    <Input
+                      type={showPassword ? "text" : "password"}
+                      value={password}
+                      onChange={(e) => {
+                        setPassword(e.target.value);
+                        setError("");
+                      }}
+                      placeholder="Enter your password"
+                      className="h-14 text-lg bg-white/5 border-white/10 focus:border-primary/50 focus:bg-white/10 pr-12"
+                      onKeyDown={(e) => e.key === 'Enter' && handleEmailLogin()}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Remember Me & Forgot Password */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="remember-email"
+                      checked={rememberMe}
+                      onCheckedChange={(checked) => setRememberMe(checked as boolean)}
+                    />
+                    <label htmlFor="remember-email" className="text-sm text-muted-foreground cursor-pointer">
+                      Remember me
+                    </label>
+                  </div>
+                  <a
+                    href="/forgot-password"
+                    className="text-sm text-primary hover:text-primary/80 transition-colors"
+                  >
+                    Forgot password?
+                  </a>
+                </div>
+
+                {error && activeTab === "email" && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="text-center text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-2 flex items-center justify-center gap-2"
+                  >
+                    <AlertCircle className="w-4 h-4" />
+                    {error}
+                  </motion.div>
+                )}
+
+                <Button
+                  onClick={handleEmailLogin}
+                  disabled={loading}
+                  size="2xl"
+                  variant="gradient"
+                  className="w-full shadow-[0_20px_50px_-15px_rgba(168,85,247,0.4)]"
                 >
-                  Remember me
-                </label>
-              </div>
-              <a 
-                href="/forgot-password" 
-                className="text-sm text-primary hover:text-primary/80 transition-colors"
+                  {loading ? "Signing In..." : "Sign In"}
+                  {!loading && <ArrowRight className="ml-2 w-5 h-5" />}
+                </Button>
+              </TabsContent>
+
+              {/* Phone Login Tab */}
+              <TabsContent value="phone" className="space-y-6 mt-6">
+                {!otpSent ? (
+                  <>
+                    {/* Phone Number */}
+                    <div className="space-y-3">
+                      <label className="text-sm text-muted-foreground">
+                        Phone Number
+                      </label>
+                      <Input
+                        type="tel"
+                        value={phoneNumber}
+                        onChange={(e) => {
+                          setPhoneNumber(e.target.value);
+                          setError("");
+                        }}
+                        placeholder="+1 (123) 456-7890"
+                        className="h-14 text-lg bg-white/5 border-white/10 focus:border-primary/50 focus:bg-white/10"
+                      />
+                    </div>
+
+                    {/* Remember Me */}
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id="remember-phone"
+                        checked={rememberMe}
+                        onCheckedChange={(checked) => setRememberMe(checked as boolean)}
+                      />
+                      <label htmlFor="remember-phone" className="text-sm text-muted-foreground cursor-pointer">
+                        Remember me
+                      </label>
+                    </div>
+
+                    {error && activeTab === "phone" && !otpSent && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="text-center text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-2 flex items-center justify-center gap-2"
+                      >
+                        <AlertCircle className="w-4 h-4" />
+                        {error}
+                      </motion.div>
+                    )}
+
+                    <Button
+                      onClick={handleSendPhoneOTP}
+                      disabled={loading}
+                      size="2xl"
+                      variant="gradient"
+                      className="w-full shadow-[0_20px_50px_-15px_rgba(168,85,247,0.4)]"
+                    >
+                      {loading ? "Sending Code..." : "Send Code"}
+                      {!loading && <ArrowRight className="ml-2 w-5 h-5" />}
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    {/* OTP Input */}
+                    <div className="space-y-3">
+                      <label className="text-sm text-muted-foreground">
+                        Enter 6-digit code sent to {phoneNumber}
+                      </label>
+                      <div className="flex justify-center">
+                        <InputOTP
+                          maxLength={6}
+                          value={otp}
+                          onChange={(value) => {
+                            setOtp(value);
+                            setError("");
+                          }}
+                        >
+                          <InputOTPGroup className="gap-2 sm:gap-3">
+                            <InputOTPSlot index={0} className="w-12 sm:w-14 h-14 sm:h-16 text-xl bg-white/5 border-white/10" />
+                            <InputOTPSlot index={1} className="w-12 sm:w-14 h-14 sm:h-16 text-xl bg-white/5 border-white/10" />
+                            <InputOTPSlot index={2} className="w-12 sm:w-14 h-14 sm:h-16 text-xl bg-white/5 border-white/10" />
+                            <InputOTPSlot index={3} className="w-12 sm:w-14 h-14 sm:h-16 text-xl bg-white/5 border-white/10" />
+                            <InputOTPSlot index={4} className="w-12 sm:w-14 h-14 sm:h-16 text-xl bg-white/5 border-white/10" />
+                            <InputOTPSlot index={5} className="w-12 sm:w-14 h-14 sm:h-16 text-xl bg-white/5 border-white/10" />
+                          </InputOTPGroup>
+                        </InputOTP>
+                      </div>
+                    </div>
+
+                    {error && activeTab === "phone" && otpSent && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="text-center text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-2 flex items-center justify-center gap-2"
+                      >
+                        <AlertCircle className="w-4 h-4" />
+                        {error}
+                      </motion.div>
+                    )}
+
+                    <div className="space-y-3">
+                      <Button
+                        onClick={handleVerifyPhoneOTP}
+                        disabled={loading || otp.length !== 6}
+                        size="2xl"
+                        variant="gradient"
+                        className="w-full shadow-[0_20px_50px_-15px_rgba(168,85,247,0.4)]"
+                      >
+                        {loading ? "Verifying..." : "Verify & Sign In"}
+                        {!loading && <ArrowRight className="ml-2 w-5 h-5" />}
+                      </Button>
+                      <button
+                        onClick={() => {
+                          setOtpSent(false);
+                          setOtp("");
+                          setError("");
+                        }}
+                        className="w-full text-sm text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        Use a different number
+                      </button>
+                    </div>
+                  </>
+                )}
+              </TabsContent>
+            </Tabs>
+
+            <p className="text-sm text-center text-muted-foreground pt-4 border-t border-white/10">
+              Don't have an account?{" "}
+              <a
+                href="/app/onboarding/welcome"
+                className="text-primary hover:text-primary/80 transition-colors font-medium"
               >
-                Forgot password?
+                Sign Up
               </a>
-            </div>
-
-            {error && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="text-center text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-2 flex items-center justify-center gap-2"
-              >
-                <AlertCircle className="w-4 h-4" />
-                {error}
-              </motion.div>
-            )}
-
-            <div className="pt-4 space-y-4">
-              <Button
-                onClick={handleLogin}
-                disabled={loading}
-                size="2xl"
-                variant="gradient"
-                className="w-full shadow-[0_20px_50px_-15px_rgba(168,85,247,0.4)]"
-              >
-                {loading ? "Signing in..." : "Sign In"}
-                {!loading && <ArrowRight className="ml-2 w-5 h-5" />}
-              </Button>
-              <div className="text-center text-sm text-muted-foreground">
-                Don't have an account?{" "}
-                <a href="/app/onboarding/welcome" className="text-primary hover:text-primary/80 transition-colors">
-                  Sign up
-                </a>
-              </div>
-            </div>
+            </p>
           </motion.div>
         </div>
       </motion.div>
