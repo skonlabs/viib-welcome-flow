@@ -523,8 +523,8 @@ export const UserIdentityScreen = ({ onContinue, onBack }: UserIdentityScreenPro
                   onClick={handleContinue}
                   disabled={!name || !selectedVibe}
                   size="2xl"
-                  variant="gradient-large"
-                  className="relative rounded-full shadow-2xl border border-white/20"
+                  variant="gradient"
+                  className="relative rounded-full shadow-[0_20px_50px_-15px_rgba(168,85,247,0.4)] border border-white/20"
                 >
                   <span className="relative z-10 flex items-center gap-3">
                     Continue

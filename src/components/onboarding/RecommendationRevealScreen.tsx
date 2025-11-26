@@ -171,8 +171,9 @@ export const RecommendationRevealScreen = ({ userName, onContinue, onBack }: Rec
           >
             <Button
               onClick={onContinue}
-              size="xl"
-              variant="gradient-large"
+              size="2xl"
+              variant="gradient"
+              className="shadow-[0_20px_50px_-15px_rgba(168,85,247,0.4)]"
             >
               Explore All Recommendations
               <ArrowRight className="ml-2 w-5 h-5" />

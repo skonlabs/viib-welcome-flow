@@ -250,8 +250,9 @@ export const LanguageSelectionScreen = ({ onContinue, onBack }: LanguageSelectio
             <Button
               onClick={() => onContinue(selectedLanguages)}
               disabled={selectedLanguages.length === 0}
-              size="xl"
-              variant="gradient-large"
+              size="2xl"
+              variant="gradient"
+              className="shadow-[0_20px_50px_-15px_rgba(168,85,247,0.4)]"
             >
               Continue with {selectedLanguages.length} {selectedLanguages.length === 1 ? "language" : "languages"}
               <ArrowRight className="ml-2 w-5 h-5" />

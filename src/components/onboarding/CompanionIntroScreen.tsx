@@ -203,7 +203,8 @@ export const CompanionIntroScreen = ({ onContinue, onBack }: CompanionIntroScree
             <Button
               onClick={onContinue}
               size="2xl"
-              variant="gradient-large"
+              variant="gradient"
+              className="shadow-[0_20px_50px_-15px_rgba(168,85,247,0.4)]"
             >
               <Sparkles className="mr-2 w-6 h-6" />
               Let's Explore Together
