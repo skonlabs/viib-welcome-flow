@@ -1,10 +1,44 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import * as bcrypt from "https://deno.land/x/bcrypt@v0.3.0/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Hash password using Web Crypto API (PBKDF2)
+async function hashPassword(password: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const passwordBuffer = encoder.encode(password);
+  
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw",
+    passwordBuffer,
+    { name: "PBKDF2" },
+    false,
+    ["deriveBits"]
+  );
+  
+  const hashBuffer = await crypto.subtle.deriveBits(
+    {
+      name: "PBKDF2",
+      salt: salt,
+      iterations: 100000,
+      hash: "SHA-256"
+    },
+    keyMaterial,
+    256
+  );
+  
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const saltArray = Array.from(salt);
+  
+  // Combine salt and hash, encode as base64
+  const combined = [...saltArray, ...hashArray];
+  const base64 = btoa(String.fromCharCode(...combined));
+  
+  return base64;
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -18,8 +52,7 @@ serve(async (req) => {
       throw new Error('Password is required');
     }
 
-    // Hash the password with bcrypt (salt rounds = 10)
-    const hashedPassword = await bcrypt.hash(password);
+    const hashedPassword = await hashPassword(password);
 
     return new Response(
       JSON.stringify({ 
