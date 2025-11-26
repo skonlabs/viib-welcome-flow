@@ -64,8 +64,9 @@ serve(async (req) => {
     }
 
     // Verify OTP
+    console.log('Comparing OTPs - Database:', verification.otp_code, 'User entered:', otp, 'Types:', typeof verification.otp_code, typeof otp);
     if (verification.otp_code !== otp) {
-      console.error('Invalid OTP');
+      console.error('Invalid OTP - Mismatch!');
       return new Response(
         JSON.stringify({ 
           success: false,
@@ -77,6 +78,8 @@ serve(async (req) => {
         }
       );
     }
+
+    console.log('OTP matched successfully!');
 
     // Create user in Supabase Auth
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
