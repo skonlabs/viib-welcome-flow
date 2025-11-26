@@ -36,6 +36,24 @@ export const PhoneEntryScreen = ({
     setError("");
     try {
       const fullPhone = `${countryCode}${digits}`;
+      
+      // Check if phone number already exists
+      const { data: existingUser, error: checkError } = await supabase
+        .from('users')
+        .select('phone_number')
+        .eq('phone_number', fullPhone)
+        .maybeSingle();
+
+      if (checkError) {
+        setError("Unable to verify phone number. Please try again.");
+        return;
+      }
+
+      if (existingUser) {
+        setError("This phone number is already registered. Please sign in or use a different number.");
+        return;
+      }
+
       const {
         error
       } = await supabase.functions.invoke("send-phone-otp", {
