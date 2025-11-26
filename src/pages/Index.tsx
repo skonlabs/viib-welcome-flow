@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Apple, PlayCircle, Users, Heart, Sparkles, ArrowRight, Star } from "lucide-react";
 import LandingHeader from "@/components/LandingHeader";
+import { motion } from "framer-motion";
 
 const Index = () => {
   return (
@@ -12,7 +13,45 @@ const Index = () => {
         {/* Animated Background */}
         <div className="absolute inset-0">
           <div className="absolute inset-0 gradient-ocean opacity-80" />
+          <motion.div
+            className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full blur-[100px]"
+            style={{
+              background: "radial-gradient(circle, #a855f7 0%, transparent 70%)"
+            }}
+            animate={{
+              x: [0, 100, 0],
+              y: [0, -50, 0]
+            }}
+            transition={{
+              duration: 20,
+              repeat: Infinity,
+              ease: "easeInOut"
+            }}
+          />
         </div>
+      </div>
+
+      {/* Floating Particles */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        {[...Array(30)].map((_, i) => (
+          <motion.div
+            key={i}
+            className="absolute w-1 h-1 bg-white rounded-full"
+            style={{
+              left: `${Math.random() * 100}%`,
+              top: `${Math.random() * 100}%`
+            }}
+            animate={{
+              y: [0, -30, 0],
+              opacity: [0, 1, 0]
+            }}
+            transition={{
+              duration: Math.random() * 3 + 2,
+              repeat: Infinity,
+              delay: Math.random() * 2
+            }}
+          />
+        ))}
       </div>
 
       {/* Hero Section */}
