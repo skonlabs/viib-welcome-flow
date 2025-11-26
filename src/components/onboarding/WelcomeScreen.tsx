@@ -91,7 +91,7 @@ export const WelcomeScreen = ({
           type: "spring"
         }}>
             <motion.div className="absolute -inset-4 rounded-full blur-3xl opacity-50" style={{
-            background: "radial-gradient(circle, #a855f7 0%, #ec4899 50%, transparent 70%)"
+            background: "radial-gradient(circle, #a855f7 0%, transparent 70%)"
           }} animate={{
             scale: [1, 1.1, 1],
             opacity: [0.5, 0.7, 0.5]
