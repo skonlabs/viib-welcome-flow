@@ -319,6 +319,15 @@ export const EmailSignupScreen = ({ onContinue, onBack }: EmailSignupScreenProps
               >
                 Use a different method
               </button>
+              <p className="text-sm text-center text-muted-foreground">
+                Already have an account?{" "}
+                <button
+                  onClick={() => window.location.href = "/login"}
+                  className="text-primary hover:text-primary/80 transition-colors font-medium"
+                >
+                  Sign In
+                </button>
+              </p>
             </div>
           </motion.div>
 
