@@ -122,6 +122,7 @@ export default function Onboarding() {
           phone_number: fullPhone,
           signup_method: 'phone',
           onboarding_completed: false,
+          is_active: false, // Only activate after onboarding completion
         });
       
       if (error && error.code !== '23505') { // Ignore duplicate key errors
@@ -203,9 +204,32 @@ export default function Onboarding() {
     navigateToStep("completion");
   };
 
-  const handleComplete = () => {
+  const handleComplete = async () => {
     console.log("Onboarding completed with data:", onboardingData);
-    navigate("/");
+    
+    try {
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (user) {
+        // Update user record to mark onboarding as complete and activate account
+        const { error } = await supabase
+          .from('users')
+          .update({
+            onboarding_completed: true,
+            is_active: true, // Activate account now that onboarding is complete
+          })
+          .eq('id', user.id);
+        
+        if (error) {
+          console.error('Error updating user record:', error);
+        }
+      }
+    } catch (error) {
+      console.error('Error in handleComplete:', error);
+    }
+    
+    navigate("/app/home");
   };
 
   // Back navigation handlers
