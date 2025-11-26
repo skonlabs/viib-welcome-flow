@@ -81,18 +81,82 @@ serve(async (req) => {
 
     console.log('OTP matched successfully!');
 
-    // Mark verification as complete - that's ALL this function does
+    // Hash the password
+    const { data: hashData, error: hashError } = await supabase.functions.invoke('hash-password', {
+      body: { password }
+    });
+
+    if (hashError || !hashData?.success) {
+      console.error('Failed to hash password:', hashError || hashData?.error);
+      return new Response(
+        JSON.stringify({ 
+          success: false,
+          error: 'Unable to process request. Please try again.'
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200,
+        }
+      );
+    }
+
+    // Create user record
+    const { data: newUser, error: userError } = await supabase
+      .from('users')
+      .insert({
+        email,
+        password_hash: hashData.hashedPassword,
+        signup_method: 'email',
+        is_email_verified: true,
+        is_age_over_18: true,
+        onboarding_completed: false,
+        is_active: false,
+      })
+      .select('id')
+      .single();
+
+    if (userError) {
+      console.error('Failed to create user:', userError);
+      
+      // Check for duplicate email
+      if (userError.code === '23505') {
+        return new Response(
+          JSON.stringify({ 
+            success: false,
+            error: 'This email is already registered. Please sign in instead.'
+          }),
+          {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 200,
+          }
+        );
+      }
+      
+      return new Response(
+        JSON.stringify({ 
+          success: false,
+          error: 'Unable to create account. Please try again.'
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200,
+        }
+      );
+    }
+
+    // Only mark OTP as verified AFTER successful user creation
     await supabase
       .from('email_verifications')
       .update({ verified: true })
       .eq('id', verification.id);
 
-    console.log('Email OTP verified successfully');
+    console.log('User created and email verified successfully:', newUser.id);
 
     return new Response(
       JSON.stringify({ 
         success: true,
-        message: 'Email verified successfully'
+        message: 'Email verified successfully',
+        userId: newUser.id
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

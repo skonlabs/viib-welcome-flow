@@ -119,6 +119,7 @@ export default function Onboarding() {
           phone_number: fullPhone,
           signup_method: 'phone',
           is_phone_verified: true,
+          is_age_over_18: true,
           onboarding_completed: false,
           is_active: false,
         })
@@ -142,49 +143,7 @@ export default function Onboarding() {
   };
 
   const handleEmailOTPVerify = async () => {
-    // Create user record in database AFTER successful OTP verification
-    try {
-      // Hash the password first
-      const { data: hashData, error: hashError } = await supabase.functions.invoke("hash-password", {
-        body: { password: onboardingData.password },
-      });
-
-      if (hashError) {
-        console.error('Error invoking hash-password function:', hashError);
-        throw new Error('Failed to secure password: ' + hashError.message);
-      }
-
-      if (!hashData?.success) {
-        console.error('Hash-password returned error:', hashData?.error);
-        throw new Error('Failed to secure password: ' + (hashData?.error || 'Unknown error'));
-      }
-
-      const { data: insertedUser, error } = await supabase
-        .from('users')
-        .insert({
-          email: onboardingData.email,
-          password_hash: hashData.hashedPassword,
-          signup_method: 'email',
-          is_email_verified: true,
-          onboarding_completed: false,
-          is_active: false,
-        })
-        .select()
-        .single();
-      
-      if (error && error.code !== '23505') {
-        console.error('Error creating user record:', error);
-        throw error;
-      }
-
-      if (insertedUser) {
-        console.log('User record created successfully:', insertedUser.id);
-      }
-    } catch (error) {
-      console.error('Error in handleEmailOTPVerify:', error);
-      throw error;
-    }
-    
+    // User creation is now handled by verify-email-otp edge function
     navigateToStep("biometric");
   };
 
