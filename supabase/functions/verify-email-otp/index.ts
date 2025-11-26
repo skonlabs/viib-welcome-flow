@@ -93,23 +93,40 @@ serve(async (req) => {
 
     if (authError) {
       console.error('Auth error:', authError);
+      
+      // If user already exists, that's actually okay - they can just sign in
+      if (authError.message?.includes('already been registered') || authError.status === 422) {
+        return new Response(
+          JSON.stringify({ 
+            success: true,
+            message: 'Email verified successfully. Please sign in.'
+          }),
+          {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 200,
+          }
+        );
+      }
+      
       throw new Error('Failed to create user account');
     }
 
-    // Create user record in public.users table
+    // Create user record in public.users table only if user was just created
     const { error: userError } = await supabase
       .from('users')
       .insert({
         id: authData.user.id,
         email,
-        full_name: name,
         signup_method: 'email',
         onboarding_completed: false,
       });
 
     if (userError) {
       console.error('User creation error:', userError);
-      throw new Error('Failed to create user profile');
+      // If user record already exists, that's okay too
+      if (!userError.message?.includes('duplicate key')) {
+        throw new Error('Failed to create user profile');
+      }
     }
 
     console.log('User created successfully');
