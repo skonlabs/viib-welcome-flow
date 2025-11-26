@@ -97,7 +97,7 @@ export const EmailOTPVerificationScreen = ({
       });
 
       if (invokeError) {
-        setError("Unable to verify code. Please try again.");
+        setError("Unable to verify code. Please try again or request a new code.");
         setOtp(["", "", "", "", "", ""]);
         inputRefs.current[0]?.focus();
         return;
