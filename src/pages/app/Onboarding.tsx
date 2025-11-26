@@ -107,23 +107,23 @@ export default function Onboarding() {
   const handleOTPVerify = async (otp: string) => {
     console.log("OTP verified:", otp);
     
-    // Create user record in public.users table
+    // The verification is already done by the edge function
+    // Now create/update user record in public.users table
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      // For phone auth, we don't have a Supabase auth user yet
+      // So we create a user record directly in the users table
+      const fullPhone = `${onboardingData.countryCode}${onboardingData.phone}`;
       
-      if (user) {
-        const { error } = await supabase
-          .from('users')
-          .upsert({
-            id: user.id,
-            phone_number: `${onboardingData.countryCode}${onboardingData.phone}`,
-            signup_method: 'phone',
-            onboarding_completed: false,
-          });
-        
-        if (error) {
-          console.error('Error creating user record:', error);
-        }
+      const { error } = await supabase
+        .from('users')
+        .insert({
+          phone_number: fullPhone,
+          signup_method: 'phone',
+          onboarding_completed: false,
+        });
+      
+      if (error && error.code !== '23505') { // Ignore duplicate key errors
+        console.error('Error creating user record:', error);
       }
     } catch (error) {
       console.error('Error in handleOTPVerify:', error);

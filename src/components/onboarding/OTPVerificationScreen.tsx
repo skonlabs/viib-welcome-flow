@@ -91,14 +91,19 @@ export const OTPVerificationScreen = ({
     setLoading(true);
 
     try {
-      const { error: verifyError } = await supabase.auth.verifyOtp({
-        phone,
-        token: code,
-        type: 'sms',
+      const { data, error } = await supabase.functions.invoke("verify-phone-otp", {
+        body: { phoneNumber: phone, otpCode: code },
       });
 
-      if (verifyError) {
+      if (error) {
         toast.error("Invalid verification code");
+        setOtp(["", "", "", "", "", ""]);
+        inputRefs.current[0]?.focus();
+        return;
+      }
+
+      if (!data?.success) {
+        toast.error(data?.error || "Verification failed");
         setOtp(["", "", "", "", "", ""]);
         inputRefs.current[0]?.focus();
         return;
@@ -117,16 +122,16 @@ export const OTPVerificationScreen = ({
     setResending(true);
     
     try {
-      const { error: otpError } = await supabase.auth.signInWithOtp({
-        phone,
+      const { error } = await supabase.functions.invoke("send-phone-otp", {
+        body: { phoneNumber: phone },
       });
 
-      if (otpError) {
+      if (error) {
         toast.error("Failed to resend code");
         return;
       }
 
-      toast.success("Verification code sent!");
+      toast.success("Verification code sent! (Test code: 111111)");
       setTimer(30);
       onResend();
     } catch (err) {
