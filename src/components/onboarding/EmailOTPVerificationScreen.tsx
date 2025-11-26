@@ -100,7 +100,7 @@ export const EmailOTPVerificationScreen = ({
         .maybeSingle();
 
       if (existingUser?.is_email_verified && existingUser?.signup_method === 'email') {
-        setError("This email is already verified. Please sign in instead.");
+        setError("An account with this email already exists. Please sign in instead.");
         setOtp(["", "", "", "", "", ""]);
         inputRefs.current[0]?.focus();
         setLoading(false);
