@@ -109,7 +109,6 @@ export const OTPVerificationScreen = ({
         return;
       }
 
-      toast.success("Phone verified successfully!");
       onContinue(code);
     } catch (err) {
       toast.error("Verification failed");
