@@ -119,6 +119,7 @@ serve(async (req) => {
         email,
         signup_method: 'email',
         onboarding_completed: false,
+        is_active: false, // Only activate after onboarding completion
       });
 
     if (userError) {
