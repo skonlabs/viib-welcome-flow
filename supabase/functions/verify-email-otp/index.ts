@@ -37,10 +37,13 @@ serve(async (req) => {
     if (fetchError || !verification) {
       console.error('Verification not found:', fetchError);
       return new Response(
-        JSON.stringify({ error: 'Invalid or expired OTP' }),
+        JSON.stringify({ 
+          success: false,
+          error: 'No verification code found. Please request a new code.' 
+        }),
         {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 400,
+          status: 200,
         }
       );
     }
@@ -49,10 +52,13 @@ serve(async (req) => {
     if (new Date(verification.expires_at) < new Date()) {
       console.error('OTP expired');
       return new Response(
-        JSON.stringify({ error: 'OTP has expired' }),
+        JSON.stringify({ 
+          success: false,
+          error: 'Your code has expired. Please request a new code.' 
+        }),
         {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 400,
+          status: 200,
         }
       );
     }
@@ -61,10 +67,13 @@ serve(async (req) => {
     if (verification.otp_code !== otp) {
       console.error('Invalid OTP');
       return new Response(
-        JSON.stringify({ error: 'Invalid OTP code' }),
+        JSON.stringify({ 
+          success: false,
+          error: 'Invalid code. Please check and try again.' 
+        }),
         {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 400,
+          status: 200,
         }
       );
     }
@@ -118,12 +127,15 @@ serve(async (req) => {
   } catch (error: any) {
     console.error('Error in verify-email-otp function:', error);
     
-    // Return user-friendly error message instead of technical details
+    // Return user-friendly error message for system errors only
     return new Response(
-      JSON.stringify({ error: "Unable to verify code. Please try again." }),
+      JSON.stringify({ 
+        success: false,
+        error: "System error. Please try again or request a new code." 
+      }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500,
+        status: 200,
       }
     );
   }
