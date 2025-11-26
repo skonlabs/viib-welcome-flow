@@ -184,12 +184,12 @@ export const WelcomeScreen = ({
         }} transition={{
           delay: 1.1,
           duration: 0.8
-        }} className="pt-6">
+        }} className="pt-6 px-4 sm:px-0">
             <Button 
               onClick={onContinue} 
               size="2xl" 
               variant="gradient"
-              className="group relative overflow-hidden shadow-[0_20px_50px_-15px_rgba(168,85,247,0.4)]"
+              className="group relative overflow-hidden shadow-[0_20px_50px_-15px_rgba(168,85,247,0.4)] px-8 sm:px-16"
             >
               <span className="relative z-10 flex items-center gap-3">
                 <Sparkles className="w-5 h-5" />
