@@ -1,46 +1,68 @@
 import { useState, useEffect } from 'react';
-import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
+interface CustomUser {
+  id: string;
+  email: string | null;
+  phone_number: string | null;
+  full_name: string | null;
+  user_metadata?: {
+    avatar_url?: string;
+    full_name?: string;
+  };
+}
+
 export const useAuth = () => {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<CustomUser | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        
-        // Defer admin check
-        if (session?.user) {
-          setTimeout(() => {
-            checkAdminStatus(session.user.id);
-          }, 0);
-        } else {
-          setIsAdmin(false);
-          setLoading(false);
-        }
-      }
-    );
-
-    // Check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      
-      if (session?.user) {
-        checkAdminStatus(session.user.id);
-      } else {
-        setLoading(false);
-      }
-    });
-
-    return () => subscription.unsubscribe();
+    checkSession();
   }, []);
+
+  const checkSession = async () => {
+    try {
+      // Get user_id from localStorage (set after onboarding completion)
+      const userId = localStorage.getItem('viib_user_id');
+      
+      if (!userId) {
+        setLoading(false);
+        return;
+      }
+
+      // Fetch user from database
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('id, email, phone_number, full_name')
+        .eq('id', userId)
+        .eq('is_active', true)
+        .single();
+
+      if (userError || !userData) {
+        localStorage.removeItem('viib_user_id');
+        setLoading(false);
+        return;
+      }
+
+      // Set user with metadata format for compatibility
+      setUser({
+        id: userData.id,
+        email: userData.email,
+        phone_number: userData.phone_number,
+        full_name: userData.full_name,
+        user_metadata: {
+          full_name: userData.full_name || undefined,
+        }
+      });
+
+      // Check admin status
+      await checkAdminStatus(userData.id);
+    } catch (error) {
+      console.error('Error checking session:', error);
+      setLoading(false);
+    }
+  };
 
   const checkAdminStatus = async (userId: string) => {
     try {
@@ -60,8 +82,11 @@ export const useAuth = () => {
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    localStorage.removeItem('viib_user_id');
+    setUser(null);
+    setIsAdmin(false);
+    window.location.href = '/';
   };
 
-  return { user, session, isAdmin, loading, signOut };
+  return { user, session: null, isAdmin, loading, signOut };
 };

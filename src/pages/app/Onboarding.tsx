@@ -228,35 +228,41 @@ export default function Onboarding() {
       // For phone signups, we don't have auth.user, so update by phone number
       if (onboardingData.entryMethod === 'phone') {
         const fullPhone = `${onboardingData.countryCode}${onboardingData.phone}`;
-        const { error } = await supabase
+        const { data: updatedUser, error } = await supabase
           .from('users')
           .update({
             onboarding_completed: true,
-            is_active: true, // Activate account ONLY after onboarding is complete
+            is_active: true,
             full_name: onboardingData.name,
           })
-          .eq('phone_number', fullPhone);
+          .eq('phone_number', fullPhone)
+          .select('id')
+          .single();
         
         if (error) {
           console.error('Error updating phone user record:', error);
+        } else if (updatedUser) {
+          // Store user session
+          localStorage.setItem('viib_user_id', updatedUser.id);
         }
       } else {
-        // For email signups, update by auth user id
-        const { data: { user } } = await supabase.auth.getUser();
+        // For email signups, update by email address
+        const { data: updatedUser, error } = await supabase
+          .from('users')
+          .update({
+            onboarding_completed: true,
+            is_active: true,
+            full_name: onboardingData.name,
+          })
+          .eq('email', onboardingData.email)
+          .select('id')
+          .single();
         
-        if (user) {
-          const { error } = await supabase
-            .from('users')
-            .update({
-              onboarding_completed: true,
-              is_active: true, // Activate account ONLY after onboarding is complete
-              full_name: onboardingData.name,
-            })
-            .eq('id', user.id);
-          
-          if (error) {
-            console.error('Error updating email user record:', error);
-          }
+        if (error) {
+          console.error('Error updating email user record:', error);
+        } else if (updatedUser) {
+          // Store user session
+          localStorage.setItem('viib_user_id', updatedUser.id);
         }
       }
     } catch (error) {
