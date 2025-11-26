@@ -31,8 +31,8 @@ export const AppHeader = () => {
 
   const getUserInitials = () => {
     if (!user) return 'G';
-    const email = user.email || '';
-    return email.charAt(0).toUpperCase();
+    const name = user.full_name || user.email || user.phone_number || '';
+    return name.charAt(0).toUpperCase();
   };
 
   return (
@@ -101,7 +101,7 @@ export const AppHeader = () => {
                 </AvatarFallback>
               </Avatar>
               <span className="hidden sm:block text-sm text-foreground">
-                {user.user_metadata?.full_name || user.email?.split('@')[0] || 'User'}
+                {user.full_name || user.email?.split('@')[0] || user.phone_number || 'User'}
               </span>
             </div>
           )}
