@@ -158,7 +158,9 @@ export const PhoneEntryScreen = ({ onContinue, onBack }: PhoneEntryScreenProps) 
             <div className="pt-4 space-y-4">
               <Button
                 onClick={handleContinue}
-                className="w-full h-14 text-lg font-medium bg-gradient-to-r from-primary to-accent hover:shadow-2xl hover:shadow-primary/50 transition-all duration-300"
+                size="xl"
+                variant="gradient-large"
+                className="w-full"
               >
                 Send Code
                 <ArrowRight className="ml-2 w-5 h-5" />

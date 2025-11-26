@@ -168,7 +168,12 @@ export const WelcomeScreen = ({
           delay: 1.1,
           duration: 0.8
         }} className="pt-6">
-            <Button onClick={onContinue} size="lg" className="group relative px-12 h-16 text-lg font-medium overflow-hidden bg-gradient-to-r from-primary via-accent to-secondary hover:shadow-2xl hover:shadow-primary/50 transition-all duration-500 hover:scale-105">
+            <Button 
+              onClick={onContinue} 
+              size="2xl" 
+              variant="gradient-large"
+              className="group relative overflow-hidden"
+            >
               <span className="relative z-10 flex items-center gap-3">
                 <Sparkles className="w-5 h-5" />
                 Begin the Experience
