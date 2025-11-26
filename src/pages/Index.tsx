@@ -20,7 +20,7 @@ const Index = () => {
         <div className="absolute inset-0">
           <div className="absolute inset-0 gradient-ocean opacity-40" />
           <motion.div
-            className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full blur-[120px] opacity-40"
+            className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full blur-[80px] opacity-40"
             style={{
               background: "radial-gradient(circle, #a855f7 0%, transparent 70%)",
               y: orb1Y
@@ -36,7 +36,7 @@ const Index = () => {
             }}
           />
           <motion.div
-            className="absolute bottom-1/4 right-1/4 w-96 h-96 rounded-full blur-[120px] opacity-30"
+            className="absolute bottom-1/4 right-1/4 w-96 h-96 rounded-full blur-[80px] opacity-30"
             style={{
               background: "radial-gradient(circle, #0ea5e9 0%, transparent 70%)",
               y: orb2Y
