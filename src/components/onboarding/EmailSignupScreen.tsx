@@ -2,8 +2,9 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { motion } from "framer-motion";
-import { ArrowRight, Eye, EyeOff, Check, X } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, Check, X, AlertCircle } from "lucide-react";
 import { BackButton } from "./BackButton";
+import { supabase } from "@/integrations/supabase/client";
 
 interface EmailSignupScreenProps {
   onContinue: (email: string, password: string) => void;
@@ -14,6 +15,8 @@ export const EmailSignupScreen = ({ onContinue, onBack }: EmailSignupScreenProps
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const getPasswordStrength = () => {
     let strength = 0;
@@ -36,6 +39,40 @@ export const EmailSignupScreen = ({ onContinue, onBack }: EmailSignupScreenProps
   ];
 
   const isValid = email.includes("@") && strength >= 3;
+
+  const handleSignup = async () => {
+    if (!isValid) return;
+
+    setLoading(true);
+    setError("");
+
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke("signup-email", {
+        body: { 
+          email,
+          password,
+          name: "" // We'll collect name in the next screen
+        },
+      });
+
+      if (invokeError) {
+        setError("Unable to create account. Please try again.");
+        return;
+      }
+
+      if (!data?.success) {
+        setError(data?.error || "Account creation failed. Please try again.");
+        return;
+      }
+
+      // Success - proceed to next step
+      onContinue(email, password);
+    } catch (err) {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-black">
@@ -217,16 +254,27 @@ export const EmailSignupScreen = ({ onContinue, onBack }: EmailSignupScreenProps
               )}
             </div>
 
+            {error && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-center text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-2 flex items-center justify-center gap-2"
+              >
+                <AlertCircle className="w-4 h-4" />
+                {error}
+              </motion.div>
+            )}
+
             <div className="pt-4 space-y-4">
               <Button
-                onClick={() => onContinue(email, password)}
-                disabled={!isValid}
+                onClick={handleSignup}
+                disabled={!isValid || loading}
                 size="2xl"
                 variant="gradient"
                 className="w-full shadow-[0_20px_50px_-15px_rgba(168,85,247,0.4)]"
               >
-                Secure My Account
-                <ArrowRight className="ml-2 w-5 h-5" />
+                {loading ? "Creating Account..." : "Secure My Account"}
+                {!loading && <ArrowRight className="ml-2 w-5 h-5" />}
               </Button>
               <button
                 onClick={onBack}
