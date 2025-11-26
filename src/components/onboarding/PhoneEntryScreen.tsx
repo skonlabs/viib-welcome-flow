@@ -177,9 +177,9 @@ export const PhoneEntryScreen = ({ onContinue, onBack }: PhoneEntryScreenProps) 
             <div className="pt-4 space-y-4">
               <Button
                 onClick={handleContinue}
-                size="xl"
-                variant="gradient-large"
-                className="w-full"
+                size="2xl"
+                variant="gradient"
+                className="w-full shadow-[0_20px_50px_-15px_rgba(168,85,247,0.4)]"
               >
                 Send Code
                 <ArrowRight className="ml-2 w-5 h-5" />

@@ -188,8 +188,8 @@ export const WelcomeScreen = ({
             <Button 
               onClick={onContinue} 
               size="2xl" 
-              variant="gradient-large"
-              className="group relative overflow-hidden"
+              variant="gradient"
+              className="group relative overflow-hidden shadow-[0_20px_50px_-15px_rgba(168,85,247,0.4)]"
             >
               <span className="relative z-10 flex items-center gap-3">
                 <Sparkles className="w-5 h-5" />

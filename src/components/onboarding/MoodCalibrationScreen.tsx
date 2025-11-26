@@ -214,9 +214,9 @@ export const MoodCalibrationScreen = ({ onContinue, onBack }: MoodCalibrationScr
           >
             <Button
               onClick={() => onContinue({ energy: energy[0], positivity: positivity[0] })}
-              size="xl"
-              variant="gradient-large"
-              className="group"
+              size="2xl"
+              variant="gradient"
+              className="group shadow-[0_20px_50px_-15px_rgba(168,85,247,0.4)]"
             >
               Tune My Vibe
               <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-2 transition-transform" />

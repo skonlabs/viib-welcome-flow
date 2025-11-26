@@ -125,9 +125,9 @@ export const BiometricEnableScreen = ({ onEnable, onSkip, onBack }: BiometricEna
           >
             <Button
               onClick={onEnable}
-              size="xl"
-              variant="gradient-large"
-              className="w-full"
+              size="2xl"
+              variant="gradient"
+              className="w-full shadow-[0_20px_50px_-15px_rgba(168,85,247,0.4)]"
             >
               Enable Secure Unlock
               <ArrowRight className="ml-2 w-5 h-5" />

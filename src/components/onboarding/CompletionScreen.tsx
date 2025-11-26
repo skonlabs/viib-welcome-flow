@@ -181,8 +181,8 @@ export const CompletionScreen = ({ userName, onComplete }: CompletionScreenProps
           <Button
             onClick={onComplete}
             size="2xl"
-            variant="gradient-large"
-            className="group"
+            variant="gradient"
+            className="group shadow-[0_20px_50px_-15px_rgba(168,85,247,0.4)]"
           >
             <Sparkles className="mr-2 w-6 h-6" />
             Start Exploring

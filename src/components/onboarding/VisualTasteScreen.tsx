@@ -205,9 +205,9 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
             <Button
               onClick={() => onContinue(selectedPosters)}
               disabled={selectedPosters.length < 2}
-              size="xl"
-              variant="gradient-large"
-              className="group"
+              size="2xl"
+              variant="gradient"
+              className="group shadow-[0_20px_50px_-15px_rgba(168,85,247,0.4)]"
             >
               {selectedPosters.length < 2 
                 ? `Select ${2 - selectedPosters.length} more to continue`
