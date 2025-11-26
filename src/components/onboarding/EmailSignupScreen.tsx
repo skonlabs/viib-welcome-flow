@@ -312,7 +312,7 @@ export const EmailSignupScreen = ({ onContinue, onBack }: EmailSignupScreenProps
                 variant="gradient"
                 className="w-full shadow-[0_20px_50px_-15px_rgba(168,85,247,0.4)]"
               >
-                {loading ? "Sending Code..." : "Continue"}
+                {loading ? "Sending Code..." : "Send Code"}
                 {!loading && <ArrowRight className="ml-2 w-5 h-5" />}
               </Button>
               <button

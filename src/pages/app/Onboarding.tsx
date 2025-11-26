@@ -264,10 +264,8 @@ export default function Onboarding() {
         <EmailOTPVerificationScreen
           email={onboardingData.email}
           password={onboardingData.password}
-          name={onboardingData.name || "User"}
           onContinue={handleEmailOTPVerify}
           onBack={handleBackToEmail}
-          onResend={handleResendEmailOTP}
         />
       )}
       {currentStep === "biometric" && (

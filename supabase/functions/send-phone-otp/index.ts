@@ -90,8 +90,8 @@ serve(async (req) => {
     // ALWAYS use hardcoded OTP for testing to avoid SMS costs
     const otpCode = "111111";
 
-    // Set expiry to 10 minutes from now
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+    // Set expiry to 5 minutes from now
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
 
     // Store OTP in database
     const { error: dbError } = await supabaseClient
