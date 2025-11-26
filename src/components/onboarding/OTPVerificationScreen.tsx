@@ -4,7 +4,6 @@ import { Input } from "@/components/ui/input";
 import { motion } from "framer-motion";
 import { ArrowRight, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
 
 interface OTPVerificationScreenProps {
   phone: string;
@@ -23,6 +22,7 @@ export const OTPVerificationScreen = ({
   const [timer, setTimer] = useState(30);
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
+  const [error, setError] = useState("");
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   const formatPhoneNumber = (phoneNumber: string) => {
@@ -51,6 +51,9 @@ export const OTPVerificationScreen = ({
   const handleChange = (index: number, value: string) => {
     if (value.length > 1) value = value[0];
     if (!/^\d*$/.test(value)) return;
+
+    // Clear error when user starts typing
+    if (error) setError("");
 
     const newOtp = [...otp];
     newOtp[index] = value;
@@ -84,26 +87,27 @@ export const OTPVerificationScreen = ({
   const handleVerify = async (otpCode?: string) => {
     const code = otpCode || otp.join("");
     if (code.length !== 6) {
-      toast.error("Please enter complete verification code");
+      setError("Please enter the complete 6-digit code");
       return;
     }
 
     setLoading(true);
+    setError("");
 
     try {
-      const { data, error } = await supabase.functions.invoke("verify-phone-otp", {
+      const { data, error: invokeError } = await supabase.functions.invoke("verify-phone-otp", {
         body: { phoneNumber: phone, otpCode: code },
       });
 
-      if (error) {
-        toast.error("Invalid verification code");
+      if (invokeError) {
+        setError("Unable to verify code. Please try again.");
         setOtp(["", "", "", "", "", ""]);
         inputRefs.current[0]?.focus();
         return;
       }
 
       if (!data?.success) {
-        toast.error(data?.error || "Verification failed");
+        setError(data?.error || "Invalid code. Please check and try again.");
         setOtp(["", "", "", "", "", ""]);
         inputRefs.current[0]?.focus();
         return;
@@ -111,7 +115,9 @@ export const OTPVerificationScreen = ({
 
       onContinue(code);
     } catch (err) {
-      toast.error("Verification failed");
+      setError("Something went wrong. Please try again.");
+      setOtp(["", "", "", "", "", ""]);
+      inputRefs.current[0]?.focus();
     } finally {
       setLoading(false);
     }
@@ -119,22 +125,22 @@ export const OTPVerificationScreen = ({
 
   const handleResend = async () => {
     setResending(true);
+    setError("");
     
     try {
-      const { error } = await supabase.functions.invoke("send-phone-otp", {
+      const { error: invokeError } = await supabase.functions.invoke("send-phone-otp", {
         body: { phoneNumber: phone },
       });
 
-      if (error) {
-        toast.error("Failed to resend code");
+      if (invokeError) {
+        setError("Unable to resend code. Please try again.");
         return;
       }
 
-      toast.success("Verification code sent! (Test code: 111111)");
       setTimer(30);
       onResend();
     } catch (err) {
-      toast.error("Failed to resend code");
+      setError("Unable to resend code. Please try again.");
     } finally {
       setResending(false);
     }
@@ -255,11 +261,23 @@ export const OTPVerificationScreen = ({
                     value={digit}
                     onChange={(e) => handleChange(index, e.target.value)}
                     onKeyDown={(e) => handleKeyDown(index, e)}
-                    className="w-12 h-14 sm:w-14 sm:h-16 text-center text-xl sm:text-2xl font-bold bg-white/5 border-white/10 focus:border-primary focus:bg-white/10 focus:ring-2 focus:ring-primary/50 transition-all"
+                    className={`w-12 h-14 sm:w-14 sm:h-16 text-center text-xl sm:text-2xl font-bold bg-white/5 border-white/10 focus:border-primary focus:bg-white/10 focus:ring-2 focus:ring-primary/50 transition-all ${
+                      error ? "border-red-500/50" : ""
+                    }`}
                   />
                 </motion.div>
               ))}
             </div>
+
+            {error && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-center text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-2"
+              >
+                {error}
+              </motion.div>
+            )}
 
             <div className="flex justify-center gap-6 text-sm">
               <button
