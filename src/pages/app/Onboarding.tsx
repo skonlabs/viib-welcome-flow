@@ -113,7 +113,7 @@ export default function Onboarding() {
     try {
       const fullPhone = `${onboardingData.countryCode}${onboardingData.phone}`;
       
-      const { error } = await supabase
+      const { data: insertedUser, error } = await supabase
         .from('users')
         .insert({
           phone_number: fullPhone,
@@ -121,13 +121,21 @@ export default function Onboarding() {
           is_phone_verified: true,
           onboarding_completed: false,
           is_active: false,
-        });
+        })
+        .select()
+        .single();
       
       if (error && error.code !== '23505') {
         console.error('Error creating user record:', error);
+        throw error;
+      }
+
+      if (insertedUser) {
+        console.log('User record created successfully:', insertedUser.id);
       }
     } catch (error) {
       console.error('Error in handleOTPVerify:', error);
+      throw error;
     }
     
     navigateToStep("biometric");
@@ -141,12 +149,17 @@ export default function Onboarding() {
         body: { password: onboardingData.password },
       });
 
-      if (hashError || !hashData?.success) {
-        console.error('Error hashing password:', hashError);
-        throw new Error('Failed to secure password');
+      if (hashError) {
+        console.error('Error invoking hash-password function:', hashError);
+        throw new Error('Failed to secure password: ' + hashError.message);
       }
 
-      const { error } = await supabase
+      if (!hashData?.success) {
+        console.error('Hash-password returned error:', hashData?.error);
+        throw new Error('Failed to secure password: ' + (hashData?.error || 'Unknown error'));
+      }
+
+      const { data: insertedUser, error } = await supabase
         .from('users')
         .insert({
           email: onboardingData.email,
@@ -155,13 +168,21 @@ export default function Onboarding() {
           is_email_verified: true,
           onboarding_completed: false,
           is_active: false,
-        });
+        })
+        .select()
+        .single();
       
       if (error && error.code !== '23505') {
         console.error('Error creating user record:', error);
+        throw error;
+      }
+
+      if (insertedUser) {
+        console.log('User record created successfully:', insertedUser.id);
       }
     } catch (error) {
       console.error('Error in handleEmailOTPVerify:', error);
+      throw error;
     }
     
     navigateToStep("biometric");
