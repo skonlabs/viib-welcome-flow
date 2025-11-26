@@ -5,6 +5,7 @@ import { EntryMethodScreen } from "@/components/onboarding/EntryMethodScreen";
 import { PhoneEntryScreen } from "@/components/onboarding/PhoneEntryScreen";
 import { OTPVerificationScreen } from "@/components/onboarding/OTPVerificationScreen";
 import { EmailSignupScreen } from "@/components/onboarding/EmailSignupScreen";
+import { EmailOTPVerificationScreen } from "@/components/onboarding/EmailOTPVerificationScreen";
 import { BiometricEnableScreen } from "@/components/onboarding/BiometricEnableScreen";
 import { UserIdentityScreen } from "@/components/onboarding/UserIdentityScreen";
 import { StreamingPlatformsScreen } from "@/components/onboarding/StreamingPlatformsScreen";
@@ -25,6 +26,7 @@ type OnboardingStep =
   | "phone"
   | "otp"
   | "email"
+  | "email-otp"
   | "biometric"
   | "identity"
   | "platforms"
@@ -64,7 +66,7 @@ export default function Onboarding() {
       navigate('/app/onboarding/welcome', { replace: true });
     } else if (step !== currentStep) {
       const validSteps: OnboardingStep[] = [
-        "welcome", "entry", "phone", "otp", "email", "biometric", "identity",
+        "welcome", "entry", "phone", "otp", "email", "email-otp", "biometric", "identity",
         "platforms", "languages", "mood", "taste", "dna", "social",
         "recommendations", "feedback", "companion", "completion"
       ];
@@ -134,7 +136,21 @@ export default function Onboarding() {
 
   const handleEmailSignup = (email: string, password: string) => {
     setOnboardingData((prev) => ({ ...prev, email, password }));
+    navigateToStep("email-otp");
+  };
+
+  const handleEmailOTPVerify = () => {
     navigateToStep("biometric");
+  };
+
+  const handleResendEmailOTP = async () => {
+    const { error } = await supabase.functions.invoke("send-email-otp", {
+      body: { email: onboardingData.email },
+    });
+    if (error) {
+      console.error("Error resending email OTP:", error);
+      throw error;
+    }
   };
 
   const handleBiometric = (enabled: boolean) => {
@@ -200,11 +216,12 @@ export default function Onboarding() {
     if (onboardingData.entryMethod === "phone") {
       navigateToStep("otp");
     } else if (onboardingData.entryMethod === "email") {
-      navigateToStep("email");
+      navigateToStep("email-otp");
     } else {
       navigateToStep("entry");
     }
   };
+  const handleBackToEmail = () => navigateToStep("email");
   const handleBackToIdentity = () => navigateToStep("identity");
   const handleBackToPlatforms = () => navigateToStep("platforms");
   const handleBackToLanguages = () => navigateToStep("languages");
@@ -241,6 +258,16 @@ export default function Onboarding() {
         <EmailSignupScreen
           onContinue={handleEmailSignup}
           onBack={handleBackToEntry}
+        />
+      )}
+      {currentStep === "email-otp" && (
+        <EmailOTPVerificationScreen
+          email={onboardingData.email}
+          password={onboardingData.password}
+          name={onboardingData.name || "User"}
+          onContinue={handleEmailOTPVerify}
+          onBack={handleBackToEmail}
+          onResend={handleResendEmailOTP}
         />
       )}
       {currentStep === "biometric" && (

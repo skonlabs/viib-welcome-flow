@@ -47,25 +47,22 @@ export const EmailSignupScreen = ({ onContinue, onBack }: EmailSignupScreenProps
     setError("");
 
     try {
-      const { data, error: invokeError } = await supabase.functions.invoke("signup-email", {
-        body: { 
-          email,
-          password,
-          name: "" // We'll collect name in the next screen
-        },
+      // Send OTP to email
+      const { data, error: invokeError } = await supabase.functions.invoke("send-email-otp", {
+        body: { email },
       });
 
       if (invokeError) {
-        setError("Unable to create account. Please try again.");
+        setError("Unable to send verification code. Please try again.");
         return;
       }
 
-      if (!data?.success) {
-        setError(data?.error || "Account creation failed. Please try again.");
+      if (data?.error) {
+        setError(data.error);
         return;
       }
 
-      // Success - proceed to next step
+      // Success - proceed to OTP verification
       onContinue(email, password);
     } catch (err) {
       setError("Something went wrong. Please try again.");
@@ -273,7 +270,7 @@ export const EmailSignupScreen = ({ onContinue, onBack }: EmailSignupScreenProps
                 variant="gradient"
                 className="w-full shadow-[0_20px_50px_-15px_rgba(168,85,247,0.4)]"
               >
-                {loading ? "Creating Account..." : "Secure My Account"}
+                {loading ? "Sending Code..." : "Continue"}
                 {!loading && <ArrowRight className="ml-2 w-5 h-5" />}
               </Button>
               <button

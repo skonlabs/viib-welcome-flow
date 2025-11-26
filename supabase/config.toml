@@ -6,5 +6,8 @@ verify_jwt = false
 [functions.verify-phone-otp]
 verify_jwt = false
 
-[functions.signup-email]
+[functions.send-email-otp]
+verify_jwt = false
+
+[functions.verify-email-otp]
 verify_jwt = false
