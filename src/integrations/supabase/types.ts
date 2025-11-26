@@ -942,6 +942,7 @@ export type Database = {
           is_phone_verified: boolean
           language_preference: string | null
           onboarding_completed: boolean
+          password_hash: string | null
           phone_number: string | null
           signup_method: string | null
           timezone: string | null
@@ -959,6 +960,7 @@ export type Database = {
           is_phone_verified?: boolean
           language_preference?: string | null
           onboarding_completed?: boolean
+          password_hash?: string | null
           phone_number?: string | null
           signup_method?: string | null
           timezone?: string | null
@@ -976,6 +978,7 @@ export type Database = {
           is_phone_verified?: boolean
           language_preference?: string | null
           onboarding_completed?: boolean
+          password_hash?: string | null
           phone_number?: string | null
           signup_method?: string | null
           timezone?: string | null

@@ -136,10 +136,21 @@ export default function Onboarding() {
   const handleEmailOTPVerify = async () => {
     // Create user record in database AFTER successful OTP verification
     try {
+      // Hash the password first
+      const { data: hashData, error: hashError } = await supabase.functions.invoke("hash-password", {
+        body: { password: onboardingData.password },
+      });
+
+      if (hashError || !hashData?.success) {
+        console.error('Error hashing password:', hashError);
+        throw new Error('Failed to secure password');
+      }
+
       const { error } = await supabase
         .from('users')
         .insert({
           email: onboardingData.email,
+          password_hash: hashData.hashedPassword,
           signup_method: 'email',
           is_email_verified: true,
           onboarding_completed: false,
