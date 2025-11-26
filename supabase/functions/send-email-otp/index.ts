@@ -29,8 +29,8 @@ serve(async (req) => {
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
     console.log('Generated OTP:', otpCode);
 
-    // Store OTP in database (expires in 10 minutes)
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+    // Store OTP in database (expires in 5 minutes)
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
     const { error: dbError } = await supabase
       .from('email_verifications')
       .insert({
@@ -77,7 +77,7 @@ serve(async (req) => {
           <div style="background-color: #f3f4f6; padding: 20px; text-align: center; font-size: 32px; font-weight: bold; letter-spacing: 8px; margin: 20px 0;">
             ${otpCode}
           </div>
-          <p>This code will expire in 10 minutes.</p>
+          <p>This code will expire in 5 minutes.</p>
           <p style="color: #6b7280; font-size: 14px;">If you didn't request this code, please ignore this email.</p>
         </div>
       `,
@@ -88,7 +88,7 @@ serve(async (req) => {
           <div style="background-color: #f3f4f6; padding: 20px; text-align: center; font-size: 32px; font-weight: bold; letter-spacing: 8px; margin: 20px 0;">
             ${otpCode}
           </div>
-          <p>This code will expire in 10 minutes.</p>
+          <p>This code will expire in 5 minutes.</p>
           <p style="color: #6b7280; font-size: 14px;">If you didn't request this code, please ignore this email.</p>
         </div>
       `,
