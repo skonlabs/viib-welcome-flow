@@ -70,6 +70,23 @@ export const EmailSignupScreen = ({ onContinue, onBack }: EmailSignupScreenProps
     setError("");
 
     try {
+      // Check if email already exists
+      const { data: existingUser, error: checkError } = await supabase
+        .from('users')
+        .select('email')
+        .eq('email', email)
+        .maybeSingle();
+
+      if (checkError) {
+        setError("Unable to verify email. Please try again.");
+        return;
+      }
+
+      if (existingUser) {
+        setError("This email address is already registered. Please sign in or use a different email.");
+        return;
+      }
+
       // Send OTP to email
       const { data, error: invokeError } = await supabase.functions.invoke("send-email-otp", {
         body: { email },
