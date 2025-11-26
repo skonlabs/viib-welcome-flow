@@ -60,7 +60,7 @@ export const EmailSignupScreen = ({ onContinue, onBack }: EmailSignupScreenProps
     }
   };
 
-  const isValid = validateEmail(email) && strength >= 3;
+  const isValid = !emailError && email.trim().length > 0 && strength >= 3;
 
   const handleSignup = async () => {
     if (!isValid) return;
