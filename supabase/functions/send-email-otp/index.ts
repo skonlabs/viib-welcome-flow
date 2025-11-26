@@ -107,8 +107,10 @@ serve(async (req) => {
     );
   } catch (error: any) {
     console.error('Error in send-email-otp function:', error);
+    
+    // Return user-friendly error message instead of technical details
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: "Unable to send verification code. Please check your email address and try again." }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 500,
