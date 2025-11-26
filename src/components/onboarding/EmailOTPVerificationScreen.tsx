@@ -97,12 +97,14 @@ export const EmailOTPVerificationScreen = ({
       });
 
       if (invokeError) {
-        setError("Unable to verify code. Please try again or request a new code.");
+        console.error("Invoke error:", invokeError);
+        setError("Unable to connect. Please check your connection and try again.");
         setOtp(["", "", "", "", "", ""]);
         inputRefs.current[0]?.focus();
         return;
       }
 
+      // Check if verification failed and show the specific error from the edge function
       if (!data?.success) {
         setError(data?.error || "Invalid code. Please check and try again.");
         setOtp(["", "", "", "", "", ""]);
@@ -123,7 +125,8 @@ export const EmailOTPVerificationScreen = ({
 
       onContinue();
     } catch (err) {
-      setError("Something went wrong. Please try again.");
+      console.error("Verification error:", err);
+      setError("Unable to verify code. Please request a new code.");
       setOtp(["", "", "", "", "", ""]);
       inputRefs.current[0]?.focus();
     } finally {
