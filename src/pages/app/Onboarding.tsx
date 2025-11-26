@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { WelcomeScreen } from "@/components/onboarding/WelcomeScreen";
 import { EntryMethodScreen } from "@/components/onboarding/EntryMethodScreen";
 import { PhoneEntryScreen } from "@/components/onboarding/PhoneEntryScreen";
@@ -16,7 +16,7 @@ import { RecommendationRevealScreen } from "@/components/onboarding/Recommendati
 import { FeedbackCaptureScreen } from "@/components/onboarding/FeedbackCaptureScreen";
 import { CompanionIntroScreen } from "@/components/onboarding/CompanionIntroScreen";
 import { CompletionScreen } from "@/components/onboarding/CompletionScreen";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 
 type OnboardingStep =
   | "welcome"
@@ -38,6 +38,7 @@ type OnboardingStep =
   | "completion";
 
 export default function Onboarding() {
+  const { step } = useParams<{ step: string }>();
   const [currentStep, setCurrentStep] = useState<OnboardingStep>("welcome");
   const [onboardingData, setOnboardingData] = useState({
     entryMethod: "",
@@ -55,85 +56,111 @@ export default function Onboarding() {
   });
   const navigate = useNavigate();
 
+  // Sync URL with current step
+  useEffect(() => {
+    if (!step) {
+      // If no step in URL, redirect to welcome
+      navigate('/app/onboarding/welcome', { replace: true });
+    } else if (step !== currentStep) {
+      const validSteps: OnboardingStep[] = [
+        "welcome", "entry", "phone", "otp", "email", "biometric", "identity",
+        "platforms", "languages", "mood", "taste", "dna", "social",
+        "recommendations", "feedback", "companion", "completion"
+      ];
+      if (validSteps.includes(step as OnboardingStep)) {
+        setCurrentStep(step as OnboardingStep);
+      } else {
+        // Invalid step, redirect to welcome
+        navigate('/app/onboarding/welcome', { replace: true });
+      }
+    }
+  }, [step, currentStep, navigate]);
+
+  // Update URL when step changes
+  const navigateToStep = (newStep: OnboardingStep) => {
+    setCurrentStep(newStep);
+    navigate(`/app/onboarding/${newStep}`);
+  };
+
   const handleWelcomeContinue = () => {
-    setCurrentStep("entry");
+    navigateToStep("entry");
   };
 
   const handleEntryMethod = (method: string) => {
     setOnboardingData((prev) => ({ ...prev, entryMethod: method }));
     if (method === "phone") {
-      setCurrentStep("phone");
+      navigateToStep("phone");
     } else if (method === "email") {
-      setCurrentStep("email");
+      navigateToStep("email");
     } else {
       // Apple sign in - skip to biometric
-      setCurrentStep("biometric");
+      navigateToStep("biometric");
     }
   };
 
   const handlePhoneEntry = (phone: string, countryCode: string) => {
     setOnboardingData((prev) => ({ ...prev, phone, countryCode }));
-    setCurrentStep("otp");
+    navigateToStep("otp");
   };
 
   const handleOTPVerify = (otp: string) => {
     console.log("OTP verified:", otp);
-    setCurrentStep("biometric");
+    navigateToStep("biometric");
   };
 
   const handleEmailSignup = (email: string, password: string) => {
     setOnboardingData((prev) => ({ ...prev, email, password }));
-    setCurrentStep("biometric");
+    navigateToStep("biometric");
   };
 
   const handleBiometric = (enabled: boolean) => {
-    setCurrentStep("identity");
+    navigateToStep("identity");
   };
 
   const handleIdentity = (data: { name: string; vibe: string }) => {
     setOnboardingData((prev) => ({ ...prev, ...data }));
-    setCurrentStep("platforms");
+    navigateToStep("platforms");
   };
 
   const handlePlatforms = (platforms: string[]) => {
     setOnboardingData((prev) => ({ ...prev, platforms }));
-    setCurrentStep("languages");
+    navigateToStep("languages");
   };
 
   const handleLanguages = (languages: string[]) => {
     setOnboardingData((prev) => ({ ...prev, languages }));
-    setCurrentStep("mood");
+    navigateToStep("mood");
   };
 
   const handleMood = (mood: { energy: number; positivity: number }) => {
     setOnboardingData((prev) => ({ ...prev, mood }));
-    setCurrentStep("taste");
+    navigateToStep("taste");
   };
 
   const handleTaste = (visualTaste: string[]) => {
     setOnboardingData((prev) => ({ ...prev, visualTaste }));
-    setCurrentStep("dna");
+    navigateToStep("dna");
   };
 
   const handleDNAContinue = () => {
-    setCurrentStep("social");
+    navigateToStep("social");
   };
 
   const handleSocial = () => {
-    setCurrentStep("recommendations");
+    navigateToStep("recommendations");
   };
 
   const handleRecommendations = () => {
-    setCurrentStep("feedback");
+    navigateToStep("feedback");
   };
 
   const handleFeedback = (feedback: string) => {
     setOnboardingData((prev) => ({ ...prev, feedback }));
-    setCurrentStep("companion");
+    navigateToStep("companion");
   };
 
   const handleCompanion = () => {
-    setCurrentStep("completion");
+    navigateToStep("completion");
   };
 
   const handleComplete = () => {
@@ -142,27 +169,27 @@ export default function Onboarding() {
   };
 
   // Back navigation handlers
-  const handleBackToWelcome = () => setCurrentStep("welcome");
-  const handleBackToEntry = () => setCurrentStep("entry");
+  const handleBackToWelcome = () => navigateToStep("welcome");
+  const handleBackToEntry = () => navigateToStep("entry");
   const handleBackToBiometric = () => {
     // Go back to the authentication screen they came from
     if (onboardingData.entryMethod === "phone") {
-      setCurrentStep("otp");
+      navigateToStep("otp");
     } else if (onboardingData.entryMethod === "email") {
-      setCurrentStep("email");
+      navigateToStep("email");
     } else {
-      setCurrentStep("entry");
+      navigateToStep("entry");
     }
   };
-  const handleBackToIdentity = () => setCurrentStep("identity");
-  const handleBackToPlatforms = () => setCurrentStep("platforms");
-  const handleBackToLanguages = () => setCurrentStep("languages");
-  const handleBackToMood = () => setCurrentStep("mood");
-  const handleBackToTaste = () => setCurrentStep("taste");
-  const handleBackToDNA = () => setCurrentStep("dna");
-  const handleBackToSocial = () => setCurrentStep("social");
-  const handleBackToRecommendations = () => setCurrentStep("recommendations");
-  const handleBackToFeedback = () => setCurrentStep("feedback");
+  const handleBackToIdentity = () => navigateToStep("identity");
+  const handleBackToPlatforms = () => navigateToStep("platforms");
+  const handleBackToLanguages = () => navigateToStep("languages");
+  const handleBackToMood = () => navigateToStep("mood");
+  const handleBackToTaste = () => navigateToStep("taste");
+  const handleBackToDNA = () => navigateToStep("dna");
+  const handleBackToSocial = () => navigateToStep("social");
+  const handleBackToRecommendations = () => navigateToStep("recommendations");
+  const handleBackToFeedback = () => navigateToStep("feedback");
 
   return (
     <div className="min-h-screen bg-black">
