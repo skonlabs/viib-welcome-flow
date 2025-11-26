@@ -163,8 +163,9 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
             <Button
               onClick={() => onContinue(selectedPosters)}
               disabled={selectedPosters.length < 2}
-              size="lg"
-              className="group px-12 h-14 text-lg font-medium bg-gradient-to-r from-primary to-accent hover:shadow-2xl hover:shadow-primary/50 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-300 hover:scale-105"
+              size="xl"
+              variant="gradient-large"
+              className="group"
             >
               {selectedPosters.length < 2 
                 ? `Select ${2 - selectedPosters.length} more to continue`

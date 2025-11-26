@@ -138,8 +138,9 @@ export const CompletionScreen = ({ userName, onComplete }: CompletionScreenProps
         >
           <Button
             onClick={onComplete}
-            size="lg"
-            className="group px-16 h-16 text-xl font-bold bg-gradient-to-r from-primary via-accent to-secondary hover:shadow-2xl hover:shadow-primary/50 transition-all duration-300 hover:scale-110"
+            size="2xl"
+            variant="gradient-large"
+            className="group"
           >
             <Sparkles className="mr-2 w-6 h-6" />
             Start Exploring

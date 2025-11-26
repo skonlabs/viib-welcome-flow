@@ -129,8 +129,8 @@ export const RecommendationRevealScreen = ({ userName, onContinue, onBack }: Rec
           >
             <Button
               onClick={onContinue}
-              size="lg"
-              className="px-12 h-14 text-lg font-medium bg-gradient-to-r from-primary to-accent hover:shadow-2xl hover:shadow-primary/50 transition-all duration-300 hover:scale-105"
+              size="xl"
+              variant="gradient-large"
             >
               Explore All Recommendations
               <ArrowRight className="ml-2 w-5 h-5" />

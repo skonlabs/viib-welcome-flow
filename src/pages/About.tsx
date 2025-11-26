@@ -251,8 +251,9 @@ const About = () => {
               </p>
               <Link to="/onboarding">
                 <Button
-                  size="lg"
-                  className="text-lg px-10 py-7 bg-gradient-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90 shadow-[0_20px_50px_-15px_rgba(168,85,247,0.4)] transition-all duration-300"
+                  size="2xl"
+                  variant="gradient"
+                  className="shadow-[0_20px_50px_-15px_rgba(168,85,247,0.4)]"
                 >
                   Get Started Today
                 </Button>

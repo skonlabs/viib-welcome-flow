@@ -61,7 +61,7 @@ const LandingHeader = () => {
             <a href="/onboarding">
               <Button
                 size="sm"
-                className="bg-gradient-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90 shadow-lg"
+                variant="gradient"
               >
                 <Apple className="mr-2 h-4 w-4" />
                 Get Started
@@ -141,7 +141,8 @@ const LandingHeader = () => {
                   <a href="/onboarding">
                     <Button
                       size="sm"
-                      className="w-full bg-gradient-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90"
+                      variant="gradient"
+                      className="w-full"
                       onClick={() => setIsMenuOpen(false)}
                     >
                       <Apple className="mr-2 h-4 w-4" />

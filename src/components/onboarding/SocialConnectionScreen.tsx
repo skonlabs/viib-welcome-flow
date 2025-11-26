@@ -135,8 +135,8 @@ export const SocialConnectionScreen = ({ onInvite, onSkip, onBack }: SocialConne
           >
             <Button
               onClick={onInvite}
-              size="lg"
-              className="px-12 h-14 text-lg font-medium bg-gradient-to-r from-primary to-accent hover:shadow-2xl hover:shadow-primary/50 transition-all duration-300 hover:scale-105"
+              size="xl"
+              variant="gradient-large"
             >
               <UserPlus className="mr-2 w-5 h-5" />
               Invite Friends

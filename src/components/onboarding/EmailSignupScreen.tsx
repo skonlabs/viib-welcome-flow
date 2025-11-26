@@ -202,7 +202,9 @@ export const EmailSignupScreen = ({ onContinue, onBack }: EmailSignupScreenProps
               <Button
                 onClick={() => onContinue(email, password)}
                 disabled={!isValid}
-                className="w-full h-14 text-lg font-medium bg-gradient-to-r from-primary to-accent hover:shadow-2xl hover:shadow-primary/50 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-300"
+                size="xl"
+                variant="gradient-large"
+                className="w-full"
               >
                 Secure My Account
                 <ArrowRight className="ml-2 w-5 h-5" />

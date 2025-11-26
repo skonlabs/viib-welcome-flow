@@ -160,8 +160,8 @@ export const CompanionIntroScreen = ({ onContinue, onBack }: CompanionIntroScree
           >
             <Button
               onClick={onContinue}
-              size="lg"
-              className="px-16 h-16 text-xl font-bold bg-gradient-to-r from-primary via-accent to-secondary hover:shadow-2xl hover:shadow-primary/50 transition-all duration-300 hover:scale-110"
+              size="2xl"
+              variant="gradient-large"
             >
               <Sparkles className="mr-2 w-6 h-6" />
               Let's Explore Together

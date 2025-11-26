@@ -462,8 +462,9 @@ export const UserIdentityScreen = ({ onContinue, onBack }: UserIdentityScreenPro
                 <Button
                   onClick={handleContinue}
                   disabled={!name || !selectedVibe}
-                  size="lg"
-                  className="relative group px-20 h-16 text-lg font-bold bg-gradient-to-r from-primary via-accent to-primary bg-[length:200%_100%] hover:bg-[position:100%_0] disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-700 overflow-hidden rounded-full shadow-2xl border border-white/20"
+                  size="2xl"
+                  variant="gradient-large"
+                  className="relative rounded-full shadow-2xl border border-white/20"
                 >
                   <span className="relative z-10 flex items-center gap-3">
                     Continue

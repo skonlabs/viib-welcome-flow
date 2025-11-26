@@ -208,8 +208,8 @@ export const LanguageSelectionScreen = ({ onContinue, onBack }: LanguageSelectio
             <Button
               onClick={() => onContinue(selectedLanguages)}
               disabled={selectedLanguages.length === 0}
-              size="lg"
-              className="px-12 h-14 text-lg font-medium bg-gradient-to-r from-primary to-accent hover:shadow-2xl hover:shadow-primary/50 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-300 hover:scale-105"
+              size="xl"
+              variant="gradient-large"
             >
               Continue with {selectedLanguages.length} {selectedLanguages.length === 1 ? "language" : "languages"}
               <ArrowRight className="ml-2 w-5 h-5" />

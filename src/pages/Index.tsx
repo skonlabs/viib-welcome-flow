@@ -109,8 +109,9 @@ const Index = () => {
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-4 animate-fade-in [animation-delay:300ms]">
               <a href="/onboarding">
                 <Button
-                  size="lg"
-                  className="group text-lg px-10 py-7 bg-gradient-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90 shadow-[0_20px_50px_-15px_rgba(168,85,247,0.4)] transition-all duration-300"
+                  size="2xl"
+                  variant="gradient"
+                  className="group shadow-[0_20px_50px_-15px_rgba(168,85,247,0.4)]"
                 >
                   <Apple className="mr-2 h-6 w-6" />
                   <span>Run on iOS</span>
@@ -120,9 +121,9 @@ const Index = () => {
 
               <a href="/onboarding">
                 <Button
-                  size="lg"
+                  size="2xl"
                   variant="outline"
-                  className="text-lg px-10 py-7 bg-background/10 backdrop-blur-xl border border-white/10 hover:border-primary/30 hover:bg-background/20 transition-all duration-300"
+                  className="bg-background/10 backdrop-blur-xl border border-white/10 hover:border-primary/30 hover:bg-background/20"
                 >
                   <PlayCircle className="mr-2 h-6 w-6" />
                   <span>Run on Android</span>
@@ -244,8 +245,9 @@ const Index = () => {
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-4">
               <a href="/onboarding">
                 <Button
-                  size="lg"
-                  className="group text-lg px-10 py-7 bg-gradient-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90 shadow-[0_20px_50px_-15px_rgba(168,85,247,0.4)] transition-all duration-300"
+                  size="2xl"
+                  variant="gradient"
+                  className="group shadow-[0_20px_50px_-15px_rgba(168,85,247,0.4)]"
                 >
                   <Apple className="mr-2 h-6 w-6" />
                   <span>Download Now</span>
@@ -255,9 +257,9 @@ const Index = () => {
 
               <a href="/onboarding">
                 <Button
-                  size="lg"
+                  size="2xl"
                   variant="outline"
-                  className="text-lg px-10 py-7 bg-background/10 backdrop-blur-xl border border-white/10 hover:border-primary/30 hover:bg-background/20 transition-all duration-300"
+                  className="bg-background/10 backdrop-blur-xl border border-white/10 hover:border-primary/30 hover:bg-background/20"
                 >
                   <PlayCircle className="mr-2 h-6 w-6" />
                   <span>Get on Android</span>

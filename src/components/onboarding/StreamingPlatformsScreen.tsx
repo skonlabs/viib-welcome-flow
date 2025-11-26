@@ -321,8 +321,9 @@ export const StreamingPlatformsScreen = ({ onContinue, onBack }: StreamingPlatfo
                 <Button
                   onClick={() => onContinue(selectedPlatforms)}
                   disabled={selectedPlatforms.length === 0}
-                  size="lg"
-                  className="relative group px-8 sm:px-16 h-12 sm:h-16 text-base sm:text-lg font-bold bg-gradient-to-r from-primary via-accent to-primary bg-[length:200%_100%] hover:bg-[position:100%_0] disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-700 overflow-hidden rounded-full shadow-2xl border border-white/20"
+                  size="2xl"
+                  variant="gradient-large"
+                  className="relative rounded-full shadow-2xl border border-white/20"
                 >
                   <span className="relative z-10 flex items-center gap-2 sm:gap-3">
                     <span className="hidden sm:inline">Continue with {selectedPlatforms.length || "0"} {selectedPlatforms.length === 1 ? 'platform' : 'platforms'}</span>
