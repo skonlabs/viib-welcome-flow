@@ -29,12 +29,12 @@ export const WelcomeScreen = ({
     return () => window.removeEventListener("mousemove", handleMouseMove);
   }, [mouseX, mouseY]);
   return <div className="min-h-screen flex items-center justify-center p-4 relative bg-black">
-      {/* Background container with overflow hidden */}
-      <div className="absolute inset-0 overflow-hidden">
+      {/* Background container with overflow hidden - spans entire page */}
+      <div className="fixed inset-0 overflow-hidden">
         {/* Animated Background */}
         <div className="absolute inset-0">
-          <div className="absolute inset-0 gradient-ocean opacity-80" />
-          <motion.div className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full blur-[100px]" style={{
+          <div className="absolute inset-0 gradient-ocean opacity-40" />
+          <motion.div className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full blur-[80px] opacity-40" style={{
           background: "radial-gradient(circle, #a855f7 0%, transparent 70%)"
         }} animate={{
           x: [0, 100, 0],
@@ -44,12 +44,22 @@ export const WelcomeScreen = ({
           repeat: Infinity,
           ease: "easeInOut"
         }} />
+          <motion.div className="absolute bottom-1/4 right-1/4 w-96 h-96 rounded-full blur-[80px] opacity-30" style={{
+          background: "radial-gradient(circle, #0ea5e9 0%, transparent 70%)"
+        }} animate={{
+          x: [0, -80, 0],
+          y: [0, 40, 0]
+        }} transition={{
+          duration: 25,
+          repeat: Infinity,
+          ease: "easeInOut"
+        }} />
         </div>
       </div>
 
       {/* Floating Particles */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        {[...Array(30)].map((_, i) => <motion.div key={i} className="absolute w-1 h-1 bg-white rounded-full" style={{
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        {[...Array(50)].map((_, i) => <motion.div key={i} className="absolute w-1 h-1 bg-white rounded-full" style={{
         left: `${Math.random() * 100}%`,
         top: `${Math.random() * 100}%`
       }} animate={{
