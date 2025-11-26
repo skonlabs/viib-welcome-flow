@@ -20,11 +20,17 @@ export const EmailOTPVerificationScreen = ({
   onBack,
 }: EmailOTPVerificationScreenProps) => {
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
-  const [timer, setTimer] = useState(30);
+  const [timer, setTimer] = useState(300); // 5 minutes
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
   const [error, setError] = useState("");
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
 
   useEffect(() => {
     inputRefs.current[0]?.focus();
@@ -139,7 +145,7 @@ export const EmailOTPVerificationScreen = ({
         return;
       }
 
-      setTimer(30);
+      setTimer(300); // Reset to 5 minutes
       setOtp(["", "", "", "", "", ""]);
       inputRefs.current[0]?.focus();
     } catch (err) {
@@ -295,7 +301,7 @@ export const EmailOTPVerificationScreen = ({
                 } transition-colors`}
               >
                 <RefreshCw className={`w-4 h-4 ${resending ? 'animate-spin' : ''}`} />
-                {resending ? "Sending..." : timer > 0 ? `Resend in ${timer}s` : "Resend Code"}
+                {resending ? "Sending..." : timer > 0 ? `Resend in ${formatTime(timer)}` : "Resend Code"}
               </button>
               <button
                 onClick={onBack}

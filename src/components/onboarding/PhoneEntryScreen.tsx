@@ -44,14 +44,11 @@ export const PhoneEntryScreen = ({
       });
       if (error) {
         setError(error.message);
-        toast.error("Failed to send verification code");
         return;
       }
-      toast.success("Verification code sent! (Test code: 111111)");
       onContinue(digits, countryCode);
     } catch (err) {
       setError("Failed to send verification code");
-      toast.error("Something went wrong");
     } finally {
       setLoading(false);
     }
