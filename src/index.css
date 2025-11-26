@@ -44,6 +44,7 @@ All colors MUST be HSL.
     --gradient-ocean: radial-gradient(ellipse at top, #1e3a8a 0%, #0c1222 50%, #000000 100%);
     --gradient-sunset: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 25%, #c06c84 50%, #6c5b7b 75%, #355c7d 100%);
     --gradient-aurora: linear-gradient(135deg, #00d4ff 0%, #7c3aed 50%, #db2777 100%);
+    --gradient-mesh: linear-gradient(135deg, hsl(280 100% 70% / 0.05) 0%, hsl(220 100% 70% / 0.05) 50%, hsl(280 100% 70% / 0.05) 100%);
     
     /* Dynamic Shadows & Glows */
     --shadow-intense: 0 20px 60px -15px rgba(0, 0, 0, 0.8);
