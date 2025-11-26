@@ -31,6 +31,19 @@ export default function ForgotPassword() {
     setError("");
 
     try {
+      // Check if account exists
+      const query = isEmail
+        ? supabase.from('users').select('id').eq('email', emailOrPhone).single()
+        : supabase.from('users').select('id').eq('phone_number', emailOrPhone).single();
+
+      const { data: existingUser, error: checkError } = await query;
+
+      if (checkError || !existingUser) {
+        setError("No account found with this email or phone");
+        setLoading(false);
+        return;
+      }
+
       const functionName = isEmail ? "send-email-otp" : "send-phone-otp";
       const body = isEmail 
         ? { email: emailOrPhone } 
@@ -144,7 +157,7 @@ export default function ForgotPassword() {
           <div className="absolute inset-0 gradient-ocean opacity-40" />
           <motion.div 
             className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full blur-[80px] opacity-40"
-            style={{ background: "radial-gradient(circle, #a855f7 0%, transparent 70%)" }}
+            style={{ background: "radial-gradient(circle, #06b6d4 0%, transparent 70%)" }}
             animate={{ x: [0, 100, 0], y: [0, -50, 0] }}
             transition={{ duration: 20, repeat: Infinity, ease: "easeInOut" }}
           />
