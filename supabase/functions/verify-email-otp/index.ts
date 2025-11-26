@@ -78,12 +78,6 @@ serve(async (req) => {
       );
     }
 
-    // Mark verification as complete
-    await supabase
-      .from('email_verifications')
-      .update({ verified: true })
-      .eq('id', verification.id);
-
     // Create user in Supabase Auth
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
       email,
@@ -105,6 +99,12 @@ serve(async (req) => {
         if (updateError) {
           console.error('Failed to update existing user verification status:', updateError);
         }
+
+        // Mark verification as complete AFTER updating user
+        await supabase
+          .from('email_verifications')
+          .update({ verified: true })
+          .eq('id', verification.id);
 
         return new Response(
           JSON.stringify({ 
@@ -140,6 +140,12 @@ serve(async (req) => {
         throw new Error('Failed to create user profile');
       }
     }
+
+    // ONLY mark verification as complete AFTER user record is successfully created
+    await supabase
+      .from('email_verifications')
+      .update({ verified: true })
+      .eq('id', verification.id);
 
     console.log('User created successfully');
 
