@@ -51,8 +51,15 @@ async function sendTwilioSMS(to: string, message: string): Promise<boolean> {
 
 // Helper function to check if phone number is a test number
 function isTestPhoneNumber(phoneNumber: string): boolean {
-  // Test numbers: +1555XXXXXXX or +15555551234 (specific test number)
-  return phoneNumber.startsWith("+1555") || phoneNumber === "+15555551234";
+  // Test numbers: +1555XXXXXXX, +15555551234, or common dev test numbers
+  // Common test patterns: +11234567890, +10000000000, +99999999999
+  const testPatterns = [
+    /^\+1555\d{7}$/,           // +1555XXXXXXX
+    /^\+1(1234567890|0{10})$/, // +11234567890 or +10000000000
+    /^\+9{11,}$/,              // +99999999999...
+  ];
+  
+  return testPatterns.some(pattern => pattern.test(phoneNumber));
 }
 
 // Helper function to generate random 6-digit OTP
