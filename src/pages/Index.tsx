@@ -107,7 +107,7 @@ const Index = () => {
 
             {/* CTA Buttons */}
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-4 animate-fade-in [animation-delay:300ms]">
-              <a href="/onboarding">
+              <a href="/app/onboarding">
                 <Button
                   size="2xl"
                   variant="gradient"
@@ -119,7 +119,7 @@ const Index = () => {
                 </Button>
               </a>
 
-              <a href="/onboarding">
+              <a href="/app/onboarding">
                 <Button
                   size="2xl"
                   variant="outline"
@@ -243,7 +243,7 @@ const Index = () => {
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-4">
-              <a href="/onboarding">
+              <a href="/app/onboarding">
                 <Button
                   size="2xl"
                   variant="gradient"
@@ -255,7 +255,7 @@ const Index = () => {
                 </Button>
               </a>
 
-              <a href="/onboarding">
+              <a href="/app/onboarding">
                 <Button
                   size="2xl"
                   variant="outline"

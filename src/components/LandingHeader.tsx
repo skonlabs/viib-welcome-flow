@@ -58,7 +58,7 @@ const LandingHeader = () => {
 
           {/* CTA Button */}
           <div className="hidden md:block">
-            <a href="/onboarding">
+            <a href="/app/onboarding">
               <Button
                 size="sm"
                 variant="gradient"
@@ -138,7 +138,7 @@ const LandingHeader = () => {
                   Contact
                 </button>
                 <div className="px-4 pt-2">
-                  <a href="/onboarding">
+                  <a href="/app/onboarding">
                     <Button
                       size="sm"
                       variant="gradient"

@@ -249,7 +249,7 @@ const About = () => {
               <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
                 Be part of the revolution in entertainment discovery
               </p>
-              <Link to="/onboarding">
+              <Link to="/app/onboarding">
                 <Button
                   size="2xl"
                   variant="gradient"
