@@ -134,34 +134,11 @@ export default function Onboarding() {
   };
 
   const handleEmailOTPVerify = async () => {
-    // OTP verified! NOW create the auth user and users table record
+    // Create user record in database AFTER successful OTP verification
     try {
-      // Create auth user with email already confirmed
-      const { data: authData, error: signUpError } = await supabase.auth.signUp({
-        email: onboardingData.email,
-        password: onboardingData.password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/`,
-          data: {
-            email_verified: true
-          }
-        }
-      });
-      
-      if (signUpError) {
-        console.error('Error creating auth user:', signUpError);
-        throw signUpError;
-      }
-
-      if (!authData.user) {
-        throw new Error('No user returned from signup');
-      }
-      
-      // Create user record in database
-      const { error: dbError } = await supabase
+      const { error } = await supabase
         .from('users')
         .insert({
-          id: authData.user.id,
           email: onboardingData.email,
           signup_method: 'email',
           is_email_verified: true,
@@ -169,24 +146,11 @@ export default function Onboarding() {
           is_active: false,
         });
       
-      if (dbError && dbError.code !== '23505') {
-        console.error('Error creating user record:', dbError);
-        throw dbError;
-      }
-
-      // Sign in the user immediately since we've verified their email via OTP
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: onboardingData.email,
-        password: onboardingData.password,
-      });
-
-      if (signInError) {
-        console.error('Error signing in:', signInError);
-        // Continue anyway - they can sign in later
+      if (error && error.code !== '23505') {
+        console.error('Error creating user record:', error);
       }
     } catch (error) {
       console.error('Error in handleEmailOTPVerify:', error);
-      throw error;
     }
     
     navigateToStep("biometric");
@@ -194,8 +158,6 @@ export default function Onboarding() {
 
   const handleEmailSignup = async (email: string, password: string) => {
     setOnboardingData((prev) => ({ ...prev, email, password }));
-    // Just store the email and password, don't create auth user yet
-    // Auth user will be created AFTER OTP verification
     navigateToStep("email-otp");
   };
 
