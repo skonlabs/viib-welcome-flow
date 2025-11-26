@@ -70,17 +70,6 @@ serve(async (req) => {
       );
     }
 
-    // Mark as verified in phone_verifications table
-    const { error: updateError } = await supabaseClient
-      .from('phone_verifications')
-      .update({ verified: true })
-      .eq('id', verification.id);
-
-    if (updateError) {
-      console.error('Database update error:', updateError);
-      throw new Error('Failed to verify code');
-    }
-
     // Check if user already exists with this phone number
     const { data: existingUser, error: checkError } = await supabaseClient
       .from('users')
@@ -123,6 +112,20 @@ serve(async (req) => {
       }
       console.log('New user created with phone verification:', normalizedPhone);
     }
+
+    // ONLY mark verification as complete AFTER user record is successfully created/updated
+    const { error: updateError } = await supabaseClient
+      .from('phone_verifications')
+      .update({ verified: true })
+      .eq('id', verification.id);
+
+    if (updateError) {
+      console.error('Database update error:', updateError);
+      // Don't throw here - user record was created successfully
+      console.error('Warning: Could not mark verification as used, but user was created');
+    }
+
+    console.log('Phone number verified and user record created/updated:', normalizedPhone);
 
     return new Response(
       JSON.stringify({
