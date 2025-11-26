@@ -4,11 +4,11 @@ import LandingHeader from "@/components/LandingHeader";
 
 const Index = () => {
   return (
-    <div className="min-h-screen bg-background overflow-hidden">
+    <div className="min-h-screen bg-black overflow-hidden">
       <LandingHeader />
 
-      {/* Animated Background Mesh */}
-      <div className="fixed inset-0 opacity-40" style={{ background: 'var(--gradient-mesh)' }} />
+      {/* Animated Background */}
+      <div className="fixed inset-0 gradient-ocean opacity-70" />
       <div className="fixed inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,0.01),transparent_50%)]" />
 
       {/* Floating Orbs */}
