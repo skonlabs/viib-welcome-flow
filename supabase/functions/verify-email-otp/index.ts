@@ -127,11 +127,11 @@ serve(async (req) => {
   } catch (error: any) {
     console.error('Error in verify-email-otp function:', error);
     
-    // Return user-friendly error message for system errors only
+    // Return generic user-friendly message without exposing system details
     return new Response(
       JSON.stringify({ 
         success: false,
-        error: "System error. Please try again or request a new code." 
+        error: "Unable to verify code. Please request a new code." 
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
