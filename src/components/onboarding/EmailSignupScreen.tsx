@@ -5,6 +5,14 @@ import { motion } from "framer-motion";
 import { ArrowRight, Eye, EyeOff, Check, X, AlertCircle } from "lucide-react";
 import { BackButton } from "./BackButton";
 import { supabase } from "@/integrations/supabase/client";
+import { z } from "zod";
+
+const emailSchema = z.object({
+  email: z.string()
+    .trim()
+    .email({ message: "Please enter a valid email address" })
+    .max(255, { message: "Email must be less than 255 characters" }),
+});
 
 interface EmailSignupScreenProps {
   onContinue: (email: string, password: string) => void;
@@ -17,6 +25,7 @@ export const EmailSignupScreen = ({ onContinue, onBack }: EmailSignupScreenProps
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [emailError, setEmailError] = useState("");
 
   const getPasswordStrength = () => {
     let strength = 0;
@@ -38,7 +47,20 @@ export const EmailSignupScreen = ({ onContinue, onBack }: EmailSignupScreenProps
     { label: "Contains number", met: /[0-9]/.test(password) },
   ];
 
-  const isValid = email.includes("@") && strength >= 3;
+  const validateEmail = (value: string) => {
+    try {
+      emailSchema.parse({ email: value });
+      setEmailError("");
+      return true;
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        setEmailError(err.errors[0].message);
+      }
+      return false;
+    }
+  };
+
+  const isValid = validateEmail(email) && strength >= 3;
 
   const handleSignup = async () => {
     if (!isValid) return;
@@ -176,10 +198,30 @@ export const EmailSignupScreen = ({ onContinue, onBack }: EmailSignupScreenProps
               <Input
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  if (e.target.value) {
+                    validateEmail(e.target.value);
+                  } else {
+                    setEmailError("");
+                  }
+                }}
+                onBlur={() => email && validateEmail(email)}
                 placeholder="you@example.com"
-                className="h-14 text-lg bg-white/5 border-white/10 focus:border-primary/50 focus:bg-white/10"
+                className={`h-14 text-lg bg-white/5 border-white/10 focus:border-primary/50 focus:bg-white/10 ${
+                  emailError ? "border-red-500/50" : ""
+                }`}
               />
+              {emailError && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex items-center gap-2 text-sm text-red-400"
+                >
+                  <AlertCircle className="w-4 h-4" />
+                  {emailError}
+                </motion.div>
+              )}
             </div>
 
             {/* Password */}
