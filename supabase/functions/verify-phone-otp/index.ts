@@ -23,11 +23,14 @@ serve(async (req) => {
       throw new Error("Phone number and OTP code are required");
     }
 
+    // Normalize phone number - remove all spaces and keep only digits and +
+    const normalizedPhone = phoneNumber.replace(/\s+/g, '');
+
     // Find the most recent non-verified OTP for this phone number
     const { data: verifications, error: fetchError } = await supabaseClient
       .from('phone_verifications')
       .select('*')
-      .eq('phone_number', phoneNumber)
+      .eq('phone_number', normalizedPhone)
       .eq('verified', false)
       .gt('expires_at', new Date().toISOString())
       .order('created_at', { ascending: false })
@@ -78,7 +81,7 @@ serve(async (req) => {
       throw new Error('Failed to verify code');
     }
 
-    console.log('Phone number verified successfully:', phoneNumber);
+    console.log('Phone number verified successfully:', normalizedPhone);
 
     return new Response(
       JSON.stringify({

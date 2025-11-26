@@ -77,8 +77,11 @@ serve(async (req) => {
       throw new Error("Phone number is required");
     }
 
+    // Normalize phone number - remove all spaces and keep only digits and +
+    const normalizedPhone = phoneNumber.replace(/\s+/g, '');
+
     // Determine if this is a test number
-    const isTest = isTestPhoneNumber(phoneNumber);
+    const isTest = isTestPhoneNumber(normalizedPhone);
     
     // Use hardcoded OTP for test numbers, random for real numbers
     const otpCode = isTest ? "111111" : generateOTP();
@@ -90,7 +93,7 @@ serve(async (req) => {
     const { error: dbError } = await supabaseClient
       .from('phone_verifications')
       .insert({
-        phone_number: phoneNumber,
+        phone_number: normalizedPhone,
         otp_code: otpCode,
         expires_at: expiresAt,
         verified: false
@@ -104,16 +107,16 @@ serve(async (req) => {
     // Send SMS only for real phone numbers
     if (!isTest) {
       const smsMessage = `Your ViiB verification code is: ${otpCode}. This code expires in 10 minutes.`;
-      const smsSent = await sendTwilioSMS(phoneNumber, smsMessage);
+      const smsSent = await sendTwilioSMS(normalizedPhone, smsMessage);
       
       if (!smsSent) {
         console.error('Failed to send SMS, but OTP stored in database');
         // Don't fail the request - OTP is still stored and can be verified
       }
       
-      console.log('Real phone number - OTP sent via Twilio to', phoneNumber);
+      console.log('Real phone number - OTP sent via Twilio to', normalizedPhone);
     } else {
-      console.log('TEST MODE: OTP hardcoded as 111111 for', phoneNumber);
+      console.log('TEST MODE: OTP hardcoded as 111111 for', normalizedPhone);
     }
 
     return new Response(
