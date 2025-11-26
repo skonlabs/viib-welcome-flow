@@ -45,17 +45,17 @@ export const PhoneEntryScreen = ({ onContinue, onBack }: PhoneEntryScreenProps) 
     try {
       const fullPhone = `${countryCode}${digits}`;
       
-      const { error: otpError } = await supabase.auth.signInWithOtp({
-        phone: fullPhone,
+      const { error } = await supabase.functions.invoke("send-phone-otp", {
+        body: { phoneNumber: fullPhone },
       });
 
-      if (otpError) {
-        setError(otpError.message);
+      if (error) {
+        setError(error.message);
         toast.error("Failed to send verification code");
         return;
       }
 
-      toast.success("Verification code sent!");
+      toast.success("Verification code sent! (Test code: 111111)");
       onContinue(digits, countryCode);
     } catch (err) {
       setError("Failed to send verification code");
