@@ -17,7 +17,7 @@ export const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
       if (authLoading) return;
 
       if (!user) {
-        navigate('/');
+        navigate('/login');
         return;
       }
 

@@ -77,7 +77,7 @@ export default function Login() {
           <motion.div 
             className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full blur-[80px] opacity-40"
             style={{
-              background: "radial-gradient(circle, #a855f7 0%, transparent 70%)"
+              background: "radial-gradient(circle, #06b6d4 0%, transparent 70%)"
             }}
             animate={{
               x: [0, 100, 0],
