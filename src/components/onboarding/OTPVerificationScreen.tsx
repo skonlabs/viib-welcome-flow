@@ -19,11 +19,17 @@ export const OTPVerificationScreen = ({
   onChangeNumber,
 }: OTPVerificationScreenProps) => {
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
-  const [timer, setTimer] = useState(30);
+  const [timer, setTimer] = useState(300); // 5 minutes
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
   const [error, setError] = useState("");
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
 
   const formatPhoneNumber = (phoneNumber: string) => {
     const cleaned = phoneNumber.replace(/\D/g, "");
@@ -137,7 +143,7 @@ export const OTPVerificationScreen = ({
         return;
       }
 
-      setTimer(30);
+      setTimer(300); // Reset to 5 minutes
       onResend();
     } catch (err) {
       setError("Unable to resend code. Please try again.");
@@ -290,7 +296,7 @@ export const OTPVerificationScreen = ({
                 } transition-colors`}
               >
                 <RefreshCw className={`w-4 h-4 ${resending ? 'animate-spin' : ''}`} />
-                {resending ? "Sending..." : timer > 0 ? `Resend in ${timer}s` : "Resend Code"}
+                {resending ? "Sending..." : timer > 0 ? `Resend in ${formatTime(timer)}` : "Resend Code"}
               </button>
               <button
                 onClick={onChangeNumber}
