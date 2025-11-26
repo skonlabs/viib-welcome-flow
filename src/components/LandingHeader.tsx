@@ -7,7 +7,7 @@ const LandingHeader = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl bg-transparent border-b border-white/5">
+    <header className="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl bg-transparent">
       <div className="container mx-auto px-4 lg:px-8">
         <div className="flex items-center justify-between h-24">
           {/* Logo */}
@@ -28,8 +28,8 @@ const LandingHeader = () => {
                   ease: "easeInOut"
                 }}
               />
-              <h1 className="relative text-5xl md:text-6xl font-bold tracking-tighter">
-                <span className="text-gradient inline-block px-4">ViiB</span>
+              <h1 className="relative text-3xl md:text-4xl font-bold tracking-tighter">
+                <span className="text-gradient inline-block px-2">ViiB</span>
               </h1>
             </div>
           </a>
