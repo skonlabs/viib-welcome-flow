@@ -75,19 +75,19 @@ export const EmailSignupScreen = ({ onContinue, onBack }: EmailSignupScreenProps
       });
 
       if (invokeError) {
-        setError("Unable to send verification code. Please try again.");
+        setError("Unable to send verification code. Please check your email and try again.");
         return;
       }
 
       if (data?.error) {
-        setError(data.error);
+        setError("Unable to send verification code. Please try again later.");
         return;
       }
 
       // Success - proceed to OTP verification
       onContinue(email, password);
     } catch (err) {
-      setError("Something went wrong. Please try again.");
+      setError("Something went wrong. Please try again later.");
     } finally {
       setLoading(false);
     }
