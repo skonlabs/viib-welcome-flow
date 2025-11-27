@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Menu, Bell, Home, User, Settings, MessageSquare, Shield, LogOut } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/hooks/useAuth';
+import { useNavigate } from 'react-router-dom';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
@@ -9,13 +9,14 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 export const AppHeader = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { user, isAdmin, signOut } = useAuth();
+  const navigate = useNavigate();
 
   const menuItems = [
-    { icon: Home, label: 'Home', href: '/', showWhenLoggedOut: true },
-    { icon: User, label: 'Profile', href: '/profile', showWhenLoggedOut: false },
-    { icon: Settings, label: 'Settings', href: '/settings', showWhenLoggedOut: false },
-    { icon: MessageSquare, label: 'Send Feedback', href: '/feedback', showWhenLoggedOut: true },
-    { icon: Shield, label: 'Admin Console', href: '/admin', showWhenLoggedOut: false, adminOnly: true },
+    { icon: Home, label: 'Home', href: '/app/home', showWhenLoggedOut: true },
+    { icon: User, label: 'Profile', href: '/app/profile', showWhenLoggedOut: false },
+    { icon: Settings, label: 'Settings', href: '/app/settings', showWhenLoggedOut: false },
+    { icon: MessageSquare, label: 'Send Feedback', href: '/app/feedback', showWhenLoggedOut: true },
+    { icon: Shield, label: 'Admin Console', href: '/app/admin', showWhenLoggedOut: false, adminOnly: true },
   ];
 
   const visibleMenuItems = menuItems.filter(item => {
@@ -52,15 +53,17 @@ export const AppHeader = () => {
           <SheetContent side="left" className="w-72 bg-background/95 backdrop-blur-xl border-white/10">
             <div className="flex flex-col gap-2 mt-8">
               {visibleMenuItems.map((item) => (
-                <a
+                <button
                   key={item.label}
-                  href={item.href}
-                  className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/5 transition-colors"
-                  onClick={() => setIsMenuOpen(false)}
+                  onClick={() => {
+                    navigate(item.href);
+                    setIsMenuOpen(false);
+                  }}
+                  className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/5 transition-colors text-left w-full"
                 >
                   <item.icon className="w-5 h-5 text-primary" />
                   <span className="text-foreground">{item.label}</span>
-                </a>
+                </button>
               ))}
               
               <button

@@ -1,7 +1,11 @@
 import { Home, Heart, Search, Bookmark, Users, Clock, List } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 export const AppFooter = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+
   const navItems = [
     { icon: Home, label: 'Home', href: '/app/home' },
     { icon: Heart, label: 'Mood', href: '/app/mood' },
@@ -12,21 +16,27 @@ export const AppFooter = () => {
     { icon: List, label: 'ViiBList', href: '/app/viiblist' },
   ];
 
+  const isActive = (href: string) => location.pathname === href;
+
   return (
     <footer className="fixed bottom-0 left-0 right-0 z-50 border-t border-white/10 bg-background/80 backdrop-blur-xl">
       <nav className="flex items-center justify-around px-2 py-3 max-w-4xl mx-auto">
         {navItems.map((item, index) => (
-          <motion.a
+          <motion.button
             key={item.label}
-            href={item.href}
-            className="flex flex-col items-center gap-1 px-2 py-1 rounded-xl hover:bg-white/5 transition-colors min-w-[60px]"
+            onClick={() => navigate(item.href)}
+            className={`flex flex-col items-center gap-1 px-2 py-1 rounded-xl hover:bg-white/5 transition-colors min-w-[60px] ${
+              isActive(item.href) ? 'bg-white/5' : ''
+            }`}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.05 }}
           >
-            <item.icon className="w-5 h-5 text-primary" />
-            <span className="text-[10px] text-foreground/80">{item.label}</span>
-          </motion.a>
+            <item.icon className={`w-5 h-5 ${isActive(item.href) ? 'text-primary' : 'text-primary/60'}`} />
+            <span className={`text-[10px] ${isActive(item.href) ? 'text-foreground font-medium' : 'text-foreground/60'}`}>
+              {item.label}
+            </span>
+          </motion.button>
         ))}
       </nav>
     </footer>
