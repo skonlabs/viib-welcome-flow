@@ -18,7 +18,7 @@ import { RecommendationRevealScreen } from "@/components/onboarding/Recommendati
 import { FeedbackCaptureScreen } from "@/components/onboarding/FeedbackCaptureScreen";
 import { CompanionIntroScreen } from "@/components/onboarding/CompanionIntroScreen";
 import { CompletionScreen } from "@/components/onboarding/CompletionScreen";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 
 type OnboardingStep =
   | "welcome"
@@ -44,7 +44,6 @@ export default function Onboarding() {
   const { step } = useParams<{ step: string }>();
   const [currentStep, setCurrentStep] = useState<OnboardingStep>("welcome");
   const [isChecking, setIsChecking] = useState(true);
-  const [pendingNavigation, setPendingNavigation] = useState<OnboardingStep | null>(null);
   const [onboardingData, setOnboardingData] = useState({
     entryMethod: "",
     phone: "",
@@ -60,22 +59,12 @@ export default function Onboarding() {
     feedback: "",
   });
   const navigate = useNavigate();
-
-  // Handle pending navigation after state updates
-  useEffect(() => {
-    if (!pendingNavigation) return;
-    
-    // Only navigate when required data is present
-    if (pendingNavigation === "otp" && onboardingData.phone) {
-      console.log('Navigating to OTP with phone:', onboardingData.phone);
-      navigateToStep(pendingNavigation);
-      setPendingNavigation(null);
-    } else if (pendingNavigation === "email-otp" && onboardingData.email) {
-      console.log('Navigating to email OTP with email:', onboardingData.email);
-      navigateToStep(pendingNavigation);
-      setPendingNavigation(null);
-    }
-  }, [pendingNavigation, onboardingData.phone, onboardingData.email]);
+  const location = useLocation();
+  
+  // Get data from navigation state if available
+  const navPhone = location.state?.phone || onboardingData.phone;
+  const navEmail = location.state?.email || onboardingData.email;
+  const navPassword = location.state?.password || onboardingData.password;
 
   // Sync URL with current step and fetch resume point from database
   useEffect(() => {
@@ -172,19 +161,15 @@ export default function Onboarding() {
   };
 
   const handlePhoneEntry = (phone: string, countryCode: string) => {
-    // Store the FULL phone number with country code (no spaces) for consistency
     const fullPhone = `${countryCode}${phone}`;
-    console.log('Setting phone in state:', fullPhone);
     setOnboardingData((prev) => ({ ...prev, phone: fullPhone, countryCode }));
-    setPendingNavigation("otp");
+    navigate('/app/onboarding/otp', { state: { phone: fullPhone }, replace: true });
+    setCurrentStep("otp");
   };
 
   const handleOTPVerify = async (otp: string) => {
-    console.log("OTP verified:", otp);
-    console.log("Phone from state:", onboardingData.phone);
-    
-    // Phone number is already stored with country code
-    const fullPhone = onboardingData.phone;
+    // Use navPhone which comes from navigation state
+    const fullPhone = navPhone;
 
     if (!fullPhone) {
       throw new Error("Phone number is missing. Please go back and enter your phone number again.");
@@ -258,7 +243,7 @@ export default function Onboarding() {
 
   const handleResendPhoneOTP = async () => {
     const { error } = await supabase.functions.invoke("send-phone-otp", {
-      body: { phoneNumber: onboardingData.phone },
+      body: { phoneNumber: navPhone },
     });
     if (error) {
       console.error("Error resending phone OTP:", error);
@@ -267,14 +252,14 @@ export default function Onboarding() {
   };
 
   const handleEmailSignup = async (email: string, password: string) => {
-    console.log('Setting email in state:', email);
     setOnboardingData((prev) => ({ ...prev, email, password }));
-    setPendingNavigation("email-otp");
+    navigate('/app/onboarding/email-otp', { state: { email, password }, replace: true });
+    setCurrentStep("email-otp");
   };
 
   const handleResendEmailOTP = async () => {
     const { error } = await supabase.functions.invoke("send-email-otp", {
-      body: { email: onboardingData.email },
+      body: { email: navEmail },
     });
     if (error) {
       console.error("Error resending email OTP:", error);
@@ -426,7 +411,7 @@ export default function Onboarding() {
       )}
       {currentStep === "otp" && (
         <OTPVerificationScreen
-          phone={onboardingData.phone}
+          phone={navPhone}
           onContinue={handleOTPVerify}
           onResend={handleResendPhoneOTP}
           onChangeNumber={() => navigateToStep("phone")}
@@ -440,8 +425,8 @@ export default function Onboarding() {
       )}
       {currentStep === "email-otp" && (
         <EmailOTPVerificationScreen
-          email={onboardingData.email}
-          password={onboardingData.password}
+          email={navEmail}
+          password={navPassword}
           onContinue={handleEmailOTPVerify}
           onBack={handleBackToEmail}
         />
