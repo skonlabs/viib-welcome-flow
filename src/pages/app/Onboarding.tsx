@@ -195,19 +195,21 @@ export default function Onboarding() {
     checkResumePoint();
   }, [step, currentStep, navigate]);
 
-  // Update URL when step changes and save to database
-  const navigateToStep = async (newStep: OnboardingStep) => {
+  // Update URL when step changes and save to database only when progressing forward
+  const navigateToStep = async (newStep: OnboardingStep, shouldSaveProgress: boolean = true) => {
     setCurrentStep(newStep);
     const newUrl = `/app/onboarding/${newStep}`;
     navigate(newUrl);
     
-    // Save current step URL to database for resumption
-    const userId = localStorage.getItem('viib_user_id');
-    if (userId) {
-      await supabase
-        .from('users')
-        .update({ last_onboarding_step: newUrl })
-        .eq('id', userId);
+    // Only save step to database when explicitly instructed (for forward progress)
+    if (shouldSaveProgress) {
+      const userId = localStorage.getItem('viib_user_id');
+      if (userId) {
+        await supabase
+          .from('users')
+          .update({ last_onboarding_step: newUrl })
+          .eq('id', userId);
+      }
     }
   };
 
@@ -551,29 +553,29 @@ export default function Onboarding() {
     }
   };
 
-  // Back navigation handlers
-  const handleBackToWelcome = () => navigateToStep("welcome");
-  const handleBackToEntry = () => navigateToStep("entry");
+  // Back navigation handlers - don't save progress when going backward
+  const handleBackToWelcome = () => navigateToStep("welcome", false);
+  const handleBackToEntry = () => navigateToStep("entry", false);
   const handleBackToBiometric = () => {
     // Go back to the authentication screen they came from
     if (onboardingData.entryMethod === "phone") {
-      navigateToStep("otp");
+      navigateToStep("otp", false);
     } else if (onboardingData.entryMethod === "email") {
-      navigateToStep("email-otp");
+      navigateToStep("email-otp", false);
     } else {
-      navigateToStep("entry");
+      navigateToStep("entry", false);
     }
   };
-  const handleBackToEmail = () => navigateToStep("email");
-  const handleBackToIdentity = () => navigateToStep("identity");
-  const handleBackToPlatforms = () => navigateToStep("platforms");
-  const handleBackToLanguages = () => navigateToStep("languages");
-  const handleBackToMood = () => navigateToStep("mood");
-  const handleBackToTaste = () => navigateToStep("taste");
-  const handleBackToDNA = () => navigateToStep("dna");
-  const handleBackToSocial = () => navigateToStep("social");
-  const handleBackToRecommendations = () => navigateToStep("recommendations");
-  const handleBackToFeedback = () => navigateToStep("feedback");
+  const handleBackToEmail = () => navigateToStep("email", false);
+  const handleBackToIdentity = () => navigateToStep("identity", false);
+  const handleBackToPlatforms = () => navigateToStep("platforms", false);
+  const handleBackToLanguages = () => navigateToStep("languages", false);
+  const handleBackToMood = () => navigateToStep("mood", false);
+  const handleBackToTaste = () => navigateToStep("taste", false);
+  const handleBackToDNA = () => navigateToStep("dna", false);
+  const handleBackToSocial = () => navigateToStep("social", false);
+  const handleBackToRecommendations = () => navigateToStep("recommendations", false);
+  const handleBackToFeedback = () => navigateToStep("feedback", false);
 
   // Show loading state while checking auth/onboarding status
   if (isChecking) {
