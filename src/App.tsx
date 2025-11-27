@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ProtectedRoute } from "@/components/app/ProtectedRoute";
+import { AppRedirect } from "@/components/app/AppRedirect";
 import Index from "./pages/Index";
 import Onboarding from "./pages/app/Onboarding";
 import Home from "./pages/app/Home";
@@ -26,6 +27,7 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/login" element={<Login />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/app" element={<AppRedirect />} />
           <Route path="/app/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
           <Route path="/app/onboarding" element={<Onboarding />} />
           <Route path="/app/onboarding/:step" element={<Onboarding />} />

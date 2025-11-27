@@ -268,8 +268,8 @@ export default function Onboarding() {
       // Wait a moment to ensure database update completes
       await new Promise(resolve => setTimeout(resolve, 500));
       
-      // Navigate to home
-      navigate("/app/home");
+      // Navigate to app root which will redirect to home
+      navigate("/app");
     } catch (error) {
       console.error('Error in handleComplete:', error);
     }
