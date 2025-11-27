@@ -24,19 +24,49 @@ export const MoodCalibrationScreen = ({
   const [energy, setEnergy] = useState([initialEnergy]);
   const [positivity, setPositivity] = useState([initialPositivity]);
   const [convertedEmotion, setConvertedEmotion] = useState<string | null>(null);
+  const [emotionStates, setEmotionStates] = useState<Array<{
+    id: string;
+    label: string;
+    value: number;
+    valence: number;
+    arousal: number;
+  }>>([]);
   const { toast } = useToast();
 
-  // Map positivity values to discrete emotion states
-  const emotionStates = useMemo(() => [
-    { value: 0, label: 'Sad', emoji: '😢', color: '#3b82f6' },
-    { value: 25, label: 'Anxious', emoji: '😰', color: '#8b5cf6' },
-    { value: 50, label: 'Calm', emoji: '😌', color: '#06b6d4' },
-    { value: 75, label: 'Happy', emoji: '😊', color: '#10b981' },
-    { value: 100, label: 'Excited', emoji: '🎉', color: '#f59e0b' }
-  ], []);
+  // Fetch emotion states from emotion_master table
+  useEffect(() => {
+    const fetchEmotionStates = async () => {
+      const { data, error } = await supabase
+        .from('emotion_master')
+        .select('id, emotion_label, valence, arousal')
+        .eq('category', 'user_state')
+        .order('valence', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching emotion states:', error);
+        return;
+      }
+
+      if (data && data.length > 0) {
+        // Map emotions to slider positions (0-100) based on valence
+        const mapped = data.map((emotion, index) => ({
+          id: emotion.id,
+          label: emotion.emotion_label,
+          value: Math.round((index / (data.length - 1)) * 100),
+          valence: emotion.valence || 0,
+          arousal: emotion.arousal || 0
+        }));
+        setEmotionStates(mapped);
+      }
+    };
+
+    fetchEmotionStates();
+  }, []);
 
   // Get the closest emotion state based on current positivity value
   const selectedEmotion = useMemo(() => {
+    if (emotionStates.length === 0) return null;
+    
     const currentValue = positivity[0];
     return emotionStates.reduce((prev, curr) => 
       Math.abs(curr.value - currentValue) < Math.abs(prev.value - currentValue) ? curr : prev
@@ -54,41 +84,44 @@ export const MoodCalibrationScreen = ({
 
   const mood = useMemo(() => {
     const e = energy[0];
-    const emotionLabel = selectedEmotion.label;
     
-    // Combine emotion state with energy level
-    if (emotionLabel === 'Excited') {
-      return { 
-        label: e > 60 ? "Energized & Joyful" : "Happily Relaxed", 
-        emoji: e > 60 ? "🎉" : "😊", 
-        color: "#f59e0b" 
-      };
-    } else if (emotionLabel === 'Happy') {
-      return { 
-        label: e > 60 ? "Upbeat & Active" : "Content & Peaceful", 
-        emoji: e > 60 ? "😄" : "☺️", 
-        color: "#10b981" 
-      };
-    } else if (emotionLabel === 'Calm') {
-      return { 
-        label: e > 60 ? "Focused & Clear" : "Serene & Tranquil", 
-        emoji: e > 60 ? "🧘" : "😌", 
-        color: "#06b6d4" 
-      };
-    } else if (emotionLabel === 'Anxious') {
-      return { 
-        label: e > 60 ? "Stressed & Tense" : "Worried & Uneasy", 
-        emoji: e > 60 ? "😫" : "😰", 
-        color: "#8b5cf6" 
-      };
-    } else { // Sad
-      return { 
-        label: e > 60 ? "Restless & Down" : "Melancholic & Low", 
-        emoji: e > 60 ? "😔" : "😢", 
-        color: "#3b82f6" 
-      };
+    if (!selectedEmotion) {
+      return { label: "Loading...", emoji: "⏳", color: "#a855f7" };
     }
+    
+    const emotionLabel = selectedEmotion.label;
+    const emotionId = selectedEmotion.id;
+    
+    // Combine emotion state with energy level for display
+    return { 
+      label: `${emotionLabel} ${e > 60 ? '(High Energy)' : '(Low Energy)'}`,
+      emoji: getEmotionEmoji(emotionLabel),
+      color: getEmotionColor(selectedEmotion.valence),
+      emotionId: emotionId
+    };
   }, [energy, selectedEmotion]);
+
+  // Helper function to get emoji based on emotion label
+  const getEmotionEmoji = (label: string): string => {
+    const lowerLabel = label.toLowerCase();
+    if (lowerLabel.includes('excited') || lowerLabel.includes('joy')) return '🎉';
+    if (lowerLabel.includes('happy')) return '😊';
+    if (lowerLabel.includes('calm') || lowerLabel.includes('peaceful')) return '😌';
+    if (lowerLabel.includes('sad')) return '😢';
+    if (lowerLabel.includes('anxious') || lowerLabel.includes('stress')) return '😰';
+    if (lowerLabel.includes('angry')) return '😠';
+    if (lowerLabel.includes('bored')) return '😑';
+    if (lowerLabel.includes('lonely')) return '😔';
+    if (lowerLabel.includes('hopeful')) return '✨';
+    return '😌'; // default
+  };
+
+  // Helper function to get color based on valence
+  const getEmotionColor = (valence: number): string => {
+    if (valence > 0.5) return '#10b981'; // positive - green
+    if (valence < -0.5) return '#3b82f6'; // negative - blue
+    return '#06b6d4'; // neutral - cyan
+  };
 
   // Note: Real-time emotion conversion disabled due to database constraint issue
   // The mood label shown below updates in real-time as you move the sliders
@@ -235,50 +268,58 @@ export const MoodCalibrationScreen = ({
             {/* Positivity Slider with Emotion States */}
             <div className="space-y-3">
               <div className="flex justify-between items-center mb-2">
-                <span className="text-sm text-muted-foreground">😢 Sad</span>
+                <span className="text-sm text-muted-foreground">Negative</span>
                 <span className="text-xs font-medium text-foreground uppercase tracking-wider">
                   Mood Tone
                 </span>
-                <span className="text-sm text-muted-foreground">Excited 🎉</span>
+                <span className="text-sm text-muted-foreground">Positive</span>
               </div>
               
               {/* Selected Emotion Display */}
-              <motion.div 
-                className="flex items-center justify-center gap-2 py-2 px-4 rounded-xl glass-card"
-                key={selectedEmotion.label}
-                initial={{ scale: 0.95, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ type: "spring", stiffness: 300 }}
-              >
-                <span className="text-2xl">{selectedEmotion.emoji}</span>
-                <span className="text-base font-semibold" style={{ color: selectedEmotion.color }}>
-                  {selectedEmotion.label}
-                </span>
-              </motion.div>
+              {selectedEmotion && (
+                <motion.div 
+                  className="flex items-center justify-center gap-2 py-2 px-4 rounded-xl glass-card"
+                  key={selectedEmotion.label}
+                  initial={{ scale: 0.95, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ type: "spring", stiffness: 300 }}
+                >
+                  <span className="text-2xl">{getEmotionEmoji(selectedEmotion.label)}</span>
+                  <span className="text-base font-semibold" style={{ color: getEmotionColor(selectedEmotion.valence) }}>
+                    {selectedEmotion.label}
+                  </span>
+                </motion.div>
+              )}
 
               <Slider
                 value={positivity}
                 onValueChange={setPositivity}
                 max={100}
-                step={25}
+                step={emotionStates.length > 0 ? Math.round(100 / (emotionStates.length - 1)) : 1}
                 className="cursor-pointer [&_[role=slider]]:h-5 [&_[role=slider]]:w-5 [&_[role=slider]]:border-2 [&_[role=slider]]:shadow-lg"
               />
               
               {/* Emotion State Markers */}
-              <div className="flex justify-between px-1 text-xs text-muted-foreground">
-                {emotionStates.map((state) => (
-                  <motion.div
-                    key={state.value}
-                    className="flex flex-col items-center gap-1"
-                    whileHover={{ scale: 1.1 }}
-                  >
-                    <span className="text-base">{state.emoji}</span>
-                    <span className={selectedEmotion.value === state.value ? 'font-semibold text-foreground' : ''}>
-                      {state.label}
-                    </span>
-                  </motion.div>
-                ))}
-              </div>
+              {emotionStates.length > 0 && (
+                <div className="flex justify-between px-1 text-xs text-muted-foreground">
+                  {emotionStates.map((state) => (
+                    <motion.div
+                      key={state.id}
+                      className="flex flex-col items-center gap-1 text-center"
+                      whileHover={{ scale: 1.1 }}
+                      style={{ flex: 1 }}
+                    >
+                      <span className="text-base">{getEmotionEmoji(state.label)}</span>
+                      <span 
+                        className={`text-[10px] ${selectedEmotion?.id === state.id ? 'font-semibold text-foreground' : ''}`}
+                        style={{ maxWidth: '60px', wordBreak: 'break-word' }}
+                      >
+                        {state.label}
+                      </span>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
             </div>
           </motion.div>
 
