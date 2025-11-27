@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect } from "react";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { motion } from "framer-motion";
 import { RefreshCw } from "lucide-react";
@@ -113,7 +112,7 @@ export const EmailOTPVerificationScreen = ({
 
       if (invokeError) {
         console.error("Invoke error:", invokeError);
-        setError("Unable to connect. Please check your connection and try again.");
+        setError("Unable to verify code. Please try again.");
         setOtp(["", "", "", "", "", ""]);
         inputRefs.current[0]?.focus();
         return;
@@ -131,7 +130,7 @@ export const EmailOTPVerificationScreen = ({
       onContinue();
     } catch (err) {
       console.error("Verification error:", err);
-      setError("Unable to verify code. Please request a new code.");
+      setError("Something went wrong. Please try again.");
       setOtp(["", "", "", "", "", ""]);
       inputRefs.current[0]?.focus();
     } finally {
