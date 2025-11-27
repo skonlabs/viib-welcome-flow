@@ -93,7 +93,7 @@ export const EmailSignupScreen = ({ onContinue, onBack }: EmailSignupScreenProps
       // Check if email already exists
       const { data: existingUser, error: checkError } = await supabase
         .from('users')
-        .select('email')
+        .select('email, is_email_verified, onboarding_completed')
         .eq('email', email)
         .maybeSingle();
 
@@ -103,8 +103,14 @@ export const EmailSignupScreen = ({ onContinue, onBack }: EmailSignupScreenProps
       }
 
       if (existingUser) {
-        setError("This email address is already registered. Please sign in or use a different email.");
-        return;
+        // If email verified and onboarding complete, they should use login
+        if (existingUser.is_email_verified && existingUser.onboarding_completed) {
+          setError("This email address is already registered. Please sign in instead.");
+          return;
+        }
+        
+        // SECURITY: Always require OTP verification, even for incomplete onboarding
+        // This prevents someone from entering another person's email and gaining access
       }
 
       // Send OTP to email

@@ -191,6 +191,15 @@ export default function Onboarding() {
       console.log('User exists, resuming onboarding');
       localStorage.setItem('viib_user_id', existingUser.id);
       localStorage.setItem('viib_resume_onboarding', 'true');
+      
+      // Mark the OTP as verified to clean up the verification record
+      await supabase
+        .from('phone_verifications')
+        .update({ verified: true })
+        .eq('phone_number', fullPhone)
+        .eq('otp_code', otp)
+        .eq('verified', false);
+      
       navigateToStep("biometric");
       return;
     }
@@ -237,7 +246,23 @@ export default function Onboarding() {
   };
 
   const handleEmailOTPVerify = async () => {
-    // User creation is now handled by verify-email-otp edge function
+    // User creation/resume is handled by verify-email-otp edge function
+    // Check if this is a resume scenario
+    const userId = localStorage.getItem('viib_user_id');
+    
+    if (userId) {
+      // Check if user has incomplete onboarding
+      const { data: userData } = await supabase
+        .from('users')
+        .select('onboarding_completed')
+        .eq('id', userId)
+        .single();
+      
+      if (userData && !userData.onboarding_completed) {
+        localStorage.setItem('viib_resume_onboarding', 'true');
+      }
+    }
+    
     navigateToStep("biometric");
   };
 

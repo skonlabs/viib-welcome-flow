@@ -88,49 +88,38 @@ serve(async (req) => {
 
     console.log('OTP matched successfully!');
 
-    // Hash the password
-    const { data: hashData, error: hashError } = await supabase.functions.invoke('hash-password', {
-      body: { password }
-    });
-
-    if (hashError || !hashData?.success) {
-      console.error('Failed to hash password:', hashError || hashData?.error);
-      return new Response(
-        JSON.stringify({ 
-          success: false,
-          error: 'Unable to process request. Please try again.'
-        }),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 200,
-        }
-      );
-    }
-
-    // Create user record
-    const { data: newUser, error: userError } = await supabase
+    // Check if user already exists
+    const { data: existingUser } = await supabase
       .from('users')
-      .insert({
-        email,
-        password_hash: hashData.hashedPassword,
-        signup_method: 'email',
-        is_email_verified: true,
-        is_age_over_18: true,
-        onboarding_completed: false,
-        is_active: false,
-      })
-      .select('id')
-      .single();
+      .select('id, onboarding_completed, is_email_verified')
+      .eq('email', email)
+      .maybeSingle();
 
-    if (userError) {
-      console.error('Failed to create user:', userError);
+    let userId: string;
+
+    if (existingUser) {
+      // User exists - this is a resume scenario
+      console.log('Existing user found, resuming onboarding:', existingUser.id);
       
-      // Check for duplicate email
-      if (userError.code === '23505') {
+      // Mark the OTP as verified
+      await supabase
+        .from('email_verifications')
+        .update({ verified: true })
+        .eq('id', verification.id);
+
+      userId = existingUser.id;
+    } else {
+      // New user - hash password and create account
+      const { data: hashData, error: hashError } = await supabase.functions.invoke('hash-password', {
+        body: { password }
+      });
+
+      if (hashError || !hashData?.success) {
+        console.error('Failed to hash password:', hashError || hashData?.error);
         return new Response(
           JSON.stringify({ 
             success: false,
-            error: 'This email is already registered. Please sign in instead.'
+            error: 'Unable to process request. Please try again.'
           }),
           {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -138,32 +127,51 @@ serve(async (req) => {
           }
         );
       }
-      
-      return new Response(
-        JSON.stringify({ 
-          success: false,
-          error: 'Unable to create account. Please try again.'
-        }),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 200,
-        }
-      );
+
+      // Create user record
+      const { data: newUser, error: userError } = await supabase
+        .from('users')
+        .insert({
+          email,
+          password_hash: hashData.hashedPassword,
+          signup_method: 'email',
+          is_email_verified: true,
+          is_age_over_18: true,
+          onboarding_completed: false,
+          is_active: false,
+        })
+        .select('id')
+        .single();
+
+      if (userError) {
+        console.error('Failed to create user:', userError);
+        return new Response(
+          JSON.stringify({ 
+            success: false,
+            error: 'Unable to create account. Please try again.'
+          }),
+          {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 200,
+          }
+        );
+      }
+
+      // Mark OTP as verified AFTER successful user creation
+      await supabase
+        .from('email_verifications')
+        .update({ verified: true })
+        .eq('id', verification.id);
+
+      userId = newUser.id;
+      console.log('New user created successfully:', userId);
     }
-
-    // Only mark OTP as verified AFTER successful user creation
-    await supabase
-      .from('email_verifications')
-      .update({ verified: true })
-      .eq('id', verification.id);
-
-    console.log('User created and email verified successfully:', newUser.id);
 
     return new Response(
       JSON.stringify({ 
         success: true,
         message: 'Email verified successfully',
-        userId: newUser.id
+        userId: userId
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
