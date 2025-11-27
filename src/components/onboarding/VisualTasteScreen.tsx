@@ -81,24 +81,24 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.8 }}
       >
-        <div className="space-y-12">
+        <div className="space-y-8">
           {/* Header */}
           <motion.div
-            className="text-center space-y-4"
+            className="text-center space-y-3"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.2 }}
           >
-            <h2 className="text-4xl md:text-5xl font-bold">
+            <h2 className="text-3xl md:text-4xl font-bold">
               <span className="text-gradient">What speaks to you?</span>
             </h2>
-            <p className="text-muted-foreground text-lg">
+            <p className="text-muted-foreground text-base">
               Pick at least 2 visual styles that capture your attention
             </p>
           </motion.div>
 
           {/* Poster Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             {posters.map((poster, index) => {
               const isSelected = selectedPosters.includes(poster.id);
               
@@ -146,9 +146,9 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
                     
                     <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
                     
-                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 p-6 text-white">
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-4 text-white">
                       <motion.span 
-                        className="text-6xl"
+                        className="text-5xl"
                         animate={{
                           scale: isSelected ? [1, 1.2, 1] : 1,
                         }}
@@ -158,11 +158,11 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
                       </motion.span>
                     </div>
                     
-                    <div className="absolute bottom-0 left-0 right-0 p-6 space-y-1 text-white">
-                      <p className="text-lg font-bold">
+                    <div className="absolute bottom-0 left-0 right-0 p-4 space-y-0.5 text-white">
+                      <p className="text-base font-bold">
                         {poster.title}
                       </p>
-                      <p className="text-sm text-white/70">
+                      <p className="text-xs text-white/70">
                         {poster.mood}
                       </p>
                     </div>
@@ -178,7 +178,7 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
 
           {/* Action */}
           <motion.div
-            className="flex justify-center pt-4"
+            className="flex justify-center pt-2"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.6 }}
