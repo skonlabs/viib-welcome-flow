@@ -359,17 +359,17 @@ export default function Login() {
             <h1 className="text-5xl font-bold bg-gradient-to-r from-cyan-400 via-primary to-cyan-400 bg-clip-text text-transparent mb-6">
               ViiB
             </h1>
-            <h2 className="text-3xl font-bold text-foreground">
+            <h2 className="text-3xl font-bold text-white">
               Welcome back
             </h2>
-            <p className="text-muted-foreground">
+            <p className="text-[#a1a8c4]">
               Sign in to continue your journey
             </p>
           </motion.div>
 
           {/* Form Card */}
           <motion.div
-            className="glass-card rounded-3xl p-8 space-y-6 backdrop-blur-xl"
+            className="rounded-3xl p-8 space-y-6 backdrop-blur-xl bg-[#1a1d2e]/60 border border-white/5"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
@@ -398,7 +398,7 @@ export default function Login() {
               <TabsContent value="email" className="space-y-6 mt-6">
                 {/* Email */}
                 <div className="space-y-3">
-                  <label className="text-sm text-muted-foreground font-medium">
+                  <label className="text-sm text-[#a1a8c4] font-normal">
                     Email Address
                   </label>
                   <Input
@@ -409,13 +409,13 @@ export default function Login() {
                       setError("");
                     }}
                     placeholder="you@example.com"
-                    className="h-14 text-base bg-white/5 border-white/10 focus:border-primary/50 focus:bg-white/10 rounded-xl"
+                    className="h-14 text-base bg-[#151829]/80 border-[#2a2f45] focus:border-primary/50 focus:bg-[#151829] rounded-xl placeholder:text-[#6b7280]"
                   />
                 </div>
 
                 {/* Password */}
                 <div className="space-y-3">
-                  <label className="text-sm text-muted-foreground font-medium">
+                  <label className="text-sm text-[#a1a8c4] font-normal">
                     Password
                   </label>
                   <div className="relative">
@@ -427,13 +427,13 @@ export default function Login() {
                         setError("");
                       }}
                       placeholder="Enter your password"
-                      className="h-14 text-base bg-white/5 border-white/10 focus:border-primary/50 focus:bg-white/10 pr-12 rounded-xl"
+                      className="h-14 text-base bg-[#151829]/80 border-[#2a2f45] focus:border-primary/50 focus:bg-[#151829] pr-12 rounded-xl placeholder:text-[#6b7280]"
                       onKeyDown={(e) => e.key === 'Enter' && handleEmailLogin()}
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-[#6b7280] hover:text-foreground transition-colors"
                     >
                       {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                     </button>
@@ -478,7 +478,7 @@ export default function Login() {
                     disabled={loading}
                     size="2xl"
                     variant="gradient"
-                    className="w-full shadow-[0_20px_50px_-15px_rgba(6,182,212,0.5)] hover:shadow-[0_25px_60px_-15px_rgba(6,182,212,0.6)] transition-all"
+                    className="w-full shadow-[0_20px_50px_-15px_rgba(139,92,246,0.5)] hover:shadow-[0_25px_60px_-15px_rgba(139,92,246,0.6)] transition-all"
                   >
                     {loading ? "Signing In..." : "Sign In"}
                     {!loading && <ArrowRight className="ml-2 w-5 h-5" />}
@@ -492,14 +492,14 @@ export default function Login() {
                   <>
                     {/* Phone Number */}
                     <div className="space-y-3">
-                      <label className="text-sm text-muted-foreground font-medium">
+                      <label className="text-sm text-[#a1a8c4] font-normal">
                         Phone Number
                       </label>
                       <div className="flex gap-3">
                         <select
                           value={countryCode}
                           onChange={(e) => setCountryCode(e.target.value)}
-                          className="h-14 w-28 px-3 rounded-xl bg-white/5 border border-white/10 text-foreground focus:border-primary/50 focus:bg-white/10 focus:outline-none text-base"
+                          className="h-14 w-28 px-3 rounded-xl bg-[#151829]/80 border border-[#2a2f45] text-foreground focus:border-primary/50 focus:bg-[#151829] focus:outline-none text-base"
                         >
                           <option value="+1">🇺🇸 +1</option>
                           <option value="+44">🇬🇧 +44</option>
@@ -521,7 +521,7 @@ export default function Login() {
                           }}
                           placeholder="(123) 456-7890"
                           maxLength={14}
-                          className="h-14 text-base bg-white/5 border-white/10 focus:border-primary/50 focus:bg-white/10 flex-1 rounded-xl"
+                          className="h-14 text-base bg-[#151829]/80 border-[#2a2f45] focus:border-primary/50 focus:bg-[#151829] flex-1 rounded-xl placeholder:text-[#6b7280]"
                         />
                       </div>
                     </div>
@@ -543,7 +543,7 @@ export default function Login() {
                         disabled={loading}
                         size="2xl"
                         variant="gradient"
-                        className="w-full shadow-[0_20px_50px_-15px_rgba(6,182,212,0.5)] hover:shadow-[0_25px_60px_-15px_rgba(6,182,212,0.6)] transition-all"
+                        className="w-full shadow-[0_20px_50px_-15px_rgba(139,92,246,0.5)] hover:shadow-[0_25px_60px_-15px_rgba(139,92,246,0.6)] transition-all"
                       >
                         {loading ? "Sending Code..." : "Send Code"}
                         {!loading && <ArrowRight className="ml-2 w-5 h-5" />}
@@ -556,7 +556,7 @@ export default function Login() {
 
             {/* Bottom Link */}
             <div className="pt-6 border-t border-white/5">
-              <p className="text-sm text-center text-muted-foreground">
+              <p className="text-sm text-center text-[#a1a8c4]">
                 Don't have an account?{" "}
                 <a
                   href="/app/onboarding/welcome"
