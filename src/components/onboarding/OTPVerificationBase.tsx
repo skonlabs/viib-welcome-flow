@@ -38,7 +38,9 @@ export const OTPVerificationBase = ({
 
   useEffect(() => {
     inputRefs.current[0]?.focus();
+  }, []);
 
+  useEffect(() => {
     // Auto-focus when window/tab regains focus
     const handleFocus = () => {
       if (otp.every(digit => !digit)) {
