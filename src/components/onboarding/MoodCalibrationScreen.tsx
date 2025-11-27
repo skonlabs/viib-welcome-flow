@@ -50,9 +50,19 @@ export const MoodCalibrationScreen = ({
   useEffect(() => {
     const convertAndStoreMood = async () => {
       const userId = localStorage.getItem('viib_user_id');
-      if (!userId) return;
+      if (!userId) {
+        console.log('⚠️ No user ID found, skipping emotion conversion');
+        return;
+      }
 
       try {
+        console.log('🎭 Converting mood:', { 
+          mood: mood.label, 
+          energy: energy[0], 
+          positivity: positivity[0],
+          userId 
+        });
+
         // Call translate_mood_to_emotion function
         const { error } = await supabase.rpc('translate_mood_to_emotion', {
           p_user_id: userId,
@@ -60,14 +70,19 @@ export const MoodCalibrationScreen = ({
           p_energy_percentage: energy[0]
         });
 
-        if (error) throw error;
+        if (error) {
+          console.error('❌ RPC Error:', error);
+          throw error;
+        }
+
+        console.log('✅ Mood translation successful, fetching emotion...');
 
         // Fetch the stored emotion to display
         const { data: emotionData, error: fetchError } = await supabase
           .from('user_emotion_states')
           .select(`
             emotion_id,
-            emotion_intensity,
+            intensity,
             emotion_master!inner(emotion_label)
           `)
           .eq('user_id', userId)
@@ -75,13 +90,18 @@ export const MoodCalibrationScreen = ({
           .limit(1)
           .single();
 
-        if (fetchError) throw fetchError;
+        if (fetchError) {
+          console.error('❌ Fetch Error:', fetchError);
+          throw fetchError;
+        }
 
-        if (emotionData) {
-          setConvertedEmotion(emotionData.emotion_master.emotion_label);
+        if (emotionData?.emotion_master) {
+          const emotionLabel = (emotionData.emotion_master as any).emotion_label;
+          console.log('🎉 Converted emotion:', emotionLabel);
+          setConvertedEmotion(emotionLabel);
         }
       } catch (error) {
-        console.error('Error converting mood to emotion:', error);
+        console.error('❌ Error converting mood to emotion:', error);
       }
     };
 

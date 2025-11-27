@@ -688,8 +688,8 @@ export type Database = {
           created_at: string
           dominance: number | null
           emotion_id: string
-          emotion_intensity: number
           id: string
+          intensity: number
           user_id: string
           valence: number | null
         }
@@ -698,8 +698,8 @@ export type Database = {
           created_at?: string
           dominance?: number | null
           emotion_id: string
-          emotion_intensity: number
           id?: string
+          intensity: number
           user_id: string
           valence?: number | null
         }
@@ -708,8 +708,8 @@ export type Database = {
           created_at?: string
           dominance?: number | null
           emotion_id?: string
-          emotion_intensity?: number
           id?: string
+          intensity?: number
           user_id?: string
           valence?: number | null
         }

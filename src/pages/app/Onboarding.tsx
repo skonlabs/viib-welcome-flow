@@ -85,7 +85,7 @@ export default function Onboarding() {
         // Fetch mood/emotion state
         const { data: emotionData } = await supabase
           .from('user_emotion_states')
-          .select('emotion_intensity, emotion_master(emotion_label)')
+          .select('intensity, emotion_master(emotion_label)')
           .eq('user_id', userId)
           .order('created_at', { ascending: false })
           .limit(1)
@@ -120,7 +120,7 @@ export default function Onboarding() {
           let moodData = { energy: 50, positivity: 50 }; // Default
           if (emotionData) {
             const emotionLabel = (emotionData.emotion_master as any)?.emotion_label;
-            const intensity = emotionData.emotion_intensity;
+            const intensity = emotionData.intensity;
             
             // Reverse the mapping from handleMood
             switch (emotionLabel) {
@@ -554,7 +554,7 @@ export default function Onboarding() {
           .insert({
             user_id: userId,
             emotion_id: emotion.id,
-            emotion_intensity: intensity
+            intensity: intensity
           });
       }
     }
