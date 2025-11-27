@@ -1,11 +1,64 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
-import { compare } from "https://deno.land/x/bcrypt@v0.4.1/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Verify password using Web Crypto API (PBKDF2)
+async function verifyPassword(password: string, storedHash: string): Promise<boolean> {
+  try {
+    const encoder = new TextEncoder();
+    
+    // Decode the stored hash from base64
+    const combined = Uint8Array.from(atob(storedHash), c => c.charCodeAt(0));
+    
+    // Extract salt (first 16 bytes) and hash (remaining bytes)
+    const salt = combined.slice(0, 16);
+    const storedHashBytes = combined.slice(16);
+    
+    // Hash the provided password with the extracted salt
+    const passwordBuffer = encoder.encode(password);
+    
+    const keyMaterial = await crypto.subtle.importKey(
+      "raw",
+      passwordBuffer,
+      { name: "PBKDF2" },
+      false,
+      ["deriveBits"]
+    );
+    
+    const hashBuffer = await crypto.subtle.deriveBits(
+      {
+        name: "PBKDF2",
+        salt: salt,
+        iterations: 100000,
+        hash: "SHA-256"
+      },
+      keyMaterial,
+      256
+    );
+    
+    const hashArray = new Uint8Array(hashBuffer);
+    
+    // Compare the hashes
+    if (hashArray.length !== storedHashBytes.length) {
+      return false;
+    }
+    
+    for (let i = 0; i < hashArray.length; i++) {
+      if (hashArray[i] !== storedHashBytes[i]) {
+        return false;
+      }
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Error verifying password:', error);
+    return false;
+  }
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -43,6 +96,7 @@ serve(async (req) => {
     const { data: userData, error: fetchError } = await query.maybeSingle();
 
     if (fetchError || !userData) {
+      console.log('User not found or fetch error:', fetchError);
       return new Response(
         JSON.stringify({ 
           success: false,
@@ -56,9 +110,10 @@ serve(async (req) => {
     }
 
     // Verify password
-    const isValid = await compare(password, userData.password_hash);
+    const isValid = await verifyPassword(password, userData.password_hash);
 
     if (!isValid) {
+      console.log('Password verification failed');
       return new Response(
         JSON.stringify({ 
           success: false,
@@ -71,6 +126,7 @@ serve(async (req) => {
       );
     }
 
+    console.log('Password verified successfully for user:', userData.id);
     return new Response(
       JSON.stringify({ 
         success: true,
