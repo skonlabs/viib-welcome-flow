@@ -44,6 +44,7 @@ export default function Onboarding() {
   const { step } = useParams<{ step: string }>();
   const [currentStep, setCurrentStep] = useState<OnboardingStep>("welcome");
   const [isChecking, setIsChecking] = useState(true);
+  const [pendingNavigation, setPendingNavigation] = useState<OnboardingStep | null>(null);
   const [onboardingData, setOnboardingData] = useState({
     entryMethod: "",
     phone: "",
@@ -59,6 +60,15 @@ export default function Onboarding() {
     feedback: "",
   });
   const navigate = useNavigate();
+
+  // Handle pending navigation after state updates
+  useEffect(() => {
+    if (pendingNavigation) {
+      console.log('Executing pending navigation to:', pendingNavigation, 'with data:', onboardingData);
+      navigateToStep(pendingNavigation);
+      setPendingNavigation(null);
+    }
+  }, [pendingNavigation, onboardingData]);
 
   // Sync URL with current step and fetch resume point from database
   useEffect(() => {
@@ -157,8 +167,9 @@ export default function Onboarding() {
   const handlePhoneEntry = (phone: string, countryCode: string) => {
     // Store the FULL phone number with country code (no spaces) for consistency
     const fullPhone = `${countryCode}${phone}`;
+    console.log('Setting phone in state:', fullPhone);
     setOnboardingData((prev) => ({ ...prev, phone: fullPhone, countryCode }));
-    navigateToStep("otp");
+    setPendingNavigation("otp");
   };
 
   const handleOTPVerify = async (otp: string) => {
@@ -249,8 +260,9 @@ export default function Onboarding() {
   };
 
   const handleEmailSignup = async (email: string, password: string) => {
+    console.log('Setting email in state:', email);
     setOnboardingData((prev) => ({ ...prev, email, password }));
-    navigateToStep("email-otp");
+    setPendingNavigation("email-otp");
   };
 
   const handleResendEmailOTP = async () => {
