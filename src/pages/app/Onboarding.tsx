@@ -59,41 +59,60 @@ export default function Onboarding() {
   });
   const navigate = useNavigate();
 
-  // Sync URL with current step
+  // Sync URL with current step and fetch resume point from database
   useEffect(() => {
-    // Check for saved onboarding step on mount
-    const savedStep = localStorage.getItem('viib_onboarding_step');
+    const checkResumePoint = async () => {
+      const userId = localStorage.getItem('viib_user_id');
+      
+      if (!step) {
+        // If no step in URL, check database for resume point
+        if (userId) {
+          const { data: userData } = await supabase
+            .from('users')
+            .select('last_onboarding_step, onboarding_completed')
+            .eq('id', userId)
+            .single();
+          
+          if (userData && !userData.onboarding_completed && userData.last_onboarding_step) {
+            // Resume from last saved step
+            navigate(userData.last_onboarding_step, { replace: true });
+            return;
+          }
+        }
+        // Default to welcome screen
+        navigate('/app/onboarding/welcome', { replace: true });
+      } else if (step !== currentStep) {
+        const validSteps: OnboardingStep[] = [
+          "welcome", "entry", "phone", "otp", "email", "email-otp", "biometric", "identity",
+          "platforms", "languages", "mood", "taste", "dna", "social",
+          "recommendations", "feedback", "companion", "completion"
+        ];
+        if (validSteps.includes(step as OnboardingStep)) {
+          setCurrentStep(step as OnboardingStep);
+        } else {
+          // Invalid step, redirect to welcome
+          navigate('/app/onboarding/welcome', { replace: true });
+        }
+      }
+    };
     
-    if (!step) {
-      // If no step in URL, check localStorage for resume point
-      if (savedStep && savedStep !== 'welcome') {
-        navigate(`/app/onboarding/${savedStep}`, { replace: true });
-      } else {
-        navigate('/app/onboarding/welcome', { replace: true });
-      }
-    } else if (step !== currentStep) {
-      const validSteps: OnboardingStep[] = [
-        "welcome", "entry", "phone", "otp", "email", "email-otp", "biometric", "identity",
-        "platforms", "languages", "mood", "taste", "dna", "social",
-        "recommendations", "feedback", "companion", "completion"
-      ];
-      if (validSteps.includes(step as OnboardingStep)) {
-        setCurrentStep(step as OnboardingStep);
-        // Save to localStorage whenever step changes via URL
-        localStorage.setItem('viib_onboarding_step', step);
-      } else {
-        // Invalid step, redirect to welcome
-        navigate('/app/onboarding/welcome', { replace: true });
-      }
-    }
+    checkResumePoint();
   }, [step, currentStep, navigate]);
 
-  // Update URL when step changes
-  const navigateToStep = (newStep: OnboardingStep) => {
+  // Update URL when step changes and save to database
+  const navigateToStep = async (newStep: OnboardingStep) => {
     setCurrentStep(newStep);
-    navigate(`/app/onboarding/${newStep}`);
-    // Save current step to localStorage for resumption
-    localStorage.setItem('viib_onboarding_step', newStep);
+    const newUrl = `/app/onboarding/${newStep}`;
+    navigate(newUrl);
+    
+    // Save current step URL to database for resumption
+    const userId = localStorage.getItem('viib_user_id');
+    if (userId) {
+      await supabase
+        .from('users')
+        .update({ last_onboarding_step: newUrl })
+        .eq('id', userId);
+    }
   };
 
   const handleWelcomeContinue = () => {
@@ -278,9 +297,6 @@ export default function Onboarding() {
       
       // Wait a moment to ensure database update completes
       await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Clear onboarding tracking from localStorage
-      localStorage.removeItem('viib_onboarding_step');
       
       // Navigate directly to home screen
       navigate("/app/home");
