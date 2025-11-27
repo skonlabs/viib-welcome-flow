@@ -1272,7 +1272,10 @@ export type Database = {
           p_mood_text: string
           p_user_id: string
         }
-        Returns: undefined
+        Returns: {
+          emotion_id: string
+          emotion_label: string
+        }[]
       }
       viib_autotune_weights: { Args: { p_days?: number }; Returns: string }
       viib_intent_alignment_score: {
