@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { Slider } from "@/components/ui/slider";
@@ -31,7 +31,7 @@ export const MoodCalibrationScreen = ({
     setPositivity([initialPositivity]);
   }, [initialPositivity]);
 
-  const getMoodData = () => {
+  const mood = useMemo(() => {
     const e = energy[0];
     const p = positivity[0];
 
@@ -40,9 +40,7 @@ export const MoodCalibrationScreen = ({
     if (e > 65 && p < 35) return { label: "Intense & Driven", emoji: "🔥", color: "#ef4444" };
     if (e < 35 && p < 35) return { label: "Contemplative", emoji: "🌙", color: "#8b5cf6" };
     return { label: "Balanced & Open", emoji: "✨", color: "#a855f7" };
-  };
-
-  const mood = getMoodData();
+  }, [energy, positivity]);
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-black">
