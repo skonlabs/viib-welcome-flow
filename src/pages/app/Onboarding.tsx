@@ -75,6 +75,9 @@ export default function Onboarding() {
           .eq('id', userId)
           .single();
         
+        // Load vibe from localStorage (temporary storage during onboarding)
+        const savedVibe = localStorage.getItem('viib_onboarding_vibe') || '';
+        
         if (userData) {
           // Fetch platforms
           const { data: platformsData } = await supabase
@@ -93,6 +96,7 @@ export default function Onboarding() {
           setOnboardingData(prev => ({
             ...prev,
             name: userData.full_name || '',
+            vibe: savedVibe,
             phone: userData.phone_number || '',
             email: userData.email || '',
             platforms: platformsData?.map(p => (p.streaming_services as any)?.service_name).filter(Boolean) || [],
@@ -345,13 +349,16 @@ export default function Onboarding() {
   const handleIdentity = async (data: { name: string; vibe: string }) => {
     setOnboardingData((prev) => ({ ...prev, ...data }));
     
-    // Save identity data to database
+    // Save identity data to database and localStorage
     const userId = localStorage.getItem('viib_user_id');
     if (userId) {
       await supabase
         .from('users')
         .update({ full_name: data.name })
         .eq('id', userId);
+      
+      // Store vibe in localStorage temporarily during onboarding
+      localStorage.setItem('viib_onboarding_vibe', data.vibe);
     }
     
     navigateToStep("platforms");
@@ -496,6 +503,9 @@ export default function Onboarding() {
       }
       
       console.log('Successfully updated onboarding_completed and is_active');
+      
+      // Clean up temporary onboarding data from localStorage
+      localStorage.removeItem('viib_onboarding_vibe');
       
       // Clean up resume flag
       localStorage.removeItem('viib_resume_onboarding');
