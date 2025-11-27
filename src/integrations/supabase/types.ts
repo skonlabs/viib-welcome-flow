@@ -41,6 +41,35 @@ export type Database = {
         }
         Relationships: []
       }
+      emotion_energy_profile: {
+        Row: {
+          created_at: string
+          emotion_id: string
+          id: string
+          intensity_multiplier: number
+        }
+        Insert: {
+          created_at?: string
+          emotion_id: string
+          id?: string
+          intensity_multiplier: number
+        }
+        Update: {
+          created_at?: string
+          emotion_id?: string
+          id?: string
+          intensity_multiplier?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "emotion_energy_profile_emotion_id_fkey"
+            columns: ["emotion_id"]
+            isOneToOne: true
+            referencedRelation: "emotion_master"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       emotion_master: {
         Row: {
           arousal: number | null
@@ -655,25 +684,34 @@ export type Database = {
       }
       user_emotion_states: {
         Row: {
+          arousal: number | null
           created_at: string
+          dominance: number | null
           emotion_id: string
           emotion_intensity: number
           id: string
           user_id: string
+          valence: number | null
         }
         Insert: {
+          arousal?: number | null
           created_at?: string
+          dominance?: number | null
           emotion_id: string
           emotion_intensity: number
           id?: string
           user_id: string
+          valence?: number | null
         }
         Update: {
+          arousal?: number | null
           created_at?: string
+          dominance?: number | null
           emotion_id?: string
           emotion_intensity?: number
           id?: string
           user_id?: string
+          valence?: number | null
         }
         Relationships: [
           {
@@ -1160,10 +1198,20 @@ export type Database = {
         }
         Relationships: []
       }
+      vw_missing_emotion_energy_profiles: {
+        Row: {
+          emotion_label: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       calculate_taste_similarity: {
         Args: { p_user_a: string; p_user_b: string }
+        Returns: number
+      }
+      calculate_user_emotion_intensity: {
+        Args: { p_emotion_id: string; p_energy_percentage: number }
         Returns: number
       }
       explain_recommendation: {
@@ -1208,6 +1256,22 @@ export type Database = {
       }
       refresh_viib_title_intent_stats: {
         Args: { p_title_id: string }
+        Returns: undefined
+      }
+      store_user_emotion_vector: {
+        Args: {
+          p_emotion_label: string
+          p_energy_percentage: number
+          p_user_id: string
+        }
+        Returns: undefined
+      }
+      translate_mood_to_emotion: {
+        Args: {
+          p_energy_percentage: number
+          p_mood_text: string
+          p_user_id: string
+        }
         Returns: undefined
       }
       viib_autotune_weights: { Args: { p_days?: number }; Returns: string }

@@ -5,6 +5,8 @@ import { Slider } from "@/components/ui/slider";
 import { ArrowRight } from "lucide-react";
 import { BackButton } from "./BackButton";
 import { FloatingParticles } from "./FloatingParticles";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 interface MoodCalibrationScreenProps {
   onContinue: (mood: { energy: number; positivity: number }) => void;
@@ -21,6 +23,8 @@ export const MoodCalibrationScreen = ({
 }: MoodCalibrationScreenProps) => {
   const [energy, setEnergy] = useState([initialEnergy]);
   const [positivity, setPositivity] = useState([initialPositivity]);
+  const [convertedEmotion, setConvertedEmotion] = useState<string | null>(null);
+  const { toast } = useToast();
 
   // Update local state when initial values change (e.g., when navigating back)
   useEffect(() => {
@@ -41,6 +45,53 @@ export const MoodCalibrationScreen = ({
     if (e < 35 && p < 35) return { label: "Contemplative", emoji: "🌙", color: "#8b5cf6" };
     return { label: "Balanced & Open", emoji: "✨", color: "#a855f7" };
   }, [energy, positivity]);
+
+  // Real-time emotion conversion and storage
+  useEffect(() => {
+    const convertAndStoreMood = async () => {
+      const userId = localStorage.getItem('viib_user_id');
+      if (!userId) return;
+
+      try {
+        // Call translate_mood_to_emotion function
+        const { error } = await supabase.rpc('translate_mood_to_emotion', {
+          p_user_id: userId,
+          p_mood_text: mood.label,
+          p_energy_percentage: energy[0]
+        });
+
+        if (error) throw error;
+
+        // Fetch the stored emotion to display
+        const { data: emotionData, error: fetchError } = await supabase
+          .from('user_emotion_states')
+          .select(`
+            emotion_id,
+            emotion_intensity,
+            emotion_master!inner(emotion_label)
+          `)
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (fetchError) throw fetchError;
+
+        if (emotionData) {
+          setConvertedEmotion(emotionData.emotion_master.emotion_label);
+        }
+      } catch (error) {
+        console.error('Error converting mood to emotion:', error);
+      }
+    };
+
+    // Debounce to avoid too many calls
+    const timer = setTimeout(() => {
+      convertAndStoreMood();
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [energy, positivity, mood.label]);
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-black">
@@ -107,6 +158,16 @@ export const MoodCalibrationScreen = ({
             <p className="text-muted-foreground text-base">
               Move the sliders to match your current mood
             </p>
+            {convertedEmotion && (
+              <motion.p 
+                className="text-sm text-cyan-400 font-medium"
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                key={convertedEmotion}
+              >
+                Emotion: {convertedEmotion}
+              </motion.p>
+            )}
           </motion.div>
 
           {/* Mood Visualization */}
