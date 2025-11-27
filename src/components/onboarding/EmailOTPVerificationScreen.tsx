@@ -21,14 +21,15 @@ export const EmailOTPVerificationScreen = ({
       throw new Error("Email is missing. Please go back and enter your email again.");
     }
 
-    // First check if email is already verified
+    // Check if email is already verified with completed onboarding
     const { data: existingUser } = await supabase
       .from('users')
-      .select('is_email_verified, signup_method')
+      .select('is_email_verified, signup_method, onboarding_completed')
       .eq('email', email)
       .maybeSingle();
 
-    if (existingUser?.is_email_verified && existingUser?.signup_method === 'email') {
+    // Only block if user has BOTH verified email AND completed onboarding
+    if (existingUser?.is_email_verified && existingUser?.signup_method === 'email' && existingUser?.onboarding_completed) {
       throw new Error("An account with this email already exists. Please sign in instead.");
     }
 
