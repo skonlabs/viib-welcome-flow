@@ -8,10 +8,11 @@ import { FloatingParticles } from "./FloatingParticles";
 interface StreamingPlatformsScreenProps {
   onContinue: (platforms: string[]) => void;
   onBack: () => void;
+  initialPlatforms?: string[];
 }
 
-export const StreamingPlatformsScreen = ({ onContinue, onBack }: StreamingPlatformsScreenProps) => {
-  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
+export const StreamingPlatformsScreen = ({ onContinue, onBack, initialPlatforms = [] }: StreamingPlatformsScreenProps) => {
+  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(initialPlatforms);
 
   const platforms = [
     { id: "netflix", name: "Netflix", color: "#E50914" },

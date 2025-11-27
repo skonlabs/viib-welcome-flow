@@ -13,11 +13,13 @@ import { FloatingParticles } from "./FloatingParticles";
 interface UserIdentityScreenProps {
   onContinue: (data: { name: string; vibe: string }) => void;
   onBack: () => void;
+  initialName?: string;
+  initialVibe?: string;
 }
 
-export const UserIdentityScreen = ({ onContinue, onBack }: UserIdentityScreenProps) => {
-  const [name, setName] = useState("");
-  const [selectedVibe, setSelectedVibe] = useState("");
+export const UserIdentityScreen = ({ onContinue, onBack, initialName = "", initialVibe = "" }: UserIdentityScreenProps) => {
+  const [name, setName] = useState(initialName);
+  const [selectedVibe, setSelectedVibe] = useState(initialVibe);
 
   const vibes = [
     { 

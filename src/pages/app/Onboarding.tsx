@@ -61,6 +61,52 @@ export default function Onboarding() {
   const navigate = useNavigate();
   const location = useLocation();
   
+  // Load saved onboarding data on mount
+  useEffect(() => {
+    const loadSavedData = async () => {
+      const userId = localStorage.getItem('viib_user_id');
+      if (!userId) return;
+      
+      try {
+        // Fetch user data
+        const { data: userData } = await supabase
+          .from('users')
+          .select('full_name, phone_number, email')
+          .eq('id', userId)
+          .single();
+        
+        if (userData) {
+          // Fetch platforms
+          const { data: platformsData } = await supabase
+            .from('user_streaming_subscriptions')
+            .select('streaming_service_id, streaming_services(service_name)')
+            .eq('user_id', userId)
+            .eq('is_active', true);
+          
+          // Fetch languages
+          const { data: languagesData } = await supabase
+            .from('user_language_preferences')
+            .select('language_code')
+            .eq('user_id', userId)
+            .order('priority_order');
+          
+          setOnboardingData(prev => ({
+            ...prev,
+            name: userData.full_name || '',
+            phone: userData.phone_number || '',
+            email: userData.email || '',
+            platforms: platformsData?.map(p => (p.streaming_services as any)?.service_name).filter(Boolean) || [],
+            languages: languagesData?.map(l => l.language_code) || [],
+          }));
+        }
+      } catch (error) {
+        console.error('Error loading saved data:', error);
+      }
+    };
+    
+    loadSavedData();
+  }, []);
+  
   // Get data from navigation state if available
   const navPhone = location.state?.phone || onboardingData.phone;
   const navEmail = location.state?.email || onboardingData.email;
@@ -541,13 +587,26 @@ export default function Onboarding() {
         />
       )}
       {currentStep === "identity" && (
-        <UserIdentityScreen onContinue={handleIdentity} onBack={handleBackToBiometric} />
+        <UserIdentityScreen 
+          onContinue={handleIdentity} 
+          onBack={handleBackToBiometric}
+          initialName={onboardingData.name}
+          initialVibe={onboardingData.vibe}
+        />
       )}
       {currentStep === "platforms" && (
-        <StreamingPlatformsScreen onContinue={handlePlatforms} onBack={handleBackToIdentity} />
+        <StreamingPlatformsScreen 
+          onContinue={handlePlatforms} 
+          onBack={handleBackToIdentity}
+          initialPlatforms={onboardingData.platforms}
+        />
       )}
       {currentStep === "languages" && (
-        <LanguageSelectionScreen onContinue={handleLanguages} onBack={handleBackToPlatforms} />
+        <LanguageSelectionScreen 
+          onContinue={handleLanguages} 
+          onBack={handleBackToPlatforms}
+          initialLanguages={onboardingData.languages}
+        />
       )}
       {currentStep === "mood" && (
         <MoodCalibrationScreen onContinue={handleMood} onBack={handleBackToLanguages} />

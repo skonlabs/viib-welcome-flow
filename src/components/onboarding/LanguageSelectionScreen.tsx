@@ -10,6 +10,7 @@ import { FloatingParticles } from "./FloatingParticles";
 interface LanguageSelectionScreenProps {
   onContinue: (languages: string[]) => void;
   onBack: () => void;
+  initialLanguages?: string[];
 }
 
 // Map language codes to flag emojis
@@ -31,8 +32,8 @@ const languageFlags: Record<string, string> = {
   "sv": "🇸🇪",
 };
 
-export const LanguageSelectionScreen = ({ onContinue, onBack }: LanguageSelectionScreenProps) => {
-  const [selectedLanguages, setSelectedLanguages] = useState<string[]>([]);
+export const LanguageSelectionScreen = ({ onContinue, onBack, initialLanguages = [] }: LanguageSelectionScreenProps) => {
+  const [selectedLanguages, setSelectedLanguages] = useState<string[]>(initialLanguages);
   const [languages, setLanguages] = useState<Array<{ code: string; name: string; flag: string }>>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
