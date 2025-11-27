@@ -63,12 +63,19 @@ export default function Onboarding() {
 
   // Handle pending navigation after state updates
   useEffect(() => {
-    if (pendingNavigation) {
-      console.log('Executing pending navigation to:', pendingNavigation, 'with data:', onboardingData);
+    if (!pendingNavigation) return;
+    
+    // Only navigate when required data is present
+    if (pendingNavigation === "otp" && onboardingData.phone) {
+      console.log('Navigating to OTP with phone:', onboardingData.phone);
+      navigateToStep(pendingNavigation);
+      setPendingNavigation(null);
+    } else if (pendingNavigation === "email-otp" && onboardingData.email) {
+      console.log('Navigating to email OTP with email:', onboardingData.email);
       navigateToStep(pendingNavigation);
       setPendingNavigation(null);
     }
-  }, [pendingNavigation, onboardingData]);
+  }, [pendingNavigation, onboardingData.phone, onboardingData.email]);
 
   // Sync URL with current step and fetch resume point from database
   useEffect(() => {
