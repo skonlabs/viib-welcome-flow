@@ -109,34 +109,40 @@ export default function Onboarding() {
   const handleOTPVerify = async (otp: string) => {
     console.log("OTP verified:", otp);
     
-    // Create user record in database AFTER successful verification
-    try {
-      const fullPhone = `${onboardingData.countryCode}${onboardingData.phone}`;
-      
-      const { data: insertedUser, error } = await supabase
-        .from('users')
-        .insert({
-          phone_number: fullPhone,
-          signup_method: 'phone',
-          is_phone_verified: true,
-          is_age_over_18: true,
-          onboarding_completed: false,
-          is_active: false,
-        })
-        .select()
-        .single();
-      
-      if (error && error.code !== '23505') {
-        console.error('Error creating user record:', error);
+    // Check if this is a resume scenario
+    const isResuming = localStorage.getItem('viib_resume_onboarding') === 'true';
+    
+    if (!isResuming) {
+      // Create user record in database AFTER successful verification (new signup only)
+      try {
+        const fullPhone = `${onboardingData.countryCode}${onboardingData.phone}`;
+        
+        const { data: insertedUser, error } = await supabase
+          .from('users')
+          .insert({
+            phone_number: fullPhone,
+            signup_method: 'phone',
+            is_phone_verified: true,
+            is_age_over_18: true,
+            onboarding_completed: false,
+            is_active: false,
+          })
+          .select()
+          .single();
+        
+        if (error && error.code !== '23505') {
+          console.error('Error creating user record:', error);
+          throw error;
+        }
+
+        if (insertedUser) {
+          console.log('User record created successfully:', insertedUser.id);
+          localStorage.setItem('viib_user_id', insertedUser.id);
+        }
+      } catch (error) {
+        console.error('Error in handleOTPVerify:', error);
         throw error;
       }
-
-      if (insertedUser) {
-        console.log('User record created successfully:', insertedUser.id);
-      }
-    } catch (error) {
-      console.error('Error in handleOTPVerify:', error);
-      throw error;
     }
     
     navigateToStep("biometric");
@@ -216,8 +222,28 @@ export default function Onboarding() {
     console.log("Onboarding completed with data:", onboardingData);
     
     try {
-      // For phone signups, we don't have auth.user, so update by phone number
-      if (onboardingData.entryMethod === 'phone') {
+      // Check if we have a stored user_id from resume scenario
+      const storedUserId = localStorage.getItem('viib_user_id');
+      
+      if (storedUserId) {
+        // Update by user ID (works for both resume and new signups)
+        const { error } = await supabase
+          .from('users')
+          .update({
+            onboarding_completed: true,
+            is_active: true,
+            full_name: onboardingData.name,
+          })
+          .eq('id', storedUserId);
+        
+        if (error) {
+          console.error('Error updating user record:', error);
+        }
+        
+        // Clean up resume flag
+        localStorage.removeItem('viib_resume_onboarding');
+      } else if (onboardingData.entryMethod === 'phone') {
+        // Fallback: update by phone number
         const fullPhone = `${onboardingData.countryCode}${onboardingData.phone}`;
         const { data: updatedUser, error } = await supabase
           .from('users')
@@ -233,11 +259,10 @@ export default function Onboarding() {
         if (error) {
           console.error('Error updating phone user record:', error);
         } else if (updatedUser) {
-          // Store user session
           localStorage.setItem('viib_user_id', updatedUser.id);
         }
       } else {
-        // For email signups, update by email address
+        // Fallback: update by email address
         const { data: updatedUser, error } = await supabase
           .from('users')
           .update({
@@ -252,7 +277,6 @@ export default function Onboarding() {
         if (error) {
           console.error('Error updating email user record:', error);
         } else if (updatedUser) {
-          // Store user session
           localStorage.setItem('viib_user_id', updatedUser.id);
         }
       }

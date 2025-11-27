@@ -40,7 +40,7 @@ export const PhoneEntryScreen = ({
       // Check if phone number already exists
       const { data: existingUser, error: checkError } = await supabase
         .from('users')
-        .select('phone_number')
+        .select('id, phone_number, is_phone_verified, onboarding_completed')
         .eq('phone_number', fullPhone)
         .maybeSingle();
 
@@ -50,8 +50,22 @@ export const PhoneEntryScreen = ({
       }
 
       if (existingUser) {
-        setError("This phone number is already registered. Please sign in or use a different number.");
-        return;
+        // If phone verified and onboarding complete, they should use login
+        if (existingUser.is_phone_verified && existingUser.onboarding_completed) {
+          setError("This phone number is already registered. Please sign in instead.");
+          return;
+        }
+        
+        // If phone verified but onboarding incomplete, resume onboarding (skip OTP)
+        if (existingUser.is_phone_verified && !existingUser.onboarding_completed) {
+          localStorage.setItem('viib_user_id', existingUser.id);
+          localStorage.setItem('viib_resume_onboarding', 'true');
+          // Skip directly to next screen after biometric in onboarding flow
+          window.location.href = '/app/onboarding/biometric';
+          return;
+        }
+        
+        // If phone not verified, allow new OTP (old verification expired/failed)
       }
 
       const {

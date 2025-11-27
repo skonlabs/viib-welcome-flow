@@ -154,10 +154,13 @@ export default function Login() {
       }
 
       if (!user.onboarding_completed) {
+        // Store user ID and redirect to resume onboarding
+        localStorage.setItem('viib_user_id', user.id);
+        localStorage.setItem('viib_resume_onboarding', 'true');
         setError("Please complete your onboarding first. Redirecting...");
         setTimeout(() => {
-          navigate("/app/onboarding");
-        }, 2000);
+          navigate("/app/onboarding/biometric");
+        }, 1500);
         return;
       }
 
