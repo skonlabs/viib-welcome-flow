@@ -35,6 +35,7 @@ export const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
         }
 
         if (!data?.onboarding_completed) {
+          localStorage.setItem('viib_resume_onboarding', 'true');
           navigate('/app/onboarding');
         } else {
           setCheckingOnboarding(false);

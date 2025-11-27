@@ -97,27 +97,8 @@ export default function Login() {
         // Wait a moment to ensure localStorage is written
         await new Promise(resolve => setTimeout(resolve, 100));
         
-        // Check onboarding status
-        const { data: user, error: userError } = await supabase
-          .from('users')
-          .select('onboarding_completed')
-          .eq('id', data.userId)
-          .single();
-        
-        if (userError) {
-          console.error('Error checking onboarding:', userError);
-          navigate("/app/home");
-          return;
-        }
-        
-        // For email login with password, we already verified identity
-        // So redirect directly to onboarding without additional OTP if needed
-        if (!user.onboarding_completed) {
-          localStorage.setItem('viib_resume_onboarding', 'true');
-          navigate("/app/onboarding");
-        } else {
-          navigate("/app/home");
-        }
+        // Always redirect to home - ProtectedRoute will handle onboarding check
+        navigate("/app/home");
       } else {
         setError("Sign in failed. Please try again.");
       }
@@ -242,15 +223,8 @@ export default function Login() {
     // Wait a moment to ensure localStorage is written
     await new Promise(resolve => setTimeout(resolve, 100));
     
-    // Check onboarding status
-    if (!user.onboarding_completed) {
-      localStorage.setItem('viib_resume_onboarding', 'true');
-      navigate("/app/onboarding");
-    } else if (!user.is_active) {
-      throw new Error("Your account is inactive. Please contact support.");
-    } else {
-      navigate("/app/home");
-    }
+    // Always redirect to home - ProtectedRoute will handle onboarding check
+    navigate("/app/home");
   };
 
   const handleResendPhoneOTP = async () => {
