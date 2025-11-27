@@ -31,6 +31,7 @@ export const MoodCalibrationScreen = ({
     valence: number;
     arousal: number;
   }>>([]);
+  const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
 
   // Fetch emotion states from emotion_master table
@@ -123,8 +124,58 @@ export const MoodCalibrationScreen = ({
     };
   }, [energy, selectedEmotion]);
 
-  // Note: Real-time emotion conversion disabled due to database constraint issue
-  // The mood label shown below updates in real-time as you move the sliders
+  const handleTuneMood = async () => {
+    if (!selectedEmotion) {
+      toast({
+        title: "Error",
+        description: "Please select a mood",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const userId = localStorage.getItem('viib_user_id');
+      if (!userId) {
+        toast({
+          title: "Error",
+          description: "User not found. Please log in again.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Call the database function to store emotion with calculated intensity
+      const { error } = await supabase.rpc('store_user_emotion_vector', {
+        p_user_id: userId,
+        p_emotion_label: selectedEmotion.label,
+        p_energy_percentage: energy[0]
+      });
+
+      if (error) {
+        console.error('Error storing emotion:', error);
+        toast({
+          title: "Error",
+          description: "Failed to save your mood. Please try again.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Proceed to next step
+      onContinue({ energy: energy[0], positivity: positivity[0] });
+    } catch (error) {
+      console.error('Error saving mood:', error);
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-black">
@@ -331,12 +382,13 @@ export const MoodCalibrationScreen = ({
             transition={{ delay: 0.8 }}
           >
             <Button
-              onClick={() => onContinue({ energy: energy[0], positivity: positivity[0] })}
+              onClick={handleTuneMood}
+              disabled={isSaving || !selectedEmotion}
               size="2xl"
               variant="gradient"
               className="group shadow-[0_20px_50px_-15px_rgba(168,85,247,0.4)]"
             >
-              Tune My Vibe
+              {isSaving ? "Saving..." : "Tune My Vibe"}
               <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-2 transition-transform" />
             </Button>
           </motion.div>
