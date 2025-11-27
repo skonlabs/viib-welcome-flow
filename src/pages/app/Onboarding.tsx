@@ -163,9 +163,14 @@ export default function Onboarding() {
 
   const handleOTPVerify = async (otp: string) => {
     console.log("OTP verified:", otp);
+    console.log("Phone from state:", onboardingData.phone);
     
     // Phone number is already stored with country code
     const fullPhone = onboardingData.phone;
+
+    if (!fullPhone) {
+      throw new Error("Phone number is missing. Please go back and enter your phone number again.");
+    }
     
     // Check if user already exists with this phone number
     const { data: existingUser, error: checkError } = await supabase
@@ -187,7 +192,7 @@ export default function Onboarding() {
       return;
     }
     
-    // New user - create user record in database AFTER successful verification
+    // New user - create user record in database AFTER successful OTP verification
     try {
       const { data: insertedUser, error } = await supabase
         .from('users')
@@ -210,6 +215,15 @@ export default function Onboarding() {
       if (insertedUser) {
         console.log('User record created successfully:', insertedUser.id);
         localStorage.setItem('viib_user_id', insertedUser.id);
+        
+        // NOW mark the phone verification as complete in the database
+        // This must happen AFTER user creation succeeds to prevent retry issues
+        await supabase
+          .from('phone_verifications')
+          .update({ verified: true })
+          .eq('phone_number', fullPhone)
+          .eq('otp_code', otp)
+          .eq('verified', false);
       }
     } catch (error) {
       console.error('Error in handleOTPVerify:', error);

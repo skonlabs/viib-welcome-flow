@@ -15,6 +15,12 @@ export const EmailOTPVerificationScreen = ({
   onBack,
 }: EmailOTPVerificationScreenProps) => {
   const handleVerify = async (code: string) => {
+    console.log("Verifying email OTP for:", email);
+
+    if (!email || email.trim() === '') {
+      throw new Error("Email is missing. Please go back and enter your email again.");
+    }
+
     // First check if email is already verified
     const { data: existingUser } = await supabase
       .from('users')
@@ -26,11 +32,13 @@ export const EmailOTPVerificationScreen = ({
       throw new Error("An account with this email already exists. Please sign in instead.");
     }
 
+    // Verify OTP and create user account in one atomic operation
     const { data, error: invokeError } = await supabase.functions.invoke("verify-email-otp", {
       body: { email, otp: code, password },
     });
 
     if (invokeError) {
+      console.error("Edge function error:", invokeError);
       throw new Error("Unable to verify code. Please try again.");
     }
 
@@ -38,6 +46,13 @@ export const EmailOTPVerificationScreen = ({
       throw new Error(data?.error || "Invalid code. Please check and try again.");
     }
 
+    // Store user ID from edge function response
+    if (data.userId) {
+      console.log('User created with ID:', data.userId);
+      localStorage.setItem('viib_user_id', data.userId);
+    }
+
+    // User is created and verified - proceed to onboarding
     onContinue();
   };
 
