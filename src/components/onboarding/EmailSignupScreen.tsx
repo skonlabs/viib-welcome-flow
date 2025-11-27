@@ -23,10 +23,13 @@ interface EmailSignupScreenProps {
 export const EmailSignupScreen = ({ onContinue, onBack }: EmailSignupScreenProps) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [emailError, setEmailError] = useState("");
+  const [passwordMatchError, setPasswordMatchError] = useState("");
 
   const getPasswordStrength = () => {
     let strength = 0;
@@ -77,7 +80,8 @@ export const EmailSignupScreen = ({ onContinue, onBack }: EmailSignupScreenProps
     }
   };
 
-  const isValid = !emailError && email.trim().length > 0 && strength >= 3;
+  const passwordsMatch = password === confirmPassword && confirmPassword.length > 0;
+  const isValid = !emailError && email.trim().length > 0 && strength >= 3 && passwordsMatch;
 
   const handleSignup = async () => {
     if (!isValid) return;
@@ -247,7 +251,14 @@ export const EmailSignupScreen = ({ onContinue, onBack }: EmailSignupScreenProps
                 <Input
                   type={showPassword ? "text" : "password"}
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    if (confirmPassword && e.target.value !== confirmPassword) {
+                      setPasswordMatchError("Passwords do not match");
+                    } else {
+                      setPasswordMatchError("");
+                    }
+                  }}
                   placeholder="Create a strong password"
                   className="h-14 text-lg bg-white/5 border-white/10 focus:border-primary/50 focus:bg-white/10 pr-12"
                 />
@@ -303,6 +314,58 @@ export const EmailSignupScreen = ({ onContinue, onBack }: EmailSignupScreenProps
                       </motion.div>
                     ))}
                   </div>
+                </motion.div>
+              )}
+            </div>
+
+            {/* Confirm Password */}
+            <div className="space-y-3">
+              <label className="text-sm text-muted-foreground">
+                Confirm Password
+              </label>
+              <div className="relative">
+                <Input
+                  type={showConfirmPassword ? "text" : "password"}
+                  value={confirmPassword}
+                  onChange={(e) => {
+                    setConfirmPassword(e.target.value);
+                    if (password && e.target.value !== password) {
+                      setPasswordMatchError("Passwords do not match");
+                    } else {
+                      setPasswordMatchError("");
+                    }
+                  }}
+                  placeholder="Confirm your password"
+                  className={`h-14 text-lg bg-white/5 border-white/10 focus:border-primary/50 focus:bg-white/10 pr-12 ${
+                    passwordMatchError ? "border-red-500/50" : ""
+                  }`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
+              {passwordMatchError && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex items-center gap-2 text-sm text-red-400"
+                >
+                  <AlertCircle className="w-4 h-4" />
+                  {passwordMatchError}
+                </motion.div>
+              )}
+              {passwordsMatch && confirmPassword && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex items-center gap-2 text-sm text-green-400"
+                >
+                  <Check className="w-4 h-4" />
+                  Passwords match
                 </motion.div>
               )}
             </div>
