@@ -349,10 +349,10 @@ export default function Login() {
             animate={{ opacity: 1 }}
             transition={{ delay: 0.2 }}
           >
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-primary via-cyan-400 to-primary bg-clip-text text-transparent">
+            <h1 className="text-5xl font-bold bg-gradient-to-r from-cyan-400 via-primary to-cyan-400 bg-clip-text text-transparent mb-6">
               ViiB
             </h1>
-            <h2 className="text-2xl font-bold text-foreground">
+            <h2 className="text-3xl font-bold text-foreground">
               Welcome back
             </h2>
             <p className="text-muted-foreground">
@@ -360,9 +360,9 @@ export default function Login() {
             </p>
           </motion.div>
 
-          {/* Form */}
+          {/* Form Card */}
           <motion.div
-            className="glass-card rounded-3xl p-8 space-y-6"
+            className="glass-card rounded-3xl p-8 space-y-6 backdrop-blur-xl"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
@@ -372,16 +372,26 @@ export default function Login() {
               setError("");
               setOtpSent(false);
             }} className="w-full">
-              <TabsList className="grid w-full grid-cols-2 bg-white/5">
-                <TabsTrigger value="email">Email</TabsTrigger>
-                <TabsTrigger value="phone">Phone</TabsTrigger>
+              <TabsList className="grid w-full grid-cols-2 bg-transparent p-1 gap-2">
+                <TabsTrigger 
+                  value="email"
+                  className="rounded-full data-[state=active]:bg-black data-[state=active]:text-white data-[state=inactive]:bg-transparent data-[state=inactive]:text-muted-foreground h-12 font-medium transition-all"
+                >
+                  Email
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="phone"
+                  className="rounded-full data-[state=active]:bg-black data-[state=active]:text-white data-[state=inactive]:bg-transparent data-[state=inactive]:text-muted-foreground h-12 font-medium transition-all"
+                >
+                  Phone
+                </TabsTrigger>
               </TabsList>
 
               {/* Email Login Tab */}
               <TabsContent value="email" className="space-y-6 mt-6">
                 {/* Email */}
                 <div className="space-y-3">
-                  <label className="text-sm text-muted-foreground">
+                  <label className="text-sm text-muted-foreground font-medium">
                     Email Address
                   </label>
                   <Input
@@ -392,13 +402,13 @@ export default function Login() {
                       setError("");
                     }}
                     placeholder="you@example.com"
-                    className="h-14 text-lg bg-white/5 border-white/10 focus:border-primary/50 focus:bg-white/10"
+                    className="h-14 text-base bg-white/5 border-white/10 focus:border-primary/50 focus:bg-white/10 rounded-xl"
                   />
                 </div>
 
                 {/* Password */}
                 <div className="space-y-3">
-                  <label className="text-sm text-muted-foreground">
+                  <label className="text-sm text-muted-foreground font-medium">
                     Password
                   </label>
                   <div className="relative">
@@ -410,13 +420,13 @@ export default function Login() {
                         setError("");
                       }}
                       placeholder="Enter your password"
-                      className="h-14 text-lg bg-white/5 border-white/10 focus:border-primary/50 focus:bg-white/10 pr-12"
+                      className="h-14 text-base bg-white/5 border-white/10 focus:border-primary/50 focus:bg-white/10 pr-12 rounded-xl"
                       onKeyDown={(e) => e.key === 'Enter' && handleEmailLogin()}
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                     >
                       {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                     </button>
@@ -424,12 +434,13 @@ export default function Login() {
                 </div>
 
                 {/* Remember Me & Forgot Password */}
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between pt-2">
                   <div className="flex items-center gap-2">
                     <Checkbox
                       id="remember-email"
                       checked={rememberMe}
                       onCheckedChange={(checked) => setRememberMe(checked as boolean)}
+                      className="border-white/20 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                     />
                     <label htmlFor="remember-email" className="text-sm text-muted-foreground cursor-pointer">
                       Remember me
@@ -437,7 +448,7 @@ export default function Login() {
                   </div>
                   <a
                     href="/forgot-password"
-                    className="text-sm text-primary hover:text-primary/80 transition-colors"
+                    className="text-sm text-primary hover:text-primary/80 transition-colors font-medium"
                   >
                     Forgot password?
                   </a>
@@ -447,23 +458,25 @@ export default function Login() {
                   <motion.div
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="text-center text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-2 flex items-center justify-center gap-2"
+                    className="text-center text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 flex items-center justify-center gap-2"
                   >
                     <AlertCircle className="w-4 h-4" />
                     {error}
                   </motion.div>
                 )}
 
-                <Button
-                  onClick={handleEmailLogin}
-                  disabled={loading}
-                  size="2xl"
-                  variant="gradient"
-                  className="w-full shadow-[0_20px_50px_-15px_rgba(168,85,247,0.4)]"
-                >
-                  {loading ? "Signing In..." : "Sign In"}
-                  {!loading && <ArrowRight className="ml-2 w-5 h-5" />}
-                </Button>
+                <div className="pt-2">
+                  <Button
+                    onClick={handleEmailLogin}
+                    disabled={loading}
+                    size="2xl"
+                    variant="gradient"
+                    className="w-full shadow-[0_20px_50px_-15px_rgba(6,182,212,0.5)] hover:shadow-[0_25px_60px_-15px_rgba(6,182,212,0.6)] transition-all"
+                  >
+                    {loading ? "Signing In..." : "Sign In"}
+                    {!loading && <ArrowRight className="ml-2 w-5 h-5" />}
+                  </Button>
+                </div>
               </TabsContent>
 
               {/* Phone Login Tab */}
@@ -472,14 +485,14 @@ export default function Login() {
                   <>
                     {/* Phone Number */}
                     <div className="space-y-3">
-                      <label className="text-sm text-muted-foreground">
+                      <label className="text-sm text-muted-foreground font-medium">
                         Phone Number
                       </label>
                       <div className="flex gap-3">
                         <select
                           value={countryCode}
                           onChange={(e) => setCountryCode(e.target.value)}
-                          className="h-14 w-28 px-2 rounded-xl bg-white/5 border border-white/10 text-foreground focus:border-primary/50 focus:bg-white/10 focus:outline-none text-sm"
+                          className="h-14 w-28 px-3 rounded-xl bg-white/5 border border-white/10 text-foreground focus:border-primary/50 focus:bg-white/10 focus:outline-none text-base"
                         >
                           <option value="+1">🇺🇸 +1</option>
                           <option value="+44">🇬🇧 +44</option>
@@ -501,7 +514,7 @@ export default function Login() {
                           }}
                           placeholder="(123) 456-7890"
                           maxLength={14}
-                          className="h-14 text-lg bg-white/5 border-white/10 focus:border-primary/50 focus:bg-white/10 flex-1"
+                          className="h-14 text-base bg-white/5 border-white/10 focus:border-primary/50 focus:bg-white/10 flex-1 rounded-xl"
                         />
                       </div>
                     </div>
@@ -510,37 +523,42 @@ export default function Login() {
                       <motion.div
                         initial={{ opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="text-center text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-2 flex items-center justify-center gap-2"
+                        className="text-center text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 flex items-center justify-center gap-2"
                       >
                         <AlertCircle className="w-4 h-4" />
                         {error}
                       </motion.div>
                     )}
 
-                    <Button
-                      onClick={handleSendPhoneOTP}
-                      disabled={loading}
-                      size="2xl"
-                      variant="gradient"
-                      className="w-full shadow-[0_20px_50px_-15px_rgba(168,85,247,0.4)]"
-                    >
-                      {loading ? "Sending Code..." : "Send Code"}
-                      {!loading && <ArrowRight className="ml-2 w-5 h-5" />}
-                    </Button>
+                    <div className="pt-2">
+                      <Button
+                        onClick={handleSendPhoneOTP}
+                        disabled={loading}
+                        size="2xl"
+                        variant="gradient"
+                        className="w-full shadow-[0_20px_50px_-15px_rgba(6,182,212,0.5)] hover:shadow-[0_25px_60px_-15px_rgba(6,182,212,0.6)] transition-all"
+                      >
+                        {loading ? "Sending Code..." : "Send Code"}
+                        {!loading && <ArrowRight className="ml-2 w-5 h-5" />}
+                      </Button>
+                    </div>
                   </>
                 ) : null}
               </TabsContent>
             </Tabs>
 
-            <p className="text-sm text-center text-muted-foreground pt-4 border-t border-white/10">
-              Don't have an account?{" "}
-              <a
-                href="/app/onboarding/welcome"
-                className="text-primary hover:text-primary/80 transition-colors font-medium"
-              >
-                Sign Up
-              </a>
-            </p>
+            {/* Bottom Link */}
+            <div className="pt-6 border-t border-white/5">
+              <p className="text-sm text-center text-muted-foreground">
+                Don't have an account?{" "}
+                <a
+                  href="/app/onboarding/welcome"
+                  className="text-primary hover:text-primary/80 transition-colors font-medium"
+                >
+                  Sign Up
+                </a>
+              </p>
+            </div>
           </motion.div>
         </div>
       </motion.div>
