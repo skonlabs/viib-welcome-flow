@@ -177,11 +177,10 @@ export default function Login() {
       // Note: We don't check onboarding_completed here for phone login
       // After OTP verification, we'll redirect to onboarding if needed
       // This ensures security - OTP must be verified first for phone auth
-
-      if (!user.is_active) {
-        setError("Your account is inactive. Please contact support.");
-        return;
-      }
+      
+      // Note: We also don't check is_active here because accounts with
+      // incomplete onboarding will have is_active: false by design.
+      // After OTP verification, we'll check onboarding and redirect appropriately.
 
       // Send OTP
       const { data, error: invokeError } = await supabase.functions.invoke("send-phone-otp", {
@@ -228,12 +227,11 @@ export default function Login() {
         return;
       }
 
-      // Get user ID
+      // Get user ID and status
       const { data: user, error: userError } = await supabase
         .from("users")
-        .select("id, onboarding_completed")
+        .select("id, onboarding_completed, is_active")
         .eq("phone_number", fullPhoneNumber)
-        .eq("is_active", true)
         .eq("is_phone_verified", true)
         .maybeSingle();
 
@@ -256,6 +254,9 @@ export default function Login() {
       if (!user.onboarding_completed) {
         localStorage.setItem('viib_resume_onboarding', 'true');
         navigate("/app/onboarding/biometric");
+      } else if (!user.is_active) {
+        // If onboarding is complete but account is still inactive, show error
+        setError("Your account is inactive. Please contact support.");
       } else {
         navigate("/app/home");
       }
