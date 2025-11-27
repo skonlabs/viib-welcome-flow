@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import { Check, ArrowRight } from "lucide-react";
@@ -13,6 +13,11 @@ interface StreamingPlatformsScreenProps {
 
 export const StreamingPlatformsScreen = ({ onContinue, onBack, initialPlatforms = [] }: StreamingPlatformsScreenProps) => {
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(initialPlatforms);
+
+  // Update state when props change (when navigating back)
+  useEffect(() => {
+    setSelectedPlatforms(initialPlatforms);
+  }, [initialPlatforms]);
 
   const platforms = [
     { id: "netflix", name: "Netflix", color: "#E50914" },

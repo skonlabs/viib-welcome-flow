@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { motion, AnimatePresence } from "framer-motion";
@@ -20,6 +20,12 @@ interface UserIdentityScreenProps {
 export const UserIdentityScreen = ({ onContinue, onBack, initialName = "", initialVibe = "" }: UserIdentityScreenProps) => {
   const [name, setName] = useState(initialName);
   const [selectedVibe, setSelectedVibe] = useState(initialVibe);
+
+  // Update state when props change (when navigating back)
+  useEffect(() => {
+    setName(initialName);
+    setSelectedVibe(initialVibe);
+  }, [initialName, initialVibe]);
 
   const vibes = [
     { 
