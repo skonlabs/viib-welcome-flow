@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { motion } from "framer-motion";
@@ -22,7 +22,20 @@ export default function ForgotPassword() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [resendTimer, setResendTimer] = useState(0);
   const navigate = useNavigate();
+
+  // Timer countdown effect
+  useEffect(() => {
+    if (resendTimer > 0) {
+      const timer = setTimeout(() => setResendTimer(resendTimer - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [resendTimer]);
+
+  const startResendTimer = () => {
+    setResendTimer(60);
+  };
 
   const getPasswordStrength = () => {
     let strength = 0;
@@ -106,8 +119,32 @@ export default function ForgotPassword() {
       }
 
       setStep("otp");
+      startResendTimer();
     } catch (err) {
       setError("Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendOTP = async () => {
+    setLoading(true);
+    setError("");
+
+    try {
+      const { data, error: sendError } = await supabase.functions.invoke("send-email-otp", {
+        body: { email }
+      });
+
+      if (sendError || data?.error) {
+        setError("Unable to send verification code. Please try again.");
+        return;
+      }
+
+      startResendTimer();
+      setOtp(["", "", "", "", "", ""]);
+    } catch (err) {
+      setError("Failed to resend code. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -334,6 +371,23 @@ export default function ForgotPassword() {
                   {loading ? "Verifying..." : "Verify Code"}
                   {!loading && <ArrowRight className="ml-2 w-5 h-5" />}
                 </Button>
+
+                {/* Resend Code Button */}
+                <div className="text-center">
+                  {resendTimer > 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      Resend code in {resendTimer}s
+                    </p>
+                  ) : (
+                    <button
+                      onClick={handleResendOTP}
+                      disabled={loading}
+                      className="text-sm text-primary hover:text-primary/80 transition-colors font-medium disabled:opacity-50"
+                    >
+                      Resend Code
+                    </button>
+                  )}
+                </div>
               </>
             )}
 
