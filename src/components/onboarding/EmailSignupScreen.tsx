@@ -393,7 +393,7 @@ export const EmailSignupScreen = ({ onContinue, onBack }: EmailSignupScreenProps
                 disabled={!isValid || loading}
                 variant="gradient"
                 size="2xl"
-                className="w-full shadow-[0_20px_50px_-15px_rgba(168,85,247,0.4)]"
+                className="w-full"
                 loading={loading}
               >
                 {!loading && "Send Code"}
