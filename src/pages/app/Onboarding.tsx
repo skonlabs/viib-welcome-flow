@@ -61,9 +61,16 @@ export default function Onboarding() {
 
   // Sync URL with current step
   useEffect(() => {
+    // Check for saved onboarding step on mount
+    const savedStep = localStorage.getItem('viib_onboarding_step');
+    
     if (!step) {
-      // If no step in URL, redirect to welcome
-      navigate('/app/onboarding/welcome', { replace: true });
+      // If no step in URL, check localStorage for resume point
+      if (savedStep && savedStep !== 'welcome') {
+        navigate(`/app/onboarding/${savedStep}`, { replace: true });
+      } else {
+        navigate('/app/onboarding/welcome', { replace: true });
+      }
     } else if (step !== currentStep) {
       const validSteps: OnboardingStep[] = [
         "welcome", "entry", "phone", "otp", "email", "email-otp", "biometric", "identity",
@@ -72,6 +79,8 @@ export default function Onboarding() {
       ];
       if (validSteps.includes(step as OnboardingStep)) {
         setCurrentStep(step as OnboardingStep);
+        // Save to localStorage whenever step changes via URL
+        localStorage.setItem('viib_onboarding_step', step);
       } else {
         // Invalid step, redirect to welcome
         navigate('/app/onboarding/welcome', { replace: true });
@@ -83,6 +92,8 @@ export default function Onboarding() {
   const navigateToStep = (newStep: OnboardingStep) => {
     setCurrentStep(newStep);
     navigate(`/app/onboarding/${newStep}`);
+    // Save current step to localStorage for resumption
+    localStorage.setItem('viib_onboarding_step', newStep);
   };
 
   const handleWelcomeContinue = () => {
@@ -267,6 +278,9 @@ export default function Onboarding() {
       
       // Wait a moment to ensure database update completes
       await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Clear onboarding tracking from localStorage
+      localStorage.removeItem('viib_onboarding_step');
       
       // Navigate directly to home screen
       navigate("/app/home");
