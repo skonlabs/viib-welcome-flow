@@ -475,11 +475,13 @@ export default function Login() {
                 <div className="pt-4">
                   <Button
                     onClick={handleEmailLogin}
-                    disabled={loading}
-                    size="2xl"
-                    className="w-full h-14 rounded-2xl bg-gradient-to-r from-purple-600 via-purple-500 to-cyan-500 hover:from-purple-500 hover:via-purple-400 hover:to-cyan-400 text-white font-semibold shadow-[0_8px_30px_rgb(139,92,246,0.4)] hover:shadow-[0_8px_40px_rgb(139,92,246,0.5)] transition-all"
+                    disabled={!email || !password || loading}
+                    variant="gradient-large"
+                    size="xl"
+                    className="w-full"
+                    loading={loading}
                   >
-                    {loading ? "Signing In..." : "Sign In"}
+                    {!loading && "Sign In"}
                     {!loading && <ArrowRight className="ml-2 w-5 h-5" />}
                   </Button>
                 </div>
@@ -539,12 +541,13 @@ export default function Login() {
                     <div className="pt-2">
                       <Button
                         onClick={handleSendPhoneOTP}
-                        disabled={loading}
-                        size="2xl"
-                        variant="gradient"
-                        className="w-full shadow-[0_20px_50px_-15px_rgba(139,92,246,0.5)] hover:shadow-[0_25px_60px_-15px_rgba(139,92,246,0.6)] transition-all"
+                        disabled={!phoneNumber || loading}
+                        variant="gradient-large"
+                        size="xl"
+                        className="w-full"
+                        loading={loading}
                       >
-                        {loading ? "Sending Code..." : "Send Code"}
+                        {!loading && "Send Code"}
                         {!loading && <ArrowRight className="ml-2 w-5 h-5" />}
                       </Button>
                     </div>
