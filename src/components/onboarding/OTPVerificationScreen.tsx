@@ -31,14 +31,15 @@ export const OTPVerificationScreen = ({
       throw new Error("Phone number is missing. Please go back and enter your phone number again.");
     }
 
-    // First check if phone is already verified
+    // Check if phone is already verified with completed onboarding
     const { data: existingUser } = await supabase
       .from('users')
-      .select('is_phone_verified, signup_method')
+      .select('is_phone_verified, signup_method, onboarding_completed')
       .eq('phone_number', phone)
       .maybeSingle();
 
-    if (existingUser?.is_phone_verified && existingUser?.signup_method === 'phone') {
+    // Only block if user has BOTH verified phone AND completed onboarding
+    if (existingUser?.is_phone_verified && existingUser?.signup_method === 'phone' && existingUser?.onboarding_completed) {
       throw new Error("This phone number is already registered. Please sign in to continue.");
     }
 
