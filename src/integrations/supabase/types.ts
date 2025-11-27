@@ -941,6 +941,7 @@ export type Database = {
           is_email_verified: boolean
           is_phone_verified: boolean
           language_preference: string | null
+          last_onboarding_step: string | null
           onboarding_completed: boolean
           password_hash: string | null
           phone_number: string | null
@@ -959,6 +960,7 @@ export type Database = {
           is_email_verified?: boolean
           is_phone_verified?: boolean
           language_preference?: string | null
+          last_onboarding_step?: string | null
           onboarding_completed?: boolean
           password_hash?: string | null
           phone_number?: string | null
@@ -977,6 +979,7 @@ export type Database = {
           is_email_verified?: boolean
           is_phone_verified?: boolean
           language_preference?: string | null
+          last_onboarding_step?: string | null
           onboarding_completed?: boolean
           password_hash?: string | null
           phone_number?: string | null
