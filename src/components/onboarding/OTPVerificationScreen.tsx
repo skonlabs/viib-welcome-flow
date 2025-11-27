@@ -25,6 +25,12 @@ export const OTPVerificationScreen = ({
   };
 
   const handleVerify = async (code: string) => {
+    console.log("Verifying OTP for phone:", phone);
+
+    if (!phone || phone.trim() === '') {
+      throw new Error("Phone number is missing. Please go back and enter your phone number again.");
+    }
+
     // First check if phone is already verified
     const { data: existingUser } = await supabase
       .from('users')
@@ -36,11 +42,13 @@ export const OTPVerificationScreen = ({
       throw new Error("This phone number is already registered. Please sign in to continue.");
     }
 
+    // Verify the OTP code - this checks if code is correct and not expired
     const { data, error: invokeError } = await supabase.functions.invoke("verify-phone-otp", {
       body: { phoneNumber: phone, otpCode: code },
     });
 
     if (invokeError) {
+      console.error("Edge function error:", invokeError);
       throw new Error("Unable to verify code. Please try again.");
     }
 
@@ -48,6 +56,7 @@ export const OTPVerificationScreen = ({
       throw new Error(data?.error || "Invalid code. Please check and try again.");
     }
 
+    // OTP is valid - pass control to parent to create user account
     onContinue(code);
   };
 
