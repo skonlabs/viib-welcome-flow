@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { Slider } from "@/components/ui/slider";
@@ -9,11 +9,27 @@ import { FloatingParticles } from "./FloatingParticles";
 interface MoodCalibrationScreenProps {
   onContinue: (mood: { energy: number; positivity: number }) => void;
   onBack: () => void;
+  initialEnergy?: number;
+  initialPositivity?: number;
 }
 
-export const MoodCalibrationScreen = ({ onContinue, onBack }: MoodCalibrationScreenProps) => {
-  const [energy, setEnergy] = useState([50]);
-  const [positivity, setPositivity] = useState([50]);
+export const MoodCalibrationScreen = ({ 
+  onContinue, 
+  onBack, 
+  initialEnergy = 50, 
+  initialPositivity = 50 
+}: MoodCalibrationScreenProps) => {
+  const [energy, setEnergy] = useState([initialEnergy]);
+  const [positivity, setPositivity] = useState([initialPositivity]);
+
+  // Update local state when initial values change (e.g., when navigating back)
+  useEffect(() => {
+    setEnergy([initialEnergy]);
+  }, [initialEnergy]);
+
+  useEffect(() => {
+    setPositivity([initialPositivity]);
+  }, [initialPositivity]);
 
   const getMoodData = () => {
     const e = energy[0];

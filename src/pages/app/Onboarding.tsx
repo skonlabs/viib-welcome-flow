@@ -82,6 +82,15 @@ export default function Onboarding() {
           .eq('user_id', userId)
           .maybeSingle();
         
+        // Fetch mood/emotion state
+        const { data: emotionData } = await supabase
+          .from('user_emotion_states')
+          .select('emotion_intensity, emotion_master(emotion_label)')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        
         if (userData) {
           // Fetch platforms
           const { data: platformsData } = await supabase
@@ -107,6 +116,34 @@ export default function Onboarding() {
             'Apple TV+': 'apple'
           };
 
+          // Map emotion back to energy/positivity values
+          let moodData = { energy: 50, positivity: 50 }; // Default
+          if (emotionData) {
+            const emotionLabel = (emotionData.emotion_master as any)?.emotion_label;
+            const intensity = emotionData.emotion_intensity;
+            
+            // Reverse the mapping from handleMood
+            switch (emotionLabel) {
+              case 'excited':
+                moodData = { energy: 75, positivity: 75 };
+                break;
+              case 'calm':
+                moodData = { energy: 25, positivity: 75 };
+                break;
+              case 'stressed':
+                moodData = { energy: 75, positivity: 25 };
+                break;
+              case 'sad':
+                moodData = { energy: 25, positivity: 25 };
+                break;
+              case 'hopeful':
+                moodData = { energy: 50, positivity: 50 };
+                break;
+              default:
+                moodData = { energy: 50, positivity: 50 };
+            }
+          }
+
           setOnboardingData(prev => ({
             ...prev,
             name: userData.full_name || '',
@@ -118,6 +155,7 @@ export default function Onboarding() {
               return platformNameToId[serviceName] || serviceName;
             }).filter(Boolean) || [],
             languages: languagesData?.map(l => l.language_code) || [],
+            mood: moodData,
           }));
         }
       } catch (error) {
@@ -471,19 +509,54 @@ export default function Onboarding() {
     // Save mood to database as emotion state
     const userId = localStorage.getItem('viib_user_id');
     if (userId) {
-      // Map mood values to emotion - you may need to adjust this based on your emotion_master table
-      // For now, we'll store the raw mood data
-      // Note: This requires an emotion_id from emotion_master table
-      // You might want to create specific mood emotions in emotion_master first
+      // Map mood values to closest emotion in emotion_master
+      const e = mood.energy;
+      const p = mood.positivity;
       
-      // Store mood data in user context for now
-      await supabase
-        .from('user_context_logs')
-        .insert({
-          user_id: userId,
-          time_of_day_bucket: 'onboarding',
-          session_length_seconds: 0 // Placeholder
-        });
+      let emotionLabel = '';
+      let intensity = 5; // Default medium intensity (1-10 scale)
+      
+      if (e > 65 && p > 65) {
+        emotionLabel = 'excited';
+        intensity = Math.round(((e + p) / 200) * 10); // High intensity
+      } else if (e < 35 && p > 65) {
+        emotionLabel = 'calm';
+        intensity = Math.round((p / 100) * 10);
+      } else if (e > 65 && p < 35) {
+        emotionLabel = 'stressed';
+        intensity = Math.round((e / 100) * 10);
+      } else if (e < 35 && p < 35) {
+        emotionLabel = 'sad';
+        intensity = Math.round(((100 - e + 100 - p) / 200) * 10);
+      } else {
+        emotionLabel = 'hopeful';
+        intensity = 5; // Balanced state
+      }
+      
+      // Get emotion_id from emotion_master (user_state category)
+      const { data: emotion } = await supabase
+        .from('emotion_master')
+        .select('id')
+        .eq('emotion_label', emotionLabel)
+        .eq('category', 'user_state')
+        .single();
+      
+      if (emotion) {
+        // Delete previous emotion states for this user
+        await supabase
+          .from('user_emotion_states')
+          .delete()
+          .eq('user_id', userId);
+        
+        // Insert new emotion state
+        await supabase
+          .from('user_emotion_states')
+          .insert({
+            user_id: userId,
+            emotion_id: emotion.id,
+            emotion_intensity: intensity
+          });
+      }
     }
     
     navigateToStep("taste");
@@ -655,7 +728,12 @@ export default function Onboarding() {
         />
       )}
       {currentStep === "mood" && (
-        <MoodCalibrationScreen onContinue={handleMood} onBack={handleBackToLanguages} />
+        <MoodCalibrationScreen 
+          onContinue={handleMood} 
+          onBack={handleBackToLanguages}
+          initialEnergy={onboardingData.mood.energy}
+          initialPositivity={onboardingData.mood.positivity}
+        />
       )}
       {currentStep === "taste" && (
         <VisualTasteScreen onContinue={handleTaste} onBack={handleBackToMood} />
