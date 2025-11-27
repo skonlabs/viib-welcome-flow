@@ -391,10 +391,12 @@ export const EmailSignupScreen = ({ onContinue, onBack }: EmailSignupScreenProps
               <Button
                 onClick={handleSignup}
                 disabled={!isValid || loading}
-                size="2xl"
-                className="w-full h-14 rounded-2xl bg-gradient-to-r from-purple-600 via-purple-500 to-cyan-500 hover:from-purple-500 hover:via-purple-400 hover:to-cyan-400 text-white font-semibold shadow-[0_8px_30px_rgb(139,92,246,0.4)] hover:shadow-[0_8px_40px_rgb(139,92,246,0.5)] transition-all"
+                variant="gradient-large"
+                size="xl"
+                className="w-full"
+                loading={loading}
               >
-                {loading ? "Sending Code..." : "Send Code"}
+                {!loading && "Send Code"}
                 {!loading && <ArrowRight className="ml-2 w-5 h-5" />}
               </Button>
               <button
