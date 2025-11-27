@@ -66,7 +66,7 @@ export const AppHeader = () => {
           {user && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-2 hover:bg-cyan-400/10 rounded-xl px-2 py-1 transition-all duration-200 border border-transparent hover:border-cyan-400/20">
+                <button className="flex items-center gap-2 hover:bg-cyan-400/10 rounded-xl px-2 py-1 transition-all duration-200">
                   <Avatar className="w-8 h-8 border-2 border-cyan-400/30">
                     <AvatarImage src={user.user_metadata?.avatar_url} />
                     <AvatarFallback className="bg-cyan-400/20 text-cyan-400 text-sm font-semibold">
