@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
-import * as bcrypt from "https://deno.land/x/bcrypt@v0.4.1/mod.ts";
+import { compare } from "https://deno.land/x/bcrypt@v0.4.1/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -25,19 +25,19 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Fetch user from database
+    // Note: We don't check is_active here because accounts with incomplete onboarding
+    // will have is_active: false. The frontend will handle onboarding redirect logic.
     let query;
     if (email) {
       query = supabase
         .from('users')
-        .select('id, password_hash, is_active')
-        .eq('email', email)
-        .eq('is_active', true);
+        .select('id, password_hash')
+        .eq('email', email);
     } else {
       query = supabase
         .from('users')
-        .select('id, password_hash, is_active')
-        .eq('phone_number', phone)
-        .eq('is_active', true);
+        .select('id, password_hash')
+        .eq('phone_number', phone);
     }
 
     const { data: userData, error: fetchError } = await query.maybeSingle();
@@ -56,7 +56,7 @@ serve(async (req) => {
     }
 
     // Verify password
-    const isValid = await bcrypt.compare(password, userData.password_hash);
+    const isValid = await compare(password, userData.password_hash);
 
     if (!isValid) {
       return new Response(
