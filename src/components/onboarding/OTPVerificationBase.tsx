@@ -234,6 +234,26 @@ export const OTPVerificationBase = ({
               </motion.div>
             )}
 
+            {/* OTP Expiry Timer */}
+            <motion.div
+              className="text-center"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.5 }}
+            >
+              <p className={`text-sm font-medium ${
+                timer <= 60 ? "text-red-400" : "text-muted-foreground"
+              }`}>
+                {timer > 0 ? (
+                  <>
+                    Code expires in <span className="font-bold text-foreground">{formatTime(timer)}</span>
+                  </>
+                ) : (
+                  <span className="text-red-400">Code expired</span>
+                )}
+              </p>
+            </motion.div>
+
             <div className="flex justify-center gap-6 text-sm">
               <button
                 onClick={timer === 0 ? handleResend : undefined}
