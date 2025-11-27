@@ -88,21 +88,21 @@ export const AppHeader = () => {
                   <DropdownMenuItem
                     key={item.label}
                     onClick={() => navigate(item.href)}
-                    className="flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-pink-500/10 rounded-lg transition-colors group"
+                    className="flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-white/5 rounded-lg transition-colors"
                   >
-                    <item.icon className="w-5 h-5 text-cyan-400 group-hover:text-pink-500 transition-colors" />
-                    <span className="text-foreground font-medium group-hover:text-pink-500 transition-colors">{item.label}</span>
+                    <item.icon className="w-5 h-5 text-foreground" />
+                    <span className="text-foreground font-medium">{item.label}</span>
                   </DropdownMenuItem>
                 ))}
                 
-                <DropdownMenuSeparator className="bg-cyan-400/20 my-1" />
+                <DropdownMenuSeparator className="bg-white/10 my-1" />
                 
                 <DropdownMenuItem
                   onClick={handleSignOut}
-                  className="flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-pink-500/10 rounded-lg transition-colors group"
+                  className="flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-white/5 rounded-lg transition-colors"
                 >
-                  <LogOut className="w-5 h-5 text-cyan-400 group-hover:text-pink-500 transition-colors" />
-                  <span className="text-foreground font-medium group-hover:text-pink-500 transition-colors">Sign Out</span>
+                  <LogOut className="w-5 h-5 text-foreground" />
+                  <span className="text-foreground font-medium">Sign Out</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
