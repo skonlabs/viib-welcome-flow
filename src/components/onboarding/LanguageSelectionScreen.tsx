@@ -38,6 +38,11 @@ export const LanguageSelectionScreen = ({ onContinue, onBack, initialLanguages =
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
+  // Update state when props change (when navigating back)
+  useEffect(() => {
+    setSelectedLanguages(initialLanguages);
+  }, [initialLanguages]);
+
   useEffect(() => {
     const fetchLanguages = async () => {
       try {
