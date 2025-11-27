@@ -45,7 +45,7 @@ export const AppHeader = () => {
             <Button
               variant="ghost"
               size="icon"
-              className="text-foreground hover:bg-white/5"
+              className="text-secondary hover:bg-white/5"
             >
               <Menu className="w-6 h-6" />
             </Button>
@@ -61,7 +61,7 @@ export const AppHeader = () => {
                   }}
                   className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/5 transition-colors text-left w-full"
                 >
-                  <item.icon className="w-5 h-5 text-primary" />
+                  <item.icon className="w-5 h-5 text-secondary" />
                   <span className="text-foreground">{item.label}</span>
                 </button>
               ))}
@@ -70,7 +70,7 @@ export const AppHeader = () => {
                 onClick={handleSignOut}
                 className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/5 transition-colors text-left mt-2 border-t border-white/10 pt-4"
               >
-                <LogOut className="w-5 h-5 text-primary" />
+                <LogOut className="w-5 h-5 text-secondary" />
                 <span className="text-foreground">Sign Out</span>
               </button>
             </div>
@@ -89,10 +89,10 @@ export const AppHeader = () => {
           <Button
             variant="ghost"
             size="icon"
-            className="text-foreground hover:bg-white/5 relative"
+            className="text-secondary hover:bg-white/5 relative"
           >
             <Bell className="w-5 h-5" />
-            <span className="absolute top-1 right-1 w-2 h-2 bg-primary rounded-full" />
+            <span className="absolute top-1 right-1 w-2 h-2 bg-secondary rounded-full" />
           </Button>
 
           {user && (
