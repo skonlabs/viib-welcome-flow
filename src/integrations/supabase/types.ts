@@ -929,6 +929,45 @@ export type Database = {
           },
         ]
       }
+      user_vibe_preferences: {
+        Row: {
+          created_at: string
+          id: string
+          updated_at: string
+          user_id: string
+          vibe_type: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id: string
+          vibe_type: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id?: string
+          vibe_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_vibe_preferences_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_vibe_preferences_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "viib_recommendation_debug"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       users: {
         Row: {
           country: string | null
