@@ -66,7 +66,7 @@ export const AppHeader = () => {
           {user && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-2 hover:bg-cyan-400/10 rounded-xl px-2 py-1 transition-all duration-200">
+                <button className="flex items-center gap-2 hover:bg-cyan-400/10 rounded-xl px-2 py-1 transition-all duration-200 border border-transparent hover:border-cyan-400/20">
                   <Avatar className="w-8 h-8 border-2 border-cyan-400/30">
                     <AvatarImage src={user.user_metadata?.avatar_url} />
                     <AvatarFallback className="bg-cyan-400/20 text-cyan-400 text-sm font-semibold">
@@ -81,28 +81,28 @@ export const AppHeader = () => {
               </DropdownMenuTrigger>
               <DropdownMenuContent 
                 align="end" 
-                sideOffset={4}
-                className="w-56 bg-background/98 backdrop-blur-xl border border-background/50 z-[100]"
+                sideOffset={8}
+                className="w-56 bg-background/98 backdrop-blur-xl border border-cyan-400/20 shadow-lg shadow-cyan-400/10 rounded-2xl z-[100]"
               >
                 {visibleMenuItems.map((item) => (
                   <DropdownMenuItem
                     key={item.label}
                     onClick={() => navigate(item.href)}
-                    className="flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-white/10 rounded-lg transition-colors"
+                    className="flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-cyan-400/10 rounded-lg transition-colors"
                   >
-                    <item.icon className="w-5 h-5 text-white" />
-                    <span className="text-white font-medium">{item.label}</span>
+                    <item.icon className="w-5 h-5 text-cyan-400" />
+                    <span className="text-foreground font-medium">{item.label}</span>
                   </DropdownMenuItem>
                 ))}
                 
-                <DropdownMenuSeparator className="bg-white/10 my-1" />
+                <DropdownMenuSeparator className="bg-cyan-400/20 my-1" />
                 
                 <DropdownMenuItem
                   onClick={handleSignOut}
-                  className="flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-white/10 rounded-lg transition-colors"
+                  className="flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-cyan-400/10 rounded-lg transition-colors"
                 >
-                  <LogOut className="w-5 h-5 text-white" />
-                  <span className="text-white font-medium">Sign Out</span>
+                  <LogOut className="w-5 h-5 text-cyan-400" />
+                  <span className="text-foreground font-medium">Sign Out</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
