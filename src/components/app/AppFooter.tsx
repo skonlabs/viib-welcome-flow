@@ -32,8 +32,8 @@ export const AppFooter = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.05 }}
           >
-            <item.icon className={`w-5 h-5 ${isActive(item.href) ? 'text-secondary' : 'text-secondary/60'}`} />
-            <span className={`text-[10px] ${isActive(item.href) ? 'text-foreground font-medium' : 'text-foreground/60'}`}>
+            <item.icon className={`w-5 h-5 ${isActive(item.href) ? 'text-primary' : 'text-foreground'}`} />
+            <span className={`text-[10px] ${isActive(item.href) ? 'text-primary font-medium' : 'text-foreground/80'}`}>
               {item.label}
             </span>
           </motion.button>
