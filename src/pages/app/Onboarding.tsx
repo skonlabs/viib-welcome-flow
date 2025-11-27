@@ -109,40 +109,55 @@ export default function Onboarding() {
   const handleOTPVerify = async (otp: string) => {
     console.log("OTP verified:", otp);
     
-    // Check if this is a resume scenario
-    const isResuming = localStorage.getItem('viib_resume_onboarding') === 'true';
+    const fullPhone = `${onboardingData.countryCode}${onboardingData.phone}`;
     
-    if (!isResuming) {
-      // Create user record in database AFTER successful verification (new signup only)
-      try {
-        const fullPhone = `${onboardingData.countryCode}${onboardingData.phone}`;
-        
-        const { data: insertedUser, error } = await supabase
-          .from('users')
-          .insert({
-            phone_number: fullPhone,
-            signup_method: 'phone',
-            is_phone_verified: true,
-            is_age_over_18: true,
-            onboarding_completed: false,
-            is_active: false,
-          })
-          .select()
-          .single();
-        
-        if (error && error.code !== '23505') {
-          console.error('Error creating user record:', error);
-          throw error;
-        }
-
-        if (insertedUser) {
-          console.log('User record created successfully:', insertedUser.id);
-          localStorage.setItem('viib_user_id', insertedUser.id);
-        }
-      } catch (error) {
-        console.error('Error in handleOTPVerify:', error);
+    // Check if user already exists with this phone number
+    const { data: existingUser, error: checkError } = await supabase
+      .from('users')
+      .select('id, onboarding_completed, is_phone_verified')
+      .eq('phone_number', fullPhone)
+      .maybeSingle();
+    
+    if (checkError) {
+      console.error('Error checking existing user:', checkError);
+    }
+    
+    // If user exists with verified phone, they're resuming onboarding
+    if (existingUser && existingUser.is_phone_verified) {
+      console.log('User exists, resuming onboarding');
+      localStorage.setItem('viib_user_id', existingUser.id);
+      localStorage.setItem('viib_resume_onboarding', 'true');
+      navigateToStep("biometric");
+      return;
+    }
+    
+    // New user - create user record in database AFTER successful verification
+    try {
+      const { data: insertedUser, error } = await supabase
+        .from('users')
+        .insert({
+          phone_number: fullPhone,
+          signup_method: 'phone',
+          is_phone_verified: true,
+          is_age_over_18: true,
+          onboarding_completed: false,
+          is_active: false,
+        })
+        .select()
+        .single();
+      
+      if (error && error.code !== '23505') {
+        console.error('Error creating user record:', error);
         throw error;
       }
+
+      if (insertedUser) {
+        console.log('User record created successfully:', insertedUser.id);
+        localStorage.setItem('viib_user_id', insertedUser.id);
+      }
+    } catch (error) {
+      console.error('Error in handleOTPVerify:', error);
+      throw error;
     }
     
     navigateToStep("biometric");

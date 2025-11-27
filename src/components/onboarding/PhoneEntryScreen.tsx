@@ -56,16 +56,8 @@ export const PhoneEntryScreen = ({
           return;
         }
         
-        // If phone verified but onboarding incomplete, resume onboarding (skip OTP)
-        if (existingUser.is_phone_verified && !existingUser.onboarding_completed) {
-          localStorage.setItem('viib_user_id', existingUser.id);
-          localStorage.setItem('viib_resume_onboarding', 'true');
-          // Skip directly to next screen after biometric in onboarding flow
-          window.location.href = '/app/onboarding/biometric';
-          return;
-        }
-        
-        // If phone not verified, allow new OTP (old verification expired/failed)
+        // SECURITY: Always require OTP verification, even for incomplete onboarding
+        // This prevents someone from entering another person's phone number and gaining access
       }
 
       const {

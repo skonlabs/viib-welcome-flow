@@ -101,7 +101,28 @@ export default function Login() {
         }
         
         localStorage.setItem('viib_user_id', data.userId);
-        navigate("/app/home");
+        
+        // Check onboarding status
+        const { data: user, error: userError } = await supabase
+          .from('users')
+          .select('onboarding_completed')
+          .eq('id', data.userId)
+          .single();
+        
+        if (userError) {
+          console.error('Error checking onboarding:', userError);
+          navigate("/app/home");
+          return;
+        }
+        
+        // For email login with password, we already verified identity
+        // So redirect directly to onboarding without additional OTP if needed
+        if (!user.onboarding_completed) {
+          localStorage.setItem('viib_resume_onboarding', 'true');
+          navigate("/app/onboarding/biometric");
+        } else {
+          navigate("/app/home");
+        }
       } else {
         setError("Sign in failed. Please try again.");
       }
@@ -153,16 +174,9 @@ export default function Login() {
         return;
       }
 
-      if (!user.onboarding_completed) {
-        // Store user ID and redirect to resume onboarding
-        localStorage.setItem('viib_user_id', user.id);
-        localStorage.setItem('viib_resume_onboarding', 'true');
-        setError("Please complete your onboarding first. Redirecting...");
-        setTimeout(() => {
-          navigate("/app/onboarding/biometric");
-        }, 1500);
-        return;
-      }
+      // Note: We don't check onboarding_completed here for phone login
+      // After OTP verification, we'll redirect to onboarding if needed
+      // This ensures security - OTP must be verified first for phone auth
 
       if (!user.is_active) {
         setError("Your account is inactive. Please contact support.");
@@ -217,7 +231,7 @@ export default function Login() {
       // Get user ID
       const { data: user, error: userError } = await supabase
         .from("users")
-        .select("id")
+        .select("id, onboarding_completed")
         .eq("phone_number", fullPhoneNumber)
         .eq("is_active", true)
         .eq("is_phone_verified", true)
@@ -228,7 +242,7 @@ export default function Login() {
         return;
       }
 
-      // Store session (phone login always uses sessionStorage, no remember me)
+      // Store session
       const sessionData = {
         userId: user.id,
         rememberMe: false,
@@ -237,7 +251,14 @@ export default function Login() {
 
       sessionStorage.setItem('viib_session', JSON.stringify(sessionData));
       localStorage.setItem('viib_user_id', user.id);
-      navigate("/app/home");
+      
+      // Check onboarding status
+      if (!user.onboarding_completed) {
+        localStorage.setItem('viib_resume_onboarding', 'true');
+        navigate("/app/onboarding/biometric");
+      } else {
+        navigate("/app/home");
+      }
     } catch (err) {
       setError("Something went wrong. Please try again later.");
     } finally {
