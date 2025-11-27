@@ -1,9 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { motion } from "framer-motion";
 import { ArrowRight, Eye, EyeOff, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -17,8 +16,7 @@ const phoneSchema = z.string().trim().regex(/^\+?[1-9]\d{1,14}$/, { message: "Pl
 
 export default function Login() {
   const [searchParams] = useSearchParams();
-  const tabParam = searchParams.get('tab');
-  const [activeTab, setActiveTab] = useState(tabParam === 'phone' ? 'phone' : 'email');
+  const loginMethod = searchParams.get('tab') || 'email'; // default to email
   
   // Email login state
   const [email, setEmail] = useState("");
@@ -34,15 +32,6 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const navigate = useNavigate();
-
-  // Update active tab when URL parameter changes
-  useEffect(() => {
-    if (tabParam === 'phone') {
-      setActiveTab('phone');
-    } else if (tabParam === 'email') {
-      setActiveTab('email');
-    }
-  }, [tabParam]);
 
   // Format phone number as user types
   const formatPhoneNumber = (value: string) => {
@@ -287,7 +276,7 @@ export default function Login() {
   };
 
   // If OTP screen is shown, use shared OTP component
-  if (otpSent && activeTab === "phone") {
+  if (otpSent && loginMethod === "phone") {
     return (
       <OTPVerificationBase
         icon="📱"
@@ -385,28 +374,9 @@ export default function Login() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
           >
-            <Tabs value={activeTab} onValueChange={(value) => {
-              setActiveTab(value);
-              setError("");
-              setOtpSent(false);
-            }} className="w-full">
-              <TabsList className="grid w-full grid-cols-2 bg-transparent p-1 gap-2">
-                <TabsTrigger 
-                  value="email"
-                  className="rounded-full data-[state=active]:bg-black data-[state=active]:text-white data-[state=inactive]:bg-transparent data-[state=inactive]:text-muted-foreground h-12 font-medium transition-all"
-                >
-                  Email
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="phone"
-                  className="rounded-full data-[state=active]:bg-black data-[state=active]:text-white data-[state=inactive]:bg-transparent data-[state=inactive]:text-muted-foreground h-12 font-medium transition-all"
-                >
-                  Phone
-                </TabsTrigger>
-              </TabsList>
-
-              {/* Email Login Tab */}
-              <TabsContent value="email" className="space-y-5 mt-6">
+            {loginMethod === 'email' ? (
+              /* Email Login Form */
+              <div className="space-y-5">
                 {/* Email */}
                 <div className="space-y-2">
                   <label className="text-sm text-[#94a3b8] font-normal">
@@ -472,7 +442,7 @@ export default function Login() {
                   </a>
                 </div>
 
-                {error && activeTab === "email" && (
+                {error && (
                   <motion.div
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -496,10 +466,10 @@ export default function Login() {
                     {!loading && <ArrowRight className="ml-2 w-5 h-5" />}
                   </Button>
                 </div>
-              </TabsContent>
-
-              {/* Phone Login Tab */}
-              <TabsContent value="phone" className="space-y-6 mt-6">
+              </div>
+            ) : (
+              /* Phone Login Form */
+              <div className="space-y-6">
                 {!otpSent ? (
                   <>
                     {/* Phone Number */}
@@ -538,7 +508,7 @@ export default function Login() {
                       </div>
                     </div>
 
-                    {error && activeTab === "phone" && !otpSent && (
+                    {error && !otpSent && (
                       <motion.div
                         initial={{ opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -564,8 +534,8 @@ export default function Login() {
                     </div>
                   </>
                 ) : null}
-              </TabsContent>
-            </Tabs>
+              </div>
+            )}
 
             {/* Bottom Link */}
             <div className="pt-6 border-t border-[#334155]/30">
