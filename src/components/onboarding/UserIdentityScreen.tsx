@@ -189,13 +189,8 @@ export const UserIdentityScreen = ({ onContinue, onBack }: UserIdentityScreenPro
               animate={{ scale: 1, rotateX: 0 }}
               transition={{ delay: 0.3, type: "spring", stiffness: 80, damping: 20 }}
             >
-              <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold relative inline-block">
-                <span 
-                  className="text-gradient relative z-10"
-                  style={{
-                    backgroundSize: '200% 200%'
-                  }}
-                >
+              <h2 className="text-4xl font-bold">
+                <span className="text-gradient">
                   Tell us about yourself
                 </span>
               </h2>

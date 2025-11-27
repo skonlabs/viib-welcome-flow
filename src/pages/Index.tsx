@@ -120,10 +120,9 @@ const Index = () => {
                 </div>
               </div>
 
-              <h1 className="text-5xl md:text-7xl lg:text-8xl font-black leading-[1.1] tracking-tight">
-                <span className="block">Your Next Favorite</span>
-                <span className="block bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
-                  Is Already Here
+              <h1 className="text-4xl font-bold">
+                <span className="block">
+                  <span className="text-gradient">Your Next Favorite Is Already Here</span>
                 </span>
               </h1>
 
@@ -185,8 +184,8 @@ const Index = () => {
       <section id="features" className="relative py-32 px-4">
         <div className="container mx-auto max-w-7xl">
           <div className="text-center mb-20 space-y-4">
-            <h2 className="text-4xl md:text-6xl font-black">
-              <span className="bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
+            <h2 className="text-4xl font-bold">
+              <span className="text-gradient">
                 Engineered for Discovery
               </span>
             </h2>
@@ -258,8 +257,8 @@ const Index = () => {
       <section id="contact" className="relative py-32 px-4">
         <div className="container mx-auto max-w-4xl relative z-10">
           <div className="backdrop-blur-xl bg-gradient-to-br from-white/10 to-white/5 border border-white/10 rounded-3xl p-12 md:p-16 text-center space-y-8">
-            <h2 className="text-4xl md:text-6xl font-black">
-              <span className="bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
+            <h2 className="text-4xl font-bold">
+              <span className="text-gradient">
                 Start Discovering Today
               </span>
             </h2>

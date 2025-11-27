@@ -79,8 +79,8 @@ export const FeedbackCaptureScreen = ({ onContinue, onBack }: FeedbackCaptureScr
             animate={{ opacity: 1 }}
             transition={{ delay: 0.2 }}
           >
-            <h2 className="text-4xl md:text-5xl font-bold text-gradient">
-              How did this feel?
+            <h2 className="text-4xl font-bold">
+              <span className="text-gradient">How did this feel?</span>
             </h2>
             <p className="text-xl text-muted-foreground">
               Your feedback helps ViiB learn your taste

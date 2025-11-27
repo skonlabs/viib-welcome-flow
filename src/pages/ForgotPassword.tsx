@@ -283,10 +283,12 @@ export default function ForgotPassword() {
       >
         <div className="space-y-8">
           <motion.div className="text-center space-y-4">
-            <h2 className="text-3xl font-bold text-gradient">
-              {step === "email" && "Reset Password"}
-              {step === "otp" && "Verify Code"}
-              {step === "password" && "New Password"}
+            <h2 className="text-4xl font-bold">
+              <span className="text-gradient">
+                {step === "email" && "Reset Password"}
+                {step === "otp" && "Verify Code"}
+                {step === "password" && "New Password"}
+              </span>
             </h2>
             <p className="text-muted-foreground">
               {step === "email" && "Enter your email address to receive a verification code"}

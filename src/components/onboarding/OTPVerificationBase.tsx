@@ -197,8 +197,8 @@ export const OTPVerificationBase = ({
             >
               <span className="text-4xl">{icon}</span>
             </motion.div>
-            <h2 className="text-3xl font-bold text-gradient">
-              {title}
+            <h2 className="text-4xl font-bold">
+              <span className="text-gradient">{title}</span>
             </h2>
             <p className="text-muted-foreground">
               We sent a code to <span className="text-foreground font-medium">{contactInfo}</span>

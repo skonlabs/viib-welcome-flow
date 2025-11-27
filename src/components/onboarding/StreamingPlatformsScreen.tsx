@@ -95,13 +95,8 @@ export const StreamingPlatformsScreen = ({ onContinue, onBack }: StreamingPlatfo
               animate={{ scale: 1, rotateX: 0 }}
               transition={{ delay: 0.3, type: "spring", stiffness: 80, damping: 20 }}
             >
-              <h2 className="text-4xl sm:text-5xl md:text-6xl font-bold relative inline-block">
-                <span 
-                  className="text-gradient relative z-10"
-                  style={{
-                    backgroundSize: '200% 200%'
-                  }}
-                >
+              <h2 className="text-4xl font-bold">
+                <span className="text-gradient">
                   Your streaming world
                 </span>
               </h2>

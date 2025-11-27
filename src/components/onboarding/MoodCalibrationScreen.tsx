@@ -87,7 +87,7 @@ export const MoodCalibrationScreen = ({ onContinue, onBack }: MoodCalibrationScr
             animate={{ opacity: 1 }}
             transition={{ delay: 0.2 }}
           >
-            <h2 className="text-3xl md:text-4xl font-bold">
+            <h2 className="text-4xl font-bold">
               <span className="text-gradient">How do you feel?</span>
             </h2>
             <p className="text-muted-foreground text-base">

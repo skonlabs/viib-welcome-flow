@@ -94,8 +94,8 @@ export const RecommendationRevealScreen = ({ userName, onContinue, onBack }: Rec
             >
               <Sparkles className="w-16 h-16 mx-auto text-gradient" />
             </motion.div>
-            <h2 className="text-4xl md:text-5xl font-bold text-gradient">
-              {userName}, your ViiB is ready
+            <h2 className="text-4xl font-bold">
+              <span className="text-gradient">{userName}, your ViiB is ready</span>
             </h2>
             <p className="text-xl text-muted-foreground">
               Here's what we picked for how you feel today
