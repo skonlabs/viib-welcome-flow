@@ -2,28 +2,73 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { motion } from "framer-motion";
-import { ArrowRight, ArrowLeft, AlertCircle } from "lucide-react";
+import { ArrowRight, ArrowLeft, AlertCircle, Eye, EyeOff, Check, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { FloatingParticles } from "@/components/onboarding/FloatingParticles";
 import { useNavigate } from "react-router-dom";
+import { z } from "zod";
+
+const emailSchema = z.string().trim().email({ message: "Please enter a valid email address" });
 
 type Step = "email" | "otp" | "password";
 
 export default function ForgotPassword() {
   const [step, setStep] = useState<Step>("email");
-  const [emailOrPhone, setEmailOrPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const navigate = useNavigate();
 
-  const isEmail = emailOrPhone.includes('@');
+  const getPasswordStrength = () => {
+    let strength = 0;
+    if (newPassword.length >= 8) strength++;
+    if (/[A-Z]/.test(newPassword)) strength++;
+    if (/[a-z]/.test(newPassword)) strength++;
+    if (/[0-9]/.test(newPassword)) strength++;
+    if (/[^A-Za-z0-9]/.test(newPassword)) strength++;
+    return strength;
+  };
+
+  const strength = getPasswordStrength();
+  
+  const getStrengthLabel = () => {
+    if (strength === 0) return "";
+    if (strength <= 2) return "Weak";
+    if (strength === 3) return "Medium";
+    return "Strong";
+  };
+  
+  const getStrengthColor = () => {
+    if (strength === 0) return "";
+    if (strength <= 2) return "hsl(0, 84%, 60%)";
+    if (strength === 3) return "hsl(38, 92%, 50%)";
+    return "hsl(142, 71%, 45%)";
+  };
+  
+  const strengthLabel = getStrengthLabel();
+  const strengthColor = getStrengthColor();
+
+  const requirements = [
+    { label: "At least 8 characters", met: newPassword.length >= 8 },
+    { label: "Contains uppercase letter", met: /[A-Z]/.test(newPassword) },
+    { label: "Contains number", met: /[0-9]/.test(newPassword) },
+  ];
 
   const handleSendOTP = async () => {
-    if (!emailOrPhone) {
-      setError("Please enter your email or phone");
+    if (!email) {
+      setError("Please enter your email address");
+      return;
+    }
+
+    try {
+      emailSchema.parse(email);
+    } catch {
+      setError("Please enter a valid email address");
       return;
     }
 
@@ -32,27 +77,31 @@ export default function ForgotPassword() {
 
     try {
       // Check if account exists
-      const query = isEmail
-        ? supabase.from('users').select('id').eq('email', emailOrPhone).single()
-        : supabase.from('users').select('id').eq('phone_number', emailOrPhone).single();
-
-      const { data: existingUser, error: checkError } = await query;
+      const { data: existingUser, error: checkError } = await supabase
+        .from('users')
+        .select('id, is_email_verified')
+        .eq('email', email)
+        .maybeSingle();
 
       if (checkError || !existingUser) {
-        setError("No account found with this email or phone");
+        setError("No account found with this email address");
         setLoading(false);
         return;
       }
 
-      const functionName = isEmail ? "send-email-otp" : "send-phone-otp";
-      const body = isEmail 
-        ? { email: emailOrPhone } 
-        : { phoneNumber: emailOrPhone };
+      if (!existingUser.is_email_verified) {
+        setError("This email is not verified. Please complete signup first.");
+        setLoading(false);
+        return;
+      }
 
-      const { error: sendError } = await supabase.functions.invoke(functionName, { body });
+      // Send OTP
+      const { data, error: sendError } = await supabase.functions.invoke("send-email-otp", {
+        body: { email }
+      });
 
-      if (sendError) {
-        setError("Unable to send verification code");
+      if (sendError || data?.error) {
+        setError("Unable to send verification code. Please try again.");
         return;
       }
 
@@ -75,17 +124,33 @@ export default function ForgotPassword() {
     setError("");
 
     try {
-      const functionName = isEmail ? "verify-email-otp" : "verify-phone-otp";
-      const body = isEmail 
-        ? { email: emailOrPhone, otp: otpCode } 
-        : { phoneNumber: emailOrPhone, otp: otpCode };
+      // Verify OTP without creating a user (for password reset)
+      const { data: verification, error: fetchError } = await supabase
+        .from('email_verifications')
+        .select('*')
+        .eq('email', email)
+        .eq('otp_code', otpCode)
+        .eq('verified', false)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-      const { data, error: verifyError } = await supabase.functions.invoke(functionName, { body });
-
-      if (verifyError || !data?.success) {
-        setError(data?.error || "Invalid code");
+      if (fetchError || !verification) {
+        setError("Invalid or expired verification code");
         return;
       }
+
+      // Check if expired
+      if (new Date(verification.expires_at) < new Date()) {
+        setError("Your code has expired. Please request a new code.");
+        return;
+      }
+
+      // Mark as verified
+      await supabase
+        .from('email_verifications')
+        .update({ verified: true })
+        .eq('id', verification.id);
 
       setStep("password");
     } catch (err) {
@@ -106,8 +171,8 @@ export default function ForgotPassword() {
       return;
     }
 
-    if (newPassword.length < 8) {
-      setError("Password must be at least 8 characters");
+    if (strength < 3) {
+      setError("Please create a stronger password");
       return;
     }
 
@@ -126,15 +191,10 @@ export default function ForgotPassword() {
       }
 
       // Update password in database
-      const updateData = isEmail
-        ? { password_hash: hashData.hashedPassword }
-        : { password_hash: hashData.hashedPassword };
-
-      const query = isEmail
-        ? supabase.from('users').update(updateData).eq('email', emailOrPhone)
-        : supabase.from('users').update(updateData).eq('phone_number', emailOrPhone);
-
-      const { error: updateError } = await query;
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({ password_hash: hashData.hashedPassword })
+        .eq('email', email);
 
       if (updateError) {
         setError("Unable to update password");
@@ -186,8 +246,8 @@ export default function ForgotPassword() {
               {step === "password" && "New Password"}
             </h2>
             <p className="text-muted-foreground">
-              {step === "email" && "Enter your email or phone to receive a code"}
-              {step === "otp" && `Code sent to ${emailOrPhone}`}
+              {step === "email" && "Enter your email address to receive a verification code"}
+              {step === "otp" && `Code sent to ${email}`}
               {step === "password" && "Create a new secure password"}
             </p>
           </motion.div>
@@ -196,15 +256,15 @@ export default function ForgotPassword() {
             {step === "email" && (
               <>
                 <div className="space-y-3">
-                  <label className="text-sm text-muted-foreground">Email or Phone</label>
+                  <label className="text-sm text-muted-foreground">Email Address</label>
                   <Input
-                    type="text"
-                    value={emailOrPhone}
+                    type="email"
+                    value={email}
                     onChange={(e) => {
-                      setEmailOrPhone(e.target.value);
+                      setEmail(e.target.value);
                       setError("");
                     }}
-                    placeholder="you@example.com or +1234567890"
+                    placeholder="you@example.com"
                     className="h-14 text-lg bg-white/5 border-white/10 focus:border-primary/50 focus:bg-white/10"
                   />
                 </div>
@@ -281,30 +341,116 @@ export default function ForgotPassword() {
               <>
                 <div className="space-y-3">
                   <label className="text-sm text-muted-foreground">New Password</label>
-                  <Input
-                    type="password"
-                    value={newPassword}
-                    onChange={(e) => {
-                      setNewPassword(e.target.value);
-                      setError("");
-                    }}
-                    placeholder="Enter new password"
-                    className="h-14 text-lg bg-white/5 border-white/10"
-                  />
+                  <div className="relative">
+                    <Input
+                      type={showNewPassword ? "text" : "password"}
+                      value={newPassword}
+                      onChange={(e) => {
+                        setNewPassword(e.target.value);
+                        setError("");
+                      }}
+                      placeholder="Enter new password"
+                      className="h-14 text-lg bg-white/5 border-white/10 focus:border-primary/50 focus:bg-white/10 pr-12"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showNewPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+
+                  {/* Strength Indicator */}
+                  {newPassword && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      className="space-y-3"
+                    >
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-2 bg-white/10 rounded-full overflow-hidden">
+                          <motion.div
+                            className="h-full rounded-full"
+                            style={{ backgroundColor: strengthColor }}
+                            initial={{ width: 0 }}
+                            animate={{ width: `${(strength / 5) * 100}%` }}
+                            transition={{ duration: 0.3 }}
+                          />
+                        </div>
+                        <span className="text-sm font-medium" style={{ color: strengthColor }}>
+                          {strengthLabel}
+                        </span>
+                      </div>
+
+                      {/* Requirements */}
+                      <div className="space-y-2">
+                        {requirements.map((req, index) => (
+                          <motion.div
+                            key={index}
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: index * 0.1 }}
+                            className="flex items-center gap-2 text-sm"
+                          >
+                            {req.met ? (
+                              <Check className="w-4 h-4 text-green-500" />
+                            ) : (
+                              <X className="w-4 h-4 text-muted-foreground/50" />
+                            )}
+                            <span className={req.met ? "text-foreground" : "text-muted-foreground"}>
+                              {req.label}
+                            </span>
+                          </motion.div>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
                 </div>
 
                 <div className="space-y-3">
                   <label className="text-sm text-muted-foreground">Confirm Password</label>
-                  <Input
-                    type="password"
-                    value={confirmPassword}
-                    onChange={(e) => {
-                      setConfirmPassword(e.target.value);
-                      setError("");
-                    }}
-                    placeholder="Confirm new password"
-                    className="h-14 text-lg bg-white/5 border-white/10"
-                  />
+                  <div className="relative">
+                    <Input
+                      type={showConfirmPassword ? "text" : "password"}
+                      value={confirmPassword}
+                      onChange={(e) => {
+                        setConfirmPassword(e.target.value);
+                        setError("");
+                      }}
+                      placeholder="Confirm new password"
+                      className={`h-14 text-lg bg-white/5 border-white/10 focus:border-primary/50 focus:bg-white/10 pr-12 ${
+                        confirmPassword && newPassword !== confirmPassword ? "border-red-500/50" : ""
+                      }`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                  {confirmPassword && newPassword !== confirmPassword && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="flex items-center gap-2 text-sm text-red-400"
+                    >
+                      <AlertCircle className="w-4 h-4" />
+                      Passwords do not match
+                    </motion.div>
+                  )}
+                  {confirmPassword && newPassword === confirmPassword && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="flex items-center gap-2 text-sm text-green-400"
+                    >
+                      <Check className="w-4 h-4" />
+                      Passwords match
+                    </motion.div>
+                  )}
                 </div>
 
                 {error && (
