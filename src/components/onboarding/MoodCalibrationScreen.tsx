@@ -156,15 +156,15 @@ export const MoodCalibrationScreen = ({
         return;
       }
 
-      // Call the database function to store emotion with calculated intensity
-      const { error } = await supabase.rpc('store_user_emotion_vector', {
+      // Call translate_mood_to_emotion which converts mood text + energy to correct emotion and stores it
+      const { error } = await supabase.rpc('translate_mood_to_emotion', {
         p_user_id: userId,
-        p_emotion_label: selectedEmotion.label,
+        p_mood_text: selectedEmotion.label,
         p_energy_percentage: energy[0]
       });
 
       if (error) {
-        console.error('Error storing emotion:', error);
+        console.error('Error translating mood:', error);
         toast({
           title: "Error",
           description: "Failed to save your mood. Please try again.",
