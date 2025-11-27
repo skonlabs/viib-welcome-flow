@@ -196,27 +196,27 @@ export const EmailSignupScreen = ({ onContinue, onBack }: EmailSignupScreenProps
             animate={{ opacity: 1 }}
             transition={{ delay: 0.2 }}
           >
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-primary to-accent mb-4">
-              <span className="text-3xl">🔐</span>
+            <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-purple-500 to-cyan-500 mb-2">
+              <span className="text-4xl">🔐</span>
             </div>
-            <h2 className="text-3xl font-bold text-gradient">
+            <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-400 via-cyan-400 to-blue-500 bg-clip-text text-transparent">
               Create your account
             </h2>
-            <p className="text-muted-foreground">
+            <p className="text-[#a1a8c4]">
               Set up your secure credentials
             </p>
           </motion.div>
 
           {/* Form */}
           <motion.div
-            className="glass-card rounded-3xl p-8 space-y-6"
+            className="rounded-3xl p-8 space-y-6 backdrop-blur-xl bg-[#1a1d2e]/60 border border-white/5"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
           >
             {/* Email */}
             <div className="space-y-3">
-              <label className="text-sm text-muted-foreground">
+              <label className="text-sm text-[#a1a8c4] font-normal">
                 Email Address
               </label>
               <Input
@@ -232,7 +232,7 @@ export const EmailSignupScreen = ({ onContinue, onBack }: EmailSignupScreenProps
                 }}
                 onBlur={() => email && validateEmail(email)}
                 placeholder="you@example.com"
-                className={`h-14 text-lg bg-white/5 border-white/10 focus:border-primary/50 focus:bg-white/10 ${
+                className={`h-14 text-base bg-[#151829]/80 border-[#2a2f45] focus:border-primary/50 focus:bg-[#151829] rounded-xl placeholder:text-[#6b7280] ${
                   emailError ? "border-red-500/50" : ""
                 }`}
               />
@@ -250,7 +250,7 @@ export const EmailSignupScreen = ({ onContinue, onBack }: EmailSignupScreenProps
 
             {/* Password */}
             <div className="space-y-3">
-              <label className="text-sm text-muted-foreground">
+              <label className="text-sm text-[#a1a8c4] font-normal">
                 Password
               </label>
               <div className="relative">
@@ -266,12 +266,12 @@ export const EmailSignupScreen = ({ onContinue, onBack }: EmailSignupScreenProps
                     }
                   }}
                   placeholder="Create a strong password"
-                  className="h-14 text-lg bg-white/5 border-white/10 focus:border-primary/50 focus:bg-white/10 pr-12"
+                  className="h-14 text-base bg-[#151829]/80 border-[#2a2f45] focus:border-primary/50 focus:bg-[#151829] pr-12 rounded-xl placeholder:text-[#6b7280]"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-[#6b7280] hover:text-foreground transition-colors"
                 >
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
@@ -326,7 +326,7 @@ export const EmailSignupScreen = ({ onContinue, onBack }: EmailSignupScreenProps
 
             {/* Confirm Password */}
             <div className="space-y-3">
-              <label className="text-sm text-muted-foreground">
+              <label className="text-sm text-[#a1a8c4] font-normal">
                 Confirm Password
               </label>
               <div className="relative">
@@ -342,14 +342,14 @@ export const EmailSignupScreen = ({ onContinue, onBack }: EmailSignupScreenProps
                     }
                   }}
                   placeholder="Confirm your password"
-                  className={`h-14 text-lg bg-white/5 border-white/10 focus:border-primary/50 focus:bg-white/10 pr-12 ${
+                  className={`h-14 text-base bg-[#151829]/80 border-[#2a2f45] focus:border-primary/50 focus:bg-[#151829] pr-12 rounded-xl placeholder:text-[#6b7280] ${
                     passwordMatchError ? "border-red-500/50" : ""
                   }`}
                 />
                 <button
                   type="button"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-[#6b7280] hover:text-foreground transition-colors"
                 >
                   {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
@@ -393,18 +393,18 @@ export const EmailSignupScreen = ({ onContinue, onBack }: EmailSignupScreenProps
                 disabled={!isValid || loading}
                 size="2xl"
                 variant="gradient"
-                className="w-full shadow-[0_20px_50px_-15px_rgba(168,85,247,0.4)]"
+                className="w-full shadow-[0_20px_50px_-15px_rgba(139,92,246,0.5)] hover:shadow-[0_25px_60px_-15px_rgba(139,92,246,0.6)] transition-all"
               >
                 {loading ? "Sending Code..." : "Send Code"}
                 {!loading && <ArrowRight className="ml-2 w-5 h-5" />}
               </Button>
               <button
                 onClick={onBack}
-                className="w-full text-sm text-muted-foreground hover:text-foreground transition-colors"
+                className="w-full text-sm text-[#a1a8c4] hover:text-foreground transition-colors"
               >
                 Use a different method
               </button>
-              <p className="text-sm text-center text-muted-foreground">
+              <p className="text-sm text-center text-[#a1a8c4]">
                 Already have an account?{" "}
                 <button
                   onClick={() => window.location.href = "/login"}
@@ -418,7 +418,7 @@ export const EmailSignupScreen = ({ onContinue, onBack }: EmailSignupScreenProps
 
           {/* Privacy Note */}
           <motion.p
-            className="text-xs text-center text-muted-foreground/60"
+            className="text-xs text-center text-[#a1a8c4]/60"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.6 }}
