@@ -309,6 +309,178 @@ export default function Login() {
     }
   };
 
+  const formatPhoneDisplay = (phone: string) => {
+    const cleaned = phone.replace(/\D/g, "");
+    if (cleaned.length === 11 && cleaned.startsWith("1")) {
+      return `+1 (${cleaned.slice(1, 4)}) ${cleaned.slice(4, 7)}-${cleaned.slice(7)}`;
+    } else if (cleaned.length === 10) {
+      return `(${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6)}`;
+    }
+    return phone;
+  };
+
+  const formatTimer = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // If OTP screen is shown, render full-screen OTP verification matching onboarding design
+  if (otpSent && activeTab === "phone") {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-black">
+        {/* Background container - fixed positioning */}
+        <div className="fixed inset-0 overflow-hidden">
+          <div className="absolute inset-0">
+            <div className="absolute inset-0 gradient-ocean opacity-40" />
+            <motion.div 
+              className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full blur-[80px] opacity-40"
+              style={{
+                background: "radial-gradient(circle, #06b6d4 0%, transparent 70%)"
+              }}
+              animate={{
+                x: [0, 100, 0],
+                y: [0, -50, 0]
+              }}
+              transition={{
+                duration: 20,
+                repeat: Infinity,
+                ease: "easeInOut"
+              }}
+            />
+            <motion.div 
+              className="absolute bottom-1/4 right-1/4 w-96 h-96 rounded-full blur-[80px] opacity-30"
+              style={{
+                background: "radial-gradient(circle, #0ea5e9 0%, transparent 70%)"
+              }}
+              animate={{
+                x: [0, -80, 0],
+                y: [0, 40, 0]
+              }}
+              transition={{
+                duration: 25,
+                repeat: Infinity,
+                ease: "easeInOut"
+              }}
+            />
+          </div>
+        </div>
+
+        <FloatingParticles />
+
+        {/* Content */}
+        <motion.div
+          className="relative z-10 w-full max-w-md"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+        >
+          <div className="space-y-8">
+            {/* Header */}
+            <motion.div
+              className="text-center space-y-4"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.2 }}
+            >
+              <motion.div
+                className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-primary to-accent mb-4"
+                animate={{ rotate: [0, 5, -5, 0] }}
+                transition={{ duration: 2, repeat: Infinity }}
+              >
+                <span className="text-4xl">📱</span>
+              </motion.div>
+              <h2 className="text-3xl font-bold text-gradient">
+                Check your phone
+              </h2>
+              <p className="text-muted-foreground">
+                We sent a code to <span className="text-foreground font-medium">{formatPhoneDisplay(`${countryCode}${phoneNumber.replace(/\D/g, '')}`)}</span>
+              </p>
+            </motion.div>
+
+            {/* OTP Input */}
+            <motion.div
+              className="space-y-6"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+            >
+              <div className="flex gap-2 sm:gap-3 justify-center" onPaste={handleOtpPaste}>
+                {otp.map((digit, index) => (
+                  <motion.div
+                    key={index}
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ delay: 0.1 * index, type: "spring" }}
+                  >
+                    <Input
+                      ref={(el) => (otpInputRefs.current[index] = el)}
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={1}
+                      value={digit}
+                      onChange={(e) => handleOtpChange(index, e.target.value)}
+                      onKeyDown={(e) => handleOtpKeyDown(index, e)}
+                      className={`w-12 h-14 sm:w-14 sm:h-16 text-center text-xl sm:text-2xl font-bold bg-white/5 border-white/10 focus:border-primary focus:bg-white/10 focus:ring-2 focus:ring-primary/50 transition-all ${
+                        error ? "border-red-500/50" : ""
+                      }`}
+                    />
+                  </motion.div>
+                ))}
+              </div>
+
+              {error && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="text-center text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-2"
+                >
+                  {error}
+                </motion.div>
+              )}
+
+              <div className="flex justify-center gap-6 text-sm">
+                <button
+                  onClick={resendTimer === 0 ? handleSendPhoneOTP : undefined}
+                  disabled={resendTimer > 0 || loading}
+                  className={`flex items-center gap-2 ${
+                    resendTimer > 0 || loading
+                      ? "text-muted-foreground/50 cursor-not-allowed"
+                      : "text-muted-foreground hover:text-foreground cursor-pointer"
+                  } transition-colors`}
+                >
+                  <ArrowRight className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                  {loading ? "Sending..." : resendTimer > 0 ? `Resend in ${formatTimer(resendTimer)}` : "Resend Code"}
+                </button>
+                <button
+                  onClick={() => {
+                    setOtpSent(false);
+                    setOtp(["", "", "", "", "", ""]);
+                    setError("");
+                    setResendTimer(0);
+                  }}
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Change Number
+                </button>
+              </div>
+            </motion.div>
+
+            {/* Auto Submit Indicator */}
+            <motion.p
+              className="text-xs text-center text-muted-foreground/60"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.6 }}
+            >
+              Code will auto-submit when complete
+            </motion.p>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-black">
       {/* Background effects */}
@@ -545,85 +717,7 @@ export default function Login() {
                       {!loading && <ArrowRight className="ml-2 w-5 h-5" />}
                     </Button>
                   </>
-                ) : (
-                  <>
-                    {/* OTP Input */}
-                    <div className="space-y-3">
-                      <label className="text-sm text-muted-foreground">
-                        Enter 6-digit code sent to {countryCode} {phoneNumber}
-                      </label>
-                      <p className="text-xs text-muted-foreground">
-                        Code expires in 5 minutes
-                      </p>
-                      <div className="flex gap-2 sm:gap-3 justify-center" onPaste={handleOtpPaste}>
-                        {otp.map((digit, index) => (
-                          <motion.div
-                            key={index}
-                            initial={{ scale: 0 }}
-                            animate={{ scale: 1 }}
-                            transition={{ delay: 0.1 * index, type: "spring" }}
-                          >
-                            <Input
-                              ref={(el) => (otpInputRefs.current[index] = el)}
-                              type="text"
-                              inputMode="numeric"
-                              maxLength={1}
-                              value={digit}
-                              onChange={(e) => handleOtpChange(index, e.target.value)}
-                              onKeyDown={(e) => handleOtpKeyDown(index, e)}
-                              className={`w-12 h-14 sm:w-14 sm:h-16 text-center text-xl sm:text-2xl font-bold bg-white/5 border-white/10 focus:border-primary focus:bg-white/10 focus:ring-2 focus:ring-primary/50 transition-all ${
-                                error ? "border-red-500/50" : ""
-                              }`}
-                            />
-                          </motion.div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {error && activeTab === "phone" && otpSent && (
-                      <motion.div
-                        initial={{ opacity: 0, y: -10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="text-center text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-2 flex items-center justify-center gap-2"
-                      >
-                        <AlertCircle className="w-4 h-4" />
-                        {error}
-                      </motion.div>
-                    )}
-
-                    <div className="space-y-3">
-                      {/* Resend Code Button */}
-                      <button
-                        onClick={handleSendPhoneOTP}
-                        disabled={resendTimer > 0 || loading}
-                        className="w-full text-sm text-primary hover:text-primary/80 transition-colors disabled:text-muted-foreground disabled:cursor-not-allowed"
-                      >
-                        {resendTimer > 0 ? `Resend code in ${resendTimer}s` : "Resend code"}
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          setOtpSent(false);
-                          setOtp(["", "", "", "", "", ""]);
-                          setError("");
-                          setResendTimer(0);
-                        }}
-                        className="w-full text-sm text-muted-foreground hover:text-foreground transition-colors"
-                      >
-                        Use a different number
-                      </button>
-                    </div>
-
-                    {/* Auto Submit Indicator */}
-                    <motion.p
-                      className="text-xs text-center text-muted-foreground/60"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                    >
-                      Code will auto-submit when complete
-                    </motion.p>
-                  </>
-                )}
+                ) : null}
               </TabsContent>
             </Tabs>
 
