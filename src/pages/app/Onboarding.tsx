@@ -97,13 +97,26 @@ export default function Onboarding() {
             .eq('user_id', userId)
             .order('priority_order');
           
+          // Map service names to platform IDs for the UI
+          const platformNameToId: Record<string, string> = {
+            'Netflix': 'netflix',
+            'Prime Video': 'prime',
+            'HBO Max': 'hbo',
+            'Disney+': 'disney',
+            'Hulu': 'hulu',
+            'Apple TV+': 'apple'
+          };
+
           setOnboardingData(prev => ({
             ...prev,
             name: userData.full_name || '',
             vibe: vibeData?.vibe_type || '',
             phone: userData.phone_number || '',
             email: userData.email || '',
-            platforms: platformsData?.map(p => (p.streaming_services as any)?.service_name).filter(Boolean) || [],
+            platforms: platformsData?.map(p => {
+              const serviceName = (p.streaming_services as any)?.service_name;
+              return platformNameToId[serviceName] || serviceName;
+            }).filter(Boolean) || [],
             languages: languagesData?.map(l => l.language_code) || [],
           }));
         }
@@ -382,11 +395,23 @@ export default function Onboarding() {
     // Save platforms to database
     const userId = localStorage.getItem('viib_user_id');
     if (userId && platforms.length > 0) {
+      // Map platform IDs to service names
+      const platformIdToName: Record<string, string> = {
+        'netflix': 'Netflix',
+        'prime': 'Prime Video',
+        'hbo': 'HBO Max',
+        'disney': 'Disney+',
+        'hulu': 'Hulu',
+        'apple': 'Apple TV+'
+      };
+
+      const serviceNames = platforms.map(id => platformIdToName[id]).filter(Boolean);
+
       // First, get streaming service IDs based on platform names
       const { data: services } = await supabase
         .from('streaming_services')
         .select('id, service_name')
-        .in('service_name', platforms);
+        .in('service_name', serviceNames);
       
       if (services && services.length > 0) {
         // Delete existing subscriptions
