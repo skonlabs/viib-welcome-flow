@@ -391,9 +391,9 @@ export const EmailSignupScreen = ({ onContinue, onBack }: EmailSignupScreenProps
               <Button
                 onClick={handleSignup}
                 disabled={!isValid || loading}
-                variant="gradient-large"
-                size="xl"
-                className="w-full"
+                variant="gradient"
+                size="2xl"
+                className="w-full shadow-[0_20px_50px_-15px_rgba(168,85,247,0.4)]"
                 loading={loading}
               >
                 {!loading && "Send Code"}
