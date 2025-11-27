@@ -79,18 +79,18 @@ export const MoodCalibrationScreen = ({ onContinue, onBack }: MoodCalibrationScr
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.8 }}
       >
-        <div className="space-y-12">
+        <div className="space-y-8">
           {/* Header */}
           <motion.div
-            className="text-center space-y-6"
+            className="text-center space-y-3"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.2 }}
           >
-            <h2 className="text-4xl md:text-5xl font-bold">
+            <h2 className="text-3xl md:text-4xl font-bold">
               <span className="text-gradient">How do you feel?</span>
             </h2>
-            <p className="text-muted-foreground text-lg">
+            <p className="text-muted-foreground text-base">
               Move the sliders to match your current mood
             </p>
           </motion.div>
@@ -120,9 +120,9 @@ export const MoodCalibrationScreen = ({ onContinue, onBack }: MoodCalibrationScr
                 }}
                 transition={{ duration: 2, repeat: Infinity }}
               />
-              <div className="relative w-64 h-64 rounded-full glass-card flex flex-col items-center justify-center gap-4">
+              <div className="relative w-48 h-48 sm:w-56 sm:h-56 rounded-full glass-card flex flex-col items-center justify-center gap-3">
                 <motion.span 
-                  className="text-6xl"
+                  className="text-5xl sm:text-6xl"
                   key={mood.emoji}
                   initial={{ scale: 0, rotate: -180 }}
                   animate={{ scale: 1, rotate: 0 }}
@@ -131,7 +131,7 @@ export const MoodCalibrationScreen = ({ onContinue, onBack }: MoodCalibrationScr
                   {mood.emoji}
                 </motion.span>
                 <motion.p 
-                  className="text-xl font-semibold text-foreground text-center px-6"
+                  className="text-lg font-semibold text-foreground text-center px-4"
                   key={mood.label}
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
@@ -144,44 +144,44 @@ export const MoodCalibrationScreen = ({ onContinue, onBack }: MoodCalibrationScr
 
           {/* Sliders */}
           <motion.div
-            className="space-y-10 glass-card rounded-3xl p-8"
+            className="space-y-6 glass-card rounded-3xl p-6"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.6 }}
           >
             {/* Energy Slider */}
-            <div className="space-y-4">
+            <div className="space-y-3">
               <div className="flex justify-between items-center mb-2">
-                <span className="text-base text-muted-foreground">😴 Relaxed</span>
-                <span className="text-sm font-medium text-foreground uppercase tracking-wider">
+                <span className="text-sm text-muted-foreground">😴 Relaxed</span>
+                <span className="text-xs font-medium text-foreground uppercase tracking-wider">
                   Energy Level
                 </span>
-                <span className="text-base text-muted-foreground">Energized 🚀</span>
+                <span className="text-sm text-muted-foreground">Energized 🚀</span>
               </div>
               <Slider
                 value={energy}
                 onValueChange={setEnergy}
                 max={100}
                 step={1}
-                className="cursor-pointer [&_[role=slider]]:h-6 [&_[role=slider]]:w-6 [&_[role=slider]]:border-2 [&_[role=slider]]:shadow-lg"
+                className="cursor-pointer [&_[role=slider]]:h-5 [&_[role=slider]]:w-5 [&_[role=slider]]:border-2 [&_[role=slider]]:shadow-lg"
               />
             </div>
 
             {/* Positivity Slider */}
-            <div className="space-y-4">
+            <div className="space-y-3">
               <div className="flex justify-between items-center mb-2">
-                <span className="text-base text-muted-foreground">🌧️ Serious</span>
-                <span className="text-sm font-medium text-foreground uppercase tracking-wider">
+                <span className="text-sm text-muted-foreground">🌧️ Serious</span>
+                <span className="text-xs font-medium text-foreground uppercase tracking-wider">
                   Mood Tone
                 </span>
-                <span className="text-base text-muted-foreground">Uplifting ☀️</span>
+                <span className="text-sm text-muted-foreground">Uplifting ☀️</span>
               </div>
               <Slider
                 value={positivity}
                 onValueChange={setPositivity}
                 max={100}
                 step={1}
-                className="cursor-pointer [&_[role=slider]]:h-6 [&_[role=slider]]:w-6 [&_[role=slider]]:border-2 [&_[role=slider]]:shadow-lg"
+                className="cursor-pointer [&_[role=slider]]:h-5 [&_[role=slider]]:w-5 [&_[role=slider]]:border-2 [&_[role=slider]]:shadow-lg"
               />
             </div>
           </motion.div>
