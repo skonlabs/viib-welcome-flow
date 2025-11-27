@@ -191,32 +191,32 @@ export const EmailSignupScreen = ({ onContinue, onBack }: EmailSignupScreenProps
         <div className="space-y-8">
           {/* Header */}
           <motion.div
-            className="text-center space-y-4"
+            className="text-center space-y-2"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.2 }}
           >
-            <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-purple-500 to-cyan-500 mb-2">
-              <span className="text-4xl">🔐</span>
+            <div className="inline-flex items-center justify-center w-24 h-24 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 mb-2">
+              <span className="text-5xl">🔐</span>
             </div>
-            <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-400 via-cyan-400 to-blue-500 bg-clip-text text-transparent">
+            <h2 className="text-4xl font-bold bg-gradient-to-r from-blue-400 via-cyan-400 to-blue-500 bg-clip-text text-transparent mt-4">
               Create your account
             </h2>
-            <p className="text-[#a1a8c4]">
+            <p className="text-base text-[#9ca3af] mt-2">
               Set up your secure credentials
             </p>
           </motion.div>
 
           {/* Form */}
           <motion.div
-            className="rounded-3xl p-8 space-y-6 backdrop-blur-xl bg-[#1a1d2e]/60 border border-white/5"
+            className="rounded-[32px] p-10 space-y-6 backdrop-blur-xl bg-[#1e293b]/90 border border-[#334155]/30"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
           >
             {/* Email */}
-            <div className="space-y-3">
-              <label className="text-sm text-[#a1a8c4] font-normal">
+            <div className="space-y-2">
+              <label className="text-sm text-[#94a3b8] font-normal">
                 Email Address
               </label>
               <Input
@@ -232,7 +232,7 @@ export const EmailSignupScreen = ({ onContinue, onBack }: EmailSignupScreenProps
                 }}
                 onBlur={() => email && validateEmail(email)}
                 placeholder="you@example.com"
-                className={`h-14 text-base bg-[#151829]/80 border-[#2a2f45] focus:border-primary/50 focus:bg-[#151829] rounded-xl placeholder:text-[#6b7280] ${
+                className={`h-[56px] text-base bg-[#0f172a]/60 border-[#1e293b] focus:border-cyan-500/50 focus:bg-[#0f172a] rounded-2xl placeholder:text-[#475569] transition-all ${
                   emailError ? "border-red-500/50" : ""
                 }`}
               />
@@ -249,8 +249,8 @@ export const EmailSignupScreen = ({ onContinue, onBack }: EmailSignupScreenProps
             </div>
 
             {/* Password */}
-            <div className="space-y-3">
-              <label className="text-sm text-[#a1a8c4] font-normal">
+            <div className="space-y-2">
+              <label className="text-sm text-[#94a3b8] font-normal">
                 Password
               </label>
               <div className="relative">
@@ -266,12 +266,12 @@ export const EmailSignupScreen = ({ onContinue, onBack }: EmailSignupScreenProps
                     }
                   }}
                   placeholder="Create a strong password"
-                  className="h-14 text-base bg-[#151829]/80 border-[#2a2f45] focus:border-primary/50 focus:bg-[#151829] pr-12 rounded-xl placeholder:text-[#6b7280]"
+                  className="h-[56px] text-base bg-[#0f172a]/60 border-[#1e293b] focus:border-cyan-500/50 focus:bg-[#0f172a] pr-12 rounded-2xl placeholder:text-[#475569] transition-all"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-[#6b7280] hover:text-foreground transition-colors"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-[#64748b] hover:text-white transition-colors"
                 >
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
@@ -325,8 +325,8 @@ export const EmailSignupScreen = ({ onContinue, onBack }: EmailSignupScreenProps
             </div>
 
             {/* Confirm Password */}
-            <div className="space-y-3">
-              <label className="text-sm text-[#a1a8c4] font-normal">
+            <div className="space-y-2">
+              <label className="text-sm text-[#94a3b8] font-normal">
                 Confirm Password
               </label>
               <div className="relative">
@@ -342,14 +342,14 @@ export const EmailSignupScreen = ({ onContinue, onBack }: EmailSignupScreenProps
                     }
                   }}
                   placeholder="Confirm your password"
-                  className={`h-14 text-base bg-[#151829]/80 border-[#2a2f45] focus:border-primary/50 focus:bg-[#151829] pr-12 rounded-xl placeholder:text-[#6b7280] ${
+                  className={`h-[56px] text-base bg-[#0f172a]/60 border-[#1e293b] focus:border-cyan-500/50 focus:bg-[#0f172a] pr-12 rounded-2xl placeholder:text-[#475569] transition-all ${
                     passwordMatchError ? "border-red-500/50" : ""
                   }`}
                 />
                 <button
                   type="button"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-[#6b7280] hover:text-foreground transition-colors"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-[#64748b] hover:text-white transition-colors"
                 >
                   {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
@@ -387,28 +387,27 @@ export const EmailSignupScreen = ({ onContinue, onBack }: EmailSignupScreenProps
               </motion.div>
             )}
 
-            <div className="pt-4 space-y-4">
+            <div className="pt-6 space-y-4">
               <Button
                 onClick={handleSignup}
                 disabled={!isValid || loading}
                 size="2xl"
-                variant="gradient"
-                className="w-full shadow-[0_20px_50px_-15px_rgba(139,92,246,0.5)] hover:shadow-[0_25px_60px_-15px_rgba(139,92,246,0.6)] transition-all"
+                className="w-full h-14 rounded-2xl bg-gradient-to-r from-purple-600 via-purple-500 to-cyan-500 hover:from-purple-500 hover:via-purple-400 hover:to-cyan-400 text-white font-semibold shadow-[0_8px_30px_rgb(139,92,246,0.4)] hover:shadow-[0_8px_40px_rgb(139,92,246,0.5)] transition-all"
               >
                 {loading ? "Sending Code..." : "Send Code"}
                 {!loading && <ArrowRight className="ml-2 w-5 h-5" />}
               </Button>
               <button
                 onClick={onBack}
-                className="w-full text-sm text-[#a1a8c4] hover:text-foreground transition-colors"
+                className="w-full text-sm text-[#94a3b8] hover:text-white transition-colors"
               >
                 Use a different method
               </button>
-              <p className="text-sm text-center text-[#a1a8c4]">
+              <p className="text-sm text-center text-[#94a3b8]">
                 Already have an account?{" "}
                 <button
                   onClick={() => window.location.href = "/login"}
-                  className="text-primary hover:text-primary/80 transition-colors font-medium"
+                  className="text-purple-400 hover:text-purple-300 transition-colors font-medium"
                 >
                   Sign In
                 </button>
@@ -418,7 +417,7 @@ export const EmailSignupScreen = ({ onContinue, onBack }: EmailSignupScreenProps
 
           {/* Privacy Note */}
           <motion.p
-            className="text-xs text-center text-[#a1a8c4]/60"
+            className="text-xs text-center text-[#64748b]"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.6 }}
