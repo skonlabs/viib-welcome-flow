@@ -82,25 +82,6 @@ export const MoodCalibrationScreen = ({
     setPositivity([initialPositivity]);
   }, [initialPositivity]);
 
-  const mood = useMemo(() => {
-    const e = energy[0];
-    
-    if (!selectedEmotion) {
-      return { label: "Loading...", emoji: "⏳", color: "#a855f7" };
-    }
-    
-    const emotionLabel = selectedEmotion.label;
-    const emotionId = selectedEmotion.id;
-    
-    // Combine emotion state with energy level for display
-    return { 
-      label: `${emotionLabel} ${e > 60 ? '(High Energy)' : '(Low Energy)'}`,
-      emoji: getEmotionEmoji(emotionLabel),
-      color: getEmotionColor(selectedEmotion.valence),
-      emotionId: emotionId
-    };
-  }, [energy, selectedEmotion]);
-
   // Helper function to get emoji based on emotion label
   const getEmotionEmoji = (label: string): string => {
     const lowerLabel = label.toLowerCase();
@@ -122,6 +103,25 @@ export const MoodCalibrationScreen = ({
     if (valence < -0.5) return '#3b82f6'; // negative - blue
     return '#06b6d4'; // neutral - cyan
   };
+
+  const mood = useMemo(() => {
+    const e = energy[0];
+    
+    if (!selectedEmotion) {
+      return { label: "Loading...", emoji: "⏳", color: "#a855f7" };
+    }
+    
+    const emotionLabel = selectedEmotion.label;
+    const emotionId = selectedEmotion.id;
+    
+    // Combine emotion state with energy level for display
+    return { 
+      label: `${emotionLabel} ${e > 60 ? '(High Energy)' : '(Low Energy)'}`,
+      emoji: getEmotionEmoji(emotionLabel),
+      color: getEmotionColor(selectedEmotion.valence),
+      emotionId: emotionId
+    };
+  }, [energy, selectedEmotion]);
 
   // Note: Real-time emotion conversion disabled due to database constraint issue
   // The mood label shown below updates in real-time as you move the sliders
