@@ -155,14 +155,17 @@ export default function Onboarding() {
   };
 
   const handlePhoneEntry = (phone: string, countryCode: string) => {
-    setOnboardingData((prev) => ({ ...prev, phone, countryCode }));
+    // Store the FULL phone number with country code (no spaces) for consistency
+    const fullPhone = `${countryCode}${phone}`;
+    setOnboardingData((prev) => ({ ...prev, phone: fullPhone, countryCode }));
     navigateToStep("otp");
   };
 
   const handleOTPVerify = async (otp: string) => {
     console.log("OTP verified:", otp);
     
-    const fullPhone = `${onboardingData.countryCode}${onboardingData.phone}`;
+    // Phone number is already stored with country code
+    const fullPhone = onboardingData.phone;
     
     // Check if user already exists with this phone number
     const { data: existingUser, error: checkError } = await supabase
@@ -219,6 +222,16 @@ export default function Onboarding() {
   const handleEmailOTPVerify = async () => {
     // User creation is now handled by verify-email-otp edge function
     navigateToStep("biometric");
+  };
+
+  const handleResendPhoneOTP = async () => {
+    const { error } = await supabase.functions.invoke("send-phone-otp", {
+      body: { phoneNumber: onboardingData.phone },
+    });
+    if (error) {
+      console.error("Error resending phone OTP:", error);
+      throw error;
+    }
   };
 
   const handleEmailSignup = async (email: string, password: string) => {
@@ -380,9 +393,9 @@ export default function Onboarding() {
       )}
       {currentStep === "otp" && (
         <OTPVerificationScreen
-          phone={`${onboardingData.countryCode} ${onboardingData.phone}`}
+          phone={onboardingData.phone}
           onContinue={handleOTPVerify}
-          onResend={() => console.log("Resend OTP")}
+          onResend={handleResendPhoneOTP}
           onChangeNumber={() => navigateToStep("phone")}
         />
       )}
