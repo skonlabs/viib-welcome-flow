@@ -25,17 +25,21 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Get the latest OTP for this email
-    const { data: verification, error: fetchError } = await supabase
+    const { data: verifications, error: fetchError } = await supabase
       .from('email_verifications')
       .select('*')
       .eq('email', email)
-      .eq('verified', false)
       .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
+      .limit(5); // Get last 5 to see what's there
+
+    console.log('All verifications for', email, ':', JSON.stringify(verifications));
+    console.log('Fetch error:', fetchError);
+
+    // Find the first unverified one
+    const verification = verifications?.find(v => !v.verified);
 
     if (fetchError || !verification) {
-      console.error('Verification not found:', fetchError);
+      console.error('Verification not found. Fetch error:', fetchError, 'Verifications:', verifications);
       return new Response(
         JSON.stringify({ 
           success: false,
@@ -63,10 +67,13 @@ serve(async (req) => {
       );
     }
 
-    // Verify OTP
-    console.log('Comparing OTPs - Database:', verification.otp_code, 'User entered:', otp, 'Types:', typeof verification.otp_code, typeof otp);
-    if (verification.otp_code !== otp) {
-      console.error('Invalid OTP - Mismatch!');
+    // Verify OTP - ensure both are strings and trimmed
+    const dbOtp = String(verification.otp_code).trim();
+    const userOtp = String(otp).trim();
+    console.log('Comparing OTPs - Database:', dbOtp, 'User entered:', userOtp, 'Match:', dbOtp === userOtp);
+    
+    if (dbOtp !== userOtp) {
+      console.error('Invalid OTP - Mismatch! DB:', dbOtp, 'User:', userOtp);
       return new Response(
         JSON.stringify({ 
           success: false,
