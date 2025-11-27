@@ -134,7 +134,7 @@ export default function Login() {
       // Check if user exists
       const { data: user, error: userError } = await supabase
         .from("users")
-        .select("id, is_active, is_phone_verified")
+        .select("id, is_active, is_phone_verified, onboarding_completed")
         .eq("phone_number", fullPhoneNumber)
         .maybeSingle();
 
@@ -148,13 +148,21 @@ export default function Login() {
         return;
       }
 
-      if (!user.is_active) {
-        setError("Your account is inactive. Please contact support.");
+      if (!user.is_phone_verified) {
+        setError("Your phone number is not verified. Please complete signup first.");
         return;
       }
 
-      if (!user.is_phone_verified) {
-        setError("Your phone number is not verified. Please complete signup first.");
+      if (!user.onboarding_completed) {
+        setError("Please complete your onboarding first. Redirecting...");
+        setTimeout(() => {
+          navigate("/app/onboarding");
+        }, 2000);
+        return;
+      }
+
+      if (!user.is_active) {
+        setError("Your account is inactive. Please contact support.");
         return;
       }
 
@@ -421,18 +429,18 @@ export default function Login() {
                         <select
                           value={countryCode}
                           onChange={(e) => setCountryCode(e.target.value)}
-                          className="h-14 w-24 px-3 rounded-xl bg-white/5 border border-white/10 text-foreground focus:border-primary/50 focus:bg-white/10 focus:outline-none"
+                          className="h-14 w-28 px-2 rounded-xl bg-white/5 border border-white/10 text-foreground focus:border-primary/50 focus:bg-white/10 focus:outline-none text-sm"
                         >
-                          <option value="+1">+1</option>
-                          <option value="+44">+44</option>
-                          <option value="+91">+91</option>
-                          <option value="+86">+86</option>
-                          <option value="+81">+81</option>
-                          <option value="+33">+33</option>
-                          <option value="+49">+49</option>
-                          <option value="+61">+61</option>
-                          <option value="+55">+55</option>
-                          <option value="+52">+52</option>
+                          <option value="+1">🇺🇸 +1</option>
+                          <option value="+44">🇬🇧 +44</option>
+                          <option value="+91">🇮🇳 +91</option>
+                          <option value="+86">🇨🇳 +86</option>
+                          <option value="+81">🇯🇵 +81</option>
+                          <option value="+33">🇫🇷 +33</option>
+                          <option value="+49">🇩🇪 +49</option>
+                          <option value="+61">🇦🇺 +61</option>
+                          <option value="+55">🇧🇷 +55</option>
+                          <option value="+52">🇲🇽 +52</option>
                         </select>
                         <Input
                           type="tel"
