@@ -29,7 +29,13 @@ export const WelcomeScreen = ({
     window.addEventListener("mousemove", handleMouseMove);
     return () => window.removeEventListener("mousemove", handleMouseMove);
   }, [mouseX, mouseY]);
-  return <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-black">
+  return <motion.div 
+    className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-black"
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+    exit={{ opacity: 0 }}
+    transition={{ duration: 0.3 }}
+  >
       {/* Background container - fixed positioning */}
       <div className="fixed inset-0 overflow-hidden">
         <div className="absolute inset-0">
@@ -203,5 +209,5 @@ export const WelcomeScreen = ({
           </motion.div>
         </motion.div>
       </motion.div>
-    </div>;
+    </motion.div>;
 };

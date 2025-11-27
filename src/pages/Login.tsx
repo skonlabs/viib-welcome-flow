@@ -294,7 +294,13 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-black">
+    <motion.div 
+      className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-black"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.3 }}
+    >
       {/* Background effects */}
       <div className="fixed inset-0 overflow-hidden">
         <div className="absolute inset-0">
@@ -337,9 +343,10 @@ export default function Login() {
       {/* Content */}
       <motion.div
         className="relative z-10 w-full max-w-md"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: -20 }}
+        transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
       >
         <div className="space-y-8">
           {/* Header */}
@@ -562,6 +569,6 @@ export default function Login() {
           </motion.div>
         </div>
       </motion.div>
-    </div>
+    </motion.div>
   );
 }

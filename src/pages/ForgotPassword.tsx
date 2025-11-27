@@ -248,7 +248,13 @@ export default function ForgotPassword() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-black">
+    <motion.div 
+      className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-black"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.3 }}
+    >
       <div className="fixed inset-0 overflow-hidden">
         <div className="absolute inset-0">
           <div className="absolute inset-0 gradient-ocean opacity-40" />
@@ -540,6 +546,6 @@ export default function ForgotPassword() {
           </motion.div>
         </div>
       </motion.div>
-    </div>
+    </motion.div>
   );
 }
