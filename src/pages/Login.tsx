@@ -356,20 +356,20 @@ export default function Login() {
             animate={{ opacity: 1 }}
             transition={{ delay: 0.2 }}
           >
-            <h1 className="text-5xl font-bold bg-gradient-to-r from-cyan-400 via-primary to-cyan-400 bg-clip-text text-transparent mb-6">
+            <h1 className="text-5xl font-bold bg-gradient-to-r from-cyan-400 via-primary to-cyan-400 bg-clip-text text-transparent">
               ViiB
             </h1>
-            <h2 className="text-3xl font-bold text-white">
+            <h2 className="text-4xl font-bold text-white mt-4">
               Welcome back
             </h2>
-            <p className="text-[#a1a8c4]">
+            <p className="text-base text-[#9ca3af] mt-2">
               Sign in to continue your journey
             </p>
           </motion.div>
 
           {/* Form Card */}
           <motion.div
-            className="rounded-3xl p-8 space-y-6 backdrop-blur-xl bg-[#1a1d2e]/60 border border-white/5"
+            className="rounded-[32px] p-10 space-y-6 backdrop-blur-xl bg-[#1e293b]/90 border border-[#334155]/30"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
@@ -395,10 +395,10 @@ export default function Login() {
               </TabsList>
 
               {/* Email Login Tab */}
-              <TabsContent value="email" className="space-y-6 mt-6">
+              <TabsContent value="email" className="space-y-5 mt-6">
                 {/* Email */}
-                <div className="space-y-3">
-                  <label className="text-sm text-[#a1a8c4] font-normal">
+                <div className="space-y-2">
+                  <label className="text-sm text-[#94a3b8] font-normal">
                     Email Address
                   </label>
                   <Input
@@ -409,13 +409,13 @@ export default function Login() {
                       setError("");
                     }}
                     placeholder="you@example.com"
-                    className="h-14 text-base bg-[#151829]/80 border-[#2a2f45] focus:border-primary/50 focus:bg-[#151829] rounded-xl placeholder:text-[#6b7280]"
+                    className="h-[56px] text-base bg-[#0f172a]/60 border-[#1e293b] focus:border-cyan-500/50 focus:bg-[#0f172a] rounded-2xl placeholder:text-[#475569] transition-all"
                   />
                 </div>
 
                 {/* Password */}
-                <div className="space-y-3">
-                  <label className="text-sm text-[#a1a8c4] font-normal">
+                <div className="space-y-2">
+                  <label className="text-sm text-[#94a3b8] font-normal">
                     Password
                   </label>
                   <div className="relative">
@@ -427,13 +427,13 @@ export default function Login() {
                         setError("");
                       }}
                       placeholder="Enter your password"
-                      className="h-14 text-base bg-[#151829]/80 border-[#2a2f45] focus:border-primary/50 focus:bg-[#151829] pr-12 rounded-xl placeholder:text-[#6b7280]"
+                      className="h-[56px] text-base bg-[#0f172a]/60 border-[#1e293b] focus:border-cyan-500/50 focus:bg-[#0f172a] pr-12 rounded-2xl placeholder:text-[#475569] transition-all"
                       onKeyDown={(e) => e.key === 'Enter' && handleEmailLogin()}
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-[#6b7280] hover:text-foreground transition-colors"
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-[#64748b] hover:text-white transition-colors"
                     >
                       {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                     </button>
@@ -472,13 +472,12 @@ export default function Login() {
                   </motion.div>
                 )}
 
-                <div className="pt-2">
+                <div className="pt-4">
                   <Button
                     onClick={handleEmailLogin}
                     disabled={loading}
                     size="2xl"
-                    variant="gradient"
-                    className="w-full shadow-[0_20px_50px_-15px_rgba(139,92,246,0.5)] hover:shadow-[0_25px_60px_-15px_rgba(139,92,246,0.6)] transition-all"
+                    className="w-full h-14 rounded-2xl bg-gradient-to-r from-purple-600 via-purple-500 to-cyan-500 hover:from-purple-500 hover:via-purple-400 hover:to-cyan-400 text-white font-semibold shadow-[0_8px_30px_rgb(139,92,246,0.4)] hover:shadow-[0_8px_40px_rgb(139,92,246,0.5)] transition-all"
                   >
                     {loading ? "Signing In..." : "Sign In"}
                     {!loading && <ArrowRight className="ml-2 w-5 h-5" />}
@@ -555,12 +554,12 @@ export default function Login() {
             </Tabs>
 
             {/* Bottom Link */}
-            <div className="pt-6 border-t border-white/5">
-              <p className="text-sm text-center text-[#a1a8c4]">
+            <div className="pt-6 border-t border-[#334155]/30">
+              <p className="text-sm text-center text-[#94a3b8]">
                 Don't have an account?{" "}
                 <a
                   href="/app/onboarding/welcome"
-                  className="text-primary hover:text-primary/80 transition-colors font-medium"
+                  className="text-purple-400 hover:text-purple-300 transition-colors font-medium"
                 >
                   Sign Up
                 </a>
