@@ -134,28 +134,26 @@ const Index = () => {
 
             {/* CTA Buttons */}
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-4 animate-fade-in [animation-delay:300ms]">
-              <a href="/app/onboarding">
-                <Button
-                  size="2xl"
-                  variant="gradient"
-                  className="group shadow-[0_20px_50px_-15px_rgba(168,85,247,0.4)]"
-                >
-                  <Apple className="mr-2 h-6 w-6" />
-                  <span>Run on iOS</span>
-                  <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
-                </Button>
-              </a>
+              <Button
+                size="2xl"
+                variant="gradient"
+                className="group shadow-[0_20px_50px_-15px_rgba(168,85,247,0.4)]"
+                onClick={() => navigate('/app/onboarding')}
+              >
+                <Apple className="mr-2 h-6 w-6" />
+                <span>Run on iOS</span>
+                <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+              </Button>
 
-              <a href="/app/onboarding">
-                <Button
-                  size="2xl"
-                  variant="outline"
-                  className="bg-background/10 backdrop-blur-xl border border-white/10 hover:border-primary/30 hover:bg-background/20"
-                >
-                  <PlayCircle className="mr-2 h-6 w-6" />
-                  <span>Run on Android</span>
-                </Button>
-              </a>
+              <Button
+                size="2xl"
+                variant="outline"
+                className="bg-background/10 backdrop-blur-xl border border-white/10 hover:border-primary/30 hover:bg-background/20"
+                onClick={() => navigate('/app/onboarding')}
+              >
+                <PlayCircle className="mr-2 h-6 w-6" />
+                <span>Run on Android</span>
+              </Button>
             </div>
 
             {/* Stats */}
@@ -270,28 +268,26 @@ const Index = () => {
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-4">
-              <a href="/app/onboarding">
-                <Button
-                  size="2xl"
-                  variant="gradient"
-                  className="group shadow-[0_20px_50px_-15px_rgba(168,85,247,0.4)]"
-                >
-                  <Apple className="mr-2 h-6 w-6" />
-                  <span>Download Now</span>
-                  <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
-                </Button>
-              </a>
+              <Button
+                size="2xl"
+                variant="gradient"
+                className="group shadow-[0_20px_50px_-15px_rgba(168,85,247,0.4)]"
+                onClick={() => navigate('/app/onboarding')}
+              >
+                <Apple className="mr-2 h-6 w-6" />
+                <span>Download Now</span>
+                <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+              </Button>
 
-              <a href="/app/onboarding">
-                <Button
-                  size="2xl"
-                  variant="outline"
-                  className="bg-background/10 backdrop-blur-xl border border-white/10 hover:border-primary/30 hover:bg-background/20"
-                >
-                  <PlayCircle className="mr-2 h-6 w-6" />
-                  <span>Get on Android</span>
-                </Button>
-              </a>
+              <Button
+                size="2xl"
+                variant="outline"
+                className="bg-background/10 backdrop-blur-xl border border-white/10 hover:border-primary/30 hover:bg-background/20"
+                onClick={() => navigate('/app/onboarding')}
+              >
+                <PlayCircle className="mr-2 h-6 w-6" />
+                <span>Get on Android</span>
+              </Button>
             </div>
           </div>
         </div>
