@@ -113,6 +113,10 @@ All colors MUST be HSL.
     animation: float 6s ease-in-out infinite;
   }
   
+  .animate-float-delayed {
+    animation: float 6s ease-in-out infinite 3s;
+  }
+  
   .animate-gradient {
     animation: gradient-shift 12s ease infinite;
     background-size: 200% 200%;
