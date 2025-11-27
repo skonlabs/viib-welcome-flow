@@ -2,9 +2,36 @@ import { Button } from "@/components/ui/button";
 import { Apple, PlayCircle, Users, Heart, Sparkles, ArrowRight, Star } from "lucide-react";
 import LandingHeader from "@/components/LandingHeader";
 import { motion, useScroll, useTransform } from "framer-motion";
+import { useNavigate } from "react-router-dom";
+import { useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 const Index = () => {
+  const navigate = useNavigate();
   const { scrollYProgress } = useScroll();
+
+  // Check if user is already logged in
+  useEffect(() => {
+    const checkAuth = async () => {
+      const userId = localStorage.getItem('viib_user_id') || sessionStorage.getItem('viib_user_id');
+      
+      if (userId) {
+        // Check onboarding status
+        const { data: userData } = await supabase
+          .from('users')
+          .select('onboarding_completed')
+          .eq('id', userId)
+          .single();
+
+        if (userData?.onboarding_completed) {
+          // User is logged in and onboarding complete, redirect to home
+          navigate('/app/home', { replace: true });
+        }
+      }
+    };
+
+    checkAuth();
+  }, [navigate]);
   
   // Parallax transforms for different orbs
   const orb1Y = useTransform(scrollYProgress, [0, 1], [0, -200]);
