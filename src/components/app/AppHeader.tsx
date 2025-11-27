@@ -82,7 +82,7 @@ export const AppHeader = () => {
               <DropdownMenuContent 
                 align="end" 
                 sideOffset={4}
-                className="w-56 bg-background/98 backdrop-blur-xl border-white/10 z-[100]"
+                className="w-56 bg-background/98 backdrop-blur-xl z-[100]"
               >
                 {visibleMenuItems.map((item) => (
                   <DropdownMenuItem
