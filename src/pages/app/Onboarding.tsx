@@ -64,20 +64,32 @@ export default function Onboarding() {
     const checkResumePoint = async () => {
       const userId = localStorage.getItem('viib_user_id');
       
+      // Check if user is logged in
+      if (!userId) {
+        // Not logged in, redirect to landing page
+        navigate('/', { replace: true });
+        return;
+      }
+
+      // Check onboarding completion status
+      const { data: userData } = await supabase
+        .from('users')
+        .select('last_onboarding_step, onboarding_completed')
+        .eq('id', userId)
+        .single();
+
+      // If onboarding is already completed, redirect to home
+      if (userData?.onboarding_completed) {
+        navigate('/app/home', { replace: true });
+        return;
+      }
+      
       if (!step) {
         // If no step in URL, check database for resume point
-        if (userId) {
-          const { data: userData } = await supabase
-            .from('users')
-            .select('last_onboarding_step, onboarding_completed')
-            .eq('id', userId)
-            .single();
-          
-          if (userData && !userData.onboarding_completed && userData.last_onboarding_step) {
-            // Resume from last saved step
-            navigate(userData.last_onboarding_step, { replace: true });
-            return;
-          }
+        if (userData && userData.last_onboarding_step) {
+          // Resume from last saved step
+          navigate(userData.last_onboarding_step, { replace: true });
+          return;
         }
         // Default to welcome screen
         navigate('/app/onboarding/welcome', { replace: true });
