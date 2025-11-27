@@ -112,7 +112,21 @@ export default function Login() {
         
         if (!user.onboarding_completed) {
           localStorage.setItem('viib_resume_onboarding', 'true');
-          navigate(user.last_onboarding_step || "/app/onboarding/welcome");
+          
+          // If they're stuck on email/phone signup or OTP screens, skip to biometric
+          // since they've proven identity by logging in successfully
+          const lastStep = user.last_onboarding_step;
+          if (lastStep === '/app/onboarding/email' || 
+              lastStep === '/app/onboarding/email-otp' ||
+              lastStep === '/app/onboarding/phone' ||
+              lastStep === '/app/onboarding/otp' ||
+              lastStep === '/app/onboarding/entry' ||
+              lastStep === '/app/onboarding/welcome' ||
+              !lastStep) {
+            navigate("/app/onboarding/biometric");
+          } else {
+            navigate(lastStep);
+          }
         } else {
           navigate("/app/home");
         }
@@ -243,7 +257,21 @@ export default function Login() {
     // Check onboarding status
     if (!user.onboarding_completed) {
       localStorage.setItem('viib_resume_onboarding', 'true');
-      navigate(user.last_onboarding_step || "/app/onboarding/welcome");
+      
+      // If they're stuck on email/phone signup or OTP screens, skip to biometric
+      // since they've proven identity by logging in successfully
+      const lastStep = user.last_onboarding_step;
+      if (lastStep === '/app/onboarding/email' || 
+          lastStep === '/app/onboarding/email-otp' ||
+          lastStep === '/app/onboarding/phone' ||
+          lastStep === '/app/onboarding/otp' ||
+          lastStep === '/app/onboarding/entry' ||
+          lastStep === '/app/onboarding/welcome' ||
+          !lastStep) {
+        navigate("/app/onboarding/biometric");
+      } else {
+        navigate(lastStep);
+      }
     } else {
       navigate("/app/home");
     }
