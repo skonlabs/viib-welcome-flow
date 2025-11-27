@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,6 @@ import { ArrowRight, Eye, EyeOff, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { FloatingParticles } from "@/components/onboarding/FloatingParticles";
-import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { z } from "zod";
 
 const emailSchema = z.string().trim().email({ message: "Please enter a valid email address" });
@@ -28,8 +27,9 @@ export default function Login() {
   const [countryCode, setCountryCode] = useState("+1");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [otpSent, setOtpSent] = useState(false);
-  const [otp, setOtp] = useState("");
+  const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [resendTimer, setResendTimer] = useState(0);
+  const otpInputRefs = useRef<(HTMLInputElement | null)[]>([]);
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -194,6 +194,8 @@ export default function Login() {
 
       setOtpSent(true);
       startResendTimer();
+      setOtp(["", "", "", "", "", ""]);
+      setTimeout(() => otpInputRefs.current[0]?.focus(), 100);
     } catch (err) {
       setError("Something went wrong. Please try again later.");
     } finally {
@@ -201,8 +203,44 @@ export default function Login() {
     }
   };
 
-  const handleVerifyPhoneOTP = async () => {
-    if (otp.length !== 6) {
+  const handleOtpChange = (index: number, value: string) => {
+    if (value.length > 1) value = value[0];
+    if (!/^\d*$/.test(value)) return;
+
+    if (error) setError("");
+
+    const newOtp = [...otp];
+    newOtp[index] = value;
+    setOtp(newOtp);
+
+    if (value && index < 5) {
+      otpInputRefs.current[index + 1]?.focus();
+    }
+
+    if (newOtp.every((digit) => digit) && newOtp.join("").length === 6) {
+      setTimeout(() => handleVerifyPhoneOTP(newOtp.join("")), 300);
+    }
+  };
+
+  const handleOtpKeyDown = (index: number, e: React.KeyboardEvent) => {
+    if (e.key === "Backspace" && !otp[index] && index > 0) {
+      otpInputRefs.current[index - 1]?.focus();
+    }
+  };
+
+  const handleOtpPaste = (e: React.ClipboardEvent) => {
+    e.preventDefault();
+    const pastedData = e.clipboardData.getData("text").replace(/\D/g, "");
+    const newOtp = pastedData.slice(0, 6).split("");
+    setOtp([...newOtp, ...Array(6 - newOtp.length).fill("")]);
+    if (newOtp.length === 6) {
+      setTimeout(() => handleVerifyPhoneOTP(newOtp.join("")), 300);
+    }
+  };
+
+  const handleVerifyPhoneOTP = async (otpCode?: string) => {
+    const code = otpCode || otp.join("");
+    if (code.length !== 6) {
       setError("Please enter the 6-digit code");
       return;
     }
@@ -214,16 +252,20 @@ export default function Login() {
     try {
       // Verify OTP
       const { data, error: invokeError } = await supabase.functions.invoke("verify-phone-otp", {
-        body: { phoneNumber: fullPhoneNumber, otpCode: otp },
+        body: { phoneNumber: fullPhoneNumber, otpCode: code },
       });
 
       if (invokeError) {
         setError("Unable to verify code. Please try again.");
+        setOtp(["", "", "", "", "", ""]);
+        otpInputRefs.current[0]?.focus();
         return;
       }
 
       if (!data?.success) {
         setError(data?.error || "Invalid verification code");
+        setOtp(["", "", "", "", "", ""]);
+        otpInputRefs.current[0]?.focus();
         return;
       }
 
@@ -345,7 +387,7 @@ export default function Login() {
               setActiveTab(value);
               setError("");
               setOtpSent(false);
-              setOtp("");
+              setOtp(["", "", "", "", "", ""]);
             }} className="w-full">
               <TabsList className="grid w-full grid-cols-2 bg-white/5">
                 <TabsTrigger value="email">Email</TabsTrigger>
@@ -513,24 +555,28 @@ export default function Login() {
                       <p className="text-xs text-muted-foreground">
                         Code expires in 5 minutes
                       </p>
-                      <div className="flex justify-center">
-                        <InputOTP
-                          maxLength={6}
-                          value={otp}
-                          onChange={(value) => {
-                            setOtp(value);
-                            setError("");
-                          }}
-                        >
-                          <InputOTPGroup className="gap-2 sm:gap-3">
-                            <InputOTPSlot index={0} className="w-12 sm:w-14 h-14 sm:h-16 text-xl bg-white/5 border-white/10" />
-                            <InputOTPSlot index={1} className="w-12 sm:w-14 h-14 sm:h-16 text-xl bg-white/5 border-white/10" />
-                            <InputOTPSlot index={2} className="w-12 sm:w-14 h-14 sm:h-16 text-xl bg-white/5 border-white/10" />
-                            <InputOTPSlot index={3} className="w-12 sm:w-14 h-14 sm:h-16 text-xl bg-white/5 border-white/10" />
-                            <InputOTPSlot index={4} className="w-12 sm:w-14 h-14 sm:h-16 text-xl bg-white/5 border-white/10" />
-                            <InputOTPSlot index={5} className="w-12 sm:w-14 h-14 sm:h-16 text-xl bg-white/5 border-white/10" />
-                          </InputOTPGroup>
-                        </InputOTP>
+                      <div className="flex gap-2 sm:gap-3 justify-center" onPaste={handleOtpPaste}>
+                        {otp.map((digit, index) => (
+                          <motion.div
+                            key={index}
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            transition={{ delay: 0.1 * index, type: "spring" }}
+                          >
+                            <Input
+                              ref={(el) => (otpInputRefs.current[index] = el)}
+                              type="text"
+                              inputMode="numeric"
+                              maxLength={1}
+                              value={digit}
+                              onChange={(e) => handleOtpChange(index, e.target.value)}
+                              onKeyDown={(e) => handleOtpKeyDown(index, e)}
+                              className={`w-12 h-14 sm:w-14 sm:h-16 text-center text-xl sm:text-2xl font-bold bg-white/5 border-white/10 focus:border-primary focus:bg-white/10 focus:ring-2 focus:ring-primary/50 transition-all ${
+                                error ? "border-red-500/50" : ""
+                              }`}
+                            />
+                          </motion.div>
+                        ))}
                       </div>
                     </div>
 
@@ -546,17 +592,6 @@ export default function Login() {
                     )}
 
                     <div className="space-y-3">
-                      <Button
-                        onClick={handleVerifyPhoneOTP}
-                        disabled={loading || otp.length !== 6}
-                        size="2xl"
-                        variant="gradient"
-                        className="w-full shadow-[0_20px_50px_-15px_rgba(168,85,247,0.4)]"
-                      >
-                        {loading ? "Verifying..." : "Verify & Sign In"}
-                        {!loading && <ArrowRight className="ml-2 w-5 h-5" />}
-                      </Button>
-                      
                       {/* Resend Code Button */}
                       <button
                         onClick={handleSendPhoneOTP}
@@ -569,7 +604,7 @@ export default function Login() {
                       <button
                         onClick={() => {
                           setOtpSent(false);
-                          setOtp("");
+                          setOtp(["", "", "", "", "", ""]);
                           setError("");
                           setResendTimer(0);
                         }}
@@ -578,6 +613,15 @@ export default function Login() {
                         Use a different number
                       </button>
                     </div>
+
+                    {/* Auto Submit Indicator */}
+                    <motion.p
+                      className="text-xs text-center text-muted-foreground/60"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                    >
+                      Code will auto-submit when complete
+                    </motion.p>
                   </>
                 )}
               </TabsContent>
