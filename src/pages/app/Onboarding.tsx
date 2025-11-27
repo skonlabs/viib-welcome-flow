@@ -296,23 +296,104 @@ export default function Onboarding() {
     navigateToStep("identity");
   };
 
-  const handleIdentity = (data: { name: string; vibe: string }) => {
+  const handleIdentity = async (data: { name: string; vibe: string }) => {
     setOnboardingData((prev) => ({ ...prev, ...data }));
+    
+    // Save identity data to database
+    const userId = localStorage.getItem('viib_user_id');
+    if (userId) {
+      await supabase
+        .from('users')
+        .update({ full_name: data.name })
+        .eq('id', userId);
+    }
+    
     navigateToStep("platforms");
   };
 
-  const handlePlatforms = (platforms: string[]) => {
+  const handlePlatforms = async (platforms: string[]) => {
     setOnboardingData((prev) => ({ ...prev, platforms }));
+    
+    // Save platforms to database
+    const userId = localStorage.getItem('viib_user_id');
+    if (userId && platforms.length > 0) {
+      // First, get streaming service IDs based on platform names
+      const { data: services } = await supabase
+        .from('streaming_services')
+        .select('id, service_name')
+        .in('service_name', platforms);
+      
+      if (services && services.length > 0) {
+        // Delete existing subscriptions
+        await supabase
+          .from('user_streaming_subscriptions')
+          .delete()
+          .eq('user_id', userId);
+        
+        // Insert new subscriptions
+        const subscriptions = services.map(service => ({
+          user_id: userId,
+          streaming_service_id: service.id,
+          is_active: true
+        }));
+        
+        await supabase
+          .from('user_streaming_subscriptions')
+          .insert(subscriptions);
+      }
+    }
+    
     navigateToStep("languages");
   };
 
-  const handleLanguages = (languages: string[]) => {
+  const handleLanguages = async (languages: string[]) => {
     setOnboardingData((prev) => ({ ...prev, languages }));
+    
+    // Save languages to database
+    const userId = localStorage.getItem('viib_user_id');
+    if (userId && languages.length > 0) {
+      // Delete existing preferences
+      await supabase
+        .from('user_language_preferences')
+        .delete()
+        .eq('user_id', userId);
+      
+      // Insert new preferences with priority order
+      const preferences = languages.map((language_code, index) => ({
+        user_id: userId,
+        language_code,
+        priority_order: index + 1
+      }));
+      
+      await supabase
+        .from('user_language_preferences')
+        .insert(preferences);
+    }
+    
     navigateToStep("mood");
   };
 
-  const handleMood = (mood: { energy: number; positivity: number }) => {
+  const handleMood = async (mood: { energy: number; positivity: number }) => {
     setOnboardingData((prev) => ({ ...prev, mood }));
+    
+    // Save mood to database as emotion state
+    const userId = localStorage.getItem('viib_user_id');
+    if (userId) {
+      // Map mood values to emotion - you may need to adjust this based on your emotion_master table
+      // For now, we'll store the raw mood data
+      // Note: This requires an emotion_id from emotion_master table
+      // You might want to create specific mood emotions in emotion_master first
+      
+      // Store mood data in user context for now
+      await supabase
+        .from('user_context_logs')
+        .insert({
+          user_id: userId,
+          time_of_day_bucket: 'onboarding',
+          session_length_seconds: 0 // Placeholder
+        });
+    }
+    
     navigateToStep("taste");
   };
 
@@ -354,13 +435,12 @@ export default function Onboarding() {
         return;
       }
       
-      // Update user record
+      // Update user record with completion status
       const { error } = await supabase
         .from('users')
         .update({
           onboarding_completed: true,
           is_active: true,
-          full_name: onboardingData.name,
         })
         .eq('id', storedUserId);
       
@@ -373,9 +453,6 @@ export default function Onboarding() {
       
       // Clean up resume flag
       localStorage.removeItem('viib_resume_onboarding');
-      
-      // Wait a moment to ensure database update completes
-      await new Promise(resolve => setTimeout(resolve, 500));
       
       // Navigate directly to home screen
       navigate("/app/home");
