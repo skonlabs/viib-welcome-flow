@@ -66,38 +66,42 @@ export default function Onboarding() {
       const userId = localStorage.getItem('viib_user_id');
       
       // Check if user is logged in
-      if (!userId) {
-        // Not logged in, redirect to landing page
-        navigate('/', { replace: true });
-        return;
-      }
+      if (userId) {
+        // User is logged in - check onboarding completion status
+        const { data: userData } = await supabase
+          .from('users')
+          .select('last_onboarding_step, onboarding_completed')
+          .eq('id', userId)
+          .single();
 
-      // Check onboarding completion status
-      const { data: userData } = await supabase
-        .from('users')
-        .select('last_onboarding_step, onboarding_completed')
-        .eq('id', userId)
-        .single();
-
-      // If onboarding is already completed, redirect to home
-      if (userData?.onboarding_completed) {
-        navigate('/app/home', { replace: true });
-        return;
-      }
-      
-      // User should be on onboarding, safe to show content
-      setIsChecking(false);
-      
-      if (!step) {
-        // If no step in URL, check database for resume point
-        if (userData && userData.last_onboarding_step) {
-          // Resume from last saved step
-          navigate(userData.last_onboarding_step, { replace: true });
+        // If onboarding is already completed, redirect to home
+        if (userData?.onboarding_completed) {
+          navigate('/app/home', { replace: true });
           return;
         }
-        // Default to welcome screen
-        navigate('/app/onboarding/welcome', { replace: true });
-      } else if (step !== currentStep) {
+        
+        // User has incomplete onboarding - resume from last step
+        if (!step) {
+          // If no step in URL, check database for resume point
+          if (userData && userData.last_onboarding_step) {
+            // Resume from last saved step
+            navigate(userData.last_onboarding_step, { replace: true });
+            return;
+          }
+          // Default to welcome screen
+          navigate('/app/onboarding/welcome', { replace: true });
+        }
+      } else {
+        // User is NOT logged in - show onboarding from beginning
+        if (!step) {
+          // Default to welcome screen for new users
+          navigate('/app/onboarding/welcome', { replace: true });
+          return;
+        }
+      }
+      
+      // Sync step from URL to state
+      if (step && step !== currentStep) {
         const validSteps: OnboardingStep[] = [
           "welcome", "entry", "phone", "otp", "email", "email-otp", "biometric", "identity",
           "platforms", "languages", "mood", "taste", "dna", "social",
@@ -110,6 +114,9 @@ export default function Onboarding() {
           navigate('/app/onboarding/welcome', { replace: true });
         }
       }
+      
+      // Done checking, safe to show content
+      setIsChecking(false);
     };
     
     checkResumePoint();
