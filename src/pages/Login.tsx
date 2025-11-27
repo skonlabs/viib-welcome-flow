@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { motion } from "framer-motion";
-import { ArrowRight, Eye, EyeOff, AlertCircle } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, AlertCircle, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { FloatingParticles } from "@/components/onboarding/FloatingParticles";
@@ -309,24 +309,24 @@ export default function Login() {
     }
   };
 
-  const formatPhoneDisplay = (phone: string) => {
-    const cleaned = phone.replace(/\D/g, "");
-    if (cleaned.length === 11 && cleaned.startsWith("1")) {
-      return `+1 (${cleaned.slice(1, 4)}) ${cleaned.slice(4, 7)}-${cleaned.slice(7)}`;
-    } else if (cleaned.length === 10) {
-      return `(${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6)}`;
-    }
-    return phone;
-  };
-
-  const formatTimer = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
   // If OTP screen is shown, render full-screen OTP verification matching onboarding design
   if (otpSent && activeTab === "phone") {
+    const formatPhoneDisplay = (phone: string) => {
+      const cleaned = phone.replace(/\D/g, "");
+      if (cleaned.length === 11 && cleaned.startsWith("1")) {
+        return `+1 (${cleaned.slice(1, 4)}) ${cleaned.slice(4, 7)}-${cleaned.slice(7)}`;
+      } else if (cleaned.length === 10) {
+        return `(${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6)}`;
+      }
+      return phone;
+    };
+
+    const formatTimer = (seconds: number) => {
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return `${mins}:${secs.toString().padStart(2, '0')}`;
+    };
+
     return (
       <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-black">
         {/* Background container - fixed positioning */}
