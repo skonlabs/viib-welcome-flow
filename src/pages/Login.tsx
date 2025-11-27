@@ -97,8 +97,25 @@ export default function Login() {
         // Wait a moment to ensure localStorage is written
         await new Promise(resolve => setTimeout(resolve, 100));
         
-        // Always redirect to home - ProtectedRoute will handle onboarding check
-        navigate("/app/home");
+        // Check onboarding status
+        const { data: user, error: userError } = await supabase
+          .from('users')
+          .select('onboarding_completed, last_onboarding_step')
+          .eq('id', data.userId)
+          .single();
+        
+        if (userError) {
+          console.error('Error checking onboarding:', userError);
+          navigate("/app/home");
+          return;
+        }
+        
+        if (!user.onboarding_completed) {
+          localStorage.setItem('viib_resume_onboarding', 'true');
+          navigate(user.last_onboarding_step || "/app/onboarding/welcome");
+        } else {
+          navigate("/app/home");
+        }
       } else {
         setError("Sign in failed. Please try again.");
       }
@@ -195,7 +212,7 @@ export default function Login() {
     // Get user ID and status
     const { data: user, error: userError } = await supabase
       .from("users")
-      .select("id, onboarding_completed, is_active")
+      .select("id, onboarding_completed, is_active, last_onboarding_step")
       .eq("phone_number", fullPhoneNumber)
       .eq("is_phone_verified", true)
       .maybeSingle();
@@ -223,8 +240,13 @@ export default function Login() {
     // Wait a moment to ensure localStorage is written
     await new Promise(resolve => setTimeout(resolve, 100));
     
-    // Always redirect to home - ProtectedRoute will handle onboarding check
-    navigate("/app/home");
+    // Check onboarding status
+    if (!user.onboarding_completed) {
+      localStorage.setItem('viib_resume_onboarding', 'true');
+      navigate(user.last_onboarding_step || "/app/onboarding/welcome");
+    } else {
+      navigate("/app/home");
+    }
   };
 
   const handleResendPhoneOTP = async () => {
