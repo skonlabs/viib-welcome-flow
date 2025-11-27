@@ -176,10 +176,10 @@ export const UserIdentityScreen = ({ onContinue, onBack }: UserIdentityScreenPro
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 1, ease: [0.23, 1, 0.32, 1] }}
       >
-        <div className="space-y-16">
+        <div className="space-y-8">
           {/* Header */}
           <motion.div
-            className="text-center space-y-5"
+            className="text-center space-y-3"
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2, duration: 0.8, ease: [0.23, 1, 0.32, 1] }}
@@ -189,7 +189,7 @@ export const UserIdentityScreen = ({ onContinue, onBack }: UserIdentityScreenPro
               animate={{ scale: 1, rotateX: 0 }}
               transition={{ delay: 0.3, type: "spring", stiffness: 80, damping: 20 }}
             >
-              <h2 className="text-4xl sm:text-5xl md:text-6xl font-bold relative inline-block">
+              <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold relative inline-block">
                 <span 
                   className="text-gradient relative z-10"
                   style={{
@@ -201,7 +201,7 @@ export const UserIdentityScreen = ({ onContinue, onBack }: UserIdentityScreenPro
               </h2>
             </motion.div>
             <motion.p 
-              className="text-muted-foreground text-lg sm:text-xl"
+              className="text-muted-foreground text-base sm:text-lg"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.5, duration: 0.6 }}
@@ -217,7 +217,7 @@ export const UserIdentityScreen = ({ onContinue, onBack }: UserIdentityScreenPro
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.6, duration: 0.8, ease: [0.23, 1, 0.32, 1] }}
           >
-            <div className="space-y-4">
+            <div className="space-y-3">
               <label className="text-sm text-muted-foreground px-2 font-medium">
                 What should we call you?
               </label>
@@ -233,7 +233,7 @@ export const UserIdentityScreen = ({ onContinue, onBack }: UserIdentityScreenPro
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Enter your name"
                   autoFocus
-                  className="relative h-16 text-lg bg-black/40 border-white/20 focus:border-primary/50 focus:bg-black/60 transition-all duration-300 backdrop-blur-2xl text-foreground placeholder:text-muted-foreground/50 rounded-2xl shadow-2xl"
+                  className="relative h-14 text-base bg-black/40 border-white/20 focus:border-primary/50 focus:bg-black/60 transition-all duration-300 backdrop-blur-2xl text-foreground placeholder:text-muted-foreground/50 rounded-2xl shadow-2xl"
                 />
               </motion.div>
             </div>
@@ -241,13 +241,13 @@ export const UserIdentityScreen = ({ onContinue, onBack }: UserIdentityScreenPro
 
           {/* Vibe Selection */}
           <motion.div
-            className="space-y-8"
+            className="space-y-5"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.9 }}
           >
             <motion.h3 
-              className="text-2xl sm:text-3xl font-semibold text-center text-foreground"
+              className="text-xl sm:text-2xl font-semibold text-center text-foreground"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 1 }}
@@ -255,7 +255,7 @@ export const UserIdentityScreen = ({ onContinue, onBack }: UserIdentityScreenPro
               Choose your vibe
             </motion.h3>
             
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {vibes.map((vibe, index) => {
                 const Icon = vibe.icon;
                 const isSelected = selectedVibe === vibe.id;
@@ -396,7 +396,7 @@ export const UserIdentityScreen = ({ onContinue, onBack }: UserIdentityScreenPro
                       />
                       
                       {/* Content with 3D depth - Optimized spacing */}
-                      <div className="relative z-10 flex flex-col items-center gap-4 p-6 sm:p-8">
+                      <div className="relative z-10 flex flex-col items-center gap-3 p-5 sm:p-6">
                         {/* Icon with subtle animation */}
                         <div className="relative">
                           {/* Icon glow */}
@@ -408,22 +408,22 @@ export const UserIdentityScreen = ({ onContinue, onBack }: UserIdentityScreenPro
                             }}
                           />
                           <Icon 
-                            className="relative w-12 h-12 sm:w-14 sm:h-14 text-white drop-shadow-2xl" 
+                            className="relative w-10 h-10 sm:w-12 sm:h-12 text-white drop-shadow-2xl" 
                             strokeWidth={1.5}
                           />
                         </div>
                         
                         {/* Label */}
-                        <div className="flex flex-col items-center gap-1">
+                        <div className="flex flex-col items-center gap-0.5">
                           <span 
-                            className="font-bold text-lg sm:text-xl text-white drop-shadow-lg text-center tracking-wide"
+                            className="font-bold text-base sm:text-lg text-white drop-shadow-lg text-center tracking-wide"
                           >
                             {vibe.label}
                           </span>
                           
                           {/* Description text */}
                           <motion.p
-                            className="text-xs text-white/70 text-center font-medium"
+                            className="text-xs text-white/60 text-center font-medium"
                             initial={{ opacity: 0, y: 5 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: 0.2 }}
