@@ -4,7 +4,6 @@ import { Input } from "@/components/ui/input";
 import { motion } from "framer-motion";
 import { RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { BackButton } from "./BackButton";
 import { FloatingParticles } from "./FloatingParticles";
 
 interface EmailOTPVerificationScreenProps {
@@ -166,8 +165,6 @@ export const EmailOTPVerificationScreen = ({
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-black">
-      <BackButton onClick={onBack} />
-      
       {/* Background container - fixed positioning */}
       <div className="fixed inset-0 overflow-hidden">
         <div className="absolute inset-0">
