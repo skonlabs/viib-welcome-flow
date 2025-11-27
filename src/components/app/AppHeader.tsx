@@ -85,11 +85,11 @@ export const AppHeader = () => {
                 className="w-56 bg-background/98 backdrop-blur-xl border border-cyan-400/20 shadow-lg shadow-cyan-400/10 rounded-2xl z-[100]"
               >
                 {visibleMenuItems.map((item) => (
-                  <DropdownMenuItem
-                    key={item.label}
-                    onClick={() => navigate(item.href)}
-                    className="flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-cyan-400/10 rounded-lg transition-colors"
-                  >
+              <DropdownMenuItem
+                key={item.label}
+                onClick={() => navigate(item.href)}
+                className="flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-white/5 rounded-lg transition-colors"
+              >
                     <item.icon className="w-5 h-5 text-cyan-400" />
                     <span className="text-foreground font-medium">{item.label}</span>
                   </DropdownMenuItem>
@@ -97,10 +97,10 @@ export const AppHeader = () => {
                 
                 <DropdownMenuSeparator className="bg-cyan-400/20 my-1" />
                 
-                <DropdownMenuItem
-                  onClick={handleSignOut}
-                  className="flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-cyan-400/10 rounded-lg transition-colors"
-                >
+              <DropdownMenuItem
+                onClick={handleSignOut}
+                className="flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-white/5 rounded-lg transition-colors"
+              >
                   <LogOut className="w-5 h-5 text-cyan-400" />
                   <span className="text-foreground font-medium">Sign Out</span>
                 </DropdownMenuItem>
