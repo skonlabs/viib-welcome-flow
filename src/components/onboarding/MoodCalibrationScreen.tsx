@@ -114,15 +114,6 @@ export const MoodCalibrationScreen = ({
             <p className="text-muted-foreground text-base">
               Move the sliders to match your current mood
             </p>
-            <motion.p 
-              className="text-lg font-semibold text-cyan-400 mt-2"
-              key={mood.label}
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ type: "spring", stiffness: 300 }}
-            >
-              Current Mood: {mood.label}
-            </motion.p>
           </motion.div>
 
           {/* Mood Visualization */}

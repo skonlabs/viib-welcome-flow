@@ -699,7 +699,7 @@ export type Database = {
           dominance?: number | null
           emotion_id: string
           id?: string
-          intensity: number
+          intensity?: number
           user_id: string
           valence?: number | null
         }
