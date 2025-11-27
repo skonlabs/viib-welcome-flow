@@ -43,6 +43,7 @@ type OnboardingStep =
 export default function Onboarding() {
   const { step } = useParams<{ step: string }>();
   const [currentStep, setCurrentStep] = useState<OnboardingStep>("welcome");
+  const [isChecking, setIsChecking] = useState(true);
   const [onboardingData, setOnboardingData] = useState({
     entryMethod: "",
     phone: "",
@@ -83,6 +84,9 @@ export default function Onboarding() {
         navigate('/app/home', { replace: true });
         return;
       }
+      
+      // User should be on onboarding, safe to show content
+      setIsChecking(false);
       
       if (!step) {
         // If no step in URL, check database for resume point
@@ -340,6 +344,18 @@ export default function Onboarding() {
   const handleBackToSocial = () => navigateToStep("social");
   const handleBackToRecommendations = () => navigateToStep("recommendations");
   const handleBackToFeedback = () => navigateToStep("feedback");
+
+  // Show loading state while checking auth/onboarding status
+  if (isChecking) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-foreground/60">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-black">
