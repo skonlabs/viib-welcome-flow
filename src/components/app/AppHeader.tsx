@@ -88,10 +88,10 @@ export const AppHeader = () => {
                   <DropdownMenuItem
                     key={item.label}
                     onClick={() => navigate(item.href)}
-                    className="flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-cyan-400/10 rounded-lg transition-colors"
+                    className="flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-pink-500/10 rounded-lg transition-colors group"
                   >
-                    <item.icon className="w-5 h-5 text-cyan-400" />
-                    <span className="text-foreground font-medium">{item.label}</span>
+                    <item.icon className="w-5 h-5 text-cyan-400 group-hover:text-pink-500 transition-colors" />
+                    <span className="text-foreground font-medium group-hover:text-pink-500 transition-colors">{item.label}</span>
                   </DropdownMenuItem>
                 ))}
                 
@@ -99,10 +99,10 @@ export const AppHeader = () => {
                 
                 <DropdownMenuItem
                   onClick={handleSignOut}
-                  className="flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-cyan-400/10 rounded-lg transition-colors"
+                  className="flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-pink-500/10 rounded-lg transition-colors group"
                 >
-                  <LogOut className="w-5 h-5 text-cyan-400" />
-                  <span className="text-foreground font-medium">Sign Out</span>
+                  <LogOut className="w-5 h-5 text-cyan-400 group-hover:text-pink-500 transition-colors" />
+                  <span className="text-foreground font-medium group-hover:text-pink-500 transition-colors">Sign Out</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
