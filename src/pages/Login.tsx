@@ -74,6 +74,12 @@ export default function Login() {
       }
 
       if (data?.success && data?.userId) {
+        // Clear any old session data first
+        localStorage.removeItem('viib_user_id');
+        localStorage.removeItem('viib_session');
+        localStorage.removeItem('viib_resume_onboarding');
+        sessionStorage.removeItem('viib_session');
+        
         const sessionData = {
           userId: data.userId,
           rememberMe,
@@ -87,6 +93,9 @@ export default function Login() {
         }
         
         localStorage.setItem('viib_user_id', data.userId);
+        
+        // Wait a moment to ensure localStorage is written
+        await new Promise(resolve => setTimeout(resolve, 100));
         
         // Check onboarding status
         const { data: user, error: userError } = await supabase
@@ -105,7 +114,7 @@ export default function Login() {
         // So redirect directly to onboarding without additional OTP if needed
         if (!user.onboarding_completed) {
           localStorage.setItem('viib_resume_onboarding', 'true');
-          navigate("/app/onboarding/biometric");
+          navigate("/app/onboarding");
         } else {
           navigate("/app/home");
         }
@@ -214,7 +223,13 @@ export default function Login() {
       throw new Error("Unable to complete sign in. Please try again.");
     }
 
-    // Store session
+    // Clear any old session data first
+    localStorage.removeItem('viib_user_id');
+    localStorage.removeItem('viib_session');
+    localStorage.removeItem('viib_resume_onboarding');
+    sessionStorage.removeItem('viib_session');
+    
+    // Store new session
     const sessionData = {
       userId: user.id,
       rememberMe: false,
@@ -224,10 +239,13 @@ export default function Login() {
     sessionStorage.setItem('viib_session', JSON.stringify(sessionData));
     localStorage.setItem('viib_user_id', user.id);
     
+    // Wait a moment to ensure localStorage is written
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
     // Check onboarding status
     if (!user.onboarding_completed) {
       localStorage.setItem('viib_resume_onboarding', 'true');
-      navigate("/app/onboarding/biometric");
+      navigate("/app/onboarding");
     } else if (!user.is_active) {
       throw new Error("Your account is inactive. Please contact support.");
     } else {
