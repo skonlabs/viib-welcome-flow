@@ -64,15 +64,27 @@ export const MoodCalibrationScreen = ({
     fetchEmotionStates();
   }, []);
 
-  // Get the closest emotion state based on current positivity value
+  // Get the closest emotion state based on BOTH positivity (valence) AND energy (arousal)
   const selectedEmotion = useMemo(() => {
     if (emotionStates.length === 0) return null;
     
-    const currentValue = positivity[0];
-    return emotionStates.reduce((prev, curr) => 
-      Math.abs(curr.value - currentValue) < Math.abs(prev.value - currentValue) ? curr : prev
-    );
-  }, [positivity, emotionStates]);
+    // Normalize positivity and energy to match valence/arousal scales (-1 to 1 for valence, 0 to 1 for arousal)
+    const targetValence = (positivity[0] / 100) * 2 - 1; // Convert 0-100 to -1 to 1
+    const targetArousal = energy[0] / 100; // Convert 0-100 to 0 to 1
+    
+    // Find emotion with closest valence AND arousal
+    return emotionStates.reduce((prev, curr) => {
+      const prevDistance = Math.sqrt(
+        Math.pow(prev.valence - targetValence, 2) + 
+        Math.pow(prev.arousal - targetArousal, 2)
+      );
+      const currDistance = Math.sqrt(
+        Math.pow(curr.valence - targetValence, 2) + 
+        Math.pow(curr.arousal - targetArousal, 2)
+      );
+      return currDistance < prevDistance ? curr : prev;
+    });
+  }, [positivity, energy, emotionStates]);
 
   // Update local state when initial values change (e.g., when navigating back)
   useEffect(() => {
@@ -106,8 +118,6 @@ export const MoodCalibrationScreen = ({
   };
 
   const mood = useMemo(() => {
-    const e = energy[0];
-    
     if (!selectedEmotion) {
       return { label: "Loading...", emoji: "⏳", color: "#a855f7" };
     }
@@ -115,14 +125,14 @@ export const MoodCalibrationScreen = ({
     const emotionLabel = selectedEmotion.label;
     const emotionId = selectedEmotion.id;
     
-    // Combine emotion state with energy level for display
+    // Display the converted emotion based on both valence and arousal
     return { 
-      label: `${emotionLabel} ${e > 60 ? '(High Energy)' : '(Low Energy)'}`,
+      label: emotionLabel,
       emoji: getEmotionEmoji(emotionLabel),
       color: getEmotionColor(selectedEmotion.valence),
       emotionId: emotionId
     };
-  }, [energy, selectedEmotion]);
+  }, [selectedEmotion]);
 
   const handleTuneMood = async () => {
     if (!selectedEmotion) {
