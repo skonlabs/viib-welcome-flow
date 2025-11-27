@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { motion } from "framer-motion";
 import { ArrowRight, Eye, EyeOff, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { FloatingParticles } from "@/components/onboarding/FloatingParticles";
 import { OTPVerificationBase } from "@/components/onboarding/OTPVerificationBase";
 import { z } from "zod";
@@ -16,7 +16,9 @@ const emailSchema = z.string().trim().email({ message: "Please enter a valid ema
 const phoneSchema = z.string().trim().regex(/^\+?[1-9]\d{1,14}$/, { message: "Please enter a valid phone number" });
 
 export default function Login() {
-  const [activeTab, setActiveTab] = useState("email");
+  const [searchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState(tabParam === 'phone' ? 'phone' : 'email');
   
   // Email login state
   const [email, setEmail] = useState("");
@@ -32,6 +34,15 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const navigate = useNavigate();
+
+  // Update active tab when URL parameter changes
+  useEffect(() => {
+    if (tabParam === 'phone') {
+      setActiveTab('phone');
+    } else if (tabParam === 'email') {
+      setActiveTab('email');
+    }
+  }, [tabParam]);
 
   // Format phone number as user types
   const formatPhoneNumber = (value: string) => {

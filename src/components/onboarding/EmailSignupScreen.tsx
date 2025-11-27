@@ -408,7 +408,7 @@ export const EmailSignupScreen = ({ onContinue, onBack }: EmailSignupScreenProps
               <p className="text-sm text-center text-[#94a3b8]">
                 Already have an account?{" "}
                 <button
-                  onClick={() => window.location.href = "/login"}
+                  onClick={() => window.location.href = "/login?tab=email"}
                   className="text-purple-400 hover:text-purple-300 transition-colors font-medium"
                 >
                   Sign In

@@ -193,7 +193,7 @@ export const PhoneEntryScreen = ({
               <p className="text-sm text-center text-muted-foreground">
                 Already have an account?{" "}
                 <button
-                  onClick={() => window.location.href = "/login"}
+                  onClick={() => window.location.href = "/login?tab=phone"}
                   className="text-primary hover:text-primary/80 transition-colors font-medium"
                 >
                   Sign In
