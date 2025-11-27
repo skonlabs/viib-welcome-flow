@@ -240,66 +240,39 @@ export default function Onboarding() {
       // Check if we have a stored user_id from resume scenario
       const storedUserId = localStorage.getItem('viib_user_id');
       
-      if (storedUserId) {
-        // Update by user ID (works for both resume and new signups)
-        const { error } = await supabase
-          .from('users')
-          .update({
-            onboarding_completed: true,
-            is_active: true,
-            full_name: onboardingData.name,
-          })
-          .eq('id', storedUserId);
-        
-        if (error) {
-          console.error('Error updating user record:', error);
-        }
-        
-        // Clean up resume flag
-        localStorage.removeItem('viib_resume_onboarding');
-      } else if (onboardingData.entryMethod === 'phone') {
-        // Fallback: update by phone number
-        const fullPhone = `${onboardingData.countryCode}${onboardingData.phone}`;
-        const { data: updatedUser, error } = await supabase
-          .from('users')
-          .update({
-            onboarding_completed: true,
-            is_active: true,
-            full_name: onboardingData.name,
-          })
-          .eq('phone_number', fullPhone)
-          .select('id')
-          .single();
-        
-        if (error) {
-          console.error('Error updating phone user record:', error);
-        } else if (updatedUser) {
-          localStorage.setItem('viib_user_id', updatedUser.id);
-        }
-      } else {
-        // Fallback: update by email address
-        const { data: updatedUser, error } = await supabase
-          .from('users')
-          .update({
-            onboarding_completed: true,
-            is_active: true,
-            full_name: onboardingData.name,
-          })
-          .eq('email', onboardingData.email)
-          .select('id')
-          .single();
-        
-        if (error) {
-          console.error('Error updating email user record:', error);
-        } else if (updatedUser) {
-          localStorage.setItem('viib_user_id', updatedUser.id);
-        }
+      if (!storedUserId) {
+        console.error('No user ID found in localStorage');
+        return;
       }
+      
+      // Update user record
+      const { error } = await supabase
+        .from('users')
+        .update({
+          onboarding_completed: true,
+          is_active: true,
+          full_name: onboardingData.name,
+        })
+        .eq('id', storedUserId);
+      
+      if (error) {
+        console.error('Error updating user record:', error);
+        throw error;
+      }
+      
+      console.log('Successfully updated onboarding_completed and is_active');
+      
+      // Clean up resume flag
+      localStorage.removeItem('viib_resume_onboarding');
+      
+      // Wait a moment to ensure database update completes
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Navigate to home
+      navigate("/app/home");
     } catch (error) {
       console.error('Error in handleComplete:', error);
     }
-    
-    navigate("/app/home");
   };
 
   // Back navigation handlers
