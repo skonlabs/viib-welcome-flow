@@ -110,12 +110,18 @@ export const useAuth = () => {
   };
 
   const signOut = async () => {
+    // Clear all authentication-related storage
     localStorage.removeItem('viib_user_id');
     localStorage.removeItem('viib_session');
+    localStorage.removeItem('viib_resume_onboarding');
     sessionStorage.removeItem('viib_session');
+    
+    // Clear user state
     setUser(null);
     setIsAdmin(false);
-    window.location.href = '/';
+    
+    // Force redirect to landing page
+    window.location.replace('/');
   };
 
   return { user, session: null, isAdmin, loading, signOut };
