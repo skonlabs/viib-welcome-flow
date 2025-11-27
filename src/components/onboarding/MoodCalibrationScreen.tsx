@@ -107,41 +107,37 @@ export const MoodCalibrationScreen = ({
       const userId = localStorage.getItem('viib_user_id');
       if (!userId) return;
 
-      // Call translate_mood_to_emotion with selected mood and energy
-      const { error: rpcError } = await supabase.rpc('translate_mood_to_emotion', {
+      // Call translate_mood_to_emotion - it returns emotion_id and emotion_label directly
+      const { data: translatedData, error: rpcError } = await supabase.rpc('translate_mood_to_emotion', {
         p_user_id: userId,
         p_mood_text: selectedEmotion.label,
         p_energy_percentage: energy[0]
       });
 
-      if (rpcError) {
+      if (rpcError || !translatedData || translatedData.length === 0) {
         console.error('Error converting mood:', rpcError);
         return;
       }
 
-      // Query the most recent emotion from user_emotion_states to get the converted result
-      const { data: emotionData, error: queryError } = await supabase
-        .from('user_emotion_states')
-        .select('emotion_id, emotion_master(emotion_label, valence)')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(1)
+      const translated = translatedData[0];
+      
+      // Fetch valence from emotion_master for color determination
+      const { data: emotionMaster, error: fetchError } = await supabase
+        .from('emotion_master')
+        .select('valence')
+        .eq('id', translated.emotion_id)
         .single();
 
-      if (queryError || !emotionData) {
-        console.error('Error fetching converted emotion:', queryError);
+      if (fetchError || !emotionMaster) {
+        console.error('Error fetching emotion details:', fetchError);
         return;
       }
 
-      const emotionMaster = emotionData.emotion_master as { emotion_label: string; valence: number } | null;
-      if (emotionMaster) {
-        const convertedLabel = emotionMaster.emotion_label;
-        setConvertedEmotion({
-          label: convertedLabel,
-          emoji: getEmotionEmoji(convertedLabel),
-          color: getEmotionColor(emotionMaster.valence)
-        });
-      }
+      setConvertedEmotion({
+        label: translated.emotion_label,
+        emoji: getEmotionEmoji(translated.emotion_label),
+        color: getEmotionColor(emotionMaster.valence)
+      });
     };
 
     const timeoutId = setTimeout(() => {
