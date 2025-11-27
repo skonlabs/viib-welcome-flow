@@ -157,19 +157,8 @@ export default function Onboarding() {
   const handlePhoneEntry = (phone: string, countryCode: string) => {
     // Store the FULL phone number with country code (no spaces) for consistency
     const fullPhone = `${countryCode}${phone}`;
-    
-    // CRITICAL: Update state with a callback to ensure the update completes
-    // before navigation, preventing race conditions
-    setOnboardingData((prev) => {
-      const newData = { ...prev, phone: fullPhone, countryCode };
-      console.log('Updated onboarding data with phone:', fullPhone);
-      return newData;
-    });
-    
-    // Small delay to ensure state update propagates before navigation
-    setTimeout(() => {
-      navigateToStep("otp");
-    }, 0);
+    setOnboardingData((prev) => ({ ...prev, phone: fullPhone, countryCode }));
+    navigateToStep("otp");
   };
 
   const handleOTPVerify = async (otp: string) => {
@@ -260,17 +249,8 @@ export default function Onboarding() {
   };
 
   const handleEmailSignup = async (email: string, password: string) => {
-    // Store email and password with logging to verify state updates
-    setOnboardingData((prev) => {
-      const newData = { ...prev, email, password };
-      console.log('Updated onboarding data with email:', email);
-      return newData;
-    });
-    
-    // Delay navigation to ensure state propagates
-    setTimeout(() => {
-      navigateToStep("email-otp");
-    }, 0);
+    setOnboardingData((prev) => ({ ...prev, email, password }));
+    navigateToStep("email-otp");
   };
 
   const handleResendEmailOTP = async () => {
@@ -425,7 +405,7 @@ export default function Onboarding() {
           onBack={handleBackToEntry}
         />
       )}
-      {currentStep === "otp" && onboardingData.phone && (
+      {currentStep === "otp" && (
         <OTPVerificationScreen
           phone={onboardingData.phone}
           onContinue={handleOTPVerify}
@@ -433,33 +413,19 @@ export default function Onboarding() {
           onChangeNumber={() => navigateToStep("phone")}
         />
       )}
-      {currentStep === "otp" && !onboardingData.phone && (
-        <div className="min-h-screen bg-black flex items-center justify-center">
-          <div className="text-center">
-            <p className="text-foreground/60">Loading phone verification...</p>
-          </div>
-        </div>
-      )}
       {currentStep === "email" && (
         <EmailSignupScreen
           onContinue={handleEmailSignup}
           onBack={handleBackToEntry}
         />
       )}
-      {currentStep === "email-otp" && onboardingData.email && (
+      {currentStep === "email-otp" && (
         <EmailOTPVerificationScreen
           email={onboardingData.email}
           password={onboardingData.password}
           onContinue={handleEmailOTPVerify}
           onBack={handleBackToEmail}
         />
-      )}
-      {currentStep === "email-otp" && !onboardingData.email && (
-        <div className="min-h-screen bg-black flex items-center justify-center">
-          <div className="text-center">
-            <p className="text-foreground/60">Loading email verification...</p>
-          </div>
-        </div>
       )}
       {currentStep === "biometric" && (
         <BiometricEnableScreen
