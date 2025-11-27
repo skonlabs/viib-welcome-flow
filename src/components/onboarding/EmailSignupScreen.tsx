@@ -39,8 +39,24 @@ export const EmailSignupScreen = ({ onContinue, onBack }: EmailSignupScreenProps
   };
 
   const strength = getPasswordStrength();
-  const strengthLabel = ["", "Weak", "Fair", "Good", "Strong", "Excellent"][strength];
-  const strengthColor = ["", "red", "orange", "yellow", "lime", "green"][strength];
+  
+  // Map strength (0-5) to 3 levels: Weak (1-2), Medium (3), Strong (4-5)
+  const getStrengthLabel = () => {
+    if (strength === 0) return "";
+    if (strength <= 2) return "Weak";
+    if (strength === 3) return "Medium";
+    return "Strong";
+  };
+  
+  const getStrengthColor = () => {
+    if (strength === 0) return "";
+    if (strength <= 2) return "hsl(0, 84%, 60%)"; // Red
+    if (strength === 3) return "hsl(38, 92%, 50%)"; // Orange
+    return "hsl(142, 71%, 45%)"; // Green
+  };
+  
+  const strengthLabel = getStrengthLabel();
+  const strengthColor = getStrengthColor();
 
   const requirements = [
     { label: "At least 8 characters", met: password.length >= 8 },
