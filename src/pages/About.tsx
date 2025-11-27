@@ -69,7 +69,9 @@ const About = () => {
             {/* Mission Section */}
             <section className="space-y-12">
               <div className="text-center space-y-4">
-                <h2 className="text-4xl md:text-5xl font-bold text-foreground">Our Mission</h2>
+                <h2 className="text-4xl font-bold">
+                  <span className="text-gradient">Our Mission</span>
+                </h2>
                 <div className="h-1 w-24 bg-gradient-to-r from-primary to-secondary mx-auto rounded-full" />
               </div>
               
@@ -136,7 +138,9 @@ const About = () => {
             {/* Vision Section */}
             <section className="space-y-8">
               <div className="text-center space-y-4">
-                <h2 className="text-4xl md:text-5xl font-bold text-foreground">Our Vision</h2>
+                <h2 className="text-4xl font-bold">
+                  <span className="text-gradient">Our Vision</span>
+                </h2>
                 <div className="h-1 w-24 bg-gradient-to-r from-secondary to-accent mx-auto rounded-full" />
               </div>
               
@@ -162,7 +166,9 @@ const About = () => {
             {/* Values Section */}
             <section className="space-y-8">
               <div className="text-center space-y-4">
-                <h2 className="text-4xl md:text-5xl font-bold text-foreground">Our Values</h2>
+                <h2 className="text-4xl font-bold">
+                  <span className="text-gradient">Our Values</span>
+                </h2>
                 <div className="h-1 w-24 bg-gradient-to-r from-accent to-primary mx-auto rounded-full" />
               </div>
               
@@ -241,8 +247,8 @@ const About = () => {
               viewport={{ once: true }}
               transition={{ duration: 0.8 }}
             >
-              <h2 className="text-3xl md:text-4xl font-bold">
-                <span className="bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
+              <h2 className="text-4xl font-bold">
+                <span className="text-gradient">
                   Join Us on This Journey
                 </span>
               </h2>

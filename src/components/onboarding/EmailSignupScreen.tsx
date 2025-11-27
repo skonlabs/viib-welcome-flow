@@ -199,8 +199,8 @@ export const EmailSignupScreen = ({ onContinue, onBack }: EmailSignupScreenProps
             <div className="inline-flex items-center justify-center w-24 h-24 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 mb-2">
               <span className="text-5xl">🔐</span>
             </div>
-            <h2 className="text-4xl font-bold bg-gradient-to-r from-blue-400 via-cyan-400 to-blue-500 bg-clip-text text-transparent mt-4">
-              Create your account
+            <h2 className="text-4xl font-bold mt-4">
+              <span className="text-gradient">Create your account</span>
             </h2>
             <p className="text-base text-[#9ca3af] mt-2">
               Set up your secure credentials

@@ -136,8 +136,8 @@ export const LanguageSelectionScreen = ({ onContinue, onBack }: LanguageSelectio
             animate={{ opacity: 1 }}
             transition={{ delay: 0.2 }}
           >
-            <h2 className="text-4xl font-bold text-gradient">
-              Languages you love
+            <h2 className="text-4xl font-bold">
+              <span className="text-gradient">Languages you love</span>
             </h2>
             <p className="text-lg text-muted-foreground">
               Select all languages you enjoy watching content in

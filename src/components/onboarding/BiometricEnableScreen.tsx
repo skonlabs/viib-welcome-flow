@@ -89,8 +89,8 @@ export const BiometricEnableScreen = ({ onEnable, onSkip, onBack }: BiometricEna
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
           >
-            <h2 className="text-3xl font-bold text-gradient">
-              Unlock ViiB faster
+            <h2 className="text-4xl font-bold">
+              <span className="text-gradient">Unlock ViiB faster</span>
             </h2>
             <p className="text-lg text-muted-foreground leading-relaxed">
               Use Face ID or Touch ID for quick, secure access to your personalized experience

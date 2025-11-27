@@ -113,8 +113,8 @@ export const SocialConnectionScreen = ({ onInvite, onSkip, onBack }: SocialConne
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
           >
-            <h2 className="text-4xl md:text-5xl font-bold text-gradient">
-              Better together
+            <h2 className="text-4xl font-bold">
+              <span className="text-gradient">Better together</span>
             </h2>
             <p className="text-xl text-muted-foreground leading-relaxed max-w-xl mx-auto">
               Great recommendations come from people who know you. 

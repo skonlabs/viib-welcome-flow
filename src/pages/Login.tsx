@@ -383,8 +383,8 @@ export default function Login() {
             <h1 className="text-5xl font-bold bg-gradient-to-r from-cyan-400 via-primary to-cyan-400 bg-clip-text text-transparent">
               ViiB
             </h1>
-            <h2 className="text-4xl font-bold text-white mt-4">
-              Welcome back
+            <h2 className="text-4xl font-bold">
+              <span className="text-gradient">Welcome back</span>
             </h2>
             <p className="text-base text-[#9ca3af] mt-2">
               Sign in to continue your journey

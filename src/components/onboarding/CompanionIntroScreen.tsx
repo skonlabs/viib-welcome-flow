@@ -118,8 +118,8 @@ export const CompanionIntroScreen = ({ onContinue, onBack }: CompanionIntroScree
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.5 }}
           >
-            <h2 className="text-4xl md:text-5xl font-bold text-gradient">
-              Meet your ViiB Companion
+            <h2 className="text-4xl font-bold">
+              <span className="text-gradient">Meet your ViiB Companion</span>
             </h2>
             <p className="text-xl md:text-2xl text-muted-foreground leading-relaxed max-w-2xl mx-auto">
               An AI that learns your moods, anticipates your needs, 

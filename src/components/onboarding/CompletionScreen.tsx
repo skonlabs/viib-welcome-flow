@@ -117,7 +117,7 @@ export const CompletionScreen = ({ userName, onComplete }: CompletionScreenProps
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4, duration: 0.8 }}
         >
-          <h1 className="text-5xl md:text-6xl font-bold">
+          <h1 className="text-4xl font-bold">
             <span className="text-gradient">
               {userName ? `Welcome, ${userName}!` : "You're all set!"}
             </span>

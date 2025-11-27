@@ -76,8 +76,8 @@ export const VisualDNARevealScreen = ({ selections, onContinue, onBack }: Visual
             >
               <Sparkles className="w-16 h-16 mx-auto text-gradient" />
             </motion.div>
-            <h2 className="text-4xl md:text-5xl font-bold text-gradient">
-              This is your Visual DNA
+            <h2 className="text-4xl font-bold">
+              <span className="text-gradient">This is your Visual DNA</span>
             </h2>
             <p className="text-xl text-muted-foreground">
               Your unique taste signature is taking shape...
