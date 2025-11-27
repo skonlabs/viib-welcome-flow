@@ -1,4 +1,5 @@
 import { useState } from "react";
+import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -24,13 +25,36 @@ export default function Login() {
   const [rememberMe, setRememberMe] = useState(false);
   
   // Phone login state
+  const [countryCode, setCountryCode] = useState("+1");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState("");
+  const [resendTimer, setResendTimer] = useState(0);
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const navigate = useNavigate();
+
+  // Format phone number as user types
+  const formatPhoneNumber = (value: string) => {
+    const cleaned = value.replace(/\D/g, '');
+    if (cleaned.length <= 3) return cleaned;
+    if (cleaned.length <= 6) return `(${cleaned.slice(0, 3)}) ${cleaned.slice(3)}`;
+    return `(${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6, 10)}`;
+  };
+
+  // Start resend timer
+  const startResendTimer = () => {
+    setResendTimer(60);
+  };
+
+  // Timer countdown effect
+  React.useEffect(() => {
+    if (resendTimer > 0) {
+      const timer = setTimeout(() => setResendTimer(resendTimer - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [resendTimer]);
 
   const handleEmailLogin = async () => {
     if (!email.trim() || !password.trim()) {
@@ -94,8 +118,10 @@ export default function Login() {
       return;
     }
 
+    const fullPhoneNumber = `${countryCode}${phoneNumber.replace(/\D/g, '')}`;
+
     try {
-      phoneSchema.parse(phoneNumber);
+      phoneSchema.parse(fullPhoneNumber);
     } catch {
       setError("Please enter a valid phone number");
       return;
@@ -109,7 +135,7 @@ export default function Login() {
       const { data: user, error: userError } = await supabase
         .from("users")
         .select("id, is_active, is_phone_verified")
-        .eq("phone_number", phoneNumber)
+        .eq("phone_number", fullPhoneNumber)
         .maybeSingle();
 
       if (userError) {
@@ -134,7 +160,7 @@ export default function Login() {
 
       // Send OTP
       const { data, error: invokeError } = await supabase.functions.invoke("send-phone-otp", {
-        body: { phoneNumber },
+        body: { phoneNumber: fullPhoneNumber },
       });
 
       if (invokeError || data?.error) {
@@ -143,6 +169,7 @@ export default function Login() {
       }
 
       setOtpSent(true);
+      startResendTimer();
     } catch (err) {
       setError("Something went wrong. Please try again later.");
     } finally {
@@ -156,13 +183,14 @@ export default function Login() {
       return;
     }
 
+    const fullPhoneNumber = `${countryCode}${phoneNumber.replace(/\D/g, '')}`;
     setLoading(true);
     setError("");
 
     try {
       // Verify OTP
       const { data, error: invokeError } = await supabase.functions.invoke("verify-phone-otp", {
-        body: { phoneNumber, otpCode: otp },
+        body: { phoneNumber: fullPhoneNumber, otpCode: otp },
       });
 
       if (invokeError) {
@@ -179,7 +207,7 @@ export default function Login() {
       const { data: user, error: userError } = await supabase
         .from("users")
         .select("id")
-        .eq("phone_number", phoneNumber)
+        .eq("phone_number", fullPhoneNumber)
         .eq("is_active", true)
         .eq("is_phone_verified", true)
         .maybeSingle();
@@ -189,19 +217,14 @@ export default function Login() {
         return;
       }
 
-      // Store session
+      // Store session (phone login always uses sessionStorage, no remember me)
       const sessionData = {
         userId: user.id,
-        rememberMe,
+        rememberMe: false,
         timestamp: Date.now()
       };
 
-      if (rememberMe) {
-        localStorage.setItem('viib_session', JSON.stringify(sessionData));
-      } else {
-        sessionStorage.setItem('viib_session', JSON.stringify(sessionData));
-      }
-      
+      sessionStorage.setItem('viib_session', JSON.stringify(sessionData));
       localStorage.setItem('viib_user_id', user.id);
       navigate("/app/home");
     } catch (err) {
@@ -394,28 +417,35 @@ export default function Login() {
                       <label className="text-sm text-muted-foreground">
                         Phone Number
                       </label>
-                      <Input
-                        type="tel"
-                        value={phoneNumber}
-                        onChange={(e) => {
-                          setPhoneNumber(e.target.value);
-                          setError("");
-                        }}
-                        placeholder="+1 (123) 456-7890"
-                        className="h-14 text-lg bg-white/5 border-white/10 focus:border-primary/50 focus:bg-white/10"
-                      />
-                    </div>
-
-                    {/* Remember Me */}
-                    <div className="flex items-center gap-2">
-                      <Checkbox
-                        id="remember-phone"
-                        checked={rememberMe}
-                        onCheckedChange={(checked) => setRememberMe(checked as boolean)}
-                      />
-                      <label htmlFor="remember-phone" className="text-sm text-muted-foreground cursor-pointer">
-                        Remember me
-                      </label>
+                      <div className="flex gap-3">
+                        <select
+                          value={countryCode}
+                          onChange={(e) => setCountryCode(e.target.value)}
+                          className="h-14 w-24 px-3 rounded-xl bg-white/5 border border-white/10 text-foreground focus:border-primary/50 focus:bg-white/10 focus:outline-none"
+                        >
+                          <option value="+1">+1</option>
+                          <option value="+44">+44</option>
+                          <option value="+91">+91</option>
+                          <option value="+86">+86</option>
+                          <option value="+81">+81</option>
+                          <option value="+33">+33</option>
+                          <option value="+49">+49</option>
+                          <option value="+61">+61</option>
+                          <option value="+55">+55</option>
+                          <option value="+52">+52</option>
+                        </select>
+                        <Input
+                          type="tel"
+                          value={phoneNumber}
+                          onChange={(e) => {
+                            setPhoneNumber(formatPhoneNumber(e.target.value));
+                            setError("");
+                          }}
+                          placeholder="(123) 456-7890"
+                          maxLength={14}
+                          className="h-14 text-lg bg-white/5 border-white/10 focus:border-primary/50 focus:bg-white/10 flex-1"
+                        />
+                      </div>
                     </div>
 
                     {error && activeTab === "phone" && !otpSent && (
@@ -445,8 +475,11 @@ export default function Login() {
                     {/* OTP Input */}
                     <div className="space-y-3">
                       <label className="text-sm text-muted-foreground">
-                        Enter 6-digit code sent to {phoneNumber}
+                        Enter 6-digit code sent to {countryCode} {phoneNumber}
                       </label>
+                      <p className="text-xs text-muted-foreground">
+                        Code expires in 5 minutes
+                      </p>
                       <div className="flex justify-center">
                         <InputOTP
                           maxLength={6}
@@ -490,11 +523,22 @@ export default function Login() {
                         {loading ? "Verifying..." : "Verify & Sign In"}
                         {!loading && <ArrowRight className="ml-2 w-5 h-5" />}
                       </Button>
+                      
+                      {/* Resend Code Button */}
+                      <button
+                        onClick={handleSendPhoneOTP}
+                        disabled={resendTimer > 0 || loading}
+                        className="w-full text-sm text-primary hover:text-primary/80 transition-colors disabled:text-muted-foreground disabled:cursor-not-allowed"
+                      >
+                        {resendTimer > 0 ? `Resend code in ${resendTimer}s` : "Resend code"}
+                      </button>
+
                       <button
                         onClick={() => {
                           setOtpSent(false);
                           setOtp("");
                           setError("");
+                          setResendTimer(0);
                         }}
                         className="w-full text-sm text-muted-foreground hover:text-foreground transition-colors"
                       >
