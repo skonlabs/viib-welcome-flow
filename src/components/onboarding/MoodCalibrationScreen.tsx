@@ -23,6 +23,11 @@ export const MoodCalibrationScreen = ({
 }: MoodCalibrationScreenProps) => {
   const [energy, setEnergy] = useState([initialEnergy]);
   const [positivity, setPositivity] = useState([initialPositivity]);
+  const [convertedEmotion, setConvertedEmotion] = useState<{
+    label: string;
+    emoji: string;
+    color: string;
+  } | null>(null);
   const [emotionStates, setEmotionStates] = useState<Array<{
     id: string;
     label: string;
@@ -93,6 +98,54 @@ export const MoodCalibrationScreen = ({
   useEffect(() => {
     setPositivity([initialPositivity]);
   }, [initialPositivity]);
+
+  // Real-time emotion conversion when sliders change
+  useEffect(() => {
+    const convertMoodToEmotion = async () => {
+      if (!selectedEmotion) return;
+      
+      const userId = localStorage.getItem('viib_user_id');
+      if (!userId) return;
+
+      // Call translate_mood_to_emotion - it returns the CONVERTED emotion
+      const { data: translatedData, error: rpcError } = await supabase.rpc('translate_mood_to_emotion', {
+        p_user_id: userId,
+        p_mood_text: selectedEmotion.label,
+        p_energy_percentage: energy[0]
+      });
+
+      if (rpcError || !translatedData || translatedData.length === 0) {
+        console.error('Error converting mood:', rpcError);
+        return;
+      }
+
+      const translated = translatedData[0];
+      
+      // Fetch valence from emotion_master for color determination
+      const { data: emotionMaster, error: fetchError } = await supabase
+        .from('emotion_master')
+        .select('valence')
+        .eq('id', translated.emotion_id)
+        .single();
+
+      if (fetchError || !emotionMaster) {
+        console.error('Error fetching emotion details:', fetchError);
+        return;
+      }
+
+      setConvertedEmotion({
+        label: translated.emotion_label,
+        emoji: getEmotionEmoji(translated.emotion_label),
+        color: getEmotionColor(emotionMaster.valence)
+      });
+    };
+
+    const timeoutId = setTimeout(() => {
+      convertMoodToEmotion();
+    }, 300); // Debounce to avoid too many calls
+
+    return () => clearTimeout(timeoutId);
+  }, [selectedEmotion, energy]);
 
   // Helper function to get emoji based on emotion label
   const getEmotionEmoji = (label: string): string => {
@@ -275,9 +328,9 @@ export const MoodCalibrationScreen = ({
                 className="absolute inset-0 rounded-full blur-3xl"
                 animate={{
                   backgroundColor: [
-                    mood.color + "40", 
-                    mood.color + "60", 
-                    mood.color + "40"
+                    (convertedEmotion?.color || mood.color) + "40", 
+                    (convertedEmotion?.color || mood.color) + "60", 
+                    (convertedEmotion?.color || mood.color) + "40"
                   ],
                 }}
                 transition={{ duration: 2, repeat: Infinity }}
@@ -285,20 +338,20 @@ export const MoodCalibrationScreen = ({
               <div className="relative w-48 h-48 sm:w-56 sm:h-56 rounded-full glass-card flex flex-col items-center justify-center gap-3">
                 <motion.span 
                   className="text-5xl sm:text-6xl"
-                  key={mood.emoji}
+                  key={convertedEmotion?.emoji || mood.emoji}
                   initial={{ scale: 0, rotate: -180 }}
                   animate={{ scale: 1, rotate: 0 }}
                   transition={{ type: "spring", stiffness: 200 }}
                 >
-                  {mood.emoji}
+                  {convertedEmotion?.emoji || mood.emoji}
                 </motion.span>
                 <motion.p 
                   className="text-lg font-semibold text-foreground text-center px-4"
-                  key={mood.label}
+                  key={convertedEmotion?.label || mood.label}
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                 >
-                  {mood.label}
+                  {convertedEmotion?.label || mood.label}
                 </motion.p>
               </div>
             </motion.div>
