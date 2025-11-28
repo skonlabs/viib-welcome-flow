@@ -18,7 +18,7 @@ interface MoodCalibrationScreenProps {
 export const MoodCalibrationScreen = ({ 
   onContinue, 
   onBack, 
-  initialEnergy = 50, 
+  initialEnergy = 0.5, 
   initialPositivity = 50 
 }: MoodCalibrationScreenProps) => {
   const [energy, setEnergy] = useState([initialEnergy]);
@@ -84,7 +84,7 @@ export const MoodCalibrationScreen = ({
     
     // Normalize positivity and energy to match valence/arousal scales (-1 to 1 for valence, 0 to 1 for arousal)
     const targetValence = (positivity[0] / 100) * 2 - 1; // Convert 0-100 to -1 to 1
-    const targetArousal = energy[0] / 100; // Convert 0-100 to 0 to 1
+    const targetArousal = energy[0]; // Already 0 to 1
     
     // Find emotion with closest valence AND arousal
     return emotionStates.reduce((prev, curr) => {
@@ -118,11 +118,14 @@ export const MoodCalibrationScreen = ({
       if (!userId) return;
 
       try {
+        // Convert energy from 0-1 to 0-100 for the RPC function
+        const energyPercentage = energy[0] * 100;
+        
         // First translate mood to emotion (this saves to user_emotion_states)
         await supabase.rpc('translate_mood_to_emotion', {
           p_user_id: userId,
           p_mood_text: selectedEmotion.label,
-          p_energy_percentage: energy[0]
+          p_energy_percentage: energyPercentage
         });
 
         // Then get the display phrase from emotion_display_phrases
@@ -213,11 +216,14 @@ export const MoodCalibrationScreen = ({
         return;
       }
 
+      // Convert energy from 0-1 to 0-100 for the RPC function
+      const energyPercentage = energy[0] * 100;
+      
       // Call translate_mood_to_emotion which converts mood text + energy to correct emotion and stores it
       const { error } = await supabase.rpc('translate_mood_to_emotion', {
         p_user_id: userId,
         p_mood_text: selectedEmotion.label,
-        p_energy_percentage: energy[0]
+        p_energy_percentage: energyPercentage
       });
 
       if (error) {
@@ -381,8 +387,8 @@ export const MoodCalibrationScreen = ({
               <Slider
                 value={energy}
                 onValueChange={setEnergy}
-                max={100}
-                step={1}
+                max={1.0}
+                step={0.1}
                 className="cursor-pointer [&_[role=slider]]:h-5 [&_[role=slider]]:w-5 [&_[role=slider]]:border-2 [&_[role=slider]]:shadow-lg"
               />
             </div>
