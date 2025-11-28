@@ -79,7 +79,14 @@ export const MoodCalibrationScreen = ({
 
   // Get the currently selected emotion from the carousel
   const selectedEmotion = useMemo(() => {
-    if (emotionStates.length === 0) return null;
+    if (emotionStates.length === 0) return {
+      id: 'default',
+      label: 'Balanced',
+      value: 50,
+      valence: 0,
+      arousal: 0,
+      intensityMultiplier: 1.0
+    };
     return emotionStates[currentEmotionIndex];
   }, [currentEmotionIndex, emotionStates]);
 
@@ -270,12 +277,6 @@ export const MoodCalibrationScreen = ({
     return '#06b6d4'; // neutral - cyan
   };
   const mood = useMemo(() => {
-    if (!selectedEmotion) {
-      return {
-        label: "Loading...",
-        color: "#a855f7"
-      };
-    }
     const emotionLabel = selectedEmotion.label;
     const emotionId = selectedEmotion.id;
 
@@ -287,14 +288,6 @@ export const MoodCalibrationScreen = ({
     };
   }, [selectedEmotion]);
   const handleTuneMood = async () => {
-    if (!selectedEmotion) {
-      toast({
-        title: "Error",
-        description: "Please select a mood",
-        variant: "destructive"
-      });
-      return;
-    }
     setIsSaving(true);
     try {
       const userId = localStorage.getItem('viib_user_id');
@@ -553,7 +546,7 @@ export const MoodCalibrationScreen = ({
         }} transition={{
           delay: 0.8
         }}>
-            <Button onClick={handleTuneMood} disabled={isSaving || !selectedEmotion} size="2xl" variant="gradient" className="w-full group shadow-[0_20px_50px_-15px_rgba(168,85,247,0.6)] hover:shadow-[0_25px_60px_-15px_rgba(168,85,247,0.8)] transition-all">
+            <Button onClick={handleTuneMood} disabled={isSaving} size="2xl" variant="gradient" className="w-full group shadow-[0_20px_50px_-15px_rgba(168,85,247,0.6)] hover:shadow-[0_25px_60px_-15px_rgba(168,85,247,0.8)] transition-all">
               {isSaving ? "Saving Your Vibe..." : "Tune My Vibe"}
               <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-2 transition-transform" />
             </Button>
