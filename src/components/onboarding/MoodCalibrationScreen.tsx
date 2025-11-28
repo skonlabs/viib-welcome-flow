@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence, PanInfo } from "framer-motion";
-import { ArrowRight, ChevronLeft, ChevronRight, Sparkles, Smile, Wind, CloudRain, Zap, Flame, Moon, Heart, Star } from "lucide-react";
+import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
 import { BackButton } from "./BackButton";
 import { FloatingParticles } from "./FloatingParticles";
 import { supabase } from "@/integrations/supabase/client";
@@ -161,19 +161,22 @@ export const MoodCalibrationScreen = ({
     return () => clearTimeout(timeoutId);
   }, [selectedEmotion, energy]);
 
-  // Helper function to get emotion icon based on emotion label
-  const getEmotionIcon = (label: string) => {
+  // Helper function to get emotion emoji based on emotion label
+  const getEmotionEmoji = (label: string): string => {
     const lowerLabel = label.toLowerCase();
-    if (lowerLabel.includes('excited') || lowerLabel.includes('joy')) return Sparkles;
-    if (lowerLabel.includes('happy')) return Smile;
-    if (lowerLabel.includes('calm') || lowerLabel.includes('peaceful')) return Wind;
-    if (lowerLabel.includes('sad')) return CloudRain;
-    if (lowerLabel.includes('anxious') || lowerLabel.includes('stress')) return Zap;
-    if (lowerLabel.includes('angry')) return Flame;
-    if (lowerLabel.includes('bored')) return Moon;
-    if (lowerLabel.includes('lonely')) return Heart;
-    if (lowerLabel.includes('hopeful')) return Star;
-    return Wind; // default
+    if (lowerLabel.includes('excited') || lowerLabel.includes('joy') || lowerLabel.includes('ecstatic')) return '😄';
+    if (lowerLabel.includes('happy') || lowerLabel.includes('content')) return '😊';
+    if (lowerLabel.includes('calm') || lowerLabel.includes('peaceful') || lowerLabel.includes('serene')) return '😌';
+    if (lowerLabel.includes('sad') || lowerLabel.includes('down')) return '😢';
+    if (lowerLabel.includes('anxious') || lowerLabel.includes('stress') || lowerLabel.includes('worried')) return '😰';
+    if (lowerLabel.includes('angry') || lowerLabel.includes('frustrated')) return '😠';
+    if (lowerLabel.includes('tired') || lowerLabel.includes('exhausted')) return '😴';
+    if (lowerLabel.includes('bored') || lowerLabel.includes('meh')) return '😑';
+    if (lowerLabel.includes('lonely') || lowerLabel.includes('isolated')) return '😔';
+    if (lowerLabel.includes('hopeful') || lowerLabel.includes('optimistic')) return '🙂';
+    if (lowerLabel.includes('love') || lowerLabel.includes('affection')) return '🥰';
+    if (lowerLabel.includes('surprise') || lowerLabel.includes('amazed')) return '😲';
+    return '😌'; // default calm
   };
 
   // Helper function to get color based on valence
@@ -345,7 +348,7 @@ export const MoodCalibrationScreen = ({
                 stiffness: 300,
                 damping: 30
               }} className="text-center space-y-6 cursor-grab active:cursor-grabbing">
-                    {/* Emotion Icon with Waves */}
+                    {/* Emotion Emoji with Waves */}
                     <div className="relative flex items-center justify-center h-48">
                       {/* Animated Waves */}
                       {[...Array(3)].map((_, i) => (
@@ -370,12 +373,12 @@ export const MoodCalibrationScreen = ({
                         />
                       ))}
                       
-                      {/* Icon */}
+                      {/* Emoji */}
                       <motion.div
-                        className="relative z-10"
+                        className="relative z-10 text-8xl sm:text-9xl"
                         animate={{
                           scale: [1, 1.05, 1],
-                          rotate: [0, 5, -5, 0],
+                          rotate: [0, 3, -3, 0],
                         }}
                         transition={{
                           duration: 4,
@@ -383,16 +386,7 @@ export const MoodCalibrationScreen = ({
                           ease: "easeInOut",
                         }}
                       >
-                        {(() => {
-                          const EmotionIcon = getEmotionIcon(selectedEmotion.label);
-                          return (
-                            <EmotionIcon
-                              size={120}
-                              strokeWidth={1.5}
-                              style={{ color: convertedEmotion?.color || getEmotionColor(selectedEmotion.valence) }}
-                            />
-                          );
-                        })()}
+                        {getEmotionEmoji(selectedEmotion.label)}
                       </motion.div>
                     </div>
 
