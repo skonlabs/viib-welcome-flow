@@ -396,22 +396,6 @@ export const MoodCalibrationScreen = ({
                 </span>
                 <span className="text-sm text-muted-foreground">Positive</span>
               </div>
-              
-              {/* Selected Emotion Display */}
-              {selectedEmotion && (
-                <motion.div 
-                  className="flex items-center justify-center gap-2 py-2 px-4 rounded-xl glass-card"
-                  key={selectedEmotion.label}
-                  initial={{ scale: 0.95, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={{ type: "spring", stiffness: 300 }}
-                >
-                  <span className="text-2xl">{getEmotionEmoji(selectedEmotion.label)}</span>
-                  <span className="text-base font-semibold" style={{ color: getEmotionColor(selectedEmotion.valence) }}>
-                    {selectedEmotion.label}
-                  </span>
-                </motion.div>
-              )}
 
               <Slider
                 value={positivity}
