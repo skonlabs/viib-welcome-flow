@@ -6,6 +6,7 @@ import { BackButton } from "./BackButton";
 import { FloatingParticles } from "./FloatingParticles";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import deeplyCalmImage from "@/assets/deeply-calm.png";
 interface MoodCalibrationScreenProps {
   onContinue: (mood: {
     energy: number;
@@ -452,9 +453,9 @@ export const MoodCalibrationScreen = ({
                         />
                       ))}
                       
-                      {/* Emoji */}
+                      {/* Emoji or Image */}
                       <motion.div
-                        className="relative z-10 text-8xl sm:text-9xl"
+                        className="relative z-10"
                         animate={{
                           scale: [1, 1.05, 1],
                           rotate: [0, 3, -3, 0],
@@ -465,7 +466,18 @@ export const MoodCalibrationScreen = ({
                           ease: "easeInOut",
                         }}
                       >
-                        {getEmotionEmoji(convertedEmotion?.label || selectedEmotion.label)}
+                        {(convertedEmotion?.label || selectedEmotion.label).toLowerCase().includes('deeply') && 
+                         (convertedEmotion?.label || selectedEmotion.label).toLowerCase().includes('calm') ? (
+                          <img 
+                            src={deeplyCalmImage} 
+                            alt="Deeply Calm" 
+                            className="w-32 h-32 sm:w-40 sm:h-40 object-contain"
+                          />
+                        ) : (
+                          <span className="text-8xl sm:text-9xl">
+                            {getEmotionEmoji(convertedEmotion?.label || selectedEmotion.label)}
+                          </span>
+                        )}
                       </motion.div>
                     </div>
 
