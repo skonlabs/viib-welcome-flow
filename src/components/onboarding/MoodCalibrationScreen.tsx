@@ -307,7 +307,7 @@ export const MoodCalibrationScreen = ({
               <span className="text-gradient">How do you feel?</span>
             </h2>
             <p className="text-muted-foreground text-sm sm:text-base">
-              Select your mood and set your energy level
+              We'll use your mood to recommend perfect titles for you
             </p>
           </motion.div>
 
