@@ -41,6 +41,41 @@ export type Database = {
         }
         Relationships: []
       }
+      emotion_display_phrases: {
+        Row: {
+          created_at: string
+          display_phrase: string
+          emotion_id: string
+          id: string
+          max_intensity: number
+          min_intensity: number
+        }
+        Insert: {
+          created_at?: string
+          display_phrase: string
+          emotion_id: string
+          id?: string
+          max_intensity: number
+          min_intensity: number
+        }
+        Update: {
+          created_at?: string
+          display_phrase?: string
+          emotion_id?: string
+          id?: string
+          max_intensity?: number
+          min_intensity?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "emotion_display_phrases_emotion_id_fkey"
+            columns: ["emotion_id"]
+            isOneToOne: false
+            referencedRelation: "emotion_master"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       emotion_energy_profile: {
         Row: {
           created_at: string
@@ -1217,6 +1252,10 @@ export type Database = {
       explain_recommendation: {
         Args: { p_title_id: string; p_user_id: string }
         Returns: Json
+      }
+      get_display_emotion_phrase: {
+        Args: { p_user_id: string }
+        Returns: string
       }
       get_result_emotion_label: {
         Args: { p_emotion_label: string; p_intensity: number }
