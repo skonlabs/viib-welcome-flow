@@ -34,16 +34,25 @@ export const MoodCalibrationScreen = ({
     value: number;
     valence: number;
     arousal: number;
+    intensityMultiplier: number;
   }>>([]);
   const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
 
-  // Fetch emotion states from emotion_master table
+  // Fetch emotion states from emotion_master table with energy profiles
   useEffect(() => {
     const fetchEmotionStates = async () => {
       const { data, error } = await supabase
         .from('emotion_master')
-        .select('id, emotion_label, valence, arousal')
+        .select(`
+          id, 
+          emotion_label, 
+          valence, 
+          arousal,
+          emotion_energy_profile (
+            intensity_multiplier
+          )
+        `)
         .eq('category', 'user_state')
         .order('valence', { ascending: true });
 
@@ -59,7 +68,8 @@ export const MoodCalibrationScreen = ({
           label: emotion.emotion_label,
           value: Math.round((index / (data.length - 1)) * 100),
           valence: emotion.valence || 0,
-          arousal: emotion.arousal || 0
+          arousal: emotion.arousal || 0,
+          intensityMultiplier: (emotion.emotion_energy_profile as any)?.[0]?.intensity_multiplier || 1.0
         }));
         setEmotionStates(mapped);
       }
@@ -99,52 +109,30 @@ export const MoodCalibrationScreen = ({
     setPositivity([initialPositivity]);
   }, [initialPositivity]);
 
-  // Real-time emotion conversion when sliders change
+  // Format emotion with intensity based on energy level
   useEffect(() => {
-    const convertMoodToEmotion = async () => {
-      if (!selectedEmotion) return;
-      
-      const userId = localStorage.getItem('viib_user_id');
-      if (!userId) return;
+    if (!selectedEmotion) return;
 
-      // Call translate_mood_to_emotion - it returns the CONVERTED emotion
-      const { data: translatedData, error: rpcError } = await supabase.rpc('translate_mood_to_emotion', {
-        p_user_id: userId,
-        p_mood_text: selectedEmotion.label,
-        p_energy_percentage: energy[0]
-      });
-
-      if (rpcError || !translatedData || translatedData.length === 0) {
-        console.error('Error converting mood:', rpcError);
-        return;
-      }
-
-      const translated = translatedData[0];
-      
-      // Fetch valence from emotion_master for color determination
-      const { data: emotionMaster, error: fetchError } = await supabase
-        .from('emotion_master')
-        .select('valence')
-        .eq('id', translated.emotion_id)
-        .single();
-
-      if (fetchError || !emotionMaster) {
-        console.error('Error fetching emotion details:', fetchError);
-        return;
-      }
-
-      setConvertedEmotion({
-        label: translated.emotion_label,
-        emoji: getEmotionEmoji(translated.emotion_label),
-        color: getEmotionColor(emotionMaster.valence)
-      });
-    };
-
-    const timeoutId = setTimeout(() => {
-      convertMoodToEmotion();
-    }, 300); // Debounce to avoid too many calls
-
-    return () => clearTimeout(timeoutId);
+    // Calculate intensity: normalize energy (0-100 → 0-1) * multiplier
+    const normalizedEnergy = Math.max(0, Math.min(1, energy[0] / 100));
+    const intensity = Math.max(0.1, Math.min(1.0, normalizedEnergy * selectedEmotion.intensityMultiplier));
+    
+    // Format with prefix based on intensity
+    let prefix = '';
+    if (intensity < 0.25) prefix = 'Slightly';
+    else if (intensity < 0.45) prefix = 'Mildly';
+    else if (intensity < 0.65) prefix = 'Moderately';
+    else if (intensity < 0.85) prefix = 'Deeply';
+    else prefix = 'Overwhelmingly';
+    
+    const capitalizedLabel = selectedEmotion.label.charAt(0).toUpperCase() + 
+                            selectedEmotion.label.slice(1);
+    
+    setConvertedEmotion({
+      label: `${prefix} ${capitalizedLabel}`,
+      emoji: getEmotionEmoji(selectedEmotion.label),
+      color: getEmotionColor(selectedEmotion.valence)
+    });
   }, [selectedEmotion, energy]);
 
   // Helper function to get emoji based on emotion label
