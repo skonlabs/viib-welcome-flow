@@ -26,7 +26,6 @@ export const MoodCalibrationScreen = ({
   const [currentEmotionIndex, setCurrentEmotionIndex] = useState(0);
   const [convertedEmotion, setConvertedEmotion] = useState<{
     label: string;
-    color: string;
   } | null>(null);
   const [emotionStates, setEmotionStates] = useState<Array<{
     id: string;
@@ -147,8 +146,7 @@ export const MoodCalibrationScreen = ({
           return;
         }
         setConvertedEmotion({
-          label: displayPhrase || 'Emotionally Balanced',
-          color: getEmotionColor(selectedEmotion.valence)
+          label: displayPhrase || 'Emotionally Balanced'
         });
       } catch (error) {
         console.error('Error updating display emotion:', error);
@@ -171,15 +169,101 @@ export const MoodCalibrationScreen = ({
     if (lowerLabel.includes('anxious') || lowerLabel.includes('stress') || lowerLabel.includes('worried')) return '😰';
     if (lowerLabel.includes('angry') || lowerLabel.includes('frustrated')) return '😠';
     if (lowerLabel.includes('tired') || lowerLabel.includes('exhausted')) return '😴';
-    if (lowerLabel.includes('bored') || lowerLabel.includes('meh')) return '😑';
-    if (lowerLabel.includes('lonely') || lowerLabel.includes('isolated')) return '😔';
+    if (lowerLabel.includes('bored') || lowerLabel.includes('meh') || lowerLabel.includes('drained')) return '😑';
+    if (lowerLabel.includes('lonely') || lowerLabel.includes('isolated') || lowerLabel.includes('alone')) return '😔';
     if (lowerLabel.includes('hopeful') || lowerLabel.includes('optimistic')) return '🙂';
     if (lowerLabel.includes('love') || lowerLabel.includes('affection')) return '🥰';
     if (lowerLabel.includes('surprise') || lowerLabel.includes('amazed')) return '😲';
+    if (lowerLabel.includes('balanced')) return '😌';
     return '😌'; // default calm
   };
 
-  // Helper function to get color based on valence
+  // Helper function to get intensity from emotion label
+  const getIntensityLevel = (label: string): number => {
+    const lowerLabel = label.toLowerCase();
+    if (lowerLabel.includes('deeply') || lowerLabel.includes('profoundly') || lowerLabel.includes('overwhelmingly')) return 1.0;
+    if (lowerLabel.includes('strongly') || lowerLabel.includes('intensely') || lowerLabel.includes('extremely')) return 0.8;
+    if (lowerLabel.includes('very') || lowerLabel.includes('quite')) return 0.6;
+    if (lowerLabel.includes('peacefully') || lowerLabel.includes('softly') || lowerLabel.includes('mildly')) return 0.3;
+    return 0.5; // default medium intensity
+  };
+
+  // Helper function to get color based on emotion and intensity
+  const getEmotionColorWithIntensity = (label: string, valence: number): string => {
+    const lowerLabel = label.toLowerCase();
+    const intensity = getIntensityLevel(label);
+    
+    // Angry/Frustrated - Red shades
+    if (lowerLabel.includes('angry') || lowerLabel.includes('frustrated')) {
+      const hue = 0; // red
+      const saturation = 70 + (intensity * 30); // 70-100%
+      const lightness = 55 - (intensity * 15); // 55-40%
+      return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+    }
+    
+    // Sad - Blue shades
+    if (lowerLabel.includes('sad') || lowerLabel.includes('down')) {
+      const hue = 220; // blue
+      const saturation = 60 + (intensity * 30);
+      const lightness = 55 - (intensity * 20);
+      return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+    }
+    
+    // Anxious/Stressed - Orange/Yellow shades
+    if (lowerLabel.includes('anxious') || lowerLabel.includes('stress') || lowerLabel.includes('worried')) {
+      const hue = 30; // orange
+      const saturation = 70 + (intensity * 25);
+      const lightness = 55 - (intensity * 10);
+      return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+    }
+    
+    // Lonely/Alone - Purple/Grey shades
+    if (lowerLabel.includes('lonely') || lowerLabel.includes('alone') || lowerLabel.includes('isolated')) {
+      const hue = 270; // purple
+      const saturation = 40 + (intensity * 30);
+      const lightness = 50 - (intensity * 15);
+      return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+    }
+    
+    // Bored/Drained - Grey shades
+    if (lowerLabel.includes('bored') || lowerLabel.includes('drained') || lowerLabel.includes('tired')) {
+      const hue = 210;
+      const saturation = 15 + (intensity * 20);
+      const lightness = 50 - (intensity * 10);
+      return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+    }
+    
+    // Happy/Excited - Yellow/Green shades
+    if (lowerLabel.includes('happy') || lowerLabel.includes('excited') || lowerLabel.includes('joy')) {
+      const hue = 45; // yellow-green
+      const saturation = 75 + (intensity * 20);
+      const lightness = 55 - (intensity * 10);
+      return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+    }
+    
+    // Hopeful/Optimistic - Green shades
+    if (lowerLabel.includes('hopeful') || lowerLabel.includes('optimistic') || lowerLabel.includes('balanced')) {
+      const hue = 160; // cyan-green
+      const saturation = 60 + (intensity * 25);
+      const lightness = 50;
+      return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+    }
+    
+    // Calm/Peaceful - Cyan/Light Blue shades
+    if (lowerLabel.includes('calm') || lowerLabel.includes('peaceful') || lowerLabel.includes('serene')) {
+      const hue = 190; // cyan
+      const saturation = 55 + (intensity * 25);
+      const lightness = 55 - (intensity * 5);
+      return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+    }
+    
+    // Default based on valence
+    if (valence > 0.5) return '#10b981'; // positive - green
+    if (valence < -0.5) return '#3b82f6'; // negative - blue
+    return '#06b6d4'; // neutral - cyan
+  };
+
+  // Helper function to get color based on valence (kept for backward compatibility)
   const getEmotionColor = (valence: number): string => {
     if (valence > 0.5) return '#10b981'; // positive - green
     if (valence < -0.5) return '#3b82f6'; // negative - blue
@@ -268,7 +352,7 @@ export const MoodCalibrationScreen = ({
         <div className="absolute inset-0">
           <div className="absolute inset-0 gradient-ocean opacity-40" />
           <motion.div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] rounded-full blur-[120px]" style={{
-          background: `radial-gradient(circle, ${convertedEmotion?.color || mood.color}80 0%, transparent 70%)`
+          background: `radial-gradient(circle, ${getEmotionColorWithIntensity(convertedEmotion?.label || selectedEmotion.label, selectedEmotion.valence)}80 0%, transparent 70%)`
         }} animate={{
           x: [0, 120, 0],
           y: [0, -60, 0],
@@ -356,7 +440,7 @@ export const MoodCalibrationScreen = ({
                           key={i}
                           className="absolute rounded-full border-2"
                           style={{
-                            borderColor: `${convertedEmotion?.color || getEmotionColor(selectedEmotion.valence)}40`,
+                            borderColor: `${getEmotionColorWithIntensity(convertedEmotion?.label || selectedEmotion.label, selectedEmotion.valence)}40`,
                           }}
                           initial={{ width: 0, height: 0, opacity: 0 }}
                           animate={{
@@ -386,14 +470,14 @@ export const MoodCalibrationScreen = ({
                           ease: "easeInOut",
                         }}
                       >
-                        {getEmotionEmoji(selectedEmotion.label)}
+                        {getEmotionEmoji(convertedEmotion?.label || selectedEmotion.label)}
                       </motion.div>
                     </div>
 
                     {/* Emotion Label */}
                     <div className="space-y-2">
                       <h3 className="text-3xl sm:text-4xl font-bold capitalize" style={{
-                    color: getEmotionColor(selectedEmotion.valence)
+                    color: getEmotionColorWithIntensity(convertedEmotion?.label || selectedEmotion.label, selectedEmotion.valence)
                   }}>
                         {convertedEmotion?.label || selectedEmotion.label}
                       </h3>
@@ -405,7 +489,7 @@ export const MoodCalibrationScreen = ({
                     {/* Emotion Dots */}
                     <div className="flex justify-center gap-2">
                       {emotionStates.map((_, index) => <motion.div key={index} className="w-2 h-2 rounded-full" style={{
-                    background: index === currentEmotionIndex ? getEmotionColor(selectedEmotion.valence) : 'rgba(255,255,255,0.2)'
+                    background: index === currentEmotionIndex ? getEmotionColorWithIntensity(convertedEmotion?.label || selectedEmotion.label, selectedEmotion.valence) : 'rgba(255,255,255,0.2)'
                   }} animate={{
                     scale: index === currentEmotionIndex ? 1.5 : 1
                   }} />)}
@@ -430,7 +514,7 @@ export const MoodCalibrationScreen = ({
               <div className="text-center">
                 <p className="text-xs uppercase tracking-wider text-muted-foreground">Energy</p>
                 <motion.p className="text-xl sm:text-2xl font-bold" style={{
-                color: convertedEmotion?.color || mood.color
+                color: getEmotionColorWithIntensity(convertedEmotion?.label || selectedEmotion.label, selectedEmotion.valence)
               }} key={energy[0]} animate={{
                 scale: [1.2, 1]
               }}>
@@ -445,14 +529,14 @@ export const MoodCalibrationScreen = ({
               {Array.from({
               length: 10
             }).map((_, i) => <motion.button key={i} className="flex-1 rounded-t-xl transition-all touch-manipulation" style={{
-              background: i < energy[0] * 10 ? `linear-gradient(to top, ${convertedEmotion?.color || mood.color}40, ${convertedEmotion?.color || mood.color})` : 'rgba(255,255,255,0.05)',
+              background: i < energy[0] * 10 ? `linear-gradient(to top, ${getEmotionColorWithIntensity(convertedEmotion?.label || selectedEmotion.label, selectedEmotion.valence)}40, ${getEmotionColorWithIntensity(convertedEmotion?.label || selectedEmotion.label, selectedEmotion.valence)})` : 'rgba(255,255,255,0.05)',
               height: `${(i + 1) / 10 * 100}%`
             }} onClick={() => setEnergy([(i + 1) / 10])} whileHover={{
               scale: 1.05
             }} whileTap={{
               scale: 0.95
             }} animate={{
-              boxShadow: i < energy[0] * 10 ? `0 0 15px ${convertedEmotion?.color || mood.color}90` : 'none'
+              boxShadow: i < energy[0] * 10 ? `0 0 15px ${getEmotionColorWithIntensity(convertedEmotion?.label || selectedEmotion.label, selectedEmotion.valence)}90` : 'none'
             }} aria-label={`Set energy to ${(i + 1) * 10}%`} />)}
             </div>
 
