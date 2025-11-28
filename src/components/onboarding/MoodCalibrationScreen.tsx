@@ -78,27 +78,21 @@ export const MoodCalibrationScreen = ({
     fetchEmotionStates();
   }, []);
 
-  // Get the closest emotion state based on BOTH positivity (valence) AND energy (arousal)
+  // Get the closest emotion state based ONLY on positivity (mood tone slider)
+  // Energy should NOT affect which base emotion is selected
   const selectedEmotion = useMemo(() => {
     if (emotionStates.length === 0) return null;
     
-    // Normalize positivity and energy to match valence/arousal scales (-1 to 1 for valence, 0 to 1 for arousal)
+    // Normalize positivity to match valence scale (-1 to 1)
     const targetValence = (positivity[0] / 100) * 2 - 1; // Convert 0-100 to -1 to 1
-    const targetArousal = energy[0]; // Already 0 to 1
     
-    // Find emotion with closest valence AND arousal
+    // Find emotion with closest valence
     return emotionStates.reduce((prev, curr) => {
-      const prevDistance = Math.sqrt(
-        Math.pow(prev.valence - targetValence, 2) + 
-        Math.pow(prev.arousal - targetArousal, 2)
-      );
-      const currDistance = Math.sqrt(
-        Math.pow(curr.valence - targetValence, 2) + 
-        Math.pow(curr.arousal - targetArousal, 2)
-      );
+      const prevDistance = Math.abs(prev.valence - targetValence);
+      const currDistance = Math.abs(curr.valence - targetValence);
       return currDistance < prevDistance ? curr : prev;
     });
-  }, [positivity, energy, emotionStates]);
+  }, [positivity, emotionStates]);
 
   // Update local state when initial values change (e.g., when navigating back)
   useEffect(() => {
@@ -109,29 +103,50 @@ export const MoodCalibrationScreen = ({
     setPositivity([initialPositivity]);
   }, [initialPositivity]);
 
-  // Calculate display emotion phrase locally as sliders change
+  // Update top display using DB functions when mood tone or energy changes
   useEffect(() => {
-    if (!selectedEmotion) return;
+    const updateDisplayEmotion = async () => {
+      if (!selectedEmotion) return;
+      
+      const userId = localStorage.getItem('viib_user_id');
+      if (!userId) return;
 
-    // Calculate intensity locally: energy (0-1) * multiplier
-    const intensity = Math.max(0.1, Math.min(1.0, energy[0] * selectedEmotion.intensityMultiplier));
-    
-    // Format with prefix based on intensity (matching get_result_emotion_label logic)
-    let prefix = '';
-    if (intensity < 0.25) prefix = 'Slightly';
-    else if (intensity < 0.45) prefix = 'Mildly';
-    else if (intensity < 0.65) prefix = 'Moderately';
-    else if (intensity < 0.85) prefix = 'Deeply';
-    else prefix = 'Overwhelmingly';
-    
-    const capitalizedLabel = selectedEmotion.label.charAt(0).toUpperCase() + 
-                            selectedEmotion.label.slice(1);
-    
-    setConvertedEmotion({
-      label: `${prefix} ${capitalizedLabel}`,
-      emoji: getEmotionEmoji(selectedEmotion.label),
-      color: getEmotionColor(selectedEmotion.valence)
-    });
+      try {
+        // Convert energy from 0-1 to 0-100 for the RPC function
+        const energyPercentage = energy[0] * 100;
+        
+        // Call translate_mood_to_emotion to store the emotion state
+        await supabase.rpc('translate_mood_to_emotion', {
+          p_user_id: userId,
+          p_mood_text: selectedEmotion.label,
+          p_energy_percentage: energyPercentage
+        });
+
+        // Get the display phrase from the database
+        const { data: displayPhrase, error } = await supabase.rpc('get_display_emotion_phrase', {
+          p_user_id: userId
+        });
+
+        if (error) {
+          console.error('Error getting display phrase:', error);
+          return;
+        }
+
+        setConvertedEmotion({
+          label: displayPhrase || 'Emotionally Balanced',
+          emoji: getEmotionEmoji(selectedEmotion.label),
+          color: getEmotionColor(selectedEmotion.valence)
+        });
+      } catch (error) {
+        console.error('Error updating display emotion:', error);
+      }
+    };
+
+    const timeoutId = setTimeout(() => {
+      updateDisplayEmotion();
+    }, 300); // Debounce
+
+    return () => clearTimeout(timeoutId);
   }, [selectedEmotion, energy]);
 
   // Helper function to get emoji based on emotion label
