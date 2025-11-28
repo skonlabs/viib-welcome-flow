@@ -1,14 +1,11 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import { motion } from "framer-motion";
-import { ArrowRight } from "lucide-react";
+import { motion, AnimatePresence, PanInfo } from "framer-motion";
+import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
 import { BackButton } from "./BackButton";
 import { FloatingParticles } from "./FloatingParticles";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { OrbitControls, Sphere, MeshDistortMaterial, Html } from "@react-three/drei";
-import * as THREE from "three";
 
 interface MoodCalibrationScreenProps {
   onContinue: (mood: { energy: number; positivity: number }) => void;
@@ -25,6 +22,7 @@ export const MoodCalibrationScreen = ({
 }: MoodCalibrationScreenProps) => {
   const [energy, setEnergy] = useState([initialEnergy]);
   const [positivity, setPositivity] = useState([initialPositivity]);
+  const [currentEmotionIndex, setCurrentEmotionIndex] = useState(0);
   const [convertedEmotion, setConvertedEmotion] = useState<{
     label: string;
     emoji: string;
@@ -80,30 +78,47 @@ export const MoodCalibrationScreen = ({
     fetchEmotionStates();
   }, []);
 
-  // Get the closest emotion state based ONLY on positivity (mood tone slider)
-  // Energy should NOT affect which base emotion is selected
+  // Get the currently selected emotion from the carousel
   const selectedEmotion = useMemo(() => {
     if (emotionStates.length === 0) return null;
-    
-    // Normalize positivity to match valence scale (-1 to 1)
-    const targetValence = (positivity[0] / 100) * 2 - 1; // Convert 0-100 to -1 to 1
-    
-    // Find emotion with closest valence
-    return emotionStates.reduce((prev, curr) => {
-      const prevDistance = Math.abs(prev.valence - targetValence);
-      const currDistance = Math.abs(curr.valence - targetValence);
-      return currDistance < prevDistance ? curr : prev;
-    });
-  }, [positivity, emotionStates]);
+    return emotionStates[currentEmotionIndex];
+  }, [currentEmotionIndex, emotionStates]);
+
+  // Navigation functions for carousel
+  const goToNextEmotion = () => {
+    setCurrentEmotionIndex((prev) => (prev + 1) % emotionStates.length);
+  };
+
+  const goToPrevEmotion = () => {
+    setCurrentEmotionIndex((prev) => (prev - 1 + emotionStates.length) % emotionStates.length);
+  };
+
+  const handleDragEnd = (event: any, info: PanInfo) => {
+    const swipeThreshold = 50;
+    if (info.offset.x > swipeThreshold) {
+      goToPrevEmotion();
+    } else if (info.offset.x < -swipeThreshold) {
+      goToNextEmotion();
+    }
+  };
 
   // Update local state when initial values change (e.g., when navigating back)
   useEffect(() => {
     setEnergy([initialEnergy]);
   }, [initialEnergy]);
 
+  // Set initial emotion index based on saved data
   useEffect(() => {
-    setPositivity([initialPositivity]);
-  }, [initialPositivity]);
+    if (emotionStates.length > 0 && initialPositivity) {
+      const targetValence = (initialPositivity / 100) * 2 - 1;
+      const closestIndex = emotionStates.reduce((prevIdx, curr, currIdx) => {
+        const prevDistance = Math.abs(emotionStates[prevIdx].valence - targetValence);
+        const currDistance = Math.abs(curr.valence - targetValence);
+        return currDistance < prevDistance ? currIdx : prevIdx;
+      }, 0);
+      setCurrentEmotionIndex(closestIndex);
+    }
+  }, [emotionStates, initialPositivity]);
 
   // Update top display using DB functions when mood tone or energy changes
   useEffect(() => {
@@ -171,91 +186,6 @@ export const MoodCalibrationScreen = ({
     if (valence > 0.5) return '#10b981'; // positive - green
     if (valence < -0.5) return '#3b82f6'; // negative - blue
     return '#06b6d4'; // neutral - cyan
-  };
-
-  // 3D Emotion Sphere Component
-  const EmotionSphere = ({ emotion, energy }: { emotion: any; energy: number }) => {
-    const meshRef = useRef<THREE.Mesh>(null);
-    const groupRef = useRef<THREE.Group>(null);
-    
-    useFrame((state) => {
-      if (meshRef.current && groupRef.current) {
-        meshRef.current.rotation.y = state.clock.getElapsedTime() * 0.2;
-        groupRef.current.position.y = Math.sin(state.clock.getElapsedTime()) * 0.1;
-      }
-    });
-
-    const color = emotion ? getEmotionColor(emotion.valence) : '#a855f7';
-    const scale = 1 + energy * 0.5;
-
-    return (
-      <group ref={groupRef}>
-        <Sphere ref={meshRef} args={[1.5, 64, 64]} scale={scale}>
-          <MeshDistortMaterial
-            color={color}
-            attach="material"
-            distort={0.3 + energy * 0.3}
-            speed={2 + energy * 2}
-            roughness={0.2}
-            metalness={0.8}
-          />
-        </Sphere>
-        {emotion && (
-          <Html center>
-            <div className="pointer-events-none">
-              <div className="text-6xl animate-pulse">{getEmotionEmoji(emotion.label)}</div>
-            </div>
-          </Html>
-        )}
-      </group>
-    );
-  };
-
-  // Floating Emotion Orbs Component
-  const FloatingEmotionOrb = ({ 
-    emotion, 
-    position, 
-    isSelected, 
-    onClick 
-  }: { 
-    emotion: any; 
-    position: [number, number, number]; 
-    isSelected: boolean;
-    onClick: () => void;
-  }) => {
-    const meshRef = useRef<THREE.Mesh>(null);
-    
-    useFrame((state) => {
-      if (meshRef.current) {
-        meshRef.current.position.y = position[1] + Math.sin(state.clock.getElapsedTime() + position[0]) * 0.2;
-      }
-    });
-
-    return (
-      <mesh
-        ref={meshRef}
-        position={position}
-        onClick={onClick}
-        scale={isSelected ? 1.2 : 0.8}
-      >
-        <sphereGeometry args={[0.3, 32, 32]} />
-        <meshStandardMaterial
-          color={getEmotionColor(emotion.valence)}
-          emissive={getEmotionColor(emotion.valence)}
-          emissiveIntensity={isSelected ? 0.8 : 0.3}
-          metalness={0.8}
-          roughness={0.2}
-        />
-        <Html center distanceFactor={8}>
-          <div 
-            className="pointer-events-none text-white text-xs font-semibold whitespace-nowrap bg-black/50 px-2 py-1 rounded"
-            style={{ transform: 'translateY(-30px)' }}
-          >
-            {emotion.label}
-          </div>
-        </Html>
-      </mesh>
-    );
   };
 
   const mood = useMemo(() => {
@@ -332,7 +262,7 @@ export const MoodCalibrationScreen = ({
   };
 
   return (
-    <div className="min-h-screen flex flex-col relative overflow-hidden bg-black">
+    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-black">
       <BackButton onClick={onBack} />
       
       {/* Background */}
@@ -360,191 +290,178 @@ export const MoodCalibrationScreen = ({
 
       <FloatingParticles />
 
-      {/* Content Container */}
+      {/* Content */}
       <motion.div
-        className="relative z-10 w-full max-w-6xl mx-auto px-4 py-8 flex-1 flex flex-col"
+        className="relative z-10 w-full max-w-lg mx-auto"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.8 }}
       >
-        {/* Header */}
-        <motion.div
-          className="text-center space-y-2 mb-6"
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-        >
-          <h2 className="text-4xl md:text-5xl font-bold">
-            <span className="text-gradient">Navigate Your Emotions</span>
-          </h2>
-          <p className="text-muted-foreground text-base md:text-lg">
-            Rotate the sphere • Click emotion orbs • Drag to adjust energy
-          </p>
-        </motion.div>
-
-        {/* Two Column Layout */}
-        <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-6 items-center">
-          {/* 3D Interactive Canvas */}
+        <div className="space-y-8">
+          {/* Header */}
           <motion.div
-            className="relative h-[400px] lg:h-[500px] rounded-3xl overflow-hidden glass-card border border-white/10"
-            initial={{ opacity: 0, x: -50 }}
-            animate={{ opacity: 1, x: 0 }}
+            className="text-center space-y-3"
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+          >
+            <h2 className="text-3xl sm:text-4xl font-bold">
+              <span className="text-gradient">How do you feel?</span>
+            </h2>
+            <p className="text-muted-foreground text-sm sm:text-base">
+              Swipe through moods • Tap energy bars
+            </p>
+          </motion.div>
+
+          {/* Emotion Carousel */}
+          <motion.div
+            className="relative"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.4 }}
           >
-            <Canvas camera={{ position: [0, 0, 8], fov: 50 }}>
-              <ambientLight intensity={0.5} />
-              <pointLight position={[10, 10, 10]} intensity={1} />
-              <pointLight position={[-10, -10, -10]} intensity={0.5} color="#a855f7" />
-              
-              {/* Central Emotion Sphere */}
-              <EmotionSphere emotion={selectedEmotion} energy={energy[0]} />
-              
-              {/* Floating Emotion Orbs in Circle */}
-              {emotionStates.map((state, index) => {
-                const angle = (index / emotionStates.length) * Math.PI * 2;
-                const radius = 4;
-                const x = Math.cos(angle) * radius;
-                const z = Math.sin(angle) * radius;
-                const y = (state.valence) * 2; // Vertical position based on valence
-                
-                return (
-                  <FloatingEmotionOrb
-                    key={state.id}
-                    emotion={state}
-                    position={[x, y, z]}
-                    isSelected={selectedEmotion?.id === state.id}
-                    onClick={() => {
-                      const targetPositivity = Math.round(((state.valence + 1) / 2) * 100);
-                      setPositivity([targetPositivity]);
-                    }}
-                  />
-                );
-              })}
-              
-              <OrbitControls 
-                enableZoom={false} 
-                enablePan={false}
-                autoRotate
-                autoRotateSpeed={0.5}
-              />
-            </Canvas>
+            <div className="relative overflow-hidden rounded-3xl glass-card p-8 border border-white/10">
+              {/* Navigation Arrows */}
+              <button
+                onClick={goToPrevEmotion}
+                className="absolute left-2 top-1/2 -translate-y-1/2 z-10 glass-card p-2 rounded-full hover:scale-110 transition-transform"
+                aria-label="Previous emotion"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <button
+                onClick={goToNextEmotion}
+                className="absolute right-2 top-1/2 -translate-y-1/2 z-10 glass-card p-2 rounded-full hover:scale-110 transition-transform"
+                aria-label="Next emotion"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
 
-            {/* Instructions Overlay */}
-            <div className="absolute top-4 left-4 right-4 flex justify-between items-start pointer-events-none">
-              <div className="glass-card px-3 py-2 rounded-xl text-xs text-white/80">
-                <p className="font-semibold mb-1">🎮 Controls</p>
-                <p>• Drag to rotate</p>
-                <p>• Click orbs to select mood</p>
-              </div>
-              {selectedEmotion && (
-                <motion.div 
-                  className="glass-card px-4 py-2 rounded-xl"
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  key={selectedEmotion.id}
-                >
-                  <p className="text-xs text-white/60 uppercase tracking-wider">Selected</p>
-                  <p className="text-lg font-bold" style={{ color: getEmotionColor(selectedEmotion.valence) }}>
-                    {selectedEmotion.label}
-                  </p>
-                </motion.div>
-              )}
+              {/* Emotion Card - Swipeable */}
+              <AnimatePresence mode="wait">
+                {selectedEmotion && (
+                  <motion.div
+                    key={selectedEmotion.id}
+                    drag="x"
+                    dragConstraints={{ left: 0, right: 0 }}
+                    dragElastic={0.2}
+                    onDragEnd={handleDragEnd}
+                    initial={{ opacity: 0, x: 100 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -100 }}
+                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                    className="text-center space-y-6 cursor-grab active:cursor-grabbing"
+                  >
+                    {/* Emoji */}
+                    <motion.div
+                      className="text-8xl sm:text-9xl"
+                      animate={{
+                        scale: [1, 1.1, 1],
+                      }}
+                      transition={{
+                        duration: 2,
+                        repeat: Infinity,
+                        ease: "easeInOut"
+                      }}
+                    >
+                      {getEmotionEmoji(selectedEmotion.label)}
+                    </motion.div>
+
+                    {/* Emotion Label */}
+                    <div className="space-y-2">
+                      <h3 
+                        className="text-3xl sm:text-4xl font-bold capitalize"
+                        style={{ color: getEmotionColor(selectedEmotion.valence) }}
+                      >
+                        {convertedEmotion?.label || selectedEmotion.label}
+                      </h3>
+                      <p className="text-sm text-muted-foreground">
+                        Swipe or use arrows to change
+                      </p>
+                    </div>
+
+                    {/* Emotion Dots */}
+                    <div className="flex justify-center gap-2">
+                      {emotionStates.map((_, index) => (
+                        <motion.div
+                          key={index}
+                          className="w-2 h-2 rounded-full"
+                          style={{
+                            background: index === currentEmotionIndex 
+                              ? getEmotionColor(selectedEmotion.valence)
+                              : 'rgba(255,255,255,0.2)'
+                          }}
+                          animate={{
+                            scale: index === currentEmotionIndex ? 1.5 : 1
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </motion.div>
 
-          {/* Right Panel - Emotion Info & Energy Control */}
+          {/* Energy Intensity Control */}
           <motion.div
-            className="space-y-6"
-            initial={{ opacity: 0, x: 50 }}
-            animate={{ opacity: 1, x: 0 }}
+            className="glass-card rounded-3xl p-6 border border-white/10 space-y-4"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.6 }}
           >
-            {/* Current Emotion Display */}
-            <div className="glass-card rounded-3xl p-8 border border-white/10 text-center">
-              <p className="text-sm text-muted-foreground uppercase tracking-wider mb-3">
-                Current Emotional State
-              </p>
-              <motion.div
-                key={convertedEmotion?.label || mood.label}
-                initial={{ scale: 0.8, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ type: "spring", stiffness: 200 }}
-                className="space-y-3"
-              >
-                <div className="text-7xl">
-                  {convertedEmotion?.emoji || mood.emoji}
-                </div>
-                <h3 
-                  className="text-3xl font-bold"
+            <div className="flex justify-between items-center">
+              <span className="text-xs sm:text-sm font-medium text-muted-foreground">💤 Low</span>
+              <div className="text-center">
+                <p className="text-xs uppercase tracking-wider text-muted-foreground">Energy</p>
+                <motion.p 
+                  className="text-xl sm:text-2xl font-bold"
                   style={{ color: convertedEmotion?.color || mood.color }}
+                  key={energy[0]}
+                  animate={{ scale: [1.2, 1] }}
                 >
-                  {convertedEmotion?.label || mood.label}
-                </h3>
-              </motion.div>
+                  {Math.round(energy[0] * 100)}%
+                </motion.p>
+              </div>
+              <span className="text-xs sm:text-sm font-medium text-muted-foreground">High ⚡</span>
             </div>
 
-            {/* Energy Intensity Control */}
-            <div className="glass-card rounded-3xl p-6 border border-white/10 space-y-4">
-              <div className="flex justify-between items-center">
-                <span className="text-sm font-medium text-muted-foreground">💤 Low</span>
-                <div className="text-center">
-                  <p className="text-xs uppercase tracking-wider text-muted-foreground">Energy Intensity</p>
-                  <motion.p 
-                    className="text-2xl font-bold"
-                    style={{ color: convertedEmotion?.color || mood.color }}
-                    key={energy[0]}
-                    animate={{ scale: [1.2, 1] }}
-                  >
-                    {Math.round(energy[0] * 100)}%
-                  </motion.p>
-                </div>
-                <span className="text-sm font-medium text-muted-foreground">High ⚡</span>
-              </div>
-
-              {/* Visual Energy Bars */}
-              <div className="flex gap-1 h-20 items-end">
-                {Array.from({ length: 10 }).map((_, i) => (
-                  <motion.div
-                    key={i}
-                    className="flex-1 rounded-t-lg cursor-pointer"
-                    style={{
-                      background: i < energy[0] * 10 
-                        ? `linear-gradient(to top, ${convertedEmotion?.color || mood.color}40, ${convertedEmotion?.color || mood.color})` 
-                        : 'rgba(255,255,255,0.05)',
-                      height: `${((i + 1) / 10) * 100}%`,
-                    }}
-                    onClick={() => setEnergy([(i + 1) / 10])}
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.95 }}
-                    animate={{
-                      boxShadow: i < energy[0] * 10 
-                        ? `0 0 10px ${convertedEmotion?.color || mood.color}80` 
-                        : 'none'
-                    }}
-                  />
-                ))}
-              </div>
-
-              <p className="text-xs text-center text-muted-foreground">
-                Tap bars or use slider below to adjust intensity
-              </p>
-
-              {/* Energy Slider (hidden but functional) */}
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.1"
-                value={energy[0]}
-                onChange={(e) => setEnergy([parseFloat(e.target.value)])}
-                className="w-full h-2 rounded-lg appearance-none cursor-pointer"
-                style={{
-                  background: `linear-gradient(to right, ${convertedEmotion?.color || mood.color} 0%, ${convertedEmotion?.color || mood.color} ${energy[0] * 100}%, rgba(255,255,255,0.1) ${energy[0] * 100}%, rgba(255,255,255,0.1) 100%)`
-                }}
-              />
+            {/* Visual Energy Bars */}
+            <div className="flex gap-1.5 h-24 sm:h-28 items-end">
+              {Array.from({ length: 10 }).map((_, i) => (
+                <motion.button
+                  key={i}
+                  className="flex-1 rounded-t-xl transition-all touch-manipulation"
+                  style={{
+                    background: i < energy[0] * 10 
+                      ? `linear-gradient(to top, ${convertedEmotion?.color || mood.color}40, ${convertedEmotion?.color || mood.color})` 
+                      : 'rgba(255,255,255,0.05)',
+                    height: `${((i + 1) / 10) * 100}%`,
+                  }}
+                  onClick={() => setEnergy([(i + 1) / 10])}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  animate={{
+                    boxShadow: i < energy[0] * 10 
+                      ? `0 0 15px ${convertedEmotion?.color || mood.color}90` 
+                      : 'none'
+                  }}
+                  aria-label={`Set energy to ${(i + 1) * 10}%`}
+                />
+              ))}
             </div>
 
-            {/* Continue Button */}
+            <p className="text-xs text-center text-muted-foreground">
+              Tap any bar to set your energy level
+            </p>
+          </motion.div>
+
+          {/* Continue Button */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.8 }}
+          >
             <Button
               onClick={handleTuneMood}
               disabled={isSaving || !selectedEmotion}
