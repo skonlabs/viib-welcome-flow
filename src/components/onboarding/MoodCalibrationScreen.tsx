@@ -1,12 +1,14 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
-import { Slider } from "@/components/ui/slider";
 import { ArrowRight } from "lucide-react";
 import { BackButton } from "./BackButton";
 import { FloatingParticles } from "./FloatingParticles";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { OrbitControls, Sphere, MeshDistortMaterial, Html } from "@react-three/drei";
+import * as THREE from "three";
 
 interface MoodCalibrationScreenProps {
   onContinue: (mood: { energy: number; positivity: number }) => void;
@@ -171,6 +173,91 @@ export const MoodCalibrationScreen = ({
     return '#06b6d4'; // neutral - cyan
   };
 
+  // 3D Emotion Sphere Component
+  const EmotionSphere = ({ emotion, energy }: { emotion: any; energy: number }) => {
+    const meshRef = useRef<THREE.Mesh>(null);
+    const groupRef = useRef<THREE.Group>(null);
+    
+    useFrame((state) => {
+      if (meshRef.current && groupRef.current) {
+        meshRef.current.rotation.y = state.clock.getElapsedTime() * 0.2;
+        groupRef.current.position.y = Math.sin(state.clock.getElapsedTime()) * 0.1;
+      }
+    });
+
+    const color = emotion ? getEmotionColor(emotion.valence) : '#a855f7';
+    const scale = 1 + energy * 0.5;
+
+    return (
+      <group ref={groupRef}>
+        <Sphere ref={meshRef} args={[1.5, 64, 64]} scale={scale}>
+          <MeshDistortMaterial
+            color={color}
+            attach="material"
+            distort={0.3 + energy * 0.3}
+            speed={2 + energy * 2}
+            roughness={0.2}
+            metalness={0.8}
+          />
+        </Sphere>
+        {emotion && (
+          <Html center>
+            <div className="pointer-events-none">
+              <div className="text-6xl animate-pulse">{getEmotionEmoji(emotion.label)}</div>
+            </div>
+          </Html>
+        )}
+      </group>
+    );
+  };
+
+  // Floating Emotion Orbs Component
+  const FloatingEmotionOrb = ({ 
+    emotion, 
+    position, 
+    isSelected, 
+    onClick 
+  }: { 
+    emotion: any; 
+    position: [number, number, number]; 
+    isSelected: boolean;
+    onClick: () => void;
+  }) => {
+    const meshRef = useRef<THREE.Mesh>(null);
+    
+    useFrame((state) => {
+      if (meshRef.current) {
+        meshRef.current.position.y = position[1] + Math.sin(state.clock.getElapsedTime() + position[0]) * 0.2;
+      }
+    });
+
+    return (
+      <mesh
+        ref={meshRef}
+        position={position}
+        onClick={onClick}
+        scale={isSelected ? 1.2 : 0.8}
+      >
+        <sphereGeometry args={[0.3, 32, 32]} />
+        <meshStandardMaterial
+          color={getEmotionColor(emotion.valence)}
+          emissive={getEmotionColor(emotion.valence)}
+          emissiveIntensity={isSelected ? 0.8 : 0.3}
+          metalness={0.8}
+          roughness={0.2}
+        />
+        <Html center distanceFactor={8}>
+          <div 
+            className="pointer-events-none text-white text-xs font-semibold whitespace-nowrap bg-black/50 px-2 py-1 rounded"
+            style={{ transform: 'translateY(-30px)' }}
+          >
+            {emotion.label}
+          </div>
+        </Html>
+      </mesh>
+    );
+  };
+
   const mood = useMemo(() => {
     if (!selectedEmotion) {
       return { label: "Loading...", emoji: "⏳", color: "#a855f7" };
@@ -245,10 +332,10 @@ export const MoodCalibrationScreen = ({
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-black">
+    <div className="min-h-screen flex flex-col relative overflow-hidden bg-black">
       <BackButton onClick={onBack} />
       
-      {/* Enhanced Background with Dynamic Colors */}
+      {/* Background */}
       <div className="fixed inset-0 overflow-hidden">
         <div className="absolute inset-0">
           <div className="absolute inset-0 gradient-ocean opacity-40" />
@@ -268,268 +355,204 @@ export const MoodCalibrationScreen = ({
               ease: "easeInOut"
             }}
           />
-          <motion.div 
-            className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] rounded-full blur-[100px] opacity-40"
-            style={{
-              background: "radial-gradient(circle, #0ea5e9 0%, transparent 70%)"
-            }}
-            animate={{
-              x: [0, -100, 0],
-              y: [0, 50, 0]
-            }}
-            transition={{
-              duration: 25,
-              repeat: Infinity,
-              ease: "easeInOut"
-            }}
-          />
         </div>
       </div>
 
-      {/* Floating Particles */}
       <FloatingParticles />
 
-      {/* Content */}
+      {/* Content Container */}
       <motion.div
-        className="relative z-10 w-full max-w-3xl"
-        initial={{ opacity: 0, y: 30 }}
-        animate={{ opacity: 1, y: 0 }}
+        className="relative z-10 w-full max-w-6xl mx-auto px-4 py-8 flex-1 flex flex-col"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
         transition={{ duration: 0.8 }}
       >
-        <div className="space-y-12">
-          {/* Header */}
-          <motion.div
-            className="text-center space-y-4"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.2 }}
-          >
-            <h2 className="text-5xl font-bold">
-              <span className="text-gradient">How do you feel?</span>
-            </h2>
-            <p className="text-muted-foreground text-lg">
-              Tune your emotional state with intuitive controls
-            </p>
-          </motion.div>
+        {/* Header */}
+        <motion.div
+          className="text-center space-y-2 mb-6"
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+        >
+          <h2 className="text-4xl md:text-5xl font-bold">
+            <span className="text-gradient">Navigate Your Emotions</span>
+          </h2>
+          <p className="text-muted-foreground text-base md:text-lg">
+            Rotate the sphere • Click emotion orbs • Drag to adjust energy
+          </p>
+        </motion.div>
 
-          {/* Enhanced Emotion Display with Radial Progress */}
+        {/* Two Column Layout */}
+        <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-6 items-center">
+          {/* 3D Interactive Canvas */}
           <motion.div
-            className="flex justify-center"
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={{ delay: 0.4, type: "spring", stiffness: 200 }}
+            className="relative h-[400px] lg:h-[500px] rounded-3xl overflow-hidden glass-card border border-white/10"
+            initial={{ opacity: 0, x: -50 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.4 }}
           >
-            <motion.div
-              className="relative"
-              whileHover={{ scale: 1.05 }}
-              transition={{ type: "spring", stiffness: 300 }}
-            >
-              {/* Animated Glow Ring */}
-              <motion.div
-                className="absolute inset-0 rounded-full blur-3xl"
-                animate={{
-                  backgroundColor: [
-                    (convertedEmotion?.color || mood.color) + "40", 
-                    (convertedEmotion?.color || mood.color) + "80", 
-                    (convertedEmotion?.color || mood.color) + "40"
-                  ],
-                  scale: [1, 1.1, 1]
-                }}
-                transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-              />
+            <Canvas camera={{ position: [0, 0, 8], fov: 50 }}>
+              <ambientLight intensity={0.5} />
+              <pointLight position={[10, 10, 10]} intensity={1} />
+              <pointLight position={[-10, -10, -10]} intensity={0.5} color="#a855f7" />
               
-              {/* Energy Level Ring */}
-              <svg className="absolute inset-0 w-64 h-64 sm:w-72 sm:h-72 -rotate-90" viewBox="0 0 100 100">
-                <circle
-                  cx="50"
-                  cy="50"
-                  r="45"
-                  fill="none"
-                  stroke="rgba(255,255,255,0.1)"
-                  strokeWidth="2"
-                />
-                <motion.circle
-                  cx="50"
-                  cy="50"
-                  r="45"
-                  fill="none"
-                  stroke={convertedEmotion?.color || mood.color}
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeDasharray={`${2 * Math.PI * 45}`}
-                  initial={{ strokeDashoffset: 2 * Math.PI * 45 }}
-                  animate={{ strokeDashoffset: 2 * Math.PI * 45 * (1 - energy[0]) }}
-                  transition={{ duration: 0.5, ease: "easeOut" }}
-                  style={{ filter: `drop-shadow(0 0 8px ${convertedEmotion?.color || mood.color})` }}
-                />
-              </svg>
+              {/* Central Emotion Sphere */}
+              <EmotionSphere emotion={selectedEmotion} energy={energy[0]} />
+              
+              {/* Floating Emotion Orbs in Circle */}
+              {emotionStates.map((state, index) => {
+                const angle = (index / emotionStates.length) * Math.PI * 2;
+                const radius = 4;
+                const x = Math.cos(angle) * radius;
+                const z = Math.sin(angle) * radius;
+                const y = (state.valence) * 2; // Vertical position based on valence
+                
+                return (
+                  <FloatingEmotionOrb
+                    key={state.id}
+                    emotion={state}
+                    position={[x, y, z]}
+                    isSelected={selectedEmotion?.id === state.id}
+                    onClick={() => {
+                      const targetPositivity = Math.round(((state.valence + 1) / 2) * 100);
+                      setPositivity([targetPositivity]);
+                    }}
+                  />
+                );
+              })}
+              
+              <OrbitControls 
+                enableZoom={false} 
+                enablePan={false}
+                autoRotate
+                autoRotateSpeed={0.5}
+              />
+            </Canvas>
 
-              {/* Central Emotion Card */}
-              <div className="relative w-64 h-64 sm:w-72 sm:h-72 rounded-full glass-card flex flex-col items-center justify-center gap-4 border-2 border-white/10">
-                <motion.span 
-                  className="text-7xl sm:text-8xl"
-                  key={convertedEmotion?.emoji || mood.emoji}
-                  initial={{ scale: 0, rotate: -180 }}
-                  animate={{ scale: 1, rotate: 0 }}
-                  transition={{ type: "spring", stiffness: 200, damping: 15 }}
+            {/* Instructions Overlay */}
+            <div className="absolute top-4 left-4 right-4 flex justify-between items-start pointer-events-none">
+              <div className="glass-card px-3 py-2 rounded-xl text-xs text-white/80">
+                <p className="font-semibold mb-1">🎮 Controls</p>
+                <p>• Drag to rotate</p>
+                <p>• Click orbs to select mood</p>
+              </div>
+              {selectedEmotion && (
+                <motion.div 
+                  className="glass-card px-4 py-2 rounded-xl"
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  key={selectedEmotion.id}
                 >
-                  {convertedEmotion?.emoji || mood.emoji}
-                </motion.span>
-                <motion.div
-                  key={convertedEmotion?.label || mood.label}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3 }}
-                  className="text-center px-6"
-                >
-                  <p 
-                    className="text-xl font-bold mb-1"
-                    style={{ color: convertedEmotion?.color || mood.color }}
-                  >
-                    {convertedEmotion?.label || mood.label}
-                  </p>
-                  <p className="text-xs text-muted-foreground uppercase tracking-wider">
-                    {Math.round(energy[0] * 100)}% Energy
+                  <p className="text-xs text-white/60 uppercase tracking-wider">Selected</p>
+                  <p className="text-lg font-bold" style={{ color: getEmotionColor(selectedEmotion.valence) }}>
+                    {selectedEmotion.label}
                   </p>
                 </motion.div>
-              </div>
-            </motion.div>
-          </motion.div>
-
-          {/* Modern Control Panel */}
-          <motion.div
-            className="space-y-8 glass-card rounded-3xl p-8 border border-white/10"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.6 }}
-          >
-            {/* Energy Slider with Visual Feedback */}
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl">😴</span>
-                  <span className="text-sm font-medium text-muted-foreground">Relaxed</span>
-                </div>
-                <div className="flex flex-col items-center">
-                  <span className="text-xs font-bold text-foreground uppercase tracking-wider">
-                    Energy Level
-                  </span>
-                  <motion.span 
-                    className="text-lg font-bold"
-                    style={{ color: convertedEmotion?.color || mood.color }}
-                    key={energy[0]}
-                    initial={{ scale: 1.2 }}
-                    animate={{ scale: 1 }}
-                  >
-                    {Math.round(energy[0] * 100)}%
-                  </motion.span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-muted-foreground">Energized</span>
-                  <span className="text-2xl">🚀</span>
-                </div>
-              </div>
-              
-              {/* Energy Progress Bar */}
-              <div className="relative h-2 bg-white/5 rounded-full overflow-hidden">
-                <motion.div
-                  className="absolute inset-y-0 left-0 rounded-full"
-                  style={{ 
-                    background: `linear-gradient(90deg, ${convertedEmotion?.color || mood.color}40, ${convertedEmotion?.color || mood.color})`,
-                    boxShadow: `0 0 20px ${convertedEmotion?.color || mood.color}80`
-                  }}
-                  animate={{ width: `${energy[0] * 100}%` }}
-                  transition={{ duration: 0.3 }}
-                />
-              </div>
-              
-              <Slider
-                value={energy}
-                onValueChange={setEnergy}
-                max={1.0}
-                step={0.1}
-                className="cursor-pointer [&_[role=slider]]:h-6 [&_[role=slider]]:w-6 [&_[role=slider]]:border-2 [&_[role=slider]]:shadow-[0_0_20px_rgba(168,85,247,0.5)] [&_[role=slider]]:transition-all [&_[role=slider]]:hover:scale-110"
-              />
-            </div>
-
-            {/* Mood Tone Slider with Emoji Markers */}
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <span className="text-sm font-medium text-muted-foreground">😔 Negative</span>
-                <span className="text-xs font-bold text-foreground uppercase tracking-wider">
-                  Mood Tone
-                </span>
-                <span className="text-sm font-medium text-muted-foreground">Positive 😊</span>
-              </div>
-
-              {/* Mood Progress Bar */}
-              <div className="relative h-2 bg-white/5 rounded-full overflow-hidden">
-                <motion.div
-                  className="absolute inset-y-0 left-0 rounded-full"
-                  style={{ 
-                    background: `linear-gradient(90deg, #3b82f6, #06b6d4, #10b981)`,
-                    boxShadow: `0 0 20px ${convertedEmotion?.color || mood.color}80`
-                  }}
-                  animate={{ width: `${positivity[0]}%` }}
-                  transition={{ duration: 0.3 }}
-                />
-              </div>
-
-              <Slider
-                value={positivity}
-                onValueChange={setPositivity}
-                max={100}
-                step={emotionStates.length > 0 ? Math.round(100 / (emotionStates.length - 1)) : 1}
-                className="cursor-pointer [&_[role=slider]]:h-6 [&_[role=slider]]:w-6 [&_[role=slider]]:border-2 [&_[role=slider]]:shadow-[0_0_20px_rgba(168,85,247,0.5)] [&_[role=slider]]:transition-all [&_[role=slider]]:hover:scale-110"
-              />
-              
-              {/* Interactive Emotion Markers */}
-              {emotionStates.length > 0 && (
-                <div className="flex justify-between px-1 mt-4">
-                  {emotionStates.map((state) => (
-                    <motion.button
-                      key={state.id}
-                      onClick={() => setPositivity([state.value])}
-                      className={`flex flex-col items-center gap-1 text-center cursor-pointer transition-all ${
-                        selectedEmotion?.id === state.id ? 'scale-110' : 'opacity-60 hover:opacity-100'
-                      }`}
-                      whileHover={{ scale: 1.2, y: -4 }}
-                      whileTap={{ scale: 0.95 }}
-                      style={{ flex: 1 }}
-                    >
-                      <span className="text-2xl">{getEmotionEmoji(state.label)}</span>
-                      <span 
-                        className={`text-[10px] ${selectedEmotion?.id === state.id ? 'font-bold text-foreground' : 'text-muted-foreground'}`}
-                        style={{ 
-                          maxWidth: '60px', 
-                          wordBreak: 'break-word',
-                          color: selectedEmotion?.id === state.id ? getEmotionColor(state.valence) : undefined
-                        }}
-                      >
-                        {state.label}
-                      </span>
-                    </motion.button>
-                  ))}
-                </div>
               )}
             </div>
           </motion.div>
 
-          {/* Enhanced Continue Button */}
+          {/* Right Panel - Emotion Info & Energy Control */}
           <motion.div
-            className="flex justify-center"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.8 }}
+            className="space-y-6"
+            initial={{ opacity: 0, x: 50 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.6 }}
           >
+            {/* Current Emotion Display */}
+            <div className="glass-card rounded-3xl p-8 border border-white/10 text-center">
+              <p className="text-sm text-muted-foreground uppercase tracking-wider mb-3">
+                Current Emotional State
+              </p>
+              <motion.div
+                key={convertedEmotion?.label || mood.label}
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ type: "spring", stiffness: 200 }}
+                className="space-y-3"
+              >
+                <div className="text-7xl">
+                  {convertedEmotion?.emoji || mood.emoji}
+                </div>
+                <h3 
+                  className="text-3xl font-bold"
+                  style={{ color: convertedEmotion?.color || mood.color }}
+                >
+                  {convertedEmotion?.label || mood.label}
+                </h3>
+              </motion.div>
+            </div>
+
+            {/* Energy Intensity Control */}
+            <div className="glass-card rounded-3xl p-6 border border-white/10 space-y-4">
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-medium text-muted-foreground">💤 Low</span>
+                <div className="text-center">
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground">Energy Intensity</p>
+                  <motion.p 
+                    className="text-2xl font-bold"
+                    style={{ color: convertedEmotion?.color || mood.color }}
+                    key={energy[0]}
+                    animate={{ scale: [1.2, 1] }}
+                  >
+                    {Math.round(energy[0] * 100)}%
+                  </motion.p>
+                </div>
+                <span className="text-sm font-medium text-muted-foreground">High ⚡</span>
+              </div>
+
+              {/* Visual Energy Bars */}
+              <div className="flex gap-1 h-20 items-end">
+                {Array.from({ length: 10 }).map((_, i) => (
+                  <motion.div
+                    key={i}
+                    className="flex-1 rounded-t-lg cursor-pointer"
+                    style={{
+                      background: i < energy[0] * 10 
+                        ? `linear-gradient(to top, ${convertedEmotion?.color || mood.color}40, ${convertedEmotion?.color || mood.color})` 
+                        : 'rgba(255,255,255,0.05)',
+                      height: `${((i + 1) / 10) * 100}%`,
+                    }}
+                    onClick={() => setEnergy([(i + 1) / 10])}
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.95 }}
+                    animate={{
+                      boxShadow: i < energy[0] * 10 
+                        ? `0 0 10px ${convertedEmotion?.color || mood.color}80` 
+                        : 'none'
+                    }}
+                  />
+                ))}
+              </div>
+
+              <p className="text-xs text-center text-muted-foreground">
+                Tap bars or use slider below to adjust intensity
+              </p>
+
+              {/* Energy Slider (hidden but functional) */}
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.1"
+                value={energy[0]}
+                onChange={(e) => setEnergy([parseFloat(e.target.value)])}
+                className="w-full h-2 rounded-lg appearance-none cursor-pointer"
+                style={{
+                  background: `linear-gradient(to right, ${convertedEmotion?.color || mood.color} 0%, ${convertedEmotion?.color || mood.color} ${energy[0] * 100}%, rgba(255,255,255,0.1) ${energy[0] * 100}%, rgba(255,255,255,0.1) 100%)`
+                }}
+              />
+            </div>
+
+            {/* Continue Button */}
             <Button
               onClick={handleTuneMood}
               disabled={isSaving || !selectedEmotion}
               size="2xl"
               variant="gradient"
-              className="group shadow-[0_20px_50px_-15px_rgba(168,85,247,0.6)] hover:shadow-[0_25px_60px_-15px_rgba(168,85,247,0.8)] transition-all"
+              className="w-full group shadow-[0_20px_50px_-15px_rgba(168,85,247,0.6)] hover:shadow-[0_25px_60px_-15px_rgba(168,85,247,0.8)] transition-all"
             >
-              {isSaving ? "Saving..." : "Tune My Vibe"}
+              {isSaving ? "Saving Your Vibe..." : "Lock In My Vibe"}
               <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-2 transition-transform" />
             </Button>
           </motion.div>
