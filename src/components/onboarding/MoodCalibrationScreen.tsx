@@ -110,7 +110,7 @@ export const MoodCalibrationScreen = ({
 
   // Update local state when initial values change (e.g., when navigating back)
   useEffect(() => {
-    setEnergy([initialEnergy]);
+    setEnergy([Math.min(initialEnergy, 1.0)]);
   }, [initialEnergy]);
 
   // Set initial emotion index based on saved data
@@ -302,8 +302,8 @@ export const MoodCalibrationScreen = ({
         return;
       }
 
-      // Convert energy from 0-1 to 0-100 for the RPC function
-      const energyPercentage = energy[0] * 100;
+      // Convert energy from 0-1 to 0-100 for the RPC function (capped at 100%)
+      const energyPercentage = Math.min(energy[0], 1.0) * 100;
 
       // Call translate_mood_to_emotion which converts mood text + energy to correct emotion and stores it
       const {
@@ -526,7 +526,7 @@ export const MoodCalibrationScreen = ({
             }).map((_, i) => <motion.button key={i} className="flex-1 rounded-t-xl transition-all touch-manipulation" style={{
               background: i < energy[0] * 10 ? `linear-gradient(to top, ${getEmotionColorWithIntensity(convertedEmotion?.label || selectedEmotion.label, selectedEmotion.valence)}40, ${getEmotionColorWithIntensity(convertedEmotion?.label || selectedEmotion.label, selectedEmotion.valence)})` : 'rgba(255,255,255,0.05)',
               height: `${(i + 1) / 10 * 100}%`
-            }} onClick={() => setEnergy([(i + 1) / 10])} whileHover={{
+            }} onClick={() => setEnergy([Math.min((i + 1) / 10, 1.0)])} whileHover={{
               scale: 1.05
             }} whileTap={{
               scale: 0.95
