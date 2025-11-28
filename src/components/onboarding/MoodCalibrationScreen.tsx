@@ -439,7 +439,8 @@ export const MoodCalibrationScreen = ({
         }} transition={{
           delay: 0.8
         }}>
-            <Button onClick={handleTuneMood} disabled={isSaving || !selectedEmotion} size="2xl" variant="gradient" className="w-full group shadow-[0_20px_50px_-15px_rgba(168,85,247,0.6)] hover:shadow-[0_25px_60px_-15px_rgba(168,85,247,0.8)] transition-all">Tun In My Vibe{isSaving ? "Saving Your Vibe..." : "Lock In My Vibe"}
+            <Button onClick={handleTuneMood} disabled={isSaving || !selectedEmotion} size="2xl" variant="gradient" className="w-full group shadow-[0_20px_50px_-15px_rgba(168,85,247,0.6)] hover:shadow-[0_25px_60px_-15px_rgba(168,85,247,0.8)] transition-all">
+              {isSaving ? "Saving Your Vibe..." : "Tune My Vibe"}
               <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-2 transition-transform" />
             </Button>
           </motion.div>
