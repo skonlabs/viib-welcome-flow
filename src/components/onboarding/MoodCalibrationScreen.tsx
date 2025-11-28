@@ -26,7 +26,9 @@ export const MoodCalibrationScreen = ({
   const [currentEmotionIndex, setCurrentEmotionIndex] = useState(0);
   const [convertedEmotion, setConvertedEmotion] = useState<{
     label: string;
-  } | null>(null);
+  }>({
+    label: 'Balanced'
+  });
   const [emotionStates, setEmotionStates] = useState<Array<{
     id: string;
     label: string;
