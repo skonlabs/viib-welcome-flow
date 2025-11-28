@@ -109,50 +109,29 @@ export const MoodCalibrationScreen = ({
     setPositivity([initialPositivity]);
   }, [initialPositivity]);
 
-  // Get display emotion phrase as sliders change
+  // Calculate display emotion phrase locally as sliders change
   useEffect(() => {
-    const getDisplayPhrase = async () => {
-      if (!selectedEmotion) return;
-      
-      const userId = localStorage.getItem('viib_user_id');
-      if (!userId) return;
+    if (!selectedEmotion) return;
 
-      try {
-        // Convert energy from 0-1 to 0-100 for the RPC function
-        const energyPercentage = energy[0] * 100;
-        
-        // First translate mood to emotion (this saves to user_emotion_states)
-        await supabase.rpc('translate_mood_to_emotion', {
-          p_user_id: userId,
-          p_mood_text: selectedEmotion.label,
-          p_energy_percentage: energyPercentage
-        });
-
-        // Then get the display phrase from emotion_display_phrases
-        const { data: displayPhrase, error } = await supabase.rpc('get_display_emotion_phrase', {
-          p_user_id: userId
-        });
-
-        if (error) {
-          console.error('Error getting display phrase:', error);
-          return;
-        }
-
-        setConvertedEmotion({
-          label: displayPhrase || 'Emotionally Balanced',
-          emoji: getEmotionEmoji(selectedEmotion.label),
-          color: getEmotionColor(selectedEmotion.valence)
-        });
-      } catch (error) {
-        console.error('Error in emotion display:', error);
-      }
-    };
-
-    const timeoutId = setTimeout(() => {
-      getDisplayPhrase();
-    }, 300); // Debounce to avoid too many calls
-
-    return () => clearTimeout(timeoutId);
+    // Calculate intensity locally: energy (0-1) * multiplier
+    const intensity = Math.max(0.1, Math.min(1.0, energy[0] * selectedEmotion.intensityMultiplier));
+    
+    // Format with prefix based on intensity (matching get_result_emotion_label logic)
+    let prefix = '';
+    if (intensity < 0.25) prefix = 'Slightly';
+    else if (intensity < 0.45) prefix = 'Mildly';
+    else if (intensity < 0.65) prefix = 'Moderately';
+    else if (intensity < 0.85) prefix = 'Deeply';
+    else prefix = 'Overwhelmingly';
+    
+    const capitalizedLabel = selectedEmotion.label.charAt(0).toUpperCase() + 
+                            selectedEmotion.label.slice(1);
+    
+    setConvertedEmotion({
+      label: `${prefix} ${capitalizedLabel}`,
+      emoji: getEmotionEmoji(selectedEmotion.label),
+      color: getEmotionColor(selectedEmotion.valence)
+    });
   }, [selectedEmotion, energy]);
 
   // Helper function to get emoji based on emotion label
