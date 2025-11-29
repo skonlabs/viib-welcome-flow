@@ -25,6 +25,7 @@ export const MoodCalibrationScreen = ({
   const [energy, setEnergy] = useState([initialEnergy]);
   const [positivity, setPositivity] = useState([initialPositivity]);
   const [currentEmotionIndex, setCurrentEmotionIndex] = useState(0);
+  const [hoveredEnergyBar, setHoveredEnergyBar] = useState<number | null>(null);
   const [convertedEmotion, setConvertedEmotion] = useState<{
     label: string;
   }>({
@@ -620,6 +621,7 @@ export const MoodCalibrationScreen = ({
               {Array.from({ length: 10 }).map((_, i) => {
                 const barLevel = (i + 1) / 10; // 0.1, 0.2, 0.3, ... 1.0
                 const isActive = barLevel <= energy[0];
+                const isHovered = hoveredEnergyBar !== null && (i + 1) <= hoveredEnergyBar;
                 const barHeight = ((i + 1) / 10) * 100;
                 
                 return (
@@ -627,14 +629,16 @@ export const MoodCalibrationScreen = ({
                     key={i}
                     className="flex-1 rounded-t-xl transition-all touch-manipulation cursor-pointer"
                     style={{
-                      background: isActive 
+                      background: (isActive || isHovered)
                         ? '#06b6d4' // cyan-500
                         : 'rgba(255,255,255,0.1)',
+                      opacity: isHovered && !isActive ? 0.7 : 1,
                       height: `${barHeight}%`,
                       minWidth: '8px'
                     }}
                     onClick={() => setEnergy([Math.min((i + 1) / 10, 1.0)])}
-                    onMouseEnter={() => setEnergy([Math.min((i + 1) / 10, 1.0)])}
+                    onMouseEnter={() => setHoveredEnergyBar(i + 1)}
+                    onMouseLeave={() => setHoveredEnergyBar(null)}
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     aria-label={`Set energy to ${(i + 1) * 10}%`}
