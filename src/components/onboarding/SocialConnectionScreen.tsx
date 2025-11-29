@@ -1,8 +1,13 @@
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
-import { Users, ArrowRight, UserPlus } from "lucide-react";
+import { Users, UserPlus, Mail, Phone, Link as LinkIcon, X, Copy, Check } from "lucide-react";
 import { BackButton } from "./BackButton";
 import { FloatingParticles } from "./FloatingParticles";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 interface SocialConnectionScreenProps {
   onInvite: () => void;
@@ -11,6 +16,116 @@ interface SocialConnectionScreenProps {
 }
 
 export const SocialConnectionScreen = ({ onInvite, onSkip, onBack }: SocialConnectionScreenProps) => {
+  const [showInviteDialog, setShowInviteDialog] = useState(false);
+  const [inviteMethod, setInviteMethod] = useState<'email' | 'phone' | 'link'>('email');
+  const [inviteInput, setInviteInput] = useState('');
+  const [inviteList, setInviteList] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
+  const { toast } = useToast();
+  
+  const userId = localStorage.getItem('viib_user_id');
+  const inviteLink = `${window.location.origin}?invited_by=${userId}`;
+
+  const handleAddInvite = () => {
+    if (!inviteInput.trim()) return;
+    
+    // Basic validation
+    if (inviteMethod === 'email' && !inviteInput.includes('@')) {
+      toast({
+        title: "Invalid Email",
+        description: "Please enter a valid email address",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    if (inviteMethod === 'phone' && inviteInput.length < 10) {
+      toast({
+        title: "Invalid Phone",
+        description: "Please enter a valid phone number",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (inviteList.includes(inviteInput)) {
+      toast({
+        title: "Duplicate Entry",
+        description: "This contact has already been added",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setInviteList([...inviteList, inviteInput]);
+    setInviteInput('');
+  };
+
+  const handleRemoveInvite = (item: string) => {
+    setInviteList(inviteList.filter(i => i !== item));
+  };
+
+  const handleSendInvites = async () => {
+    if (inviteList.length === 0) {
+      toast({
+        title: "No Invites",
+        description: "Please add at least one contact to invite",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const { error } = await supabase.functions.invoke('send-invites', {
+        body: {
+          userId,
+          method: inviteMethod,
+          contacts: inviteList
+        }
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Invites Sent! 🎉",
+        description: `Successfully sent ${inviteList.length} invite${inviteList.length > 1 ? 's' : ''}`,
+      });
+      
+      setShowInviteDialog(false);
+      setInviteList([]);
+      onInvite();
+    } catch (error: any) {
+      console.error('Error sending invites:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to send invites. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(inviteLink);
+      setLinkCopied(true);
+      toast({
+        title: "Link Copied! 🔗",
+        description: "Share this link with your friends",
+      });
+      setTimeout(() => setLinkCopied(false), 2000);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to copy link",
+        variant: "destructive"
+      });
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-black">
       <BackButton onClick={onBack} />
@@ -157,7 +272,7 @@ export const SocialConnectionScreen = ({ onInvite, onSkip, onBack }: SocialConne
             transition={{ delay: 1 }}
           >
             <Button
-              onClick={onInvite}
+              onClick={() => setShowInviteDialog(true)}
               size="2xl"
               variant="gradient"
               className="shadow-[0_20px_50px_-15px_rgba(168,85,247,0.4)]"
@@ -174,6 +289,110 @@ export const SocialConnectionScreen = ({ onInvite, onSkip, onBack }: SocialConne
           </motion.div>
         </div>
       </motion.div>
+
+      {/* Invite Dialog */}
+      <Dialog open={showInviteDialog} onOpenChange={setShowInviteDialog}>
+        <DialogContent className="sm:max-w-[500px] bg-background/95 backdrop-blur-xl border-white/10">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold text-gradient">Invite Friends</DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-6">
+            {/* Method Selection */}
+            <div className="flex gap-2">
+              <Button
+                variant={inviteMethod === 'email' ? 'default' : 'outline'}
+                onClick={() => setInviteMethod('email')}
+                className="flex-1"
+              >
+                <Mail className="w-4 h-4 mr-2" />
+                Email
+              </Button>
+              <Button
+                variant={inviteMethod === 'phone' ? 'default' : 'outline'}
+                onClick={() => setInviteMethod('phone')}
+                className="flex-1"
+              >
+                <Phone className="w-4 h-4 mr-2" />
+                Phone
+              </Button>
+              <Button
+                variant={inviteMethod === 'link' ? 'default' : 'outline'}
+                onClick={() => setInviteMethod('link')}
+                className="flex-1"
+              >
+                <LinkIcon className="w-4 h-4 mr-2" />
+                Link
+              </Button>
+            </div>
+
+            {inviteMethod === 'link' ? (
+              /* Shareable Link */
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Share this link with your friends to invite them to ViiB
+                </p>
+                <div className="flex gap-2">
+                  <Input
+                    value={inviteLink}
+                    readOnly
+                    className="flex-1 bg-white/5"
+                  />
+                  <Button onClick={handleCopyLink} variant="outline">
+                    {linkCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              /* Email/Phone Input */
+              <>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder={inviteMethod === 'email' ? 'friend@example.com' : '+1 (555) 123-4567'}
+                    value={inviteInput}
+                    onChange={(e) => setInviteInput(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleAddInvite()}
+                    className="flex-1 bg-white/5"
+                  />
+                  <Button onClick={handleAddInvite} variant="outline">
+                    Add
+                  </Button>
+                </div>
+
+                {/* Invite List */}
+                {inviteList.length > 0 && (
+                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                    {inviteList.map((item, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/10"
+                      >
+                        <span className="text-sm text-foreground">{item}</span>
+                        <button
+                          onClick={() => handleRemoveInvite(item)}
+                          className="text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Send Button */}
+                <Button
+                  onClick={handleSendInvites}
+                  disabled={isLoading || inviteList.length === 0}
+                  className="w-full"
+                  variant="gradient"
+                >
+                  {isLoading ? 'Sending...' : `Send ${inviteList.length} Invite${inviteList.length !== 1 ? 's' : ''}`}
+                </Button>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
