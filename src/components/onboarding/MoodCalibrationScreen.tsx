@@ -545,11 +545,11 @@ export const MoodCalibrationScreen = ({
                 return (
                   <motion.button
                     key={i}
-                    className="flex-1 rounded-t-xl transition-all touch-manipulation cursor-pointer border border-white/20"
+                    className="flex-1 rounded-t-xl transition-all touch-manipulation cursor-pointer border border-white/10"
                     style={{
                       background: isActive 
-                        ? `linear-gradient(to top, ${emotionColor}80, ${emotionColor})` 
-                        : 'rgba(255,255,255,0.15)',
+                        ? `linear-gradient(to top, ${emotionColor}cc, ${emotionColor})` 
+                        : 'rgba(255,255,255,0.1)',
                       height: `${barHeight}%`,
                       minWidth: '8px'
                     }}
