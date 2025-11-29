@@ -192,15 +192,28 @@ export const MoodCalibrationScreen = ({
       const userId = localStorage.getItem('viib_user_id');
       if (!userId) return;
       try {
-        // Convert energy from 0-1 to 0-100 for the RPC function
+        // Energy is 0-1.0, convert to percentage 0-100 for the RPC function
         const energyPercentage = energy[0] * 100;
 
-        // Call translate_mood_to_emotion to store the emotion state
-        await supabase.rpc('translate_mood_to_emotion', {
+        console.log('Updating display emotion:', {
+          mood_text: selectedEmotion.label,
+          energy_percentage: energyPercentage,
+          energy_raw: energy[0]
+        });
+
+        // Call translate_mood_to_emotion to get the converted emotion
+        const { data: emotionData, error: translateError } = await supabase.rpc('translate_mood_to_emotion', {
           p_user_id: userId,
           p_mood_text: selectedEmotion.label,
           p_energy_percentage: energyPercentage
         });
+
+        if (translateError) {
+          console.error('Error translating mood:', translateError);
+          return;
+        }
+
+        console.log('Translate emotion response:', emotionData);
 
         // Get the display phrase from the database
         const {
@@ -213,6 +226,9 @@ export const MoodCalibrationScreen = ({
           console.error('Error getting display phrase:', error);
           return;
         }
+
+        console.log('Display phrase:', displayPhrase);
+
         setConvertedEmotion({
           label: displayPhrase || 'Emotionally Balanced'
         });
