@@ -350,13 +350,35 @@ export const MoodCalibrationScreen = ({
         return;
       }
 
-      const energyValue = Math.min(energy[0], 1.0);
-      const energyPercentage = energyValue * 100;
+      // Validate and clamp energy value to ensure it's between 0.1 and 1.0
+      const energyValue = Math.max(0.1, Math.min(energy[0], 1.0));
+      const energyPercentage = energyValue * 100; // Should be 10-100
+
+      // Safety checks
+      if (energyValue < 0.1 || energyValue > 1.0) {
+        console.error('INVALID ENERGY VALUE:', energyValue);
+        toast({
+          title: "Error",
+          description: "Invalid energy value detected. Please try again.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      if (energyPercentage < 10 || energyPercentage > 100) {
+        console.error('INVALID ENERGY PERCENTAGE:', energyPercentage);
+        toast({
+          title: "Error", 
+          description: "Invalid energy percentage. Please try again.",
+          variant: "destructive"
+        });
+        return;
+      }
 
       console.log('=== SAVE MOOD START ===');
       console.log('Selected emotion:', selectedEmotion.label);
-      console.log('Energy value (0-1):', energyValue);
-      console.log('Energy percentage (0-100):', energyPercentage);
+      console.log('Energy value (0.1-1.0):', energyValue);
+      console.log('Energy percentage (10-100):', energyPercentage);
       console.log('User ID:', userId);
 
       // Delete old emotion states before saving new one
