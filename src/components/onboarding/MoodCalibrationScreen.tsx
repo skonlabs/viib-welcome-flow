@@ -306,22 +306,49 @@ export const MoodCalibrationScreen = ({
       // Convert energy from 0-1 to 0-100 for the RPC function (capped at 100%)
       const energyPercentage = Math.min(energy[0], 1.0) * 100;
 
+      console.log('Saving mood:', {
+        mood_text: selectedEmotion.label,
+        energy_percentage: energyPercentage,
+        converted_emotion: convertedEmotion.label
+      });
+
       // Call translate_mood_to_emotion which converts mood text + energy to correct emotion and stores it
-      const {
-        error
-      } = await supabase.rpc('translate_mood_to_emotion', {
+      const { data, error } = await supabase.rpc('translate_mood_to_emotion', {
         p_user_id: userId,
         p_mood_text: selectedEmotion.label,
         p_energy_percentage: energyPercentage
       });
+
       if (error) {
         console.error('Error translating mood:', error);
         toast({
           title: "Error",
-          description: "Failed to save your mood. Please try again.",
+          description: error.message || "Failed to save your mood. Please try again.",
           variant: "destructive"
         });
         return;
+      }
+
+      console.log('Mood saved successfully:', data);
+
+      // Verify the emotion was saved
+      const { data: savedEmotion, error: verifyError } = await supabase
+        .from('user_emotion_states')
+        .select('intensity, emotion_master(emotion_label)')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (verifyError || !savedEmotion) {
+        console.error('Emotion not saved properly:', verifyError);
+        toast({
+          title: "Warning",
+          description: "Your mood may not have been saved correctly.",
+          variant: "destructive"
+        });
+      } else {
+        console.log('Verified saved emotion:', savedEmotion);
       }
 
       // Proceed to next step
