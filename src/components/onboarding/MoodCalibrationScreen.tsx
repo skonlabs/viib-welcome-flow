@@ -361,20 +361,20 @@ export const MoodCalibrationScreen = ({
         return;
       }
 
-      // Convert energy from 0-1 to 0-100 for the RPC function (capped at 100%)
-      const energyPercentage = Math.min(energy[0], 1.0) * 100;
+      // Energy is already 0-1.0, send it directly
+      const energyValue = Math.min(energy[0], 1.0);
 
       console.log('Saving mood:', {
         mood_text: selectedEmotion.label,
-        energy_percentage: energyPercentage,
+        energy_value: energyValue,
         converted_emotion: convertedEmotion.label
       });
 
-      // Call translate_mood_to_emotion which converts mood text + energy to correct emotion and stores it
+      // Call translate_mood_to_emotion with energy as 0-1.0
       const { data, error } = await supabase.rpc('translate_mood_to_emotion', {
         p_user_id: userId,
         p_mood_text: selectedEmotion.label,
-        p_energy_percentage: energyPercentage
+        p_energy_percentage: energyValue * 100 // Backend expects percentage 0-100
       });
 
       if (error) {
