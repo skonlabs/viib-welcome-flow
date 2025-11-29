@@ -9,6 +9,7 @@ import { AppRedirect } from "@/components/app/AppRedirect";
 import Index from "./pages/Index";
 import Onboarding from "./pages/app/Onboarding";
 import Home from "./pages/app/Home";
+import Admin from "./pages/app/Admin";
 import Login from "./pages/Login";
 import ForgotPassword from "./pages/ForgotPassword";
 import Privacy from "./pages/Privacy";
@@ -29,6 +30,7 @@ const AnimatedRoutes = () => {
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/app" element={<AppRedirect />} />
         <Route path="/app/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
+        <Route path="/app/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
         <Route path="/app/onboarding" element={<Onboarding />} />
         <Route path="/app/onboarding/:step" element={<Onboarding />} />
         <Route path="/privacy" element={<Privacy />} />
