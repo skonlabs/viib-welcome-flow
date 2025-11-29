@@ -553,6 +553,7 @@ export const MoodCalibrationScreen = ({
                       minWidth: '8px'
                     }}
                     onClick={() => setEnergy([Math.min((i + 1) / 10, 1.0)])}
+                    onMouseEnter={() => setEnergy([Math.min((i + 1) / 10, 1.0)])}
                     whileHover={{ scale: 1.05, background: isActive ? `linear-gradient(to top, ${emotionColor}, ${emotionColor})` : 'rgba(255,255,255,0.25)' }}
                     whileTap={{ scale: 0.95 }}
                     animate={{
