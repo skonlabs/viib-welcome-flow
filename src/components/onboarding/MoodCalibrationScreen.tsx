@@ -80,6 +80,63 @@ export const MoodCalibrationScreen = ({
     fetchEmotionStates();
   }, []);
 
+  // Fetch saved mood data when component mounts
+  useEffect(() => {
+    const fetchSavedMood = async () => {
+      const userId = localStorage.getItem('viib_user_id');
+      if (!userId) return;
+
+      try {
+        // Get the most recent emotion state for this user
+        const { data: savedEmotion, error } = await supabase
+          .from('user_emotion_states')
+          .select('intensity, emotion_id, emotion_master(emotion_label, valence)')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (error || !savedEmotion) {
+          console.log('No saved mood found, using defaults');
+          return;
+        }
+
+        console.log('Restored saved mood:', savedEmotion);
+
+        // Restore energy level (intensity is 0-1)
+        const savedEnergy = Math.min(savedEmotion.intensity, 1.0);
+        setEnergy([savedEnergy]);
+
+        // Find and set the emotion in the carousel
+        if (emotionStates.length > 0 && savedEmotion.emotion_master) {
+          const emotionLabel = (savedEmotion.emotion_master as any).emotion_label;
+          const emotionIndex = emotionStates.findIndex(
+            e => e.label.toLowerCase() === emotionLabel.toLowerCase()
+          );
+          if (emotionIndex >= 0) {
+            setCurrentEmotionIndex(emotionIndex);
+          }
+        }
+
+        // Get the display phrase
+        const { data: displayPhrase } = await supabase.rpc('get_display_emotion_phrase', {
+          p_user_id: userId
+        });
+        
+        if (displayPhrase) {
+          setConvertedEmotion({ label: displayPhrase });
+        }
+      } catch (error) {
+        console.error('Error fetching saved mood:', error);
+      }
+    };
+
+    // Only fetch if we have emotion states loaded
+    if (emotionStates.length > 0) {
+      fetchSavedMood();
+    }
+  }, [emotionStates]);
+
   // Get the currently selected emotion from the carousel
   const selectedEmotion = useMemo(() => {
     if (emotionStates.length === 0) return {
