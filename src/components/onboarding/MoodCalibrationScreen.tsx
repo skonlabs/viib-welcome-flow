@@ -90,7 +90,7 @@ export const MoodCalibrationScreen = ({
       try {
         const { data: savedEmotion, error } = await supabase
           .from('user_emotion_states')
-          .select('intensity, emotion_id, emotion_master(emotion_label, valence)')
+          .select('intensity, emotion_id, emotion_master(emotion_label, valence, emotion_energy_profile(intensity_multiplier))')
           .eq('user_id', userId)
           .order('created_at', { ascending: false })
           .limit(1)
@@ -108,10 +108,6 @@ export const MoodCalibrationScreen = ({
 
         console.log('Restored saved mood:', savedEmotion);
 
-        // Restore energy level (intensity is 0-1)
-        const savedEnergy = Math.min(Math.max(savedEmotion.intensity, 0.1), 1.0);
-        setEnergy([savedEnergy]);
-
         // Find and restore the mood tone selection
         const emotionLabel = (savedEmotion.emotion_master as any)?.emotion_label;
         if (emotionLabel) {
@@ -123,8 +119,17 @@ export const MoodCalibrationScreen = ({
           }
         }
 
+        // Reverse-calculate original energy from stored intensity
+        // intensity = energy * multiplier, so energy = intensity / multiplier
+        const multiplier = (savedEmotion.emotion_master as any)?.emotion_energy_profile?.intensity_multiplier || 1.0;
+        const originalEnergy = savedEmotion.intensity / multiplier;
+        const restoredEnergy = Math.min(Math.max(originalEnergy, 0.1), 1.0);
+        setEnergy([restoredEnergy]);
+        
+        console.log(`Restored energy: ${restoredEnergy} (from intensity ${savedEmotion.intensity} / multiplier ${multiplier})`)
+
         // Calculate display emotion on frontend
-        const intensity = savedEnergy;
+        const intensity = restoredEnergy;
         let prefix = '';
         if (intensity < 0.25) prefix = 'Slightly';
         else if (intensity < 0.45) prefix = 'Mildly';
