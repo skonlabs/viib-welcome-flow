@@ -544,20 +544,20 @@ export const MoodCalibrationScreen = ({
                 return (
                   <motion.button
                     key={i}
-                    className="flex-1 rounded-t-xl transition-all touch-manipulation cursor-pointer"
+                    className="flex-1 rounded-t-xl transition-all touch-manipulation cursor-pointer border border-white/20"
                     style={{
                       background: isActive 
-                        ? `linear-gradient(to top, ${emotionColor}40, ${emotionColor})` 
-                        : 'rgba(255,255,255,0.1)',
+                        ? `linear-gradient(to top, ${emotionColor}80, ${emotionColor})` 
+                        : 'rgba(255,255,255,0.15)',
                       height: `${barHeight}%`,
                       minWidth: '8px'
                     }}
                     onClick={() => setEnergy([Math.min((i + 1) / 10, 1.0)])}
-                    whileHover={{ scale: 1.05 }}
+                    whileHover={{ scale: 1.05, background: isActive ? `linear-gradient(to top, ${emotionColor}, ${emotionColor})` : 'rgba(255,255,255,0.25)' }}
                     whileTap={{ scale: 0.95 }}
                     animate={{
                       boxShadow: isActive 
-                        ? `0 0 15px ${emotionColor}90` 
+                        ? `0 0 20px ${emotionColor}` 
                         : 'none'
                     }}
                     aria-label={`Set energy to ${(i + 1) * 10}%`}
