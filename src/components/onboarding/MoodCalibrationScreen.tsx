@@ -85,19 +85,23 @@ export const MoodCalibrationScreen = ({
   useEffect(() => {
     const fetchSavedMood = async () => {
       const userId = localStorage.getItem('viib_user_id');
-      if (!userId) return;
+      if (!userId || emotionStates.length === 0) return;
 
       try {
-        // Get the most recent emotion state for this user
         const { data: savedEmotion, error } = await supabase
           .from('user_emotion_states')
           .select('intensity, emotion_id, emotion_master(emotion_label, valence)')
           .eq('user_id', userId)
           .order('created_at', { ascending: false })
           .limit(1)
-          .single();
+          .maybeSingle();
 
-        if (error || !savedEmotion) {
+        if (error) {
+          console.error('Error fetching saved mood:', error);
+          return;
+        }
+
+        if (!savedEmotion) {
           console.log('No saved mood found, using defaults');
           return;
         }
@@ -105,12 +109,12 @@ export const MoodCalibrationScreen = ({
         console.log('Restored saved mood:', savedEmotion);
 
         // Restore energy level (intensity is 0-1)
-        const savedEnergy = Math.min(savedEmotion.intensity, 1.0);
+        const savedEnergy = Math.min(Math.max(savedEmotion.intensity, 0.1), 1.0);
         setEnergy([savedEnergy]);
 
-        // Find and set the emotion in the carousel
-        if (emotionStates.length > 0 && savedEmotion.emotion_master) {
-          const emotionLabel = (savedEmotion.emotion_master as any).emotion_label;
+        // Find and restore the mood tone selection
+        const emotionLabel = (savedEmotion.emotion_master as any)?.emotion_label;
+        if (emotionLabel) {
           const emotionIndex = emotionStates.findIndex(
             e => e.label.toLowerCase() === emotionLabel.toLowerCase()
           );
@@ -119,23 +123,23 @@ export const MoodCalibrationScreen = ({
           }
         }
 
-        // Get the display phrase
-        const { data: displayPhrase } = await supabase.rpc('get_display_emotion_phrase', {
-          p_user_id: userId
-        });
-        
-        if (displayPhrase) {
-          setConvertedEmotion({ label: displayPhrase });
-        }
+        // Calculate display emotion on frontend
+        const intensity = savedEnergy;
+        let prefix = '';
+        if (intensity < 0.25) prefix = 'Slightly';
+        else if (intensity < 0.45) prefix = 'Mildly';
+        else if (intensity < 0.65) prefix = 'Moderately';
+        else if (intensity < 0.85) prefix = 'Deeply';
+        else prefix = 'Overwhelmingly';
+
+        const capitalizedLabel = emotionLabel?.charAt(0).toUpperCase() + emotionLabel?.slice(1);
+        setConvertedEmotion({ label: `${prefix} ${capitalizedLabel}` });
       } catch (error) {
         console.error('Error fetching saved mood:', error);
       }
     };
 
-    // Only fetch if we have emotion states loaded
-    if (emotionStates.length > 0) {
-      fetchSavedMood();
-    }
+    fetchSavedMood();
   }, [emotionStates]);
 
   // Get the currently selected emotion from the carousel
@@ -185,62 +189,31 @@ export const MoodCalibrationScreen = ({
     }
   }, [emotionStates, initialPositivity]);
 
-  // Update top display using DB functions when mood tone or energy changes
+  // Calculate display emotion on frontend (no database calls during slider changes)
   useEffect(() => {
-    const updateDisplayEmotion = async () => {
+    const calculateDisplayEmotion = () => {
       if (!selectedEmotion) return;
-      const userId = localStorage.getItem('viib_user_id');
-      if (!userId) return;
-      try {
-        // Energy is 0-1.0, convert to percentage 0-100 for the RPC function
-        const energyPercentage = energy[0] * 100;
 
-        console.log('Updating display emotion:', {
-          mood_text: selectedEmotion.label,
-          energy_percentage: energyPercentage,
-          energy_raw: energy[0]
-        });
+      const intensity = energy[0];
+      const emotionLabel = selectedEmotion.label;
 
-        // Call translate_mood_to_emotion to get the converted emotion
-        const { data: emotionData, error: translateError } = await supabase.rpc('translate_mood_to_emotion', {
-          p_user_id: userId,
-          p_mood_text: selectedEmotion.label,
-          p_energy_percentage: energyPercentage
-        });
+      // Calculate intensity prefix based on energy level (matching get_result_emotion_label logic)
+      let prefix = '';
+      if (intensity < 0.25) prefix = 'Slightly';
+      else if (intensity < 0.45) prefix = 'Mildly';
+      else if (intensity < 0.65) prefix = 'Moderately';
+      else if (intensity < 0.85) prefix = 'Deeply';
+      else prefix = 'Overwhelmingly';
 
-        if (translateError) {
-          console.error('Error translating mood:', translateError);
-          return;
-        }
-
-        console.log('Translate emotion response:', emotionData);
-
-        // Get the display phrase from the database
-        const {
-          data: displayPhrase,
-          error
-        } = await supabase.rpc('get_display_emotion_phrase', {
-          p_user_id: userId
-        });
-        if (error) {
-          console.error('Error getting display phrase:', error);
-          return;
-        }
-
-        console.log('Display phrase:', displayPhrase);
-
-        setConvertedEmotion({
-          label: displayPhrase || 'Emotionally Balanced'
-        });
-      } catch (error) {
-        console.error('Error updating display emotion:', error);
-      }
+      // Capitalize emotion label
+      const capitalizedLabel = emotionLabel.charAt(0).toUpperCase() + emotionLabel.slice(1);
+      
+      setConvertedEmotion({
+        label: `${prefix} ${capitalizedLabel}`
+      });
     };
-    const timeoutId = setTimeout(() => {
-      updateDisplayEmotion();
-    }, 300); // Debounce
 
-    return () => clearTimeout(timeoutId);
+    calculateDisplayEmotion();
   }, [selectedEmotion, energy]);
 
   // Helper function to get emotion emoji based on emotion label
@@ -377,7 +350,6 @@ export const MoodCalibrationScreen = ({
         return;
       }
 
-      // Energy is already 0-1.0, send it directly
       const energyValue = Math.min(energy[0], 1.0);
 
       console.log('Saving mood:', {
@@ -386,15 +358,21 @@ export const MoodCalibrationScreen = ({
         converted_emotion: convertedEmotion.label
       });
 
-      // Call translate_mood_to_emotion with energy as 0-1.0
+      // Delete old emotion states before saving new one
+      await supabase
+        .from('user_emotion_states')
+        .delete()
+        .eq('user_id', userId);
+
+      // Now save: translate_mood_to_emotion calls store_user_emotion_vector internally
       const { data, error } = await supabase.rpc('translate_mood_to_emotion', {
         p_user_id: userId,
         p_mood_text: selectedEmotion.label,
-        p_energy_percentage: energyValue * 100 // Backend expects percentage 0-100
+        p_energy_percentage: energyValue * 100
       });
 
       if (error) {
-        console.error('Error translating mood:', error);
+        console.error('Error saving mood:', error);
         toast({
           title: "Error",
           description: error.message || "Failed to save your mood. Please try again.",
@@ -405,17 +383,17 @@ export const MoodCalibrationScreen = ({
 
       console.log('Mood saved successfully:', data);
 
-      // Verify the emotion was saved
+      // Verify save
       const { data: savedEmotion, error: verifyError } = await supabase
         .from('user_emotion_states')
         .select('intensity, emotion_master(emotion_label)')
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
       if (verifyError || !savedEmotion) {
-        console.error('Emotion not saved properly:', verifyError);
+        console.error('Verification failed:', verifyError);
         toast({
           title: "Warning",
           description: "Your mood may not have been saved correctly.",
@@ -424,6 +402,12 @@ export const MoodCalibrationScreen = ({
       } else {
         console.log('Verified saved emotion:', savedEmotion);
       }
+
+      // Update last onboarding step
+      await supabase
+        .from('users')
+        .update({ last_onboarding_step: '/app/onboarding/mood' })
+        .eq('id', userId);
 
       // Proceed to next step
       onContinue({
