@@ -507,47 +507,66 @@ export const MoodCalibrationScreen = ({
           </motion.div>
 
           {/* Energy Intensity Control */}
-          <motion.div className="glass-card rounded-3xl p-6 border border-white/10 space-y-4" initial={{
-          opacity: 0,
-          y: 20
-        }} animate={{
-          opacity: 1,
-          y: 0
-        }} transition={{
-          delay: 0.6
-        }}>
+          <motion.div 
+            className="glass-card rounded-3xl p-6 border border-white/10 space-y-4" 
+            initial={{ opacity: 0, y: 20 }} 
+            animate={{ opacity: 1, y: 0 }} 
+            transition={{ delay: 0.6 }}
+          >
             <div className="flex justify-between items-center">
-              <span className="text-xs sm:text-sm font-medium text-muted-foreground">💤 Low</span>
+              <span className="text-xs sm:text-sm font-medium text-foreground/60">💤 Low</span>
               <div className="text-center">
-                <p className="text-xs uppercase tracking-wider text-muted-foreground">Energy</p>
-                <motion.p className="text-xl sm:text-2xl font-bold" style={{
-                color: getEmotionColorWithIntensity(convertedEmotion?.label || selectedEmotion.label, selectedEmotion.valence)
-              }} key={energy[0]} animate={{
-                scale: [1.2, 1]
-              }}>
+                <p className="text-xs uppercase tracking-wider text-foreground/60">Energy</p>
+                <motion.p 
+                  className="text-xl sm:text-2xl font-bold" 
+                  style={{
+                    color: getEmotionColorWithIntensity(convertedEmotion?.label || selectedEmotion.label, selectedEmotion.valence)
+                  }} 
+                  key={energy[0]} 
+                  animate={{ scale: [1.2, 1] }}
+                >
                   {Math.round(energy[0] * 100)}%
                 </motion.p>
               </div>
-              <span className="text-xs sm:text-sm font-medium text-muted-foreground">High ⚡</span>
+              <span className="text-xs sm:text-sm font-medium text-foreground/60">High ⚡</span>
             </div>
 
             {/* Visual Energy Bars */}
             <div className="flex gap-1.5 h-24 sm:h-28 items-end">
-              {Array.from({
-              length: 10
-            }).map((_, i) => <motion.button key={i} className="flex-1 rounded-t-xl transition-all touch-manipulation" style={{
-              background: i < energy[0] * 10 ? `linear-gradient(to top, ${getEmotionColorWithIntensity(convertedEmotion?.label || selectedEmotion.label, selectedEmotion.valence)}40, ${getEmotionColorWithIntensity(convertedEmotion?.label || selectedEmotion.label, selectedEmotion.valence)})` : 'rgba(255,255,255,0.05)',
-              height: `${(i + 1) / 10 * 100}%`
-            }} onClick={() => setEnergy([Math.min((i + 1) / 10, 1.0)])} whileHover={{
-              scale: 1.05
-            }} whileTap={{
-              scale: 0.95
-            }} animate={{
-              boxShadow: i < energy[0] * 10 ? `0 0 15px ${getEmotionColorWithIntensity(convertedEmotion?.label || selectedEmotion.label, selectedEmotion.valence)}90` : 'none'
-            }} aria-label={`Set energy to ${(i + 1) * 10}%`} />)}
+              {Array.from({ length: 10 }).map((_, i) => {
+                const isActive = i < Math.round(energy[0] * 10);
+                const barHeight = ((i + 1) / 10) * 100;
+                const emotionColor = getEmotionColorWithIntensity(
+                  convertedEmotion?.label || selectedEmotion.label, 
+                  selectedEmotion.valence
+                );
+                
+                return (
+                  <motion.button
+                    key={i}
+                    className="flex-1 rounded-t-xl transition-all touch-manipulation cursor-pointer"
+                    style={{
+                      background: isActive 
+                        ? `linear-gradient(to top, ${emotionColor}40, ${emotionColor})` 
+                        : 'rgba(255,255,255,0.1)',
+                      height: `${barHeight}%`,
+                      minWidth: '8px'
+                    }}
+                    onClick={() => setEnergy([Math.min((i + 1) / 10, 1.0)])}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    animate={{
+                      boxShadow: isActive 
+                        ? `0 0 15px ${emotionColor}90` 
+                        : 'none'
+                    }}
+                    aria-label={`Set energy to ${(i + 1) * 10}%`}
+                  />
+                );
+              })}
             </div>
 
-            <p className="text-xs text-center text-muted-foreground">
+            <p className="text-xs text-center text-foreground/60">
               Tap any bar to set your energy level
             </p>
           </motion.div>
