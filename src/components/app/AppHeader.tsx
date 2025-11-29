@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Bell, Home, User, Settings, MessageSquare, Shield, LogOut, ChevronDown } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
@@ -14,6 +15,9 @@ import {
 export const AppHeader = () => {
   const { user, isAdmin, signOut } = useAuth();
   const navigate = useNavigate();
+  
+  // Track unread messages count (would connect to real notifications in production)
+  const [unreadCount] = useState(0);
 
   const menuItems = [
     { icon: Home, label: 'Home', href: '/app/home', showWhenLoggedOut: true },
@@ -60,7 +64,9 @@ export const AppHeader = () => {
             className="text-cyan-400 hover:bg-white/5 relative"
           >
             <Bell className="w-5 h-5" />
-            <span className="absolute top-1 right-1 w-2 h-2 bg-cyan-400 rounded-full" />
+            {unreadCount > 0 && (
+              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
+            )}
           </Button>
 
           {user && (
