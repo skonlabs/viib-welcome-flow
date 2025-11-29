@@ -534,7 +534,8 @@ export const MoodCalibrationScreen = ({
             {/* Visual Energy Bars */}
             <div className="flex gap-1.5 h-24 sm:h-28 items-end">
               {Array.from({ length: 10 }).map((_, i) => {
-                const isActive = i < Math.round(energy[0] * 10);
+                const barLevel = (i + 1) / 10; // 0.1, 0.2, 0.3, ... 1.0
+                const isActive = barLevel <= energy[0];
                 const barHeight = ((i + 1) / 10) * 100;
                 const emotionColor = getEmotionColorWithIntensity(
                   convertedEmotion?.label || selectedEmotion.label, 
@@ -554,7 +555,7 @@ export const MoodCalibrationScreen = ({
                     }}
                     onClick={() => setEnergy([Math.min((i + 1) / 10, 1.0)])}
                     onMouseEnter={() => setEnergy([Math.min((i + 1) / 10, 1.0)])}
-                    whileHover={{ scale: 1.05, background: isActive ? `linear-gradient(to top, ${emotionColor}, ${emotionColor})` : 'rgba(255,255,255,0.25)' }}
+                    whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     animate={{
                       boxShadow: isActive 
