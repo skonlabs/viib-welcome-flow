@@ -351,28 +351,43 @@ export const MoodCalibrationScreen = ({
       }
 
       const energyValue = Math.min(energy[0], 1.0);
+      const energyPercentage = energyValue * 100;
 
-      console.log('Saving mood:', {
-        mood_text: selectedEmotion.label,
-        energy_value: energyValue,
-        converted_emotion: convertedEmotion.label
-      });
+      console.log('=== SAVE MOOD START ===');
+      console.log('Selected emotion:', selectedEmotion.label);
+      console.log('Energy value (0-1):', energyValue);
+      console.log('Energy percentage (0-100):', energyPercentage);
+      console.log('User ID:', userId);
 
       // Delete old emotion states before saving new one
-      await supabase
+      console.log('Deleting old emotions...');
+      const { error: deleteError } = await supabase
         .from('user_emotion_states')
         .delete()
         .eq('user_id', userId);
 
+      if (deleteError) {
+        console.error('Delete error:', deleteError);
+      } else {
+        console.log('Old emotions deleted successfully');
+      }
+
       // Now save: translate_mood_to_emotion calls store_user_emotion_vector internally
+      console.log('Calling translate_mood_to_emotion with:', {
+        p_user_id: userId,
+        p_mood_text: selectedEmotion.label,
+        p_energy_percentage: energyPercentage
+      });
+
       const { data, error } = await supabase.rpc('translate_mood_to_emotion', {
         p_user_id: userId,
         p_mood_text: selectedEmotion.label,
-        p_energy_percentage: energyValue * 100
+        p_energy_percentage: energyPercentage
       });
 
       if (error) {
-        console.error('Error saving mood:', error);
+        console.error('RPC error:', error);
+        console.error('Error details:', JSON.stringify(error, null, 2));
         toast({
           title: "Error",
           description: error.message || "Failed to save your mood. Please try again.",
@@ -381,33 +396,53 @@ export const MoodCalibrationScreen = ({
         return;
       }
 
-      console.log('Mood saved successfully:', data);
+      console.log('RPC response:', data);
 
       // Verify save
+      console.log('Verifying saved emotion...');
       const { data: savedEmotion, error: verifyError } = await supabase
         .from('user_emotion_states')
-        .select('intensity, emotion_master(emotion_label)')
+        .select('intensity, emotion_id, emotion_master(emotion_label)')
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
 
+      if (verifyError) {
+        console.error('Verification error:', verifyError);
+      } else if (!savedEmotion) {
+        console.error('No emotion found after save!');
+      } else {
+        console.log('Verified saved emotion:', {
+          emotion: savedEmotion.emotion_master,
+          intensity: savedEmotion.intensity,
+          emotion_id: savedEmotion.emotion_id
+        });
+      }
+
       if (verifyError || !savedEmotion) {
-        console.error('Verification failed:', verifyError);
         toast({
           title: "Warning",
-          description: "Your mood may not have been saved correctly.",
+          description: "Your mood may not have been saved correctly. Check console logs.",
           variant: "destructive"
         });
-      } else {
-        console.log('Verified saved emotion:', savedEmotion);
+        return; // Don't proceed if save failed
       }
 
       // Update last onboarding step
-      await supabase
+      console.log('Updating last onboarding step...');
+      const { error: updateError } = await supabase
         .from('users')
         .update({ last_onboarding_step: '/app/onboarding/mood' })
         .eq('id', userId);
+
+      if (updateError) {
+        console.error('Update step error:', updateError);
+      } else {
+        console.log('Last onboarding step updated');
+      }
+
+      console.log('=== SAVE MOOD SUCCESS ===');
 
       // Proceed to next step
       onContinue({
@@ -415,10 +450,11 @@ export const MoodCalibrationScreen = ({
         positivity: positivity[0]
       });
     } catch (error) {
-      console.error('Error saving mood:', error);
+      console.error('=== SAVE MOOD EXCEPTION ===');
+      console.error('Unexpected error:', error);
       toast({
         title: "Error",
-        description: "An unexpected error occurred.",
+        description: "An unexpected error occurred. Check console logs.",
         variant: "destructive"
       });
     } finally {
