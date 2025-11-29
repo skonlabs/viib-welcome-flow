@@ -9,6 +9,7 @@ interface InviteRequest {
   userId: string;
   method: 'email' | 'phone';
   contacts: string[];
+  note?: string;
 }
 
 Deno.serve(async (req) => {
@@ -23,9 +24,12 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { userId, method, contacts } = await req.json() as InviteRequest;
+    const { userId, method, contacts, note } = await req.json() as InviteRequest;
 
     console.log(`Processing ${contacts.length} ${method} invites from user ${userId}`);
+    if (note) {
+      console.log(`Personal note included: ${note.substring(0, 50)}...`);
+    }
 
     if (!userId || !contacts || contacts.length === 0) {
       throw new Error('Missing required fields');
@@ -53,12 +57,12 @@ Deno.serve(async (req) => {
       try {
         if (method === 'email') {
           // Send email invite
-          const emailResult = await sendEmailInvite(contact, senderName, inviteLink);
+          const emailResult = await sendEmailInvite(contact, senderName, inviteLink, note);
           results.push({ contact, success: true, method: 'email' });
           console.log(`Email invite sent to ${contact}`);
         } else if (method === 'phone') {
           // Send SMS invite
-          const smsResult = await sendSMSInvite(contact, senderName, inviteLink);
+          const smsResult = await sendSMSInvite(contact, senderName, inviteLink, note);
           results.push({ contact, success: true, method: 'sms' });
           console.log(`SMS invite sent to ${contact}`);
         }
@@ -106,20 +110,33 @@ Deno.serve(async (req) => {
   }
 });
 
-async function sendEmailInvite(email: string, senderName: string, inviteLink: string): Promise<boolean> {
+async function sendEmailInvite(email: string, senderName: string, inviteLink: string, note?: string): Promise<boolean> {
   // For testing: log the invite instead of sending
   console.log(`[EMAIL INVITE] To: ${email}, From: ${senderName}, Link: ${inviteLink}`);
+  if (note) {
+    console.log(`[EMAIL INVITE] Personal Note: ${note}`);
+  }
   
-  // TODO: Implement actual email sending using Gmail SMTP or another service
-  // For now, return success to allow testing
+  // TODO: Implement actual email sending using Resend or Gmail SMTP
+  // Email body should include:
+  // - Sender's name and personal note (if provided)
+  // - Invitation link
+  // - Brief description of ViiB
+  
   return true;
 }
 
-async function sendSMSInvite(phone: string, senderName: string, inviteLink: string): Promise<boolean> {
+async function sendSMSInvite(phone: string, senderName: string, inviteLink: string, note?: string): Promise<boolean> {
   // For testing: log the invite instead of sending
   console.log(`[SMS INVITE] To: ${phone}, From: ${senderName}, Link: ${inviteLink}`);
+  if (note) {
+    console.log(`[SMS INVITE] Personal Note: ${note}`);
+  }
   
-  // TODO: Implement actual SMS sending using Twilio or another service
-  // For now, return success to allow testing
+  // TODO: Implement actual SMS sending using Twilio
+  // SMS should include:
+  // - Sender's name and personal note (if provided)
+  // - Shortened invitation link
+  
   return true;
 }

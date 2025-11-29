@@ -20,6 +20,7 @@ export const SocialConnectionScreen = ({ onInvite, onSkip, onBack }: SocialConne
   const [inviteMethod, setInviteMethod] = useState<'email' | 'phone' | 'link'>('email');
   const [inviteInput, setInviteInput] = useState('');
   const [inviteList, setInviteList] = useState<string[]>([]);
+  const [inviteNote, setInviteNote] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const { toast } = useToast();
@@ -82,7 +83,8 @@ export const SocialConnectionScreen = ({ onInvite, onSkip, onBack }: SocialConne
         body: {
           userId,
           method: inviteMethod,
-          contacts: inviteList
+          contacts: inviteList,
+          note: inviteNote.trim()
         }
       });
 
@@ -357,6 +359,24 @@ export const SocialConnectionScreen = ({ onInvite, onSkip, onBack }: SocialConne
                   <Button onClick={handleAddInvite} variant="outline">
                     Add
                   </Button>
+                </div>
+
+                {/* Personal Note */}
+                <div className="space-y-2">
+                  <label className="text-sm text-muted-foreground">
+                    Add a personal note (optional)
+                  </label>
+                  <textarea
+                    placeholder="Hey! I think you'll love ViiB - it helps me find amazing content based on my mood..."
+                    value={inviteNote}
+                    onChange={(e) => setInviteNote(e.target.value)}
+                    maxLength={500}
+                    rows={3}
+                    className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
+                  />
+                  <div className="text-xs text-muted-foreground text-right">
+                    {inviteNote.length}/500
+                  </div>
                 </div>
 
                 {/* Invite List */}
