@@ -506,58 +506,8 @@ export default function Onboarding() {
   const handleMood = async (mood: { energy: number; positivity: number }) => {
     setOnboardingData((prev) => ({ ...prev, mood }));
     
-    // Save mood to database as emotion state
-    const userId = localStorage.getItem('viib_user_id');
-    if (userId) {
-      // Map mood values to closest emotion in emotion_master
-      const e = mood.energy;
-      const p = mood.positivity;
-      
-      let emotionLabel = '';
-      let intensity = 5; // Default medium intensity (1-10 scale)
-      
-      if (e > 65 && p > 65) {
-        emotionLabel = 'excited';
-        intensity = Math.round(((e + p) / 200) * 10); // High intensity
-      } else if (e < 35 && p > 65) {
-        emotionLabel = 'calm';
-        intensity = Math.round((p / 100) * 10);
-      } else if (e > 65 && p < 35) {
-        emotionLabel = 'stressed';
-        intensity = Math.round((e / 100) * 10);
-      } else if (e < 35 && p < 35) {
-        emotionLabel = 'sad';
-        intensity = Math.round(((100 - e + 100 - p) / 200) * 10);
-      } else {
-        emotionLabel = 'hopeful';
-        intensity = 5; // Balanced state
-      }
-      
-      // Get emotion_id from emotion_master (user_state category)
-      const { data: emotion } = await supabase
-        .from('emotion_master')
-        .select('id')
-        .eq('emotion_label', emotionLabel)
-        .eq('category', 'user_state')
-        .single();
-      
-      if (emotion) {
-        // Delete previous emotion states for this user
-        await supabase
-          .from('user_emotion_states')
-          .delete()
-          .eq('user_id', userId);
-        
-        // Insert new emotion state
-        await supabase
-          .from('user_emotion_states')
-          .insert({
-            user_id: userId,
-            emotion_id: emotion.id,
-            intensity: intensity
-          });
-      }
-    }
+    // MoodCalibrationScreen now handles all emotion persistence via translate_mood_to_emotion
+    // No database operations needed here - just navigate to next step
     
     navigateToStep("taste");
   };
