@@ -564,10 +564,6 @@ export const MoodCalibrationScreen = ({
                 const barLevel = (i + 1) / 10; // 0.1, 0.2, 0.3, ... 1.0
                 const isActive = barLevel <= energy[0];
                 const barHeight = ((i + 1) / 10) * 100;
-                const emotionColor = getEmotionColorWithIntensity(
-                  convertedEmotion?.label || selectedEmotion.label, 
-                  selectedEmotion.valence
-                );
                 
                 return (
                   <motion.button
@@ -575,7 +571,7 @@ export const MoodCalibrationScreen = ({
                     className="flex-1 rounded-t-xl transition-all touch-manipulation cursor-pointer"
                     style={{
                       background: isActive 
-                        ? emotionColor
+                        ? '#06b6d4' // cyan-500
                         : 'rgba(255,255,255,0.1)',
                       height: `${barHeight}%`,
                       minWidth: '8px'
