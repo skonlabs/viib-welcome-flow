@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Search as SearchIcon, X, SlidersHorizontal } from "@/icons";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { TitleWithAvailability, titleCatalogService } from "@/lib/services/TitleCatalogService";
+import { TitleWithAvailability } from "@/lib/services/TitleCatalogService";
 import { TitleDetailsModal } from "@/components/TitleDetailsModal";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
@@ -102,8 +102,17 @@ export default function Search() {
         if (!user) return;
         setLoadingSuggestions(true);
         try {
-          const searchResults = await titleCatalogService.searchTitles(value, selectedGenres);
-          setSuggestions(searchResults.slice(0, 8));
+          const { data, error } = await supabase.functions.invoke('search-tmdb', {
+            body: {
+              query: value,
+              genres: selectedGenres.length > 0 ? selectedGenres : undefined,
+              language: 'en',
+              limit: 8
+            }
+          });
+          
+          if (error) throw error;
+          setSuggestions(data.titles || []);
           setShowDropdown(true);
         } catch (error) {
           console.error('Suggestions error:', error);
@@ -131,11 +140,16 @@ export default function Search() {
     setShowDropdown(false);
     setLoading(true);
     try {
-      const searchResults = await titleCatalogService.searchTitles(
-        query || 'popular',
-        selectedGenres.length > 0 ? selectedGenres : undefined
-      );
-      setResults(searchResults);
+      const { data, error } = await supabase.functions.invoke('search-tmdb', {
+        body: {
+          query: query || 'popular',
+          genres: selectedGenres.length > 0 ? selectedGenres : undefined,
+          language: 'en'
+        }
+      });
+      
+      if (error) throw error;
+      setResults(data.titles || []);
     } catch (error) {
       console.error('Search error:', error);
     } finally {
