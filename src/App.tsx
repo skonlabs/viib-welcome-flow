@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { AnimatePresence } from "framer-motion";
 import { ProtectedRoute } from "@/components/app/ProtectedRoute";
 import { AppRedirect } from "@/components/app/AppRedirect";
+import { AppLayoutWrapper } from "@/components/app/AppLayoutWrapper";
 import Index from "./pages/Index";
 import Onboarding from "./pages/app/Onboarding";
 import Home from "./pages/app/Home";
@@ -36,17 +37,19 @@ const AnimatedRoutes = () => {
         <Route path="/login" element={<Login />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/app" element={<AppRedirect />} />
-        <Route path="/app/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
-        <Route path="/app/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
-        <Route path="/app/feedback" element={<ProtectedRoute><SendFeedback /></ProtectedRoute>} />
-        <Route path="/app/viiblist" element={<ProtectedRoute><ViiBList /></ProtectedRoute>} />
-        <Route path="/app/search" element={<ProtectedRoute><Search /></ProtectedRoute>} />
-        <Route path="/app/watchlist" element={<ProtectedRoute><Watchlist /></ProtectedRoute>} />
-        <Route path="/app/social" element={<ProtectedRoute><Social /></ProtectedRoute>} />
-        <Route path="/app/mood" element={<ProtectedRoute><Mood /></ProtectedRoute>} />
-        <Route path="/app/together" element={<ProtectedRoute><Together /></ProtectedRoute>} />
         <Route path="/app/onboarding" element={<Onboarding />} />
         <Route path="/app/onboarding/:step" element={<Onboarding />} />
+        <Route path="/app/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
+        <Route element={<ProtectedRoute><AppLayoutWrapper /></ProtectedRoute>}>
+          <Route path="/app/home" element={<Home />} />
+          <Route path="/app/feedback" element={<SendFeedback />} />
+          <Route path="/app/viiblist" element={<ViiBList />} />
+          <Route path="/app/search" element={<Search />} />
+          <Route path="/app/watchlist" element={<Watchlist />} />
+          <Route path="/app/social" element={<Social />} />
+          <Route path="/app/mood" element={<Mood />} />
+          <Route path="/app/together" element={<Together />} />
+        </Route>
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/terms" element={<Terms />} />
         <Route path="/about" element={<About />} />
