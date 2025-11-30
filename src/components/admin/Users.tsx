@@ -4,11 +4,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Search, Loader2, UserCheck, UserX, Eye } from 'lucide-react';
+import { Search, Loader2, UserCheck, UserX, Eye, Filter, X } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { format } from 'date-fns';
 
 const Users = () => {
   const [users, setUsers] = useState<any[]>([]);
@@ -17,25 +21,70 @@ const Users = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
+  
+  // Filter states
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [onboardingFilter, setOnboardingFilter] = useState<string>('all');
+  const [signupMethodFilter, setSignupMethodFilter] = useState<string>('all');
+  const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
+  const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
+  const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
     fetchUsers();
   }, []);
 
   useEffect(() => {
-    if (searchQuery.trim() === '') {
-      setFilteredUsers(users);
-    } else {
+    let filtered = [...users];
+
+    // Search filter
+    if (searchQuery.trim() !== '') {
       const query = searchQuery.toLowerCase();
-      const filtered = users.filter(user => 
+      filtered = filtered.filter(user => 
         user.full_name?.toLowerCase().includes(query) ||
         user.email?.toLowerCase().includes(query) ||
         user.phone_number?.includes(query) ||
         user.username?.toLowerCase().includes(query)
       );
-      setFilteredUsers(filtered);
     }
-  }, [searchQuery, users]);
+
+    // Status filter
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(user => 
+        statusFilter === 'active' ? user.is_active : !user.is_active
+      );
+    }
+
+    // Onboarding filter
+    if (onboardingFilter !== 'all') {
+      filtered = filtered.filter(user => 
+        onboardingFilter === 'complete' ? user.onboarding_completed : !user.onboarding_completed
+      );
+    }
+
+    // Signup method filter
+    if (signupMethodFilter !== 'all') {
+      filtered = filtered.filter(user => 
+        user.signup_method === signupMethodFilter
+      );
+    }
+
+    // Date range filter
+    if (dateFrom) {
+      filtered = filtered.filter(user => 
+        new Date(user.created_at) >= dateFrom
+      );
+    }
+    if (dateTo) {
+      const endOfDay = new Date(dateTo);
+      endOfDay.setHours(23, 59, 59, 999);
+      filtered = filtered.filter(user => 
+        new Date(user.created_at) <= endOfDay
+      );
+    }
+
+    setFilteredUsers(filtered);
+  }, [searchQuery, users, statusFilter, onboardingFilter, signupMethodFilter, dateFrom, dateTo]);
 
   const fetchUsers = async () => {
     try {
@@ -78,6 +127,21 @@ const Users = () => {
     setDetailsDialogOpen(true);
   };
 
+  const clearAllFilters = () => {
+    setStatusFilter('all');
+    setOnboardingFilter('all');
+    setSignupMethodFilter('all');
+    setDateFrom(undefined);
+    setDateTo(undefined);
+    setSearchQuery('');
+  };
+
+  const hasActiveFilters = statusFilter !== 'all' || 
+    onboardingFilter !== 'all' || 
+    signupMethodFilter !== 'all' || 
+    dateFrom !== undefined || 
+    dateTo !== undefined;
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -95,19 +159,130 @@ const Users = () => {
 
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>All Users ({filteredUsers.length})</CardTitle>
-            <div className="flex items-center gap-2">
-              <div className="relative">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search users..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-8 w-64"
-                />
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+              <CardTitle>All Users ({filteredUsers.length})</CardTitle>
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search users..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-8 w-64"
+                  />
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowFilters(!showFilters)}
+                  className="gap-2"
+                >
+                  <Filter className="h-4 w-4" />
+                  Filters
+                  {hasActiveFilters && (
+                    <Badge variant="secondary" className="ml-1 h-5 w-5 rounded-full p-0 text-xs">
+                      {[statusFilter, onboardingFilter, signupMethodFilter, dateFrom, dateTo].filter(f => f && f !== 'all').length}
+                    </Badge>
+                  )}
+                </Button>
+                {hasActiveFilters && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={clearAllFilters}
+                    className="gap-2"
+                  >
+                    <X className="h-4 w-4" />
+                    Clear
+                  </Button>
+                )}
               </div>
             </div>
+
+            {showFilters && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 pt-4 border-t">
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Status</label>
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="All Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Status</SelectItem>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="inactive">Inactive</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Onboarding</label>
+                  <Select value={onboardingFilter} onValueChange={setOnboardingFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="All" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All</SelectItem>
+                      <SelectItem value="complete">Complete</SelectItem>
+                      <SelectItem value="incomplete">Incomplete</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Signup Method</label>
+                  <Select value={signupMethodFilter} onValueChange={setSignupMethodFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="All Methods" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Methods</SelectItem>
+                      <SelectItem value="email">Email</SelectItem>
+                      <SelectItem value="phone">Phone</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Date From</label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="w-full justify-start text-left font-normal">
+                        {dateFrom ? format(dateFrom, 'MMM dd, yyyy') : 'Select date'}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={dateFrom}
+                        onSelect={setDateFrom}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Date To</label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="w-full justify-start text-left font-normal">
+                        {dateTo ? format(dateTo, 'MMM dd, yyyy') : 'Select date'}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={dateTo}
+                        onSelect={setDateTo}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+            )}
           </div>
         </CardHeader>
         <CardContent>
