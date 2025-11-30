@@ -7,6 +7,7 @@ import { BackButton } from "./BackButton";
 import { supabase } from "@/integrations/supabase/client";
 import { z } from "zod";
 import { FloatingParticles } from "./FloatingParticles";
+import { errorLogger } from "@/lib/services/ErrorLoggerService";
 
 const emailSchema = z.object({
   email: z.string()
@@ -98,6 +99,10 @@ export const EmailSignupScreen = ({ onContinue, onBack }: EmailSignupScreenProps
         .maybeSingle();
 
       if (checkError) {
+        await errorLogger.log(checkError, {
+          operation: 'email_signup_check_existing',
+          email
+        });
         setError("Unable to verify email. Please try again.");
         return;
       }
@@ -119,6 +124,10 @@ export const EmailSignupScreen = ({ onContinue, onBack }: EmailSignupScreenProps
       });
 
       if (invokeError) {
+        await errorLogger.log(invokeError, {
+          operation: 'send_email_otp',
+          email
+        });
         setError("Unable to send verification code. Please check your email and try again.");
         return;
       }
@@ -131,6 +140,10 @@ export const EmailSignupScreen = ({ onContinue, onBack }: EmailSignupScreenProps
       // Success - proceed to OTP verification
       onContinue(email, password);
     } catch (err) {
+      await errorLogger.log(err, {
+        operation: 'email_signup_process',
+        email
+      });
       setError("Something went wrong. Please try again later.");
     } finally {
       setLoading(false);

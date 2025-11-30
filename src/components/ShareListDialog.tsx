@@ -2,6 +2,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
+import { errorLogger } from "@/lib/services/ErrorLoggerService";
 import { Copy, Share2 } from "lucide-react";
 import { useState } from "react";
 
@@ -29,7 +30,11 @@ export function ShareListDialog({ open, onOpenChange, listId, listName }: ShareL
           url: shareLink,
         });
       } catch (error) {
-        console.error('Share error:', error);
+        await errorLogger.log(error, {
+          operation: 'native_share',
+          listId,
+          listName
+        });
       }
     } else {
       copyLink();

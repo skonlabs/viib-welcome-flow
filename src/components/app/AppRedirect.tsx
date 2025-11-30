@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { errorLogger } from '@/lib/services/ErrorLoggerService';
 
 export const AppRedirect = () => {
   const navigate = useNavigate();
@@ -26,7 +27,10 @@ export const AppRedirect = () => {
           .single();
 
         if (error || !user) {
-          console.error('Error fetching user:', error);
+          await errorLogger.log(error, {
+            operation: 'app_redirect_fetch_user',
+            userId
+          });
           navigate('/login');
           return;
         }
@@ -47,7 +51,9 @@ export const AppRedirect = () => {
         // Account exists but not active
         navigate('/login');
       } catch (error) {
-        console.error('Error checking user status:', error);
+        await errorLogger.log(error, {
+          operation: 'app_redirect_check_status'
+        });
         navigate('/login');
       } finally {
         setChecking(false);

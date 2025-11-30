@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { errorLogger } from "@/lib/services/ErrorLoggerService";
 
 interface InviteFriendDialogProps {
   open: boolean;
@@ -35,8 +36,11 @@ export const InviteFriendDialog = ({ open, onOpenChange, onInviteSent }: InviteF
       setEmail("");
       setMessage("Hey! Join me on ViiB - it's an amazing app for discovering movies and shows based on your mood!");
     } catch (error) {
-      console.error('Failed to send invite:', error);
-      toast.error("Failed to send invitation");
+      await errorLogger.log(error, {
+        operation: 'send_friend_invite',
+        email
+      });
+      toast.error("Unable to send invitation. Please try again.");
     } finally {
       setLoading(false);
     }
