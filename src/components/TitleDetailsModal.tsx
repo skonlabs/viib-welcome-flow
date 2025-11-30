@@ -45,6 +45,8 @@ export function TitleDetailsModal({ title, open, onOpenChange }: TitleDetailsMod
   const [loading, setLoading] = useState(false);
   const [selectedSeason, setSelectedSeason] = useState<any>(null);
   const [seasonDetailsOpen, setSeasonDetailsOpen] = useState(false);
+  const [seasonTrailerOpen, setSeasonTrailerOpen] = useState(false);
+  const [currentTrailerUrl, setCurrentTrailerUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (open && title && title.tmdb_id) {
@@ -91,6 +93,16 @@ export function TitleDetailsModal({ title, open, onOpenChange }: TitleDetailsMod
     setSeasonDetailsOpen(true);
   };
 
+  const handleMainTrailerClick = () => {
+    setCurrentTrailerUrl(displayTrailer);
+    setTrailerOpen(true);
+  };
+
+  const handleSeasonTrailerClick = () => {
+    setCurrentTrailerUrl(selectedSeason?.trailer_url);
+    setSeasonTrailerOpen(true);
+  };
+
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
@@ -114,7 +126,7 @@ export function TitleDetailsModal({ title, open, onOpenChange }: TitleDetailsMod
                 <Button
                   size="lg"
                   className="absolute bottom-4 left-1/2 -translate-x-1/2 gap-2"
-                  onClick={() => setTrailerOpen(true)}
+                  onClick={handleMainTrailerClick}
                 >
                   <Play className="w-5 h-5" />
                   Watch Trailer
@@ -262,6 +274,16 @@ export function TitleDetailsModal({ title, open, onOpenChange }: TitleDetailsMod
                     <span className="text-6xl">📺</span>
                   </div>
                 )}
+                {selectedSeason.trailer_url && (
+                  <Button
+                    size="lg"
+                    className="absolute bottom-4 left-1/2 -translate-x-1/2 gap-2"
+                    onClick={handleSeasonTrailerClick}
+                  >
+                    <Play className="w-5 h-5" />
+                    Watch Trailer
+                  </Button>
+                )}
               </div>
 
               {/* Season Details */}
@@ -318,8 +340,15 @@ export function TitleDetailsModal({ title, open, onOpenChange }: TitleDetailsMod
       <TrailerDialog
         open={trailerOpen}
         onOpenChange={setTrailerOpen}
-        trailerUrl={displayTrailer}
+        trailerUrl={currentTrailerUrl}
         title={title.title}
+      />
+
+      <TrailerDialog
+        open={seasonTrailerOpen}
+        onOpenChange={setSeasonTrailerOpen}
+        trailerUrl={currentTrailerUrl}
+        title={`${title.title} - ${selectedSeason?.name || ''}`}
       />
     </>
   );
