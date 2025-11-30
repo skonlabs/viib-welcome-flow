@@ -559,6 +559,45 @@ export type Database = {
         }
         Relationships: []
       }
+      profiles: {
+        Row: {
+          created_at: string
+          id: string
+          name: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "viib_recommendation_debug"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       rate_limit_config: {
         Row: {
           created_at: string | null
@@ -1411,6 +1450,212 @@ export type Database = {
           username?: string | null
         }
         Relationships: []
+      }
+      vibe_list_followers: {
+        Row: {
+          followed_at: string
+          follower_user_id: string
+          id: string
+          vibe_list_id: string
+        }
+        Insert: {
+          followed_at?: string
+          follower_user_id: string
+          id?: string
+          vibe_list_id: string
+        }
+        Update: {
+          followed_at?: string
+          follower_user_id?: string
+          id?: string
+          vibe_list_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vibe_list_followers_follower_user_id_fkey"
+            columns: ["follower_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vibe_list_followers_follower_user_id_fkey"
+            columns: ["follower_user_id"]
+            isOneToOne: false
+            referencedRelation: "viib_recommendation_debug"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "vibe_list_followers_vibe_list_id_fkey"
+            columns: ["vibe_list_id"]
+            isOneToOne: false
+            referencedRelation: "vibe_lists"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vibe_list_items: {
+        Row: {
+          added_at: string
+          id: string
+          title_id: string
+          vibe_list_id: string
+        }
+        Insert: {
+          added_at?: string
+          id?: string
+          title_id: string
+          vibe_list_id: string
+        }
+        Update: {
+          added_at?: string
+          id?: string
+          title_id?: string
+          vibe_list_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vibe_list_items_vibe_list_id_fkey"
+            columns: ["vibe_list_id"]
+            isOneToOne: false
+            referencedRelation: "vibe_lists"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vibe_list_shared_with: {
+        Row: {
+          id: string
+          shared_at: string
+          shared_with_user_id: string
+          vibe_list_id: string
+        }
+        Insert: {
+          id?: string
+          shared_at?: string
+          shared_with_user_id: string
+          vibe_list_id: string
+        }
+        Update: {
+          id?: string
+          shared_at?: string
+          shared_with_user_id?: string
+          vibe_list_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vibe_list_shared_with_shared_with_user_id_fkey"
+            columns: ["shared_with_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vibe_list_shared_with_shared_with_user_id_fkey"
+            columns: ["shared_with_user_id"]
+            isOneToOne: false
+            referencedRelation: "viib_recommendation_debug"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "vibe_list_shared_with_vibe_list_id_fkey"
+            columns: ["vibe_list_id"]
+            isOneToOne: false
+            referencedRelation: "vibe_lists"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vibe_list_views: {
+        Row: {
+          id: string
+          vibe_list_id: string
+          viewed_at: string
+          viewer_user_id: string | null
+        }
+        Insert: {
+          id?: string
+          vibe_list_id: string
+          viewed_at?: string
+          viewer_user_id?: string | null
+        }
+        Update: {
+          id?: string
+          vibe_list_id?: string
+          viewed_at?: string
+          viewer_user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vibe_list_views_vibe_list_id_fkey"
+            columns: ["vibe_list_id"]
+            isOneToOne: false
+            referencedRelation: "vibe_lists"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vibe_list_views_viewer_user_id_fkey"
+            columns: ["viewer_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vibe_list_views_viewer_user_id_fkey"
+            columns: ["viewer_user_id"]
+            isOneToOne: false
+            referencedRelation: "viib_recommendation_debug"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      vibe_lists: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          mood_tags: string[] | null
+          name: string
+          updated_at: string
+          user_id: string
+          visibility: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          mood_tags?: string[] | null
+          name: string
+          updated_at?: string
+          user_id: string
+          visibility?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          mood_tags?: string[] | null
+          name?: string
+          updated_at?: string
+          user_id?: string
+          visibility?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vibe_lists_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vibe_lists_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "viib_recommendation_debug"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       viib_intent_classified_titles: {
         Row: {

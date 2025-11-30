@@ -1,373 +1,906 @@
-import { useState, useEffect } from 'react';
-import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/integrations/supabase/client';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Input } from '@/components/ui/input';
-import { toast } from 'sonner';
-import { Heart, PlayCircle, Search, Star, Clock, Trash2, Eye, Bookmark } from '@/icons';
-import { Loader2 } from '@/icons';
+import { useState, useEffect } from "react";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Plus, List, Users, Globe, Trash2, UserPlus, Share2, Pencil } from "lucide-react";
+import { toast } from "sonner";
+import { TitleCard } from "@/components/TitleCard";
+import { TitleDetailsModal } from "@/components/TitleDetailsModal";
+import { AddTitlesToListDialog } from "@/components/AddTitlesToListDialog";
+import { ManageTrustedCircleDialog } from "@/components/ManageTrustedCircleDialog";
+import { ShareListDialog } from "@/components/ShareListDialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
-interface Title {
-  id: string;
-  title_name: string;
-  content_type: string;
-  release_year: number | null;
-  runtime_minutes: number | null;
-  synopsis: string | null;
-  popularity_score: number | null;
-}
-
-interface UserInteraction {
-  id: string;
-  title_id: string;
-  interaction_type: string;
-  rating_value: string | null;
-  watch_duration_percentage: number | null;
-  created_at: string;
-  title: Title;
-}
-
-interface Recommendation {
-  id: string;
-  title_id: string;
-  was_selected: boolean;
-  rating_value: string | null;
-  recommended_at: string;
-  title: Title;
-}
+const MOOD_OPTIONS = [
+  "light", "cozy", "funny", "deep", "emotional", "intense",
+  "thrilling", "mind_bending", "background", "feel_good", "high_energy"
+];
 
 export default function ViiBList() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState('wishlisted');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [wishlistedTitles, setWishlistedTitles] = useState<UserInteraction[]>([]);
-  const [watchedTitles, setWatchedTitles] = useState<UserInteraction[]>([]);
-  const [recommendedTitles, setRecommendedTitles] = useState<Recommendation[]>([]);
+  const [lists, setLists] = useState<any[]>([]);
+  const [sharedWithMeLists, setSharedWithMeLists] = useState<any[]>([]);
+  const [publicLists, setPublicLists] = useState<any[]>([]);
+  const [followedLists, setFollowedLists] = useState<string[]>([]);
+  const [selectedList, setSelectedList] = useState<any>(null);
+  const [listTitles, setListTitles] = useState<any[]>([]);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [selectedTitle, setSelectedTitle] = useState<any>(null);
+  const [addTitlesOpen, setAddTitlesOpen] = useState(false);
+  const [trustedCircleOpen, setTrustedCircleOpen] = useState(false);
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<"my-lists" | "discover">("my-lists");
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingList, setEditingList] = useState<any>(null);
+  const [deleteListDialogOpen, setDeleteListDialogOpen] = useState(false);
+  const [listToDelete, setListToDelete] = useState<string | null>(null);
+  const [removeTitleDialogOpen, setRemoveTitleDialogOpen] = useState(false);
+  const [titleToRemove, setTitleToRemove] = useState<string | null>(null);
+
+  const [newList, setNewList] = useState({
+    name: "",
+    description: "",
+    mood_tags: [] as string[],
+    visibility: "private"
+  });
 
   useEffect(() => {
     if (user) {
-      fetchAllData();
+      loadLists();
+      loadSharedWithMeLists();
+      loadPublicLists();
+      loadFollowedLists();
     }
   }, [user]);
 
-  const fetchAllData = async () => {
-    setLoading(true);
-    try {
-      await Promise.all([
-        fetchWishlistedTitles(),
-        fetchWatchedTitles(),
-        fetchRecommendedTitles(),
-      ]);
-    } catch (error) {
-      console.error('Error fetching data:', error);
-      toast.error('Failed to load your list');
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    if (selectedList) {
+      loadListTitles(selectedList.id);
+    }
+  }, [selectedList]);
+
+  const loadLists = async () => {
+    if (!user) return;
+
+    const { data: listsData } = await supabase
+      .from('vibe_lists')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false });
+
+    if (!listsData) {
+      setLists([]);
+      return;
+    }
+
+    // Get item counts, view counts, and follower counts for each list
+    const listsWithCounts = await Promise.all(
+      listsData.map(async (list) => {
+        const { count: itemCount } = await supabase
+          .from('vibe_list_items')
+          .select('*', { count: 'exact', head: true })
+          .eq('vibe_list_id', list.id);
+
+        const { count: viewCount } = await supabase
+          .from('vibe_list_views')
+          .select('*', { count: 'exact', head: true })
+          .eq('vibe_list_id', list.id);
+
+        const { count: followerCount } = await supabase
+          .from('vibe_list_followers')
+          .select('*', { count: 'exact', head: true })
+          .eq('vibe_list_id', list.id);
+
+        return {
+          ...list,
+          itemCount: itemCount || 0,
+          viewCount: viewCount || 0,
+          followerCount: followerCount || 0
+        };
+      })
+    );
+
+    setLists(listsWithCounts);
+  };
+
+  const loadListTitles = async (listId: string) => {
+    const { data } = await supabase
+      .from('vibe_list_items')
+      .select('*')
+      .eq('vibe_list_id', listId);
+
+    if (!data || data.length === 0) {
+      setListTitles([]);
+      return;
+    }
+
+    // Mock title data - in production would fetch from TMDB
+    const mockTitles = data.map(item => ({
+      external_id: item.title_id,
+      title: `Title ${item.title_id.substring(0, 8)}`,
+      type: 'movie' as const,
+      year: 2024,
+      poster_url: null
+    }));
+
+    setListTitles(mockTitles);
+  };
+
+  const loadPublicLists = async () => {
+    const { data: listsData } = await supabase
+      .from('vibe_lists')
+      .select('*, profiles(name)')
+      .eq('visibility', 'public')
+      .neq('user_id', user?.id || '')
+      .order('created_at', { ascending: false })
+      .limit(20);
+
+    if (!listsData) {
+      setPublicLists([]);
+      return;
+    }
+
+    const listsWithCounts = await Promise.all(
+      listsData.map(async (list) => {
+        const { count: itemCount } = await supabase
+          .from('vibe_list_items')
+          .select('*', { count: 'exact', head: true })
+          .eq('vibe_list_id', list.id);
+
+        const { count: viewCount } = await supabase
+          .from('vibe_list_views')
+          .select('*', { count: 'exact', head: true })
+          .eq('vibe_list_id', list.id);
+
+        const { count: followerCount } = await supabase
+          .from('vibe_list_followers')
+          .select('*', { count: 'exact', head: true })
+          .eq('vibe_list_id', list.id);
+
+        return {
+          ...list,
+          itemCount: itemCount || 0,
+          viewCount: viewCount || 0,
+          followerCount: followerCount || 0
+        };
+      })
+    );
+
+    setPublicLists(listsWithCounts);
+  };
+
+  const loadSharedWithMeLists = async () => {
+    if (!user) return;
+
+    const { data: sharedData } = await supabase
+      .from('vibe_list_shared_with')
+      .select('vibe_list_id')
+      .eq('shared_with_user_id', user.id);
+
+    if (!sharedData || sharedData.length === 0) {
+      setSharedWithMeLists([]);
+      return;
+    }
+
+    const listIds = sharedData.map(s => s.vibe_list_id);
+
+    const { data: listsData } = await supabase
+      .from('vibe_lists')
+      .select('*, profiles(name)')
+      .in('id', listIds)
+      .order('created_at', { ascending: false });
+
+    if (!listsData) {
+      setSharedWithMeLists([]);
+      return;
+    }
+
+    const listsWithCounts = await Promise.all(
+      listsData.map(async (list) => {
+        const { count: itemCount } = await supabase
+          .from('vibe_list_items')
+          .select('*', { count: 'exact', head: true })
+          .eq('vibe_list_id', list.id);
+
+        const { count: viewCount } = await supabase
+          .from('vibe_list_views')
+          .select('*', { count: 'exact', head: true })
+          .eq('vibe_list_id', list.id);
+
+        const { count: followerCount } = await supabase
+          .from('vibe_list_followers')
+          .select('*', { count: 'exact', head: true })
+          .eq('vibe_list_id', list.id);
+
+        return {
+          ...list,
+          itemCount: itemCount || 0,
+          viewCount: viewCount || 0,
+          followerCount: followerCount || 0
+        };
+      })
+    );
+
+    setSharedWithMeLists(listsWithCounts);
+  };
+
+  const loadFollowedLists = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from('vibe_list_followers')
+      .select('vibe_list_id')
+      .eq('follower_user_id', user.id);
+
+    setFollowedLists(data?.map(f => f.vibe_list_id) || []);
+  };
+
+  const createList = async () => {
+    if (!user || !newList.name) {
+      toast.error('Please enter a list name');
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('vibe_lists')
+      .insert({
+        user_id: user.id,
+        name: newList.name,
+        description: newList.description,
+        mood_tags: newList.mood_tags,
+        visibility: newList.visibility
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Create list error:', error);
+      toast.error(error.message || 'Failed to create list');
+      return;
+    }
+
+    toast.success('List created!');
+    setCreateDialogOpen(false);
+    setNewList({ name: "", description: "", mood_tags: [], visibility: "private" });
+    loadLists();
+  };
+
+  const deleteList = async (listId: string) => {
+    await supabase.from('vibe_lists').delete().eq('id', listId);
+    toast.success('List deleted');
+    setSelectedList(null);
+    setDeleteListDialogOpen(false);
+    setListToDelete(null);
+    loadLists();
+  };
+
+  const confirmDeleteList = (listId: string) => {
+    setListToDelete(listId);
+    setDeleteListDialogOpen(true);
+  };
+
+  const openEditDialog = (list: any) => {
+    setEditingList(list);
+    setNewList({
+      name: list.name,
+      description: list.description || "",
+      mood_tags: list.mood_tags || [],
+      visibility: list.visibility || "private"
+    });
+    setEditDialogOpen(true);
+  };
+
+  const updateList = async () => {
+    if (!user || !editingList || !newList.name) {
+      toast.error('Please enter a list name');
+      return;
+    }
+
+    const { error } = await supabase
+      .from('vibe_lists')
+      .update({
+        name: newList.name,
+        description: newList.description,
+        mood_tags: newList.mood_tags,
+        visibility: newList.visibility
+      })
+      .eq('id', editingList.id);
+
+    if (error) {
+      console.error('Update list error:', error);
+      toast.error(error.message || 'Failed to update list');
+      return;
+    }
+
+    toast.success('List updated!');
+    setEditDialogOpen(false);
+    setEditingList(null);
+    setNewList({ name: "", description: "", mood_tags: [], visibility: "private" });
+    loadLists();
+
+    if (selectedList?.id === editingList.id) {
+      setSelectedList({ ...selectedList, ...newList });
     }
   };
 
-  const fetchWishlistedTitles = async () => {
-    const { data, error } = await supabase
-      .from('user_title_interactions')
-      .select(`
-        id,
-        title_id,
-        interaction_type,
-        rating_value,
-        watch_duration_percentage,
-        created_at,
-        title:titles (
-          id,
-          title_name,
-          content_type,
-          release_year,
-          runtime_minutes,
-          synopsis,
-          popularity_score
-        )
-      `)
-      .eq('user_id', user?.id)
-      .eq('interaction_type', 'wishlisted')
-      .order('created_at', { ascending: false });
-
-    if (error) throw error;
-    setWishlistedTitles(data || []);
+  const toggleMoodTag = (tag: string) => {
+    setNewList(prev => ({
+      ...prev,
+      mood_tags: prev.mood_tags.includes(tag)
+        ? prev.mood_tags.filter(t => t !== tag)
+        : [...prev.mood_tags, tag]
+    }));
   };
 
-  const fetchWatchedTitles = async () => {
-    const { data, error } = await supabase
-      .from('user_title_interactions')
-      .select(`
-        id,
-        title_id,
-        interaction_type,
-        rating_value,
-        watch_duration_percentage,
-        created_at,
-        title:titles (
-          id,
-          title_name,
-          content_type,
-          release_year,
-          runtime_minutes,
-          synopsis,
-          popularity_score
-        )
-      `)
-      .eq('user_id', user?.id)
-      .in('interaction_type', ['started', 'completed'])
-      .order('created_at', { ascending: false })
-      .limit(50);
-
-    if (error) throw error;
-    setWatchedTitles(data || []);
+  const handleTitleClick = (title: any) => {
+    setSelectedTitle(title);
+    setDetailsOpen(true);
   };
 
-  const fetchRecommendedTitles = async () => {
-    const { data, error } = await supabase
-      .from('recommendation_outcomes')
-      .select(`
-        id,
-        title_id,
-        was_selected,
-        rating_value,
-        recommended_at,
-        title:titles (
-          id,
-          title_name,
-          content_type,
-          release_year,
-          runtime_minutes,
-          synopsis,
-          popularity_score
-        )
-      `)
-      .eq('user_id', user?.id)
-      .order('recommended_at', { ascending: false })
-      .limit(50);
+  const removeTitleFromList = async (titleId: string) => {
+    if (!selectedList) return;
 
-    if (error) throw error;
-    setRecommendedTitles(data || []);
-  };
-
-  const removeFromWishlist = async (interactionId: string) => {
     try {
       const { error } = await supabase
-        .from('user_title_interactions')
+        .from('vibe_list_items')
         .delete()
-        .eq('id', interactionId);
+        .eq('vibe_list_id', selectedList.id)
+        .eq('title_id', titleId);
 
       if (error) throw error;
 
-      setWishlistedTitles(prev => prev.filter(item => item.id !== interactionId));
-      toast.success('Removed from wishlist');
+      toast.success('Title removed from list');
+      loadListTitles(selectedList.id);
+      loadLists();
+      setRemoveTitleDialogOpen(false);
+      setTitleToRemove(null);
     } catch (error) {
-      console.error('Error removing from wishlist:', error);
-      toast.error('Failed to remove from wishlist');
+      console.error('Remove title error:', error);
+      toast.error('Failed to remove title');
     }
   };
 
-  const getRatingBadge = (rating: string | null) => {
-    if (!rating || rating === 'not_rated') return null;
-
-    const ratingConfig: Record<string, { variant: 'success' | 'warning' | 'destructive', label: string }> = {
-      love_it: { variant: 'success', label: '❤️ Love It' },
-      like_it: { variant: 'success', label: '👍 Like It' },
-      ok: { variant: 'warning', label: '😐 OK' },
-      dislike_it: { variant: 'destructive', label: '👎 Dislike' },
-    };
-
-    const config = ratingConfig[rating];
-    return config ? <Badge variant={config.variant}>{config.label}</Badge> : null;
+  const confirmRemoveTitle = (titleId: string) => {
+    setTitleToRemove(titleId);
+    setRemoveTitleDialogOpen(true);
   };
 
-  const filterTitles = (items: any[]) => {
-    if (!searchQuery.trim()) return items;
-    
-    return items.filter(item => 
-      item.title?.title_name?.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+  const toggleFollowList = async (listId: string) => {
+    if (!user) return;
+
+    try {
+      if (followedLists.includes(listId)) {
+        const { error } = await supabase
+          .from('vibe_list_followers')
+          .delete()
+          .eq('vibe_list_id', listId)
+          .eq('follower_user_id', user.id);
+
+        if (error) throw error;
+        setFollowedLists(prev => prev.filter(id => id !== listId));
+        toast.success('Unfollowed list');
+      } else {
+        const { error } = await supabase
+          .from('vibe_list_followers')
+          .insert({
+            vibe_list_id: listId,
+            follower_user_id: user.id
+          });
+
+        if (error) throw error;
+        setFollowedLists(prev => [...prev, listId]);
+        toast.success('Following list');
+      }
+    } catch (error) {
+      console.error('Toggle follow error:', error);
+      toast.error('Failed to update follow status');
+    }
   };
 
-  const renderTitleCard = (item: UserInteraction | Recommendation, showRemove = false) => {
-    const title = item.title;
-    const isInteraction = 'interaction_type' in item;
-
-    return (
-      <Card key={item.id} className="glass-card hover:border-primary/30 transition-all">
-        <CardContent className="p-4">
-          <div className="flex gap-4">
-            {/* Placeholder Image */}
-            <div className="w-24 h-36 bg-gradient-to-br from-primary/20 to-secondary/20 rounded-lg flex items-center justify-center flex-shrink-0">
-              <PlayCircle className="w-8 h-8 text-icon-muted" />
-            </div>
-
-            {/* Content */}
-            <div className="flex-1 min-w-0">
-              <div className="flex items-start justify-between gap-2 mb-2">
-                <h3 className="font-semibold text-lg line-clamp-1">
-                  {title?.title_name || 'Unknown Title'}
-                </h3>
-                {showRemove && (
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-8 w-8 flex-shrink-0"
-                    onClick={() => removeFromWishlist(item.id)}
-                  >
-                    <Trash2 className="w-4 h-4 text-icon-danger" />
-                  </Button>
-                )}
-              </div>
-
-              <div className="flex flex-wrap gap-2 mb-2">
-                <Badge variant="outline">{title?.content_type || 'Unknown'}</Badge>
-                {title?.release_year && (
-                  <Badge variant="outline">{title.release_year}</Badge>
-                )}
-                {title?.runtime_minutes && (
-                  <Badge variant="outline">{title.runtime_minutes} min</Badge>
-                )}
-              </div>
-
-              {title?.synopsis && (
-                <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
-                  {title.synopsis}
-                </p>
-              )}
-
-              <div className="flex items-center gap-2 flex-wrap">
-                {getRatingBadge(item.rating_value)}
-                
-                {isInteraction && item.watch_duration_percentage !== null && (
-                  <Badge variant="outline" className="gap-1">
-                    <Clock className="w-3 h-3" />
-                    {Math.round(item.watch_duration_percentage)}%
-                  </Badge>
-                )}
-
-                {title?.popularity_score !== null && (
-                  <Badge variant="outline" className="gap-1">
-                    <Star className="w-3 h-3 text-yellow-500" />
-                    {title.popularity_score.toFixed(1)}
-                  </Badge>
-                )}
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
-  }
+  const isOwnList = selectedList?.user_id === user?.id;
 
   return (
-    <div className="container max-w-6xl mx-auto py-8 px-4">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold mb-2">My ViiBList</h1>
-        <p className="text-muted-foreground">
-          Your personalized collection of saved, watched, and recommended content
-        </p>
-      </div>
-
-      {/* Search Bar */}
-      <div className="mb-6">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-icon-muted" />
-          <Input
-            placeholder="Search your list..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
-          />
+    <div className="container max-w-6xl mx-auto p-4">
+      <div className="flex items-start justify-between mt-6 mb-6 gap-4">
+        <div className="flex-1 space-y-2">
+          <h1 className="text-3xl font-bold">ViiBList</h1>
+          <p className="text-muted-foreground text-sm max-w-2xl">
+            Create personalized playlists of your favorite movies and TV shows. Share them with friends and family, or keep them private.
+            Organize your picks by mood, genre, or any theme you like - perfect for movie nights, recommendations, or tracking what to watch next.
+          </p>
         </div>
+        <Button onClick={() => setCreateDialogOpen(true)} className="shrink-0">
+          <Plus className="w-4 h-4 mr-2" />
+          Create List
+        </Button>
       </div>
 
-      {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-3 mb-6">
-          <TabsTrigger value="wishlisted" className="flex items-center gap-2">
-            <Bookmark className="w-4 h-4" />
-            <span className="hidden sm:inline">Wishlist</span>
-            <Badge variant="secondary" className="ml-1">
-              {wishlistedTitles.length}
-            </Badge>
-          </TabsTrigger>
-          <TabsTrigger value="watched" className="flex items-center gap-2">
-            <Eye className="w-4 h-4" />
-            <span className="hidden sm:inline">Watched</span>
-            <Badge variant="secondary" className="ml-1">
-              {watchedTitles.length}
-            </Badge>
-          </TabsTrigger>
-          <TabsTrigger value="recommended" className="flex items-center gap-2">
-            <Heart className="w-4 h-4" />
-            <span className="hidden sm:inline">Recommended</span>
-            <Badge variant="secondary" className="ml-1">
-              {recommendedTitles.length}
-            </Badge>
-          </TabsTrigger>
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="space-y-4">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="my-lists">My Lists</TabsTrigger>
+          <TabsTrigger value="discover">Discover</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="wishlisted" className="space-y-4">
-          {filterTitles(wishlistedTitles).length === 0 ? (
-            <Card className="glass-card">
-              <CardContent className="py-12 text-center">
-                <Bookmark className="w-12 h-12 text-icon-muted mx-auto mb-4" />
-                <h3 className="text-xl font-semibold mb-2">No items in wishlist</h3>
-                <p className="text-muted-foreground">
-                  {searchQuery ? 'No results found for your search' : 'Start adding titles to build your wishlist'}
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            filterTitles(wishlistedTitles).map(item => renderTitleCard(item, true))
-          )}
+        <TabsContent value="my-lists" className="space-y-4">
+          <div className="grid md:grid-cols-[300px_1fr] gap-6">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <h3 className="text-sm font-semibold text-muted-foreground px-2">My Lists</h3>
+                {lists.length === 0 ? (
+                  <Card className="p-6 text-center text-muted-foreground">
+                    <List className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">No lists yet</p>
+                  </Card>
+                ) : (
+                  lists.map((list) => (
+                    <Card
+                      key={list.id}
+                      className={`p-4 transition-colors ${
+                        selectedList?.id === list.id ? 'bg-accent' : 'hover:bg-accent/50'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setSelectedList(list)}>
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-semibold truncate">{list.name}</h3>
+                            <Badge variant="secondary" className="text-xs shrink-0">
+                              {list.itemCount} {list.itemCount === 1 ? 'title' : 'titles'}
+                            </Badge>
+                          </div>
+                          <div className="flex items-center gap-1 mt-1">
+                            {list.visibility === 'public' && <Globe className="w-3 h-3 text-muted-foreground" />}
+                            {list.visibility === 'trusted_circle' && <Users className="w-3 h-3 text-muted-foreground" />}
+                            <span className="text-xs text-muted-foreground capitalize">{list.visibility}</span>
+                          </div>
+                          {(list.visibility === 'public' || list.visibility === 'link_share') && (
+                            <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                              <span>👁️ {list.viewCount || 0}</span>
+                              <span>👥 {list.followerCount || 0}</span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex gap-1 shrink-0">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 w-8 p-0"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedList(list);
+                              setAddTitlesOpen(true);
+                            }}
+                          >
+                            <Plus className="w-4 h-4" />
+                          </Button>
+                          {list.visibility === 'public' && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 w-8 p-0"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedList(list);
+                                setShareDialogOpen(true);
+                              }}
+                            >
+                              <Share2 className="w-4 h-4" />
+                            </Button>
+                          )}
+                          {list.visibility === 'trusted_circle' && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 w-8 p-0"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedList(list);
+                                setTrustedCircleOpen(true);
+                              }}
+                            >
+                              <UserPlus className="w-4 h-4" />
+                            </Button>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 w-8 p-0"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openEditDialog(list);
+                            }}
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              confirmDeleteList(list.id);
+                            }}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {list.mood_tags?.slice(0, 2).map((tag: string) => (
+                          <Badge key={tag} variant="secondary" className="text-xs">
+                            {tag}
+                          </Badge>
+                        ))}
+                      </div>
+                    </Card>
+                  ))
+                )}
+              </div>
+
+              {sharedWithMeLists.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-semibold text-muted-foreground px-2">Shared With Me</h3>
+                  {sharedWithMeLists.map((list) => (
+                    <Card
+                      key={list.id}
+                      className={`p-4 transition-colors ${
+                        selectedList?.id === list.id ? 'bg-accent' : 'hover:bg-accent/50'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setSelectedList(list)}>
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-semibold truncate">{list.name}</h3>
+                            <Badge variant="secondary" className="text-xs shrink-0">
+                              {list.itemCount} {list.itemCount === 1 ? 'title' : 'titles'}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">by {list.profiles?.name}</p>
+                          {(list.visibility === 'public' || list.visibility === 'link_share') && (
+                            <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                              <span>👁️ {list.viewCount || 0}</span>
+                              <span>👥 {list.followerCount || 0}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {list.mood_tags?.slice(0, 2).map((tag: string) => (
+                          <Badge key={tag} variant="secondary" className="text-xs">
+                            {tag}
+                          </Badge>
+                        ))}
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div>
+              {selectedList ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+                    {listTitles.map((title) => (
+                      <div key={title.external_id} className="relative group">
+                        <TitleCard
+                          title={title}
+                          onClick={() => handleTitleClick(title)}
+                        />
+                        {isOwnList && (
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 p-0"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              confirmRemoveTitle(title.external_id);
+                            }}
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                    {listTitles.length === 0 && (
+                      <Card className="p-6 col-span-full text-center text-muted-foreground">
+                        <p>No titles in this list yet</p>
+                        {isOwnList && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="mt-4"
+                            onClick={() => setAddTitlesOpen(true)}
+                          >
+                            <Plus className="w-4 h-4 mr-2" />
+                            Add Titles
+                          </Button>
+                        )}
+                      </Card>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <Card className="p-12 text-center text-muted-foreground">
+                  <p>Select a list to view its contents</p>
+                </Card>
+              )}
+            </div>
+          </div>
         </TabsContent>
 
-        <TabsContent value="watched" className="space-y-4">
-          {filterTitles(watchedTitles).length === 0 ? (
-            <Card className="glass-card">
-              <CardContent className="py-12 text-center">
-                <Eye className="w-12 h-12 text-icon-muted mx-auto mb-4" />
-                <h3 className="text-xl font-semibold mb-2">No watched content</h3>
-                <p className="text-muted-foreground">
-                  {searchQuery ? 'No results found for your search' : 'Your viewing history will appear here'}
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            filterTitles(watchedTitles).map(item => renderTitleCard(item))
-          )}
-        </TabsContent>
-
-        <TabsContent value="recommended" className="space-y-4">
-          {filterTitles(recommendedTitles).length === 0 ? (
-            <Card className="glass-card">
-              <CardContent className="py-12 text-center">
-                <Heart className="w-12 h-12 text-icon-muted mx-auto mb-4" />
-                <h3 className="text-xl font-semibold mb-2">No recommendations yet</h3>
-                <p className="text-muted-foreground">
-                  {searchQuery ? 'No results found for your search' : 'Complete your profile to get personalized recommendations'}
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            filterTitles(recommendedTitles).map(item => renderTitleCard(item))
-          )}
+        <TabsContent value="discover" className="space-y-4">
+          <div className="space-y-4">
+            <h3 className="text-xl font-semibold">Public ViiBLists</h3>
+            {publicLists.length === 0 ? (
+              <Card className="p-12 text-center text-muted-foreground">
+                <Globe className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                <p>No public lists to discover yet</p>
+              </Card>
+            ) : (
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {publicLists.map((list) => (
+                  <Card key={list.id} className="p-4">
+                    <div className="space-y-3">
+                      <div>
+                        <h4 className="font-semibold">{list.name}</h4>
+                        <p className="text-sm text-muted-foreground">by {list.profiles?.name}</p>
+                        <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                          <span>📺 {list.itemCount} titles</span>
+                          <span>👁️ {list.viewCount} views</span>
+                          <span>👥 {list.followerCount} followers</span>
+                        </div>
+                      </div>
+                      {list.description && (
+                        <p className="text-sm text-muted-foreground line-clamp-2">{list.description}</p>
+                      )}
+                      <div className="flex flex-wrap gap-1">
+                        {list.mood_tags?.slice(0, 3).map((tag: string) => (
+                          <Badge key={tag} variant="secondary" className="text-xs">
+                            {tag}
+                          </Badge>
+                        ))}
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1"
+                          onClick={() => {
+                            setSelectedList(list);
+                            setActiveTab("my-lists");
+                          }}
+                        >
+                          View
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={followedLists.includes(list.id) ? "secondary" : "default"}
+                          onClick={() => toggleFollowList(list.id)}
+                        >
+                          {followedLists.includes(list.id) ? 'Following' : 'Follow'}
+                        </Button>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
         </TabsContent>
       </Tabs>
+
+      {/* Create List Dialog */}
+      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create Vibe List</DialogTitle>
+            <DialogDescription>Set the name, description, mood tags and access level.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium">Name</label>
+              <Input
+                value={newList.name}
+                onChange={(e) => setNewList(prev => ({ ...prev, name: e.target.value }))}
+                placeholder="After Work Comfort Shows"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Description (optional)</label>
+              <Textarea
+                value={newList.description}
+                onChange={(e) => setNewList(prev => ({ ...prev, description: e.target.value }))}
+                placeholder="My go-to shows for unwinding..."
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Mood Tags</label>
+              <div className="flex flex-wrap gap-2 mt-2">
+                {MOOD_OPTIONS.map(mood => (
+                  <Badge
+                    key={mood}
+                    variant={newList.mood_tags.includes(mood) ? "default" : "outline"}
+                    className="cursor-pointer"
+                    onClick={() => toggleMoodTag(mood)}
+                  >
+                    {mood}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium">Visibility</label>
+              <Select
+                value={newList.visibility}
+                onValueChange={(value) => setNewList(prev => ({ ...prev, visibility: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="private">Private</SelectItem>
+                  <SelectItem value="trusted_circle">Trusted Circle</SelectItem>
+                  <SelectItem value="public">Public</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button onClick={createList} className="w-full">
+              Create List
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit List Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Vibe List</DialogTitle>
+            <DialogDescription>Update the list name and who can access it.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium">Name</label>
+              <Input
+                value={newList.name}
+                onChange={(e) => setNewList(prev => ({ ...prev, name: e.target.value }))}
+                placeholder="After Work Comfort Shows"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Description (optional)</label>
+              <Textarea
+                value={newList.description}
+                onChange={(e) => setNewList(prev => ({ ...prev, description: e.target.value }))}
+                placeholder="My go-to shows for unwinding..."
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Mood Tags</label>
+              <div className="flex flex-wrap gap-2 mt-2">
+                {MOOD_OPTIONS.map(mood => (
+                  <Badge
+                    key={mood}
+                    variant={newList.mood_tags.includes(mood) ? "default" : "outline"}
+                    className="cursor-pointer"
+                    onClick={() => toggleMoodTag(mood)}
+                  >
+                    {mood}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium">Visibility</label>
+              <Select
+                value={newList.visibility}
+                onValueChange={(value) => setNewList(prev => ({ ...prev, visibility: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="private">Private</SelectItem>
+                  <SelectItem value="trusted_circle">Trusted Circle</SelectItem>
+                  <SelectItem value="public">Public</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button onClick={updateList} className="w-full">
+              Update List
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <TitleDetailsModal
+        title={selectedTitle}
+        open={detailsOpen}
+        onOpenChange={setDetailsOpen}
+      />
+
+      <AddTitlesToListDialog
+        open={addTitlesOpen}
+        onOpenChange={setAddTitlesOpen}
+        listId={selectedList?.id || ''}
+        onTitlesAdded={() => {
+          if (selectedList) {
+            loadListTitles(selectedList.id);
+            loadLists();
+          }
+        }}
+      />
+
+      <ManageTrustedCircleDialog
+        open={trustedCircleOpen}
+        onOpenChange={setTrustedCircleOpen}
+        listId={selectedList?.id || ''}
+      />
+
+      <ShareListDialog
+        open={shareDialogOpen}
+        onOpenChange={setShareDialogOpen}
+        listId={selectedList?.id || ''}
+        listName={selectedList?.name || ''}
+      />
+
+      {/* Delete List Confirmation */}
+      <AlertDialog open={deleteListDialogOpen} onOpenChange={setDeleteListDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete List?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this list? This will permanently remove the list and all its contents. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => listToDelete && deleteList(listToDelete)}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Remove Title Confirmation */}
+      <AlertDialog open={removeTitleDialogOpen} onOpenChange={setRemoveTitleDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove Title?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to remove this title from the list? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => titleToRemove && removeTitleFromList(titleToRemove)}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
