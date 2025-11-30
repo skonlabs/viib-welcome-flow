@@ -417,16 +417,16 @@ export default function ViiBList() {
   const isOwnList = selectedList?.user_id === user?.id;
 
   return (
-    <div className="container max-w-6xl mx-auto p-4">
-      <div className="flex items-start justify-between mt-6 mb-6 gap-4">
+    <div className="container max-w-6xl mx-auto px-4 sm:px-6">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between mt-4 sm:mt-6 mb-4 sm:mb-6 gap-3 sm:gap-4">
         <div className="flex-1 space-y-2">
-          <h1 className="text-3xl font-bold">ViiBList</h1>
-          <p className="text-muted-foreground text-sm max-w-2xl">
+          <h1 className="text-2xl sm:text-3xl font-bold">ViiBList</h1>
+          <p className="text-muted-foreground text-xs sm:text-sm">
             Create personalized playlists of your favorite movies and TV shows. Share them with friends and family, or keep them private.
             Organize your picks by mood, genre, or any theme you like - perfect for movie nights, recommendations, or tracking what to watch next.
           </p>
         </div>
-        <Button onClick={() => setCreateDialogOpen(true)} className="shrink-0">
+        <Button onClick={() => setCreateDialogOpen(true)} className="w-full sm:w-auto shrink-0">
           <Plus className="w-4 h-4 mr-2" />
           Create List
         </Button>
@@ -439,7 +439,7 @@ export default function ViiBList() {
         </TabsList>
 
         <TabsContent value="my-lists" className="space-y-4">
-          <div className="grid md:grid-cols-[300px_1fr] gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] lg:grid-cols-[300px_1fr] gap-4 md:gap-6">
             <div className="space-y-4">
               <div className="space-y-2">
                 <h3 className="text-sm font-semibold text-muted-foreground px-2">My Lists</h3>
@@ -654,7 +654,7 @@ export default function ViiBList() {
                 <p>No public lists to discover yet</p>
               </Card>
             ) : (
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                 {publicLists.map((list) => (
                   <Card key={list.id} className="p-4">
                     <div className="space-y-3">

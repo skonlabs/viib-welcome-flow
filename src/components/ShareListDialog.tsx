@@ -38,10 +38,10 @@ export function ShareListDialog({ open, onOpenChange, listId, listName }: ShareL
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-[95vw] sm:max-w-md p-4 sm:p-6">
         <DialogHeader>
-          <DialogTitle>Share List</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="text-lg sm:text-xl">Share List</DialogTitle>
+          <DialogDescription className="text-sm">
             Share "{listName}" with friends
           </DialogDescription>
         </DialogHeader>

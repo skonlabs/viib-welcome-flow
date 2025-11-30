@@ -84,10 +84,10 @@ export function AddTitlesToListDialog({ open, onOpenChange, listId, onTitlesAdde
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[80vh] overflow-y-auto p-4 sm:p-6">
         <DialogHeader>
-          <DialogTitle>Add Titles to List</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="text-lg sm:text-xl">Add Titles to List</DialogTitle>
+          <DialogDescription className="text-sm">
             Search and add movies or TV shows to your list
           </DialogDescription>
         </DialogHeader>
