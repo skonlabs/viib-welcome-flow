@@ -14,6 +14,84 @@ export type Database = {
   }
   public: {
     Tables: {
+      email_config: {
+        Row: {
+          created_at: string | null
+          from_email: string
+          from_name: string | null
+          id: string
+          is_active: boolean | null
+          smtp_host: string
+          smtp_password: string
+          smtp_port: number
+          smtp_user: string
+          updated_at: string | null
+          use_ssl: boolean | null
+        }
+        Insert: {
+          created_at?: string | null
+          from_email: string
+          from_name?: string | null
+          id?: string
+          is_active?: boolean | null
+          smtp_host: string
+          smtp_password: string
+          smtp_port: number
+          smtp_user: string
+          updated_at?: string | null
+          use_ssl?: boolean | null
+        }
+        Update: {
+          created_at?: string | null
+          from_email?: string
+          from_name?: string | null
+          id?: string
+          is_active?: boolean | null
+          smtp_host?: string
+          smtp_password?: string
+          smtp_port?: number
+          smtp_user?: string
+          updated_at?: string | null
+          use_ssl?: boolean | null
+        }
+        Relationships: []
+      }
+      email_templates: {
+        Row: {
+          body: string
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          subject: string
+          template_type: string
+          updated_at: string | null
+          variables: Json | null
+        }
+        Insert: {
+          body: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          subject: string
+          template_type: string
+          updated_at?: string | null
+          variables?: Json | null
+        }
+        Update: {
+          body?: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          subject?: string
+          template_type?: string
+          updated_at?: string | null
+          variables?: Json | null
+        }
+        Relationships: []
+      }
       email_verifications: {
         Row: {
           created_at: string
@@ -424,6 +502,39 @@ export type Database = {
           otp_code?: string
           phone_number?: string
           verified?: boolean
+        }
+        Relationships: []
+      }
+      rate_limit_config: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          endpoint: string
+          id: string
+          is_active: boolean | null
+          max_requests: number
+          updated_at: string | null
+          window_seconds: number
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          endpoint: string
+          id?: string
+          is_active?: boolean | null
+          max_requests: number
+          updated_at?: string | null
+          window_seconds: number
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          endpoint?: string
+          id?: string
+          is_active?: boolean | null
+          max_requests?: number
+          updated_at?: string | null
+          window_seconds?: number
         }
         Relationships: []
       }
