@@ -67,14 +67,23 @@ serve(async (req) => {
     const moviesWithCertifications = await Promise.all(
       (movieData.results || []).slice(0, 10).map(async (movie: any) => {
         try {
-          const [certResponse, detailsResponse] = await Promise.all([
+          const [certResponse, detailsResponse, providersResponse] = await Promise.all([
             fetch(`${TMDB_BASE_URL}/movie/${movie.id}/release_dates?api_key=${TMDB_API_KEY}`),
-            fetch(`${TMDB_BASE_URL}/movie/${movie.id}?api_key=${TMDB_API_KEY}&language=${language}`)
+            fetch(`${TMDB_BASE_URL}/movie/${movie.id}?api_key=${TMDB_API_KEY}&language=${language}`),
+            fetch(`${TMDB_BASE_URL}/movie/${movie.id}/watch/providers?api_key=${TMDB_API_KEY}`)
           ]);
-          const [certData, details] = await Promise.all([
+          const [certData, details, providersData] = await Promise.all([
             certResponse.json(),
-            detailsResponse.json()
+            detailsResponse.json(),
+            providersResponse.json()
           ]);
+          
+          // Extract US streaming providers
+          const usProviders = providersData.results?.US?.flatrate || [];
+          const streaming_services = usProviders.map((p: any) => ({
+            service_code: p.provider_name,
+            service_name: p.provider_name
+          }));
           
           // Find US certification
           const usCertification = certData.results?.find((r: any) => r.iso_3166_1 === 'US');
@@ -97,7 +106,8 @@ serve(async (req) => {
             popularity: movie.popularity,
             certification: certification,
             runtime_minutes: details.runtime,
-            original_language: movie.original_language
+            original_language: movie.original_language,
+            streaming_services: streaming_services
           };
         } catch (error) {
           console.error(`Error fetching details for movie ${movie.id}:`, error);
@@ -117,7 +127,8 @@ serve(async (req) => {
             rating: movie.vote_average,
             popularity: movie.popularity,
             certification: 'NR',
-            original_language: movie.original_language
+            original_language: movie.original_language,
+            streaming_services: []
           };
         }
       })
@@ -127,14 +138,23 @@ serve(async (req) => {
     const tvShowsWithDetails = await Promise.all(
       (tvData.results || []).slice(0, 10).map(async (tv: any) => {
         try {
-          const [detailsResponse, certResponse] = await Promise.all([
+          const [detailsResponse, certResponse, providersResponse] = await Promise.all([
             fetch(`${TMDB_BASE_URL}/tv/${tv.id}?api_key=${TMDB_API_KEY}&language=${language}`),
-            fetch(`${TMDB_BASE_URL}/tv/${tv.id}/content_ratings?api_key=${TMDB_API_KEY}`)
+            fetch(`${TMDB_BASE_URL}/tv/${tv.id}/content_ratings?api_key=${TMDB_API_KEY}`),
+            fetch(`${TMDB_BASE_URL}/tv/${tv.id}/watch/providers?api_key=${TMDB_API_KEY}`)
           ]);
-          const [details, certData] = await Promise.all([
+          const [details, certData, providersData] = await Promise.all([
             detailsResponse.json(),
-            certResponse.json()
+            certResponse.json(),
+            providersResponse.json()
           ]);
+          
+          // Extract US streaming providers
+          const usProviders = providersData.results?.US?.flatrate || [];
+          const streaming_services = usProviders.map((p: any) => ({
+            service_code: p.provider_name,
+            service_name: p.provider_name
+          }));
           
           // Find US certification
           const usCertification = certData.results?.find((r: any) => r.iso_3166_1 === 'US');
@@ -158,7 +178,8 @@ serve(async (req) => {
             number_of_seasons: details.number_of_seasons,
             certification: certification,
             avg_episode_minutes: details.episode_run_time?.[0],
-            original_language: tv.original_language
+            original_language: tv.original_language,
+            streaming_services: streaming_services
           };
         } catch (error) {
           console.error(`Error fetching details for TV show ${tv.id}:`, error);
@@ -178,7 +199,8 @@ serve(async (req) => {
             rating: tv.vote_average,
             popularity: tv.popularity,
             certification: 'NR',
-            original_language: tv.original_language
+            original_language: tv.original_language,
+            streaming_services: []
           };
         }
       })
