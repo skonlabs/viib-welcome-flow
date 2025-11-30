@@ -99,20 +99,49 @@ serve(async (req) => {
     const runtime_minutes = type === 'movie' ? details.runtime : null;
     const avg_episode_minutes = type === 'series' ? details.episode_run_time?.[0] : null;
 
-    // Extract seasons for TV shows
-    const seasons = type === 'series' ? (details.seasons || []).map((season: any) => ({
-      season_number: season.season_number,
-      name: season.name,
-      episode_count: season.episode_count,
-      air_date: season.air_date,
-      overview: season.overview,
-      poster_path: season.poster_path ? `https://image.tmdb.org/t/p/w500${season.poster_path}` : null,
-      id: season.id
-    })) : [];
+    // Extract seasons for TV shows with trailers
+    let seasons = [];
+    let latestSeasonTrailer = null;
+    
+    if (type === 'series' && details.seasons) {
+      // Fetch videos for each season
+      const seasonVideoPromises = details.seasons.map((season: any) => 
+        fetch(`${TMDB_BASE_URL}/tv/${tmdb_id}/season/${season.season_number}/videos?api_key=${TMDB_API_KEY}`)
+          .then(res => res.json())
+      );
+      
+      const seasonVideos = await Promise.all(seasonVideoPromises);
+      
+      seasons = details.seasons.map((season: any, index: number) => {
+        const seasonTrailer = seasonVideos[index]?.results?.find((v: any) => 
+          v.type === 'Trailer' && v.site === 'YouTube'
+        );
+        
+        return {
+          season_number: season.season_number,
+          name: season.name,
+          episode_count: season.episode_count,
+          air_date: season.air_date,
+          overview: season.overview,
+          poster_path: season.poster_path ? `https://image.tmdb.org/t/p/w500${season.poster_path}` : null,
+          id: season.id,
+          trailer_url: seasonTrailer ? `https://www.youtube.com/watch?v=${seasonTrailer.key}` : null
+        };
+      });
+      
+      // Get the latest season's trailer (last season with valid air_date)
+      const validSeasons = seasons.filter((s: any) => s.air_date && s.trailer_url);
+      if (validSeasons.length > 0) {
+        const sortedSeasons = validSeasons.sort((a: any, b: any) => 
+          new Date(b.air_date).getTime() - new Date(a.air_date).getTime()
+        );
+        latestSeasonTrailer = sortedSeasons[0].trailer_url;
+      }
+    }
 
     return new Response(
       JSON.stringify({
-        trailer_url,
+        trailer_url: type === 'series' ? (latestSeasonTrailer || trailer_url) : trailer_url,
         cast,
         genres,
         streaming_services,
