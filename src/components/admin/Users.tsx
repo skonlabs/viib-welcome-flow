@@ -4,14 +4,18 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Search, Loader2 } from 'lucide-react';
+import { Search, Loader2, UserCheck, UserX, Eye } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 const Users = () => {
   const [users, setUsers] = useState<any[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
 
   useEffect(() => {
     fetchUsers();
@@ -49,6 +53,28 @@ const Users = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const toggleUserStatus = async (userId: string, currentStatus: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update({ is_active: !currentStatus })
+        .eq('id', userId);
+
+      if (error) throw error;
+      
+      toast.success(`User ${!currentStatus ? 'activated' : 'deactivated'} successfully`);
+      fetchUsers();
+    } catch (error) {
+      console.error('Error updating user status:', error);
+      toast.error('Failed to update user status');
+    }
+  };
+
+  const viewUserDetails = (user: any) => {
+    setSelectedUser(user);
+    setDetailsDialogOpen(true);
   };
 
   if (loading) {
@@ -93,12 +119,13 @@ const Users = () => {
                 <TableHead>Status</TableHead>
                 <TableHead>Onboarding</TableHead>
                 <TableHead>Created</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredUsers.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center text-muted-foreground">
                     No users found
                   </TableCell>
                 </TableRow>
@@ -109,16 +136,34 @@ const Users = () => {
                     <TableCell>{user.email || '-'}</TableCell>
                     <TableCell>{user.phone_number || '-'}</TableCell>
                     <TableCell>
-                      <span className={user.is_active ? 'text-green-600' : 'text-red-600'}>
+                      <Badge variant={user.is_active ? 'default' : 'destructive'}>
                         {user.is_active ? 'Active' : 'Inactive'}
-                      </span>
+                      </Badge>
                     </TableCell>
                     <TableCell>
-                      <span className={user.onboarding_completed ? 'text-green-600' : 'text-yellow-600'}>
+                      <Badge variant={user.onboarding_completed ? 'default' : 'secondary'}>
                         {user.onboarding_completed ? 'Complete' : 'Incomplete'}
-                      </span>
+                      </Badge>
                     </TableCell>
                     <TableCell>{new Date(user.created_at).toLocaleDateString()}</TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => viewUserDetails(user)}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={user.is_active ? 'destructive' : 'default'}
+                          onClick={() => toggleUserStatus(user.id, user.is_active)}
+                        >
+                          {user.is_active ? <UserX className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />}
+                        </Button>
+                      </div>
+                    </TableCell>
                   </TableRow>
                 ))
               )}
@@ -126,6 +171,93 @@ const Users = () => {
           </Table>
         </CardContent>
       </Card>
+
+      <Dialog open={detailsDialogOpen} onOpenChange={setDetailsDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>User Details</DialogTitle>
+            <DialogDescription>Complete information about this user</DialogDescription>
+          </DialogHeader>
+          {selectedUser && (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Full Name</p>
+                <p className="text-sm">{selectedUser.full_name || '-'}</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Username</p>
+                <p className="text-sm">{selectedUser.username || '-'}</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Email</p>
+                <p className="text-sm">{selectedUser.email || '-'}</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Phone Number</p>
+                <p className="text-sm">{selectedUser.phone_number || '-'}</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Signup Method</p>
+                <p className="text-sm">{selectedUser.signup_method || '-'}</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Country</p>
+                <p className="text-sm">{selectedUser.country || '-'}</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Language</p>
+                <p className="text-sm">{selectedUser.language_preference || '-'}</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Timezone</p>
+                <p className="text-sm">{selectedUser.timezone || '-'}</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Account Status</p>
+                <Badge variant={selectedUser.is_active ? 'default' : 'destructive'}>
+                  {selectedUser.is_active ? 'Active' : 'Inactive'}
+                </Badge>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Email Verified</p>
+                <Badge variant={selectedUser.is_email_verified ? 'default' : 'secondary'}>
+                  {selectedUser.is_email_verified ? 'Yes' : 'No'}
+                </Badge>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Phone Verified</p>
+                <Badge variant={selectedUser.is_phone_verified ? 'default' : 'secondary'}>
+                  {selectedUser.is_phone_verified ? 'Yes' : 'No'}
+                </Badge>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Age Over 18</p>
+                <Badge variant={selectedUser.is_age_over_18 ? 'default' : 'secondary'}>
+                  {selectedUser.is_age_over_18 ? 'Yes' : 'No'}
+                </Badge>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Onboarding Status</p>
+                <Badge variant={selectedUser.onboarding_completed ? 'default' : 'secondary'}>
+                  {selectedUser.onboarding_completed ? 'Complete' : 'Incomplete'}
+                </Badge>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Last Onboarding Step</p>
+                <p className="text-sm">{selectedUser.last_onboarding_step || '-'}</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Created At</p>
+                <p className="text-sm">{new Date(selectedUser.created_at).toLocaleString()}</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">User ID</p>
+                <p className="text-sm font-mono text-xs">{selectedUser.id}</p>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
