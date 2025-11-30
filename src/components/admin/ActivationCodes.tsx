@@ -10,6 +10,7 @@ import { Plus, Loader2, Copy, Trash2, Mail } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
 export default function ActivationCodes() {
   const [codes, setCodes] = useState<any[]>([]);
@@ -24,6 +25,10 @@ export default function ActivationCodes() {
   const [selectedCodeForInvite, setSelectedCodeForInvite] = useState<any>(null);
   const [inviteEmail, setInviteEmail] = useState('');
   const [sending, setSending] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [codeToDelete, setCodeToDelete] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 25;
 
   useEffect(() => {
     fetchCodes();
@@ -96,10 +101,6 @@ export default function ActivationCodes() {
   };
 
   const deleteCode = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this activation code?')) {
-      return;
-    }
-
     try {
       const { error } = await supabase
         .from('activation_codes')
@@ -107,13 +108,21 @@ export default function ActivationCodes() {
         .eq('id', id);
 
       if (error) throw error;
-      
+
       toast.success('Activation code deleted successfully');
       fetchCodes();
     } catch (error) {
       console.error('Error deleting activation code:', error);
       toast.error('Failed to delete activation code');
+    } finally {
+      setDeleteDialogOpen(false);
+      setCodeToDelete(null);
     }
+  };
+
+  const openDeleteDialog = (id: string) => {
+    setCodeToDelete(id);
+    setDeleteDialogOpen(true);
   };
 
   const copyToClipboard = (code: string) => {
@@ -269,14 +278,14 @@ export default function ActivationCodes() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Code</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Uses</TableHead>
-                <TableHead>Used By</TableHead>
-                <TableHead>Expires</TableHead>
-                <TableHead>Created</TableHead>
-                <TableHead className="max-w-xs">Notes</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead className="w-[150px]">Code</TableHead>
+                <TableHead className="w-[100px]">Status</TableHead>
+                <TableHead className="w-[80px]">Uses</TableHead>
+                <TableHead className="w-[100px]">Used By</TableHead>
+                <TableHead className="w-[100px]">Expires</TableHead>
+                <TableHead className="w-[100px]">Created</TableHead>
+                <TableHead className="w-[150px]">Notes</TableHead>
+                <TableHead className="w-[140px] text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -287,30 +296,32 @@ export default function ActivationCodes() {
                   </TableCell>
                 </TableRow>
               ) : (
-                codes.map((code) => {
+                codes
+                  .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                  .map((code) => {
                   const isExpired = code.expires_at && new Date(code.expires_at) < new Date();
                   const isFullyUsed = code.current_uses >= code.max_uses;
                   const isActive = !isExpired && !isFullyUsed;
 
                   return (
                     <TableRow key={code.id}>
-                      <TableCell className="font-mono font-medium">{code.code}</TableCell>
+                      <TableCell className="font-mono font-medium text-sm truncate max-w-[150px]">{code.code}</TableCell>
                       <TableCell>
                         <Badge variant={isActive ? 'default' : 'secondary'}>
-                          {isExpired ? 'Expired' : isFullyUsed ? 'Fully Used' : 'Active'}
+                          {isExpired ? 'Expired' : isFullyUsed ? 'Used' : 'Active'}
                         </Badge>
                       </TableCell>
                       <TableCell>
                         {code.current_uses} / {code.max_uses}
                       </TableCell>
                       <TableCell>{code.used_by ? 'Yes' : '-'}</TableCell>
-                      <TableCell>
+                      <TableCell className="text-sm">
                         {code.expires_at ? new Date(code.expires_at).toLocaleDateString() : 'Never'}
                       </TableCell>
-                      <TableCell>{new Date(code.created_at).toLocaleDateString()}</TableCell>
-                      <TableCell className="max-w-xs truncate">{code.notes || '-'}</TableCell>
+                      <TableCell className="text-sm">{new Date(code.created_at).toLocaleDateString()}</TableCell>
+                      <TableCell className="truncate max-w-[150px] text-sm" title={code.notes}>{code.notes || '-'}</TableCell>
                       <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
+                        <div className="flex justify-end gap-1">
                           <Button
                             size="sm"
                             variant="outline"
@@ -318,21 +329,23 @@ export default function ActivationCodes() {
                             disabled={!isActive}
                             title={!isActive ? 'Code is expired or fully used' : 'Send invitation email'}
                           >
-                            <Mail className="h-4 w-4" />
+                            <Mail className="h-3 w-3" />
                           </Button>
                           <Button
                             size="sm"
                             variant="outline"
                             onClick={() => copyToClipboard(code.code)}
+                            title="Copy to clipboard"
                           >
-                            <Copy className="h-4 w-4" />
+                            <Copy className="h-3 w-3" />
                           </Button>
                           <Button
                             size="sm"
                             variant="destructive"
-                            onClick={() => deleteCode(code.id)}
+                            onClick={() => openDeleteDialog(code.id)}
+                            title="Delete code"
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <Trash2 className="h-3 w-3" />
                           </Button>
                         </div>
                       </TableCell>
@@ -342,8 +355,51 @@ export default function ActivationCodes() {
               )}
             </TableBody>
           </Table>
+          
+          {codes.length > itemsPerPage && (
+            <div className="flex items-center justify-between mt-4">
+              <p className="text-sm text-muted-foreground">
+                Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, codes.length)} of {codes.length} codes
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                >
+                  Previous
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(p => Math.min(Math.ceil(codes.length / itemsPerPage), p + 1))}
+                  disabled={currentPage >= Math.ceil(codes.length / itemsPerPage)}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the activation code.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setCodeToDelete(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => codeToDelete && deleteCode(codeToDelete)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
         <DialogContent>
