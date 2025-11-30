@@ -32,30 +32,72 @@ serve(async (req) => {
       tvResponse.json()
     ]);
 
-    // Transform and combine results
-    const movies = (movieData.results || []).map((movie: any) => ({
-      id: `tmdb-movie-${movie.id}`,
-      tmdb_id: movie.id,
-      external_id: `tmdb-movie-${movie.id}`,
-      title: movie.title || movie.original_title,
-      content_type: 'movie',
-      type: 'movie',
-      year: movie.release_date ? new Date(movie.release_date).getFullYear() : undefined,
-      description: movie.overview,
-      poster_url: movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : undefined,
-      backdrop_url: movie.backdrop_path ? `https://image.tmdb.org/t/p/w1280${movie.backdrop_path}` : undefined,
-      genres: movie.genre_ids || [],
-      mood_tags: [],
-      rating: movie.vote_average,
-      popularity: movie.popularity
-    }));
+    // Fetch certifications for movies
+    const moviesWithCertifications = await Promise.all(
+      (movieData.results || []).slice(0, 10).map(async (movie: any) => {
+        try {
+          const certResponse = await fetch(`${TMDB_BASE_URL}/movie/${movie.id}/release_dates?api_key=${TMDB_API_KEY}`);
+          const certData = await certResponse.json();
+          
+          // Find US certification
+          const usCertification = certData.results?.find((r: any) => r.iso_3166_1 === 'US');
+          const certification = usCertification?.release_dates?.[0]?.certification || '';
+          
+          return {
+            id: `tmdb-movie-${movie.id}`,
+            tmdb_id: movie.id,
+            external_id: `tmdb-movie-${movie.id}`,
+            title: movie.title || movie.original_title,
+            content_type: 'movie',
+            type: 'movie',
+            year: movie.release_date ? new Date(movie.release_date).getFullYear() : undefined,
+            description: movie.overview,
+            poster_url: movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : undefined,
+            backdrop_url: movie.backdrop_path ? `https://image.tmdb.org/t/p/w1280${movie.backdrop_path}` : undefined,
+            genres: movie.genre_ids || [],
+            mood_tags: [],
+            rating: movie.vote_average,
+            popularity: movie.popularity,
+            certification: certification
+          };
+        } catch (error) {
+          console.error(`Error fetching certification for movie ${movie.id}:`, error);
+          return {
+            id: `tmdb-movie-${movie.id}`,
+            tmdb_id: movie.id,
+            external_id: `tmdb-movie-${movie.id}`,
+            title: movie.title || movie.original_title,
+            content_type: 'movie',
+            type: 'movie',
+            year: movie.release_date ? new Date(movie.release_date).getFullYear() : undefined,
+            description: movie.overview,
+            poster_url: movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : undefined,
+            backdrop_url: movie.backdrop_path ? `https://image.tmdb.org/t/p/w1280${movie.backdrop_path}` : undefined,
+            genres: movie.genre_ids || [],
+            mood_tags: [],
+            rating: movie.vote_average,
+            popularity: movie.popularity
+          };
+        }
+      })
+    );
 
-    // Fetch detailed info for TV shows to get number of seasons
+    // Fetch detailed info for TV shows to get number of seasons and certification
     const tvShowsWithDetails = await Promise.all(
       (tvData.results || []).slice(0, 10).map(async (tv: any) => {
         try {
-          const detailsResponse = await fetch(`${TMDB_BASE_URL}/tv/${tv.id}?api_key=${TMDB_API_KEY}&language=${language}`);
-          const details = await detailsResponse.json();
+          const [detailsResponse, certResponse] = await Promise.all([
+            fetch(`${TMDB_BASE_URL}/tv/${tv.id}?api_key=${TMDB_API_KEY}&language=${language}`),
+            fetch(`${TMDB_BASE_URL}/tv/${tv.id}/content_ratings?api_key=${TMDB_API_KEY}`)
+          ]);
+          const [details, certData] = await Promise.all([
+            detailsResponse.json(),
+            certResponse.json()
+          ]);
+          
+          // Find US certification
+          const usCertification = certData.results?.find((r: any) => r.iso_3166_1 === 'US');
+          const certification = usCertification?.rating || '';
           
           return {
             id: `tmdb-tv-${tv.id}`,
@@ -72,7 +114,8 @@ serve(async (req) => {
             mood_tags: [],
             rating: tv.vote_average,
             popularity: tv.popularity,
-            number_of_seasons: details.number_of_seasons
+            number_of_seasons: details.number_of_seasons,
+            certification: certification
           };
         } catch (error) {
           console.error(`Error fetching details for TV show ${tv.id}:`, error);
@@ -97,7 +140,7 @@ serve(async (req) => {
     );
 
     // Combine and sort by popularity
-    let combined = [...movies, ...tvShowsWithDetails]
+    let combined = [...moviesWithCertifications, ...tvShowsWithDetails]
       .sort((a, b) => b.popularity - a.popularity)
       .slice(0, limit);
 

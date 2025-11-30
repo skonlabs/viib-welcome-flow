@@ -298,11 +298,11 @@ export default function Search() {
                                 <span>{(title as any).number_of_seasons} {(title as any).number_of_seasons === 1 ? 'Season' : 'Seasons'}</span>
                               </>
                             )}
-                            {title.rating && (
+                            {(title as any).certification && (
                               <>
                                 <span>•</span>
-                                <span className="inline-flex items-center gap-0.5">
-                                  ⭐ {title.rating.toFixed(1)}
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-muted text-foreground font-semibold">
+                                  {(title as any).certification}
                                 </span>
                               </>
                             )}
