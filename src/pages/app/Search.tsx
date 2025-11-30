@@ -31,8 +31,13 @@ export default function Search() {
   const [suggestions, setSuggestions] = useState<TitleWithAvailability[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     loadServices();
@@ -57,6 +62,28 @@ export default function Search() {
       }
     };
   }, []);
+
+  // Infinite scroll observer
+  useEffect(() => {
+    if (!loadMoreRef.current) return;
+
+    observerRef.current = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loadingMore && !loading && results.length > 0) {
+          loadMoreResults();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    observerRef.current.observe(loadMoreRef.current);
+
+    return () => {
+      if (observerRef.current) {
+        observerRef.current.disconnect();
+      }
+    };
+  }, [hasMore, loadingMore, loading, results.length]);
 
   const loadServices = async () => {
     if (!user) return;
@@ -145,21 +172,53 @@ export default function Search() {
     setShowDropdown(false);
     setSuggestions([]);
     setLoading(true);
+    setPage(1);
+    setHasMore(true);
     try {
       const { data, error } = await supabase.functions.invoke('search-tmdb', {
         body: {
           query: query || 'popular',
           genres: selectedGenres.length > 0 ? selectedGenres : undefined,
-          language: 'en'
+          language: 'en',
+          limit: 20
         }
       });
       
       if (error) throw error;
       setResults(data.titles || []);
+      setHasMore((data.titles || []).length >= 20);
     } catch (error) {
       console.error('Search error:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadMoreResults = async () => {
+    if (!user || loadingMore || !hasMore) return;
+
+    setLoadingMore(true);
+    try {
+      const nextPage = page + 1;
+      const { data, error } = await supabase.functions.invoke('search-tmdb', {
+        body: {
+          query: query || 'popular',
+          genres: selectedGenres.length > 0 ? selectedGenres : undefined,
+          language: 'en',
+          limit: 20,
+          page: nextPage
+        }
+      });
+      
+      if (error) throw error;
+      const newTitles = data.titles || [];
+      setResults(prev => [...prev, ...newTitles]);
+      setPage(nextPage);
+      setHasMore(newTitles.length >= 20);
+    } catch (error) {
+      console.error('Load more error:', error);
+    } finally {
+      setLoadingMore(false);
     }
   };
 
@@ -440,6 +499,21 @@ export default function Search() {
             />
           ))}
         </div>
+
+        {/* Load more trigger */}
+        {results.length > 0 && (
+          <div ref={loadMoreRef} className="h-20 flex items-center justify-center">
+            {loadingMore && (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+                <span>Loading more...</span>
+              </div>
+            )}
+            {!hasMore && !loadingMore && (
+              <p className="text-muted-foreground text-sm">No more results</p>
+            )}
+          </div>
+        )}
       </div>
 
       <TitleDetailsModal
