@@ -60,6 +60,16 @@ All colors MUST be HSL.
     --sidebar-accent-foreground: 0 0% 98%;
     --sidebar-border: 0 0% 18%;
     --sidebar-ring: 280 100% 70%;
+    
+    /* Icon Colors */
+    --icon-default: 0 0% 60%;
+    --icon-muted: 0 0% 45%;
+    --icon-primary: 280 100% 70%;
+    --icon-secondary: 200 100% 60%;
+    --icon-accent: 260 100% 65%;
+    --icon-success: 142 76% 36%;
+    --icon-warning: 38 92% 50%;
+    --icon-danger: 0 70% 60%;
   }
 }
 

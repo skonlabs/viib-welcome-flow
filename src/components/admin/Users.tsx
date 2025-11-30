@@ -371,69 +371,69 @@ const Users = () => {
                     <TableCell className="text-right">
                       <TooltipProvider>
                         <div className="flex justify-end gap-1">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-8 w-8"
+                              onClick={() => viewUserDetails(user)}
+                            >
+                              <Eye className="h-4 w-4 text-icon-default" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>View user details</p>
+                          </TooltipContent>
+                        </Tooltip>
+                        {user.is_active ? (
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Button
                                 size="icon"
                                 variant="ghost"
                                 className="h-8 w-8"
-                                onClick={() => viewUserDetails(user)}
+                                onClick={() => openConfirmDialog(user.id, user.is_active)}
                               >
-                                <Eye className="h-4 w-4" />
+                                <UserX className="h-4 w-4 text-icon-danger" />
                               </Button>
                             </TooltipTrigger>
                             <TooltipContent>
-                              <p>View user details</p>
+                              <p>Deactivate user</p>
                             </TooltipContent>
                           </Tooltip>
-                          {user.is_active ? (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  className="h-8 w-8 text-destructive hover:text-destructive"
-                                  onClick={() => openConfirmDialog(user.id, user.is_active)}
-                                >
-                                  <UserX className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>Deactivate user</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          ) : (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  className="h-8 w-8 text-green-600 hover:text-green-600"
-                                  onClick={() => openConfirmDialog(user.id, user.is_active)}
-                                >
-                                  <UserCheck className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>Activate user</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          )}
+                        ) : (
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Button
                                 size="icon"
                                 variant="ghost"
-                                className="h-8 w-8 text-destructive hover:text-destructive"
-                                onClick={() => openDeleteDialog(user.id, user.full_name || user.email || 'User')}
+                                className="h-8 w-8"
+                                onClick={() => openConfirmDialog(user.id, user.is_active)}
                               >
-                                <Trash2 className="h-4 w-4" />
+                                <UserCheck className="h-4 w-4 text-icon-success" />
                               </Button>
                             </TooltipTrigger>
                             <TooltipContent>
-                              <p>Delete user</p>
+                              <p>Activate user</p>
                             </TooltipContent>
                           </Tooltip>
+                        )}
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-8 w-8"
+                              onClick={() => openDeleteDialog(user.id, user.full_name || user.email || 'User')}
+                            >
+                              <Trash2 className="h-4 w-4 text-icon-danger" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Delete user</p>
+                          </TooltipContent>
+                        </Tooltip>
                         </div>
                       </TooltipProvider>
                     </TableCell>

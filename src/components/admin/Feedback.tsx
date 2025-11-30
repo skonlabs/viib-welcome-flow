@@ -85,10 +85,17 @@ const Feedback = ({ type }: FeedbackProps) => {
 
     const config = variants[status] || variants.pending;
     const Icon = config.icon;
+    
+    const iconColors = {
+      pending: 'text-icon-muted',
+      in_progress: 'text-icon-primary',
+      resolved: 'text-icon-success',
+      closed: 'text-icon-danger',
+    };
 
     return (
       <Badge variant={config.variant} className="flex items-center gap-1">
-        <Icon className="h-3 w-3" />
+        <Icon className={`h-3 w-3 ${iconColors[status] || 'text-icon-default'}`} />
         {status.replace('_', ' ')}
       </Badge>
     );
