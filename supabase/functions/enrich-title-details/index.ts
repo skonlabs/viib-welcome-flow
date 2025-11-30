@@ -99,6 +99,17 @@ serve(async (req) => {
     const runtime_minutes = type === 'movie' ? details.runtime : null;
     const avg_episode_minutes = type === 'series' ? details.episode_run_time?.[0] : null;
 
+    // Extract seasons for TV shows
+    const seasons = type === 'series' ? (details.seasons || []).map((season: any) => ({
+      season_number: season.season_number,
+      name: season.name,
+      episode_count: season.episode_count,
+      air_date: season.air_date,
+      overview: season.overview,
+      poster_path: season.poster_path ? `https://image.tmdb.org/t/p/w500${season.poster_path}` : null,
+      id: season.id
+    })) : [];
+
     return new Response(
       JSON.stringify({
         trailer_url,
@@ -107,6 +118,7 @@ serve(async (req) => {
         streaming_services,
         runtime_minutes,
         avg_episode_minutes,
+        seasons,
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
