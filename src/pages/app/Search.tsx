@@ -143,6 +143,7 @@ export default function Search() {
     if (!user) return;
 
     setShowDropdown(false);
+    setSuggestions([]);
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke('search-tmdb', {
