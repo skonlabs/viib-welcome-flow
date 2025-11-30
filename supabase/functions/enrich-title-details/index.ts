@@ -104,18 +104,35 @@ serve(async (req) => {
     let latestSeasonTrailer = null;
     
     if (type === 'series' && details.seasons) {
-      // Fetch videos for each season
+      console.log(`Fetching season videos for ${details.seasons.length} seasons`);
+      
+      // Fetch videos for each season with error handling
       const seasonVideoPromises = details.seasons.map((season: any) => 
         fetch(`${TMDB_BASE_URL}/tv/${tmdb_id}/season/${season.season_number}/videos?api_key=${TMDB_API_KEY}`)
-          .then(res => res.json())
+          .then(res => {
+            if (!res.ok) {
+              console.error(`Failed to fetch videos for season ${season.season_number}: ${res.status}`);
+              return { results: [] };
+            }
+            return res.json();
+          })
+          .catch(err => {
+            console.error(`Error fetching videos for season ${season.season_number}:`, err);
+            return { results: [] };
+          })
       );
       
       const seasonVideos = await Promise.all(seasonVideoPromises);
       
       seasons = details.seasons.map((season: any, index: number) => {
-        const seasonTrailer = seasonVideos[index]?.results?.find((v: any) => 
+        const videos = seasonVideos[index]?.results || [];
+        const seasonTrailer = videos.find((v: any) => 
           v.type === 'Trailer' && v.site === 'YouTube'
         );
+        
+        const trailerUrl = seasonTrailer ? `https://www.youtube.com/watch?v=${seasonTrailer.key}` : null;
+        
+        console.log(`Season ${season.season_number}: Found ${videos.length} videos, trailer: ${trailerUrl ? 'yes' : 'no'}`);
         
         return {
           season_number: season.season_number,
@@ -125,23 +142,31 @@ serve(async (req) => {
           overview: season.overview,
           poster_path: season.poster_path ? `https://image.tmdb.org/t/p/w500${season.poster_path}` : null,
           id: season.id,
-          trailer_url: seasonTrailer ? `https://www.youtube.com/watch?v=${seasonTrailer.key}` : null
+          trailer_url: trailerUrl
         };
       });
       
-      // Get the latest season's trailer (last season with valid air_date)
-      const validSeasons = seasons.filter((s: any) => s.air_date && s.trailer_url);
-      if (validSeasons.length > 0) {
-        const sortedSeasons = validSeasons.sort((a: any, b: any) => 
+      // Get the latest season's trailer (most recent season with valid air_date and trailer)
+      const seasonsWithTrailers = seasons.filter((s: any) => s.air_date && s.trailer_url);
+      console.log(`Found ${seasonsWithTrailers.length} seasons with trailers out of ${seasons.length} total seasons`);
+      
+      if (seasonsWithTrailers.length > 0) {
+        const sortedSeasons = seasonsWithTrailers.sort((a: any, b: any) => 
           new Date(b.air_date).getTime() - new Date(a.air_date).getTime()
         );
         latestSeasonTrailer = sortedSeasons[0].trailer_url;
+        console.log(`Latest season trailer: ${latestSeasonTrailer}`);
+      } else {
+        console.log('No season trailers found, will use series-level trailer');
       }
     }
 
+    const finalTrailerUrl = type === 'series' ? (latestSeasonTrailer || trailer_url) : trailer_url;
+    console.log(`Final trailer URL: ${finalTrailerUrl} (series-level: ${trailer_url}, latest season: ${latestSeasonTrailer})`);
+    
     return new Response(
       JSON.stringify({
-        trailer_url: type === 'series' ? (latestSeasonTrailer || trailer_url) : trailer_url,
+        trailer_url: finalTrailerUrl,
         cast,
         genres,
         streaming_services,
