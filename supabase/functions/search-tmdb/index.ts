@@ -46,7 +46,7 @@ serve(async (req) => {
   }
 
   try {
-    const { query, genres, language = 'en', limit = 20 } = await req.json();
+    const { query, genres, language = 'en', limit = 20, page = 1 } = await req.json();
 
     if (!TMDB_API_KEY) {
       throw new Error('TMDB_API_KEY not configured');
@@ -54,8 +54,8 @@ serve(async (req) => {
 
     // Search both movies and TV shows
     const [movieResponse, tvResponse] = await Promise.all([
-      fetch(`${TMDB_BASE_URL}/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query || 'popular')}&language=${language}`),
-      fetch(`${TMDB_BASE_URL}/search/tv?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query || 'popular')}&language=${language}`)
+      fetch(`${TMDB_BASE_URL}/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query || 'popular')}&language=${language}&page=${page}`),
+      fetch(`${TMDB_BASE_URL}/search/tv?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query || 'popular')}&language=${language}&page=${page}`)
     ]);
 
     const [movieData, tvData] = await Promise.all([
