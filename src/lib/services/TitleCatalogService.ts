@@ -30,8 +30,15 @@ class TitleCatalogServiceClass {
         fetch(`${TMDB_BASE_URL}/genre/tv/list?api_key=${TMDB_API_KEY}`).then(r => r.json())
       ]);
 
-      [...movieGenres.genres, ...tvGenres.genres].forEach((g: any) => {
-        this.genreMap.set(g.id, g.name);
+      const allGenres = [
+        ...(movieGenres?.genres || []),
+        ...(tvGenres?.genres || [])
+      ];
+      
+      allGenres.forEach((g: any) => {
+        if (g?.id && g?.name) {
+          this.genreMap.set(g.id, g.name);
+        }
       });
     } catch (error) {
       console.error('Failed to load TMDB genres:', error);
