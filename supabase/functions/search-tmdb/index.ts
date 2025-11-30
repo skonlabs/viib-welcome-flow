@@ -8,6 +8,37 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// TMDB Genre ID to Name mapping
+const GENRE_MAP: Record<number, string> = {
+  28: 'Action',
+  12: 'Adventure',
+  16: 'Animation',
+  35: 'Comedy',
+  80: 'Crime',
+  99: 'Documentary',
+  18: 'Drama',
+  10751: 'Family',
+  14: 'Fantasy',
+  36: 'History',
+  27: 'Horror',
+  10402: 'Music',
+  9648: 'Mystery',
+  10749: 'Romance',
+  878: 'Sci-Fi',
+  10770: 'TV Movie',
+  53: 'Thriller',
+  10752: 'War',
+  37: 'Western',
+  10759: 'Action & Adventure',
+  10762: 'Kids',
+  10763: 'News',
+  10764: 'Reality',
+  10765: 'Sci-Fi & Fantasy',
+  10766: 'Soap',
+  10767: 'Talk',
+  10768: 'War & Politics',
+};
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -60,7 +91,7 @@ serve(async (req) => {
             description: movie.overview,
             poster_url: movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : undefined,
             backdrop_url: movie.backdrop_path ? `https://image.tmdb.org/t/p/w1280${movie.backdrop_path}` : undefined,
-            genres: movie.genre_ids || [],
+            genres: (movie.genre_ids || []).map((id: number) => GENRE_MAP[id]).filter(Boolean),
             mood_tags: [],
             rating: movie.vote_average,
             popularity: movie.popularity,
@@ -80,7 +111,7 @@ serve(async (req) => {
             description: movie.overview,
             poster_url: movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : undefined,
             backdrop_url: movie.backdrop_path ? `https://image.tmdb.org/t/p/w1280${movie.backdrop_path}` : undefined,
-            genres: movie.genre_ids || [],
+            genres: (movie.genre_ids || []).map((id: number) => GENRE_MAP[id]).filter(Boolean),
             mood_tags: [],
             rating: movie.vote_average,
             popularity: movie.popularity,
@@ -118,7 +149,7 @@ serve(async (req) => {
             description: tv.overview,
             poster_url: tv.poster_path ? `https://image.tmdb.org/t/p/w500${tv.poster_path}` : undefined,
             backdrop_url: tv.backdrop_path ? `https://image.tmdb.org/t/p/w1280${tv.backdrop_path}` : undefined,
-            genres: tv.genre_ids || [],
+            genres: (tv.genre_ids || []).map((id: number) => GENRE_MAP[id]).filter(Boolean),
             mood_tags: [],
             rating: tv.vote_average,
             popularity: tv.popularity,
@@ -139,7 +170,7 @@ serve(async (req) => {
             description: tv.overview,
             poster_url: tv.poster_path ? `https://image.tmdb.org/t/p/w500${tv.poster_path}` : undefined,
             backdrop_url: tv.backdrop_path ? `https://image.tmdb.org/t/p/w1280${tv.backdrop_path}` : undefined,
-            genres: tv.genre_ids || [],
+            genres: (tv.genre_ids || []).map((id: number) => GENRE_MAP[id]).filter(Boolean),
             mood_tags: [],
             rating: tv.vote_average,
             popularity: tv.popularity,
