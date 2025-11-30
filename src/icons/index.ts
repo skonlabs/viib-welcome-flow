@@ -99,6 +99,8 @@ export {
   Send,
   ArrowLeft,
   ArrowRight,
+  Share2,
+  Pencil,
   
   // Status & Feedback
   CheckCircle,
