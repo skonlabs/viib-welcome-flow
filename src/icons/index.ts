@@ -125,6 +125,13 @@ export {
   Key,
   FileText,
   Link as LinkIcon,
+  Film,
+  MoreVertical,
+  TrendingUp,
+  ArrowUpDown,
+  CheckCheck,
+  Gift,
+  SlidersHorizontal,
   
   // Analytics & Admin
   BarChart3,

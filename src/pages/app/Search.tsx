@@ -1,10 +1,378 @@
-const Search = () => {
+import { useState, useEffect, useRef } from "react";
+import { TitleCard } from "@/components/TitleCard";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { Search as SearchIcon, X, SlidersHorizontal } from "@/icons";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { TitleWithAvailability, titleCatalogService } from "@/lib/services/TitleCatalogService";
+import { TitleDetailsModal } from "@/components/TitleDetailsModal";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+
+const GENRES = ["Action", "Comedy", "Drama", "Thriller", "Romance", "Sci-Fi", "Horror", "Documentary", "Animation", "Fantasy"];
+const MOODS = ["light", "cozy", "funny", "intense", "thrilling", "deep", "emotional", "mind_bending", "feel_good", "background"];
+
+export default function Search() {
+  const { user } = useAuth();
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<TitleWithAvailability[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
+  const [selectedMoods, setSelectedMoods] = useState<string[]>([]);
+  const [selectedServices, setSelectedServices] = useState<string[]>([]);
+  const [services, setServices] = useState<any[]>([]);
+  const [selectedTitle, setSelectedTitle] = useState<TitleWithAvailability | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [suggestions, setSuggestions] = useState<TitleWithAvailability[]>([]);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    loadServices();
+  }, [user]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const loadServices = async () => {
+    if (!user) return;
+
+    const { data: streamingServices } = await supabase
+      .from('streaming_services')
+      .select('*')
+      .eq('is_active', true);
+
+    setServices(streamingServices || []);
+  };
+
+  const handleQueryChange = (value: string) => {
+    setQuery(value);
+
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    if (value.length >= 3) {
+      searchTimeoutRef.current = setTimeout(async () => {
+        if (!user) return;
+        setLoadingSuggestions(true);
+        try {
+          const searchResults = await titleCatalogService.searchTitles(value, selectedGenres);
+          setSuggestions(searchResults.slice(0, 8));
+          setShowDropdown(true);
+        } catch (error) {
+          console.error('Suggestions error:', error);
+          setSuggestions([]);
+        } finally {
+          setLoadingSuggestions(false);
+        }
+      }, 300);
+    } else {
+      setSuggestions([]);
+      setShowDropdown(false);
+    }
+  };
+
+  const handleSuggestionClick = (title: TitleWithAvailability) => {
+    setQuery(title.title);
+    setShowDropdown(false);
+    setSelectedTitle(title);
+    setDetailsOpen(true);
+  };
+
+  const handleSearch = async () => {
+    if (!user) return;
+
+    setShowDropdown(false);
+    setLoading(true);
+    try {
+      const searchResults = await titleCatalogService.searchTitles(
+        query || 'popular',
+        selectedGenres.length > 0 ? selectedGenres : undefined
+      );
+      setResults(searchResults);
+    } catch (error) {
+      console.error('Search error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleGenre = (genre: string) => {
+    setSelectedGenres(prev =>
+      prev.includes(genre) ? prev.filter(g => g !== genre) : [...prev, genre]
+    );
+  };
+
+  const toggleMood = (mood: string) => {
+    setSelectedMoods(prev =>
+      prev.includes(mood) ? prev.filter(m => m !== mood) : [...prev, mood]
+    );
+  };
+
+  const toggleService = (serviceId: string) => {
+    setSelectedServices(prev =>
+      prev.includes(serviceId) ? prev.filter(s => s !== serviceId) : [...prev, serviceId]
+    );
+  };
+
+  const clearFilters = () => {
+    setSelectedGenres([]);
+    setSelectedMoods([]);
+    setSelectedServices([]);
+  };
+
   return (
-    <div className="container mx-auto px-4 py-8">
-      <h1 className="text-4xl font-bold text-foreground mb-4">Search</h1>
-      <p className="text-foreground/80">Search for movies and TV shows.</p>
+    <div className="bg-gradient-to-br from-background to-accent/10">
+      <div className="max-w-2xl mx-auto p-4 space-y-6 pt-6">
+        <h1 className="text-3xl font-bold">Search</h1>
+
+        {/* Active Filters Display */}
+        {(selectedGenres.length > 0 || selectedMoods.length > 0) && (
+          <Card className="p-4">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold">Active Filters</h3>
+                <Button variant="ghost" size="sm" onClick={clearFilters}>
+                  Clear All
+                </Button>
+              </div>
+
+              {selectedGenres.length > 0 && (
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Genres</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedGenres.map(genre => (
+                      <Badge
+                        key={genre}
+                        variant="secondary"
+                        className="cursor-pointer"
+                        onClick={() => toggleGenre(genre)}
+                      >
+                        {genre} <X className="w-3 h-3 ml-1" />
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {selectedMoods.length > 0 && (
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Moods</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedMoods.map(mood => (
+                      <Badge
+                        key={mood}
+                        variant="secondary"
+                        className="cursor-pointer"
+                        onClick={() => toggleMood(mood)}
+                      >
+                        {mood} <X className="w-3 h-3 ml-1" />
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </Card>
+        )}
+
+        {/* Search Bar */}
+        <div className="flex gap-2">
+          <div className="relative flex-1" ref={dropdownRef}>
+            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Search for movies or series..."
+              value={query}
+              onChange={(e) => handleQueryChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleSearch();
+                  setShowDropdown(false);
+                }
+              }}
+              onFocus={() => query.length >= 3 && suggestions.length > 0 && setShowDropdown(true)}
+              className="pl-10"
+            />
+
+            {/* Autocomplete Dropdown */}
+            {showDropdown && (
+              <div className="absolute top-full left-0 right-0 mt-1 bg-background border border-border rounded-lg shadow-lg z-50 max-h-[400px] overflow-y-auto">
+                {loadingSuggestions ? (
+                  <div className="p-4 text-center text-muted-foreground">
+                    Loading suggestions...
+                  </div>
+                ) : suggestions.length > 0 ? (
+                  <div className="py-2">
+                    {suggestions.map((title) => (
+                      <button
+                        key={title.external_id}
+                        onClick={() => handleSuggestionClick(title)}
+                        className="w-full px-4 py-3 flex items-center gap-3 hover:bg-accent transition-colors text-left"
+                      >
+                        {title.poster_url && (
+                          <img
+                            src={title.poster_url}
+                            alt={title.title}
+                            className="w-12 h-16 object-cover rounded"
+                          />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium truncate">{title.title}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {title.type === 'movie' ? '🎬 Movie' : '📺 Series'}
+                            {title.year && ` • ${title.year}`}
+                          </p>
+                          {title.genres && title.genres.length > 0 && (
+                            <div className="flex gap-1 mt-1 flex-wrap">
+                              {title.genres.slice(0, 3).map((genre) => (
+                                <Badge key={genre} variant="outline" className="text-xs">
+                                  {genre}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                ) : query.length >= 3 ? (
+                  <div className="p-4 text-center text-muted-foreground">
+                    No results found
+                  </div>
+                ) : null}
+              </div>
+            )}
+          </div>
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button variant="outline">
+                <SlidersHorizontal className="w-4 h-4 mr-2" />
+                Filters
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="right" className="overflow-y-auto">
+              <SheetHeader>
+                <SheetTitle>Filters</SheetTitle>
+              </SheetHeader>
+
+              <div className="space-y-6 mt-6">
+                {/* Genres */}
+                <div className="space-y-3">
+                  <Label className="text-base font-semibold">Genres</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {GENRES.map(genre => (
+                      <Badge
+                        key={genre}
+                        variant={selectedGenres.includes(genre) ? "default" : "outline"}
+                        className="cursor-pointer"
+                        onClick={() => toggleGenre(genre)}
+                      >
+                        {genre}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Moods */}
+                <div className="space-y-3">
+                  <Label className="text-base font-semibold">Moods</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {MOODS.map(mood => (
+                      <Badge
+                        key={mood}
+                        variant={selectedMoods.includes(mood) ? "default" : "outline"}
+                        className="cursor-pointer"
+                        onClick={() => toggleMood(mood)}
+                      >
+                        {mood}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Services */}
+                <div className="space-y-3">
+                  <Label className="text-base font-semibold">Streaming Services</Label>
+                  <div className="space-y-2">
+                    {services.map(service => (
+                      <div key={service.id} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={service.id}
+                          checked={selectedServices.includes(service.id)}
+                          onCheckedChange={() => toggleService(service.id)}
+                        />
+                        <Label htmlFor={service.id} className="cursor-pointer flex items-center gap-2">
+                          {service.logo_url && (
+                            <img src={service.logo_url} alt={service.service_name} className="w-5 h-5 object-contain" />
+                          )}
+                          {service.service_name}
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <Button onClick={clearFilters} variant="outline" className="w-full gap-2">
+                  <X className="w-4 h-4" />
+                  Clear Filters
+                </Button>
+              </div>
+            </SheetContent>
+          </Sheet>
+          <Button onClick={handleSearch} disabled={loading}>
+            {loading ? 'Searching...' : 'Search'}
+          </Button>
+        </div>
+
+        {/* Results */}
+        {loading && <p className="text-center text-muted-foreground">Searching...</p>}
+
+        {!loading && results.length === 0 && query && (
+          <p className="text-center text-muted-foreground">No results found. Try different filters.</p>
+        )}
+
+        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+          {results.map(title => (
+            <TitleCard
+              key={title.external_id}
+              title={title}
+              onClick={() => {
+                setSelectedTitle(title);
+                setDetailsOpen(true);
+              }}
+            />
+          ))}
+        </div>
+      </div>
+
+      <TitleDetailsModal
+        title={selectedTitle}
+        open={detailsOpen}
+        onOpenChange={setDetailsOpen}
+      />
     </div>
   );
-};
-
-export default Search;
+}
