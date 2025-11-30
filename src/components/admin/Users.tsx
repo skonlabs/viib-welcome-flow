@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Search, Loader2, UserCheck, UserX, Eye, Filter, X } from 'lucide-react';
+import { Search, Loader2, UserCheck, UserX, Eye, Filter, X, Trash2 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -32,6 +32,8 @@ const Users = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [userToToggle, setUserToToggle] = useState<{ id: string; currentStatus: boolean } | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<{ id: string; name: string } | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 25;
 
@@ -135,6 +137,33 @@ const Users = () => {
   const openConfirmDialog = (userId: string, currentStatus: boolean) => {
     setUserToToggle({ id: userId, currentStatus });
     setConfirmDialogOpen(true);
+  };
+
+  const openDeleteDialog = (userId: string, userName: string) => {
+    setUserToDelete({ id: userId, name: userName });
+    setDeleteDialogOpen(true);
+  };
+
+  const deleteUser = async () => {
+    if (!userToDelete) return;
+    
+    try {
+      const { error } = await supabase
+        .from('users')
+        .delete()
+        .eq('id', userToDelete.id);
+
+      if (error) throw error;
+      
+      toast.success('User deleted successfully');
+      fetchUsers();
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      toast.error('Failed to delete user');
+    } finally {
+      setDeleteDialogOpen(false);
+      setUserToDelete(null);
+    }
   };
 
   const viewUserDetails = (user: any) => {
@@ -310,7 +339,7 @@ const Users = () => {
                 <TableHead className="w-[90px]">Status</TableHead>
                 <TableHead className="w-[110px]">Onboarding</TableHead>
                 <TableHead className="w-[100px]">Created</TableHead>
-                <TableHead className="w-[130px] text-right">Actions</TableHead>
+                <TableHead className="w-[150px] text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -341,35 +370,68 @@ const Users = () => {
                     <TableCell>{new Date(user.created_at).toLocaleDateString()}</TableCell>
                     <TableCell className="text-right">
                       <TooltipProvider>
-                        <div className="flex justify-end gap-2">
+                        <div className="flex justify-end gap-1">
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Button
-                                size="sm"
-                                variant="outline"
+                                size="icon"
+                                variant="ghost"
+                                className="h-8 w-8"
                                 onClick={() => viewUserDetails(user)}
                               >
-                                <Eye className="h-4 w-4 mr-1" />
-                                <span className="text-xs">View</span>
+                                <Eye className="h-4 w-4" />
                               </Button>
                             </TooltipTrigger>
                             <TooltipContent>
                               <p>View user details</p>
                             </TooltipContent>
                           </Tooltip>
+                          {user.is_active ? (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-8 w-8 text-destructive hover:text-destructive"
+                                  onClick={() => openConfirmDialog(user.id, user.is_active)}
+                                >
+                                  <UserX className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Deactivate user</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          ) : (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-8 w-8 text-green-600 hover:text-green-600"
+                                  onClick={() => openConfirmDialog(user.id, user.is_active)}
+                                >
+                                  <UserCheck className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Activate user</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          )}
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Button
-                                size="sm"
-                                variant={user.is_active ? 'destructive' : 'default'}
-                                onClick={() => openConfirmDialog(user.id, user.is_active)}
+                                size="icon"
+                                variant="ghost"
+                                className="h-8 w-8 text-destructive hover:text-destructive"
+                                onClick={() => openDeleteDialog(user.id, user.full_name || user.email || 'User')}
                               >
-                                {user.is_active ? <UserX className="h-3 w-3 mr-1" /> : <UserCheck className="h-3 w-3 mr-1" />}
-                                <span className="text-xs">{user.is_active ? 'Deactivate' : 'Activate'}</span>
+                                <Trash2 className="h-4 w-4" />
                               </Button>
                             </TooltipTrigger>
                             <TooltipContent>
-                              <p>{user.is_active ? 'Deactivate user account' : 'Activate user account'}</p>
+                              <p>Delete user</p>
                             </TooltipContent>
                           </Tooltip>
                         </div>
@@ -423,6 +485,23 @@ const Users = () => {
             <AlertDialogCancel onClick={() => setUserToToggle(null)}>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={toggleUserStatus} className={userToToggle?.currentStatus ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : ''}>
               {userToToggle?.currentStatus ? 'Deactivate' : 'Activate'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete User</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to permanently delete {userToDelete?.name}? This action cannot be undone and will remove all user data from the system.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setUserToDelete(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={deleteUser} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
