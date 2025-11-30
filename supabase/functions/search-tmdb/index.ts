@@ -63,17 +63,16 @@ serve(async (req) => {
       tvResponse.json()
     ]);
 
-    // Filter by years if specified
-    const filterByYear = (item: any, isMovie: boolean) => {
+    // Filter movies by year
+    const filteredMovies = (movieData.results || []).filter((movie: any) => {
       if (!years || years.length === 0) return true;
-      const dateField = isMovie ? 'release_date' : 'first_air_date';
-      if (!item[dateField]) return false;
-      const itemYear = new Date(item[dateField]).getFullYear();
-      return years.includes(itemYear);
-    };
+      if (!movie.release_date) return false;
+      const movieYear = new Date(movie.release_date).getFullYear();
+      return years.includes(movieYear);
+    });
 
-    const filteredMovies = (movieData.results || []).filter((movie: any) => filterByYear(movie, true));
-    const filteredTv = (tvData.results || []).filter((tv: any) => filterByYear(tv, false));
+    // For TV shows, we'll filter after fetching season details
+    const filteredTv = tvData.results || [];
 
     // Fetch certifications and details for movies
     const moviesWithCertifications = await Promise.all(
@@ -146,7 +145,7 @@ serve(async (req) => {
       })
     );
 
-    // Fetch detailed info for TV shows to get number of seasons and certification
+    // Fetch detailed info for TV shows to get number of seasons, certification, and season dates
     const tvShowsWithDetails = await Promise.all(
       filteredTv.slice(0, 10).map(async (tv: any) => {
         try {
@@ -160,6 +159,20 @@ serve(async (req) => {
             certResponse.json(),
             providersResponse.json()
           ]);
+
+          // Check if any season matches the year filter
+          if (years && years.length > 0) {
+            const hasMatchingSeason = details.seasons?.some((season: any) => {
+              if (!season.air_date) return false;
+              const seasonYear = new Date(season.air_date).getFullYear();
+              return years.includes(seasonYear);
+            });
+            
+            // If no season matches the year filter, skip this show
+            if (!hasMatchingSeason) {
+              return null;
+            }
+          }
           
           // Extract US streaming providers
           const usProviders = providersData.results?.US?.flatrate || [];
@@ -218,8 +231,9 @@ serve(async (req) => {
       })
     );
 
-    // Combine and sort by popularity
+    // Combine and sort by popularity (filter out null values from TV shows that didn't match year filter)
     let combined = [...moviesWithCertifications, ...tvShowsWithDetails]
+      .filter(item => item !== null)
       .sort((a, b) => b.popularity - a.popularity)
       .slice(0, limit);
 
