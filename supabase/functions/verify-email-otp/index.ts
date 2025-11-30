@@ -19,6 +19,23 @@ serve(async (req) => {
       throw new Error('Email and OTP are required');
     }
 
+    // Capture IP address from request headers
+    const ipAddress = req.headers.get('x-forwarded-for')?.split(',')[0] || 
+                      req.headers.get('x-real-ip') || 
+                      'unknown';
+    
+    // Get country from IP using ipapi.co
+    let ipCountry = 'Unknown';
+    try {
+      const geoResponse = await fetch(`https://ipapi.co/${ipAddress}/json/`);
+      if (geoResponse.ok) {
+        const geoData = await geoResponse.json();
+        ipCountry = geoData.country_name || 'Unknown';
+      }
+    } catch (geoError) {
+      console.error('Failed to fetch geo data:', geoError);
+    }
+
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -139,6 +156,8 @@ serve(async (req) => {
           is_age_over_18: true,
           onboarding_completed: false,
           is_active: false,
+          ip_address: ipAddress,
+          ip_country: ipCountry,
         })
         .select('id')
         .single();

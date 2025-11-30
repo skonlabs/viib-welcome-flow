@@ -445,6 +445,14 @@ const Users = () => {
                 <p className="text-sm">{new Date(selectedUser.created_at).toLocaleString()}</p>
               </div>
               <div>
+                <p className="text-sm font-medium text-muted-foreground">IP Address</p>
+                <p className="text-sm font-mono">{selectedUser.ip_address || '-'}</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Country (from IP)</p>
+                <p className="text-sm">{selectedUser.ip_country || '-'}</p>
+              </div>
+              <div className="col-span-2">
                 <p className="text-sm font-medium text-muted-foreground">User ID</p>
                 <p className="text-sm font-mono text-xs">{selectedUser.id}</p>
               </div>

@@ -313,6 +313,26 @@ export default function Onboarding() {
     
     // New user - create user record in database AFTER successful OTP verification
     try {
+      // Capture IP address and country
+      let ipAddress = 'unknown';
+      let ipCountry = 'Unknown';
+      try {
+        const ipResponse = await fetch('https://api.ipify.org?format=json');
+        if (ipResponse.ok) {
+          const ipData = await ipResponse.json();
+          ipAddress = ipData.ip;
+          
+          // Get country from IP
+          const geoResponse = await fetch(`https://ipapi.co/${ipAddress}/json/`);
+          if (geoResponse.ok) {
+            const geoData = await geoResponse.json();
+            ipCountry = geoData.country_name || 'Unknown';
+          }
+        }
+      } catch (ipError) {
+        console.error('Failed to fetch IP/geo data:', ipError);
+      }
+
       const { data: insertedUser, error } = await supabase
         .from('users')
         .insert({
@@ -322,6 +342,8 @@ export default function Onboarding() {
           is_age_over_18: true,
           onboarding_completed: false,
           is_active: false,
+          ip_address: ipAddress,
+          ip_country: ipCountry,
         })
         .select()
         .single();
