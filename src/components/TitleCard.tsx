@@ -18,6 +18,8 @@ type FlexibleTitle = {
   genres?: string[];
   mood_tags?: string[];
   cast?: string[];  // Cast member names
+  certification?: string;  // Content rating (PG, PG-13, R, TV-MA, etc.)
+  number_of_seasons?: number;  // For TV series
   streaming_services?: Array<{  // From TMDB
     service_code: string;
     service_name: string;
@@ -190,9 +192,25 @@ export function TitleCard({
       </div>
       <div className="p-3 sm:p-4 space-y-1.5 sm:space-y-2">
         <h3 className="font-semibold line-clamp-1 text-sm sm:text-base">{title.title}</h3>
-        <p className="text-xs sm:text-sm text-muted-foreground">
-          {title.year} • {title.type === 'movie' ? `${title.runtime_minutes || '120'}min` : `${title.avg_episode_minutes || '45'}min/ep`}
-        </p>
+        <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground flex-wrap">
+          <span>{title.year}</span>
+          {title.certification && (
+            <>
+              <span>•</span>
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-muted text-foreground font-semibold text-[10px]">
+                {title.certification}
+              </span>
+            </>
+          )}
+          <span>•</span>
+          <span>{title.type === 'movie' ? `${title.runtime_minutes || '120'}min` : `${title.avg_episode_minutes || '45'}min/ep`}</span>
+          {title.type === 'series' && title.number_of_seasons && (
+            <>
+              <span>•</span>
+              <span>{title.number_of_seasons} {title.number_of_seasons === 1 ? 'Season' : 'Seasons'}</span>
+            </>
+          )}
+        </div>
 
         {/* Display genres - always show if available */}
         {title.genres && title.genres.length > 0 && (
