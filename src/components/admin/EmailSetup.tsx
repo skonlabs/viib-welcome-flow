@@ -191,7 +191,7 @@ export const EmailSetup = () => {
           </div>
 
           <Button onClick={handleSave} disabled={loading} className="w-full">
-            {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+            {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2 text-icon-primary" /> : <Save className="h-4 w-4 mr-2 text-icon-success" />}
             Save Configuration
           </Button>
         </CardContent>

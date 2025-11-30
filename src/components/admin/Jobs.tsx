@@ -17,7 +17,7 @@ export function Jobs() {
         </CardHeader>
         <CardContent>
           <Alert>
-            <Info className="h-4 w-4" />
+            <Info className="h-4 w-4 text-icon-secondary" />
             <AlertDescription>
               Cron job management requires pg_cron extension and related database functions.
             </AlertDescription>

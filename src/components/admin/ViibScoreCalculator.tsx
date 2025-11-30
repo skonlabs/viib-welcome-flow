@@ -17,7 +17,7 @@ export default function ViibScoreCalculator() {
         </CardHeader>
         <CardContent>
           <Alert>
-            <Info className="h-4 w-4" />
+            <Info className="h-4 w-4 text-icon-secondary" />
             <AlertDescription>
               ViiB score calculation edge functions are required to calculate recommendation scores.
             </AlertDescription>
