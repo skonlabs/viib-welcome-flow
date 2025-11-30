@@ -1353,6 +1353,8 @@ export type Database = {
           email: string | null
           full_name: string | null
           id: string
+          ip_address: string | null
+          ip_country: string | null
           is_active: boolean
           is_age_over_18: boolean
           is_email_verified: boolean
@@ -1372,6 +1374,8 @@ export type Database = {
           email?: string | null
           full_name?: string | null
           id?: string
+          ip_address?: string | null
+          ip_country?: string | null
           is_active?: boolean
           is_age_over_18: boolean
           is_email_verified?: boolean
@@ -1391,6 +1395,8 @@ export type Database = {
           email?: string | null
           full_name?: string | null
           id?: string
+          ip_address?: string | null
+          ip_country?: string | null
           is_active?: boolean
           is_age_over_18?: boolean
           is_email_verified?: boolean
