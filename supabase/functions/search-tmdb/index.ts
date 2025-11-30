@@ -3,7 +3,17 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 const TMDB_API_KEY = Deno.env.get('TMDB_API_KEY');
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
 serve(async (req) => {
+  // Handle CORS preflight requests
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
   try {
     const { query, genres, language = 'en', limit = 20 } = await req.json();
 
@@ -81,7 +91,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ titles: combined }),
       {
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200,
       }
     );
@@ -91,7 +101,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ error: errorMessage }),
       {
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 500,
       }
     );
