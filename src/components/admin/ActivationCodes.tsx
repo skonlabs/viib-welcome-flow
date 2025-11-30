@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Plus, Loader2, Copy, Trash2 } from 'lucide-react';
+import { Plus, Loader2, Copy, Trash2, Mail } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -20,6 +20,10 @@ export default function ActivationCodes() {
   const [expiresAt, setExpiresAt] = useState('');
   const [notes, setNotes] = useState('');
   const [generating, setGenerating] = useState(false);
+  const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  const [selectedCodeForInvite, setSelectedCodeForInvite] = useState<any>(null);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [sending, setSending] = useState(false);
 
   useEffect(() => {
     fetchCodes();
@@ -124,6 +128,52 @@ export default function ActivationCodes() {
     setNotes('');
   };
 
+  const openInviteDialog = (code: any) => {
+    setSelectedCodeForInvite(code);
+    setInviteEmail('');
+    setInviteDialogOpen(true);
+  };
+
+  const sendInvite = async () => {
+    if (!inviteEmail.trim()) {
+      toast.error('Please enter an email address');
+      return;
+    }
+
+    if (!selectedCodeForInvite) {
+      toast.error('No activation code selected');
+      return;
+    }
+
+    try {
+      setSending(true);
+      
+      const { data, error } = await supabase.functions.invoke('send-activation-invite', {
+        body: {
+          email: inviteEmail.trim(),
+          code: selectedCodeForInvite.code,
+          senderName: 'ViiB Team',
+        },
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        toast.success(`Invitation sent to ${inviteEmail}`);
+        setInviteDialogOpen(false);
+        setInviteEmail('');
+        setSelectedCodeForInvite(null);
+      } else {
+        throw new Error(data?.error || 'Failed to send invitation');
+      }
+    } catch (error: any) {
+      console.error('Error sending invite:', error);
+      toast.error(error.message || 'Failed to send invitation email');
+    } finally {
+      setSending(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -225,7 +275,7 @@ export default function ActivationCodes() {
                 <TableHead>Used By</TableHead>
                 <TableHead>Expires</TableHead>
                 <TableHead>Created</TableHead>
-                <TableHead>Notes</TableHead>
+                <TableHead className="max-w-xs">Notes</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -264,6 +314,15 @@ export default function ActivationCodes() {
                           <Button
                             size="sm"
                             variant="outline"
+                            onClick={() => openInviteDialog(code)}
+                            disabled={!isActive}
+                            title={!isActive ? 'Code is expired or fully used' : 'Send invitation email'}
+                          >
+                            <Mail className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
                             onClick={() => copyToClipboard(code.code)}
                           >
                             <Copy className="h-4 w-4" />
@@ -285,6 +344,44 @@ export default function ActivationCodes() {
           </Table>
         </CardContent>
       </Card>
+
+      <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Send Activation Invite</DialogTitle>
+            <DialogDescription>
+              Send this activation code to a user via email
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Activation Code</Label>
+              <div className="font-mono font-bold text-lg p-3 bg-muted rounded-md">
+                {selectedCodeForInvite?.code}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="inviteEmail">Recipient Email</Label>
+              <Input
+                id="inviteEmail"
+                type="email"
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+                placeholder="user@example.com"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setInviteDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={sendInvite} disabled={sending}>
+              {sending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Send Invitation
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
