@@ -124,15 +124,22 @@ export default function Search() {
 
     setServices(streamingServices || []);
 
-    // Pre-select user's streaming subscriptions
+    // Pre-select user's streaming subscriptions and get service names
     const { data: userSubscriptions } = await supabase
       .from('user_streaming_subscriptions')
       .select('streaming_service_id')
       .eq('user_id', user.id)
       .eq('is_active', true);
 
-    if (userSubscriptions) {
-      setSelectedServices(userSubscriptions.map(sub => sub.streaming_service_id));
+    if (userSubscriptions && streamingServices) {
+      const userServiceIds = userSubscriptions.map(sub => sub.streaming_service_id);
+      setSelectedServices(userServiceIds);
+      
+      // Map IDs to service names for sorting
+      const userServiceNames = streamingServices
+        .filter(s => userServiceIds.includes(s.id))
+        .map(s => s.service_name);
+      setUserServices(userServiceNames);
     }
   };
 
@@ -211,10 +218,16 @@ export default function Search() {
       const aServices = (a as any).streaming_services || [];
       const bServices = (b as any).streaming_services || [];
       const hasServiceA = aServices.some((s: any) => 
-        userServices.includes(s.service_code)
+        userServices.some(userService => 
+          s.service_name?.toLowerCase().includes(userService.toLowerCase()) ||
+          userService.toLowerCase().includes(s.service_name?.toLowerCase())
+        )
       ) ? 1 : 0;
       const hasServiceB = bServices.some((s: any) => 
-        userServices.includes(s.service_code)
+        userServices.some(userService => 
+          s.service_name?.toLowerCase().includes(userService.toLowerCase()) ||
+          userService.toLowerCase().includes(s.service_name?.toLowerCase())
+        )
       ) ? 1 : 0;
       if (hasServiceA !== hasServiceB) {
         return hasServiceB - hasServiceA;
