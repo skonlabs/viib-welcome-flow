@@ -341,9 +341,9 @@ export default function Search() {
   };
 
   return (
-    <div className="bg-gradient-to-br from-background to-accent/10">
-      <div className="max-w-2xl mx-auto p-4 space-y-6 pt-6">
-        <h1 className="text-3xl font-bold">Search</h1>
+    <div className="bg-gradient-to-br from-background to-accent/10 min-h-screen">
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6">
+        <h1 className="text-2xl sm:text-3xl font-bold">Search</h1>
 
         {/* Active Filters Display */}
         {(selectedGenres.length > 0 || selectedMoods.length > 0 || selectedYears.length !== 3) && (
@@ -433,7 +433,7 @@ export default function Search() {
 
             {/* Autocomplete Dropdown */}
             {showDropdown && (
-              <div className="absolute top-full left-0 right-0 mt-1 bg-background border border-border rounded-lg shadow-lg z-50 max-h-[400px] overflow-y-auto">
+              <div className="absolute top-full left-0 right-0 mt-1 bg-background border border-border rounded-lg shadow-lg z-50 max-h-[300px] sm:max-h-[400px] overflow-y-auto">
                 {loadingSuggestions ? (
                   <div className="p-4 text-center text-muted-foreground">
                     Loading suggestions...
@@ -501,7 +501,7 @@ export default function Search() {
                 Filters
               </Button>
             </SheetTrigger>
-            <SheetContent side="right" className="overflow-y-auto">
+            <SheetContent side="right" className="overflow-y-auto w-[280px] sm:w-[350px] max-h-screen">
               <SheetHeader>
                 <SheetTitle>Filters</SheetTitle>
               </SheetHeader>

@@ -179,13 +179,13 @@ export default function Social() {
 
   return (
     <div className="bg-gradient-to-br from-background to-accent/10 min-h-screen">
-      <div className="max-w-4xl mx-auto p-4 space-y-6 pt-6">
-        <div className="flex items-center justify-between">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
-            <h1 className="text-3xl font-bold">Social</h1>
-            <p className="text-muted-foreground mt-1">Connect with friends and share recommendations</p>
+            <h1 className="text-2xl sm:text-3xl font-bold">Social</h1>
+            <p className="text-sm sm:text-base text-muted-foreground mt-1">Connect with friends and share recommendations</p>
           </div>
-          <Button onClick={() => setInviteDialogOpen(true)}>
+          <Button onClick={() => setInviteDialogOpen(true)} className="w-full sm:w-auto">
             <UserPlus className="w-4 h-4 mr-2" />
             Invite Friends
           </Button>

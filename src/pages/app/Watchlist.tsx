@@ -346,11 +346,11 @@ export default function Watchlist() {
 
   return (
     <div className="bg-gradient-to-br from-background to-accent/10 min-h-screen">
-      <div className="max-w-6xl mx-auto p-4 space-y-6 pt-6">
-        <div className="flex items-center justify-between">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
-            <h1 className="text-3xl font-bold">My Watchlist</h1>
-            <p className="text-muted-foreground mt-1">Track what you want to watch and what you've seen</p>
+            <h1 className="text-2xl sm:text-3xl font-bold">My Watchlist</h1>
+            <p className="text-sm sm:text-base text-muted-foreground mt-1">Track what you want to watch and what you've seen</p>
           </div>
         </div>
 
@@ -361,9 +361,9 @@ export default function Watchlist() {
           avgRating={avgRating}
         />
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <div className="flex items-center justify-between">
-            <TabsList>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 sm:space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <TabsList className="w-full sm:w-auto">
               <TabsTrigger value="pending" className="gap-2">
                 <Bookmark className="w-4 h-4" />
                 To Watch ({pendingTitles.length})
@@ -378,9 +378,9 @@ export default function Watchlist() {
               </TabsTrigger>
             </TabsList>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 w-full sm:w-auto">
               <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger className="w-full sm:w-[180px]">
                   <ArrowUpDown className="w-4 h-4 mr-2" />
                   <SelectValue />
                 </SelectTrigger>
@@ -406,7 +406,7 @@ export default function Watchlist() {
                 </Button>
               </Card>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
                 {sortTitles(pendingTitles).map((item) => (
                   <TitleCard
                     key={item.id}
@@ -440,7 +440,7 @@ export default function Watchlist() {
                 <p className="text-muted-foreground">Mark titles as watched from your watchlist</p>
               </Card>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
                 {sortTitles(watchedTitles).map((item) => (
                   <TitleCard
                     key={item.id}
@@ -474,7 +474,7 @@ export default function Watchlist() {
                 <p className="text-muted-foreground">Your friends haven't recommended anything yet</p>
               </Card>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
                 {sortTitles(recommendedTitles).map((item) => (
                   <TitleCard
                     key={item.id}

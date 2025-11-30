@@ -20,20 +20,20 @@ export const AppFooter = () => {
 
   return (
     <footer className="fixed bottom-0 left-0 right-0 z-50 border-t border-white/10 bg-background/80 backdrop-blur-xl">
-      <nav className="flex items-center justify-around px-2 py-3 max-w-4xl mx-auto">
+      <nav className="flex items-center justify-around px-1 sm:px-2 py-2 sm:py-3 max-w-4xl mx-auto overflow-x-auto">
         {navItems.map((item, index) => (
           <motion.button
             key={item.label}
             onClick={() => navigate(item.href)}
-            className={`flex flex-col items-center gap-1 px-2 py-1 rounded-xl hover:bg-white/5 transition-colors min-w-[60px] ${
+            className={`flex flex-col items-center gap-0.5 sm:gap-1 px-1 sm:px-2 py-1 rounded-xl hover:bg-white/5 transition-colors min-w-[50px] sm:min-w-[60px] flex-shrink-0 ${
               isActive(item.href) ? 'bg-white/5' : ''
             }`}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.05 }}
           >
-            <item.icon className={`w-5 h-5 ${isActive(item.href) ? 'text-icon-accent' : 'text-icon-secondary'}`} />
-            <span className={`text-[10px] ${isActive(item.href) ? 'text-icon-accent font-medium' : 'text-icon-secondary/90'}`}>
+            <item.icon className={`w-4 h-4 sm:w-5 sm:h-5 ${isActive(item.href) ? 'text-icon-accent' : 'text-icon-secondary'}`} />
+            <span className={`text-[9px] sm:text-[10px] ${isActive(item.href) ? 'text-icon-accent font-medium' : 'text-icon-secondary/90'}`}>
               {item.label}
             </span>
           </motion.button>

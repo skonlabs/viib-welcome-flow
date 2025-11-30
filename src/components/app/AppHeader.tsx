@@ -51,44 +51,44 @@ export const AppHeader = () => {
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 border-b border-white/10 bg-background/80 backdrop-blur-xl">
-      <div className="flex items-center justify-between px-4 py-3">
+      <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3">
         {/* Left: Empty space for symmetry */}
         <div className="w-10" />
 
         {/* Center: Logo */}
         <div className="absolute left-1/2 -translate-x-1/2">
-          <h1 className="text-xl font-bold bg-gradient-to-r from-primary via-cyan-400 to-primary bg-clip-text text-transparent">
+          <h1 className="text-lg sm:text-xl font-bold bg-gradient-to-r from-primary via-cyan-400 to-primary bg-clip-text text-transparent">
             ViiB
           </h1>
         </div>
 
         {/* Right: Notifications & Profile Dropdown */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           <Button
             variant="ghost"
             size="icon"
-            className="hover:bg-white/5 relative"
+            className="hover:bg-white/5 relative h-8 w-8 sm:h-10 sm:w-10"
           >
-            <Bell className="w-5 h-5 text-icon-secondary" />
+            <Bell className="w-4 h-4 sm:w-5 sm:h-5 text-icon-secondary" />
             {unreadCount > 0 && (
-              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
+              <span className="absolute top-0.5 right-0.5 sm:top-1 sm:right-1 w-2 h-2 bg-red-500 rounded-full" />
             )}
           </Button>
 
           {user && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-2 hover:bg-white/10 rounded-xl px-2 py-1 transition-all duration-200 border border-transparent hover:border-white/20">
-                  <Avatar className="w-8 h-8 border-2 border-icon-secondary/30">
+                <button className="flex items-center gap-1.5 sm:gap-2 hover:bg-white/10 rounded-xl px-1.5 sm:px-2 py-1 transition-all duration-200 border border-transparent hover:border-white/20">
+                  <Avatar className="w-7 h-7 sm:w-8 sm:h-8 border-2 border-icon-secondary/30">
                     <AvatarImage src={user.user_metadata?.avatar_url} />
-                    <AvatarFallback className="bg-icon-secondary/20 text-icon-secondary text-sm font-semibold">
+                    <AvatarFallback className="bg-icon-secondary/20 text-icon-secondary text-xs sm:text-sm font-semibold">
                       {getUserInitials()}
                     </AvatarFallback>
                   </Avatar>
-                  <span className="hidden sm:block text-sm text-foreground font-medium">
+                  <span className="hidden sm:block text-xs sm:text-sm text-foreground font-medium max-w-[100px] truncate">
                     {user.full_name || user.email?.split('@')[0] || user.phone_number || 'User'}
                   </span>
-                  <ChevronDown className="w-4 h-4 text-icon-secondary" />
+                  <ChevronDown className="w-3 h-3 sm:w-4 sm:h-4 text-icon-secondary" />
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent 

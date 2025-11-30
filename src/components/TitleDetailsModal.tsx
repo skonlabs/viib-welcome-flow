@@ -106,7 +106,7 @@ export function TitleDetailsModal({ title, open, onOpenChange }: TitleDetailsMod
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[95vw] sm:max-w-4xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle className="sr-only">{title.title}</DialogTitle>
             <DialogDescription className="sr-only">
@@ -114,7 +114,7 @@ export function TitleDetailsModal({ title, open, onOpenChange }: TitleDetailsMod
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid md:grid-cols-[300px_1fr] gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] lg:grid-cols-[300px_1fr] gap-4 sm:gap-6">
             {/* Poster */}
             <div className="relative">
               <img
@@ -135,10 +135,10 @@ export function TitleDetailsModal({ title, open, onOpenChange }: TitleDetailsMod
             </div>
 
             {/* Details */}
-            <div className="space-y-4">
+            <div className="space-y-3 sm:space-y-4">
               <div>
-                <h2 className="text-3xl font-bold">{title.title}</h2>
-                <p className="text-muted-foreground">
+                <h2 className="text-xl sm:text-2xl md:text-3xl font-bold">{title.title}</h2>
+                <p className="text-sm sm:text-base text-muted-foreground">
                   {title.year} • {title.type === 'movie' ? 'Movie' : 'Series'} •
                   {title.type === 'movie' ? ` ${displayRuntime || '120'}min` : ` ${displayEpisodeLength || '45'}min/ep`}
                 </p>
@@ -251,16 +251,16 @@ export function TitleDetailsModal({ title, open, onOpenChange }: TitleDetailsMod
       {/* Season Details Modal */}
       {selectedSeason && (
         <Dialog open={seasonDetailsOpen} onOpenChange={setSeasonDetailsOpen}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-[95vw] sm:max-w-3xl md:max-w-4xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
             <DialogHeader>
-              <DialogTitle>{title.title} - {selectedSeason.name}</DialogTitle>
+              <DialogTitle className="text-lg sm:text-xl">{title.title} - {selectedSeason.name}</DialogTitle>
               <DialogDescription>
                 {selectedSeason.episode_count} episodes
                 {selectedSeason.air_date && ` • ${new Date(selectedSeason.air_date).getFullYear()}`}
               </DialogDescription>
             </DialogHeader>
 
-            <div className="grid md:grid-cols-[300px_1fr] gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] lg:grid-cols-[300px_1fr] gap-4 sm:gap-6">
               {/* Season Poster */}
               <div className="relative">
                 {selectedSeason.poster_path ? (
@@ -277,20 +277,20 @@ export function TitleDetailsModal({ title, open, onOpenChange }: TitleDetailsMod
                 {selectedSeason.trailer_url && (
                   <Button
                     size="lg"
-                    className="absolute bottom-4 left-1/2 -translate-x-1/2 gap-2"
+                    className="absolute bottom-4 left-1/2 -translate-x-1/2 gap-2 text-xs sm:text-sm"
                     onClick={handleSeasonTrailerClick}
                   >
-                    <Play className="w-5 h-5" />
+                    <Play className="w-4 h-4 sm:w-5 sm:h-5" />
                     Watch Trailer
                   </Button>
                 )}
               </div>
 
               {/* Season Details */}
-              <div className="space-y-4">
+              <div className="space-y-3 sm:space-y-4">
                 <div>
-                  <h2 className="text-2xl font-bold">{selectedSeason.name}</h2>
-                  <p className="text-muted-foreground">
+                  <h2 className="text-xl sm:text-2xl font-bold">{selectedSeason.name}</h2>
+                  <p className="text-sm sm:text-base text-muted-foreground">
                     Season {selectedSeason.season_number} • {selectedSeason.episode_count} episodes
                     {selectedSeason.air_date && ` • ${new Date(selectedSeason.air_date).getFullYear()}`}
                   </p>

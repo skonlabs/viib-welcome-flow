@@ -79,7 +79,7 @@ export default function SendFeedback() {
 
   if (submitted) {
     return (
-      <div className="container max-w-2xl mx-auto py-8 px-4">
+      <div className="container max-w-2xl mx-auto py-4 sm:py-8 px-4 sm:px-6">
         <Card>
           <CardContent className="pt-8 pb-8">
             <div className="flex flex-col items-center text-center space-y-4">
@@ -98,10 +98,10 @@ export default function SendFeedback() {
   }
 
   return (
-    <div className="container max-w-2xl mx-auto py-8 px-4">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold">Send Feedback</h1>
-        <p className="text-muted-foreground mt-2">
+    <div className="container max-w-2xl mx-auto py-4 sm:py-8 px-4 sm:px-6">
+      <div className="mb-4 sm:mb-6">
+        <h1 className="text-2xl sm:text-3xl font-bold">Send Feedback</h1>
+        <p className="text-sm sm:text-base text-muted-foreground mt-2">
           Help us improve ViiB by sharing your thoughts, reporting issues, or suggesting new features.
         </p>
       </div>

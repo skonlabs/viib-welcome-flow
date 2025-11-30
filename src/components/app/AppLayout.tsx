@@ -9,7 +9,7 @@ interface AppLayoutProps {
 
 export const AppLayout = ({ children }: AppLayoutProps) => {
   return (
-    <div className="min-h-screen bg-gradient-ocean relative overflow-hidden">
+    <div className="min-h-screen bg-gradient-ocean relative overflow-x-hidden w-full max-w-[100vw]">
       {/* Background effects matching onboarding screens */}
       <FloatingParticles count={50} />
       
@@ -22,7 +22,7 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
       <AppHeader />
       
       {/* Main content with padding for fixed header/footer */}
-      <main className="relative z-10 pt-16 pb-24 min-h-screen">
+      <main className="relative z-10 pt-14 sm:pt-16 pb-20 sm:pb-24 min-h-screen w-full overflow-x-hidden">
         {children}
       </main>
 
