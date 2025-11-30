@@ -267,30 +267,46 @@ export default function Search() {
                       <button
                         key={title.external_id}
                         onClick={() => handleSuggestionClick(title)}
-                        className="w-full px-4 py-3 flex items-center gap-3 hover:bg-accent transition-colors text-left"
+                        className="w-full px-4 py-3 flex items-center gap-3 hover:bg-accent transition-colors text-left border-b border-border last:border-0"
                       >
-                        {title.poster_url && (
+                        {title.poster_url ? (
                           <img
                             src={title.poster_url}
                             alt={title.title}
-                            className="w-12 h-16 object-cover rounded"
+                            className="w-12 h-18 object-cover rounded shadow-sm flex-shrink-0"
                           />
+                        ) : (
+                          <div className="w-12 h-18 bg-muted rounded flex items-center justify-center flex-shrink-0">
+                            <span className="text-2xl">{title.type === 'movie' ? '🎬' : '📺'}</span>
+                          </div>
                         )}
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium truncate">{title.title}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {title.type === 'movie' ? '🎬 Movie' : '📺 Series'}
-                            {title.year && ` • ${title.year}`}
-                          </p>
-                          {title.genres && title.genres.length > 0 && (
-                            <div className="flex gap-1 mt-1 flex-wrap">
-                              {title.genres.slice(0, 3).map((genre) => (
-                                <Badge key={genre} variant="outline" className="text-xs">
-                                  {genre}
-                                </Badge>
-                              ))}
-                            </div>
-                          )}
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <p className="font-medium truncate text-foreground">{title.title}</p>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
+                            <span className="inline-flex items-center gap-1">
+                              {title.type === 'movie' ? '🎬 Movie' : '📺 Series'}
+                            </span>
+                            {title.year && (
+                              <>
+                                <span>•</span>
+                                <span>{title.year}</span>
+                              </>
+                            )}
+                            {title.type === 'series' && (title as any).number_of_seasons && (
+                              <>
+                                <span>•</span>
+                                <span>{(title as any).number_of_seasons} {(title as any).number_of_seasons === 1 ? 'Season' : 'Seasons'}</span>
+                              </>
+                            )}
+                            {title.rating && (
+                              <>
+                                <span>•</span>
+                                <span className="inline-flex items-center gap-0.5">
+                                  ⭐ {title.rating.toFixed(1)}
+                                </span>
+                              </>
+                            )}
+                          </div>
                         </div>
                       </button>
                     ))}

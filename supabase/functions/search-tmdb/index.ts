@@ -50,25 +50,54 @@ serve(async (req) => {
       popularity: movie.popularity
     }));
 
-    const tvShows = (tvData.results || []).map((tv: any) => ({
-      id: `tmdb-tv-${tv.id}`,
-      tmdb_id: tv.id,
-      external_id: `tmdb-tv-${tv.id}`,
-      title: tv.name || tv.original_name,
-      content_type: 'series',
-      type: 'series',
-      year: tv.first_air_date ? new Date(tv.first_air_date).getFullYear() : undefined,
-      description: tv.overview,
-      poster_url: tv.poster_path ? `https://image.tmdb.org/t/p/w500${tv.poster_path}` : undefined,
-      backdrop_url: tv.backdrop_path ? `https://image.tmdb.org/t/p/w1280${tv.backdrop_path}` : undefined,
-      genres: tv.genre_ids || [],
-      mood_tags: [],
-      rating: tv.vote_average,
-      popularity: tv.popularity
-    }));
+    // Fetch detailed info for TV shows to get number of seasons
+    const tvShowsWithDetails = await Promise.all(
+      (tvData.results || []).slice(0, 10).map(async (tv: any) => {
+        try {
+          const detailsResponse = await fetch(`${TMDB_BASE_URL}/tv/${tv.id}?api_key=${TMDB_API_KEY}&language=${language}`);
+          const details = await detailsResponse.json();
+          
+          return {
+            id: `tmdb-tv-${tv.id}`,
+            tmdb_id: tv.id,
+            external_id: `tmdb-tv-${tv.id}`,
+            title: tv.name || tv.original_name,
+            content_type: 'series',
+            type: 'series',
+            year: tv.first_air_date ? new Date(tv.first_air_date).getFullYear() : undefined,
+            description: tv.overview,
+            poster_url: tv.poster_path ? `https://image.tmdb.org/t/p/w500${tv.poster_path}` : undefined,
+            backdrop_url: tv.backdrop_path ? `https://image.tmdb.org/t/p/w1280${tv.backdrop_path}` : undefined,
+            genres: tv.genre_ids || [],
+            mood_tags: [],
+            rating: tv.vote_average,
+            popularity: tv.popularity,
+            number_of_seasons: details.number_of_seasons
+          };
+        } catch (error) {
+          console.error(`Error fetching details for TV show ${tv.id}:`, error);
+          return {
+            id: `tmdb-tv-${tv.id}`,
+            tmdb_id: tv.id,
+            external_id: `tmdb-tv-${tv.id}`,
+            title: tv.name || tv.original_name,
+            content_type: 'series',
+            type: 'series',
+            year: tv.first_air_date ? new Date(tv.first_air_date).getFullYear() : undefined,
+            description: tv.overview,
+            poster_url: tv.poster_path ? `https://image.tmdb.org/t/p/w500${tv.poster_path}` : undefined,
+            backdrop_url: tv.backdrop_path ? `https://image.tmdb.org/t/p/w1280${tv.backdrop_path}` : undefined,
+            genres: tv.genre_ids || [],
+            mood_tags: [],
+            rating: tv.vote_average,
+            popularity: tv.popularity
+          };
+        }
+      })
+    );
 
     // Combine and sort by popularity
-    let combined = [...movies, ...tvShows]
+    let combined = [...movies, ...tvShowsWithDetails]
       .sort((a, b) => b.popularity - a.popularity)
       .slice(0, limit);
 
