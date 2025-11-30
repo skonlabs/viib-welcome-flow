@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
 const Users = () => {
   const [users, setUsers] = useState<any[]>([]);
@@ -29,6 +30,10 @@ const Users = () => {
   const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
   const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
   const [showFilters, setShowFilters] = useState(false);
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [userToToggle, setUserToToggle] = useState<{ id: string; currentStatus: boolean } | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 25;
 
   useEffect(() => {
     fetchUsers();
@@ -105,21 +110,31 @@ const Users = () => {
     }
   };
 
-  const toggleUserStatus = async (userId: string, currentStatus: boolean) => {
+  const toggleUserStatus = async () => {
+    if (!userToToggle) return;
+    
     try {
       const { error } = await supabase
         .from('users')
-        .update({ is_active: !currentStatus })
-        .eq('id', userId);
+        .update({ is_active: !userToToggle.currentStatus })
+        .eq('id', userToToggle.id);
 
       if (error) throw error;
       
-      toast.success(`User ${!currentStatus ? 'activated' : 'deactivated'} successfully`);
+      toast.success(`User ${!userToToggle.currentStatus ? 'activated' : 'deactivated'} successfully`);
       fetchUsers();
     } catch (error) {
       console.error('Error updating user status:', error);
       toast.error('Failed to update user status');
+    } finally {
+      setConfirmDialogOpen(false);
+      setUserToToggle(null);
     }
+  };
+
+  const openConfirmDialog = (userId: string, currentStatus: boolean) => {
+    setUserToToggle({ id: userId, currentStatus });
+    setConfirmDialogOpen(true);
   };
 
   const viewUserDetails = (user: any) => {
@@ -289,13 +304,13 @@ const Users = () => {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Phone</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Onboarding</TableHead>
-                <TableHead>Created</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead className="w-[150px]">Name</TableHead>
+                <TableHead className="w-[180px]">Email</TableHead>
+                <TableHead className="w-[130px]">Phone</TableHead>
+                <TableHead className="w-[90px]">Status</TableHead>
+                <TableHead className="w-[110px]">Onboarding</TableHead>
+                <TableHead className="w-[100px]">Created</TableHead>
+                <TableHead className="w-[130px] text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -306,7 +321,9 @@ const Users = () => {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredUsers.map((user) => (
+                filteredUsers
+                  .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                  .map((user) => (
                   <TableRow key={user.id}>
                     <TableCell className="font-medium">{user.full_name || '-'}</TableCell>
                     <TableCell>{user.email || '-'}</TableCell>
@@ -345,9 +362,9 @@ const Users = () => {
                               <Button
                                 size="sm"
                                 variant={user.is_active ? 'destructive' : 'default'}
-                                onClick={() => toggleUserStatus(user.id, user.is_active)}
+                                onClick={() => openConfirmDialog(user.id, user.is_active)}
                               >
-                                {user.is_active ? <UserX className="h-4 w-4 mr-1" /> : <UserCheck className="h-4 w-4 mr-1" />}
+                                {user.is_active ? <UserX className="h-3 w-3 mr-1" /> : <UserCheck className="h-3 w-3 mr-1" />}
                                 <span className="text-xs">{user.is_active ? 'Deactivate' : 'Activate'}</span>
                               </Button>
                             </TooltipTrigger>
@@ -363,8 +380,53 @@ const Users = () => {
               )}
             </TableBody>
           </Table>
+          
+          {filteredUsers.length > itemsPerPage && (
+            <div className="flex items-center justify-between mt-4">
+              <p className="text-sm text-muted-foreground">
+                Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredUsers.length)} of {filteredUsers.length} users
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                >
+                  Previous
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(p => Math.min(Math.ceil(filteredUsers.length / itemsPerPage), p + 1))}
+                  disabled={currentPage >= Math.ceil(filteredUsers.length / itemsPerPage)}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
+
+      <AlertDialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {userToToggle?.currentStatus 
+                ? 'This will deactivate the user account. The user will not be able to log in until reactivated.'
+                : 'This will activate the user account. The user will be able to log in.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setUserToToggle(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={toggleUserStatus} className={userToToggle?.currentStatus ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : ''}>
+              {userToToggle?.currentStatus ? 'Deactivate' : 'Activate'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog open={detailsDialogOpen} onOpenChange={setDetailsDialogOpen}>
         <DialogContent className="max-w-2xl">
