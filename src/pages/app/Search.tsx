@@ -168,7 +168,8 @@ export default function Search() {
           });
           
           if (error) throw error;
-          setSuggestions(data.titles || []);
+          const sortedSuggestions = sortResults(data.titles || []);
+          setSuggestions(sortedSuggestions);
           setShowDropdown(true);
         } catch (error) {
           console.error('Suggestions error:', error);
