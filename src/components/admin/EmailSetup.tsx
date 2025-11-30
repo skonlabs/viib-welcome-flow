@@ -43,12 +43,13 @@ export const EmailSetup = () => {
         .from('email_config')
         .select('*')
         .eq('is_active', true)
-        .single();
+        .maybeSingle();
 
-      if (error && error.code !== 'PGRST116') throw error;
+      if (error) throw error;
       if (data) setConfig(data);
     } catch (error: any) {
       console.error('Error fetching email config:', error);
+      toast.error('Failed to load email configuration');
     }
   };
 
