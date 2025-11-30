@@ -3,8 +3,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { CheckCircle2, AlertCircle, Info, RefreshCw } from 'lucide-react';
+import { CheckCircle2, AlertCircle, Info, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
@@ -30,7 +31,10 @@ export default function SystemLogs() {
   const [loading, setLoading] = useState(true);
   const [selectedLog, setSelectedLog] = useState<SystemLog | null>(null);
   const [resolvingLog, setResolvingLog] = useState<SystemLog | null>(null);
+  const [confirmResolveLog, setConfirmResolveLog] = useState<SystemLog | null>(null);
   const [notes, setNotes] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 25;
 
   const fetchLogs = async () => {
     try {
@@ -76,6 +80,7 @@ export default function SystemLogs() {
       toast.success('System log marked as resolved');
 
       setResolvingLog(null);
+      setConfirmResolveLog(null);
       setNotes('');
       fetchLogs();
     } catch (error: any) {
@@ -83,6 +88,11 @@ export default function SystemLogs() {
       toast.error('Failed to resolve system log');
     }
   };
+
+  const totalPages = Math.ceil(logs.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentLogs = logs.slice(startIndex, endIndex);
 
   useEffect(() => {
     fetchLogs();
@@ -143,7 +153,7 @@ export default function SystemLogs() {
             <p className="text-muted-foreground">No system logs found</p>
           </Card>
         ) : (
-          logs.map((log) => (
+          currentLogs.map((log) => (
             <Card key={log.id} className="p-4">
               <div className="flex items-start gap-4">
                 <div className="mt-1">{getSeverityIcon(log.severity)}</div>
@@ -182,7 +192,7 @@ export default function SystemLogs() {
                         <Button
                           variant="default"
                           size="sm"
-                          onClick={() => setResolvingLog(log)}
+                          onClick={() => setConfirmResolveLog(log)}
                         >
                           Resolve
                         </Button>
@@ -200,6 +210,61 @@ export default function SystemLogs() {
           ))
         )}
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            Showing {startIndex + 1} to {Math.min(endIndex, logs.length)} of {logs.length} logs
+          </p>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Previous
+            </Button>
+            <span className="text-sm">
+              Page {currentPage} of {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+            >
+              Next
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm Resolve Dialog */}
+      <AlertDialog open={!!confirmResolveLog} onOpenChange={(open) => !open && setConfirmResolveLog(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Resolution</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to mark this system log as resolved? This action will update the log status.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              if (confirmResolveLog) {
+                setResolvingLog(confirmResolveLog);
+                setConfirmResolveLog(null);
+              }
+            }}>
+              Continue
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Details Dialog */}
       <Dialog open={!!selectedLog} onOpenChange={(open) => !open && setSelectedLog(null)}>

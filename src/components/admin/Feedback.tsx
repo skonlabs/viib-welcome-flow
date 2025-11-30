@@ -3,9 +3,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Mail, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { Mail, CheckCircle, XCircle, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Tables } from '@/integrations/supabase/types';
 
 type Feedback = Tables<'feedback'>;
@@ -17,6 +18,9 @@ interface FeedbackProps {
 const Feedback = ({ type }: FeedbackProps) => {
   const [feedback, setFeedback] = useState<Feedback[]>([]);
   const [loading, setLoading] = useState(true);
+  const [confirmStatusChange, setConfirmStatusChange] = useState<{ id: string; status: string } | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 25;
 
   useEffect(() => {
     fetchFeedback();
@@ -41,6 +45,14 @@ const Feedback = ({ type }: FeedbackProps) => {
     }
   };
 
+  const handleStatusChange = (id: string, status: string) => {
+    if (status === 'closed') {
+      setConfirmStatusChange({ id, status });
+    } else {
+      updateStatus(id, status);
+    }
+  };
+
   const updateStatus = async (id: string, status: string) => {
     try {
       const { error } = await supabase
@@ -50,12 +62,18 @@ const Feedback = ({ type }: FeedbackProps) => {
 
       if (error) throw error;
       toast.success('Status updated successfully');
+      setConfirmStatusChange(null);
       fetchFeedback();
     } catch (error) {
       console.error('Error updating status:', error);
       toast.error('Failed to update status');
     }
   };
+
+  const totalPages = Math.ceil(feedback.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentFeedback = feedback.slice(startIndex, endIndex);
 
   const getStatusBadge = (status: string) => {
     const variants: Record<string, { variant: "default" | "secondary" | "destructive" | "outline", icon: any }> = {
@@ -106,7 +124,7 @@ const Feedback = ({ type }: FeedbackProps) => {
                 No {type} submissions yet.
               </div>
             ) : (
-              feedback.map((item) => (
+              currentFeedback.map((item) => (
                 <div
                   key={item.id}
                   className="p-4 border rounded-lg space-y-3"
@@ -131,7 +149,7 @@ const Feedback = ({ type }: FeedbackProps) => {
                     <span className="text-sm text-muted-foreground">Update Status:</span>
                     <Select
                       value={item.status}
-                      onValueChange={(value) => updateStatus(item.id, value)}
+                      onValueChange={(value) => handleStatusChange(item.id, value)}
                     >
                       <SelectTrigger className="w-[180px]">
                         <SelectValue />
@@ -150,6 +168,60 @@ const Feedback = ({ type }: FeedbackProps) => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between mt-4">
+          <p className="text-sm text-muted-foreground">
+            Showing {startIndex + 1} to {Math.min(endIndex, feedback.length)} of {feedback.length} items
+          </p>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Previous
+            </Button>
+            <span className="text-sm">
+              Page {currentPage} of {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+            >
+              Next
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm Status Change Dialog */}
+      <AlertDialog open={!!confirmStatusChange} onOpenChange={(open) => !open && setConfirmStatusChange(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Status Change</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to mark this as closed? This action indicates the feedback has been reviewed and no further action will be taken.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              if (confirmStatusChange) {
+                updateStatus(confirmStatusChange.id, confirmStatusChange.status);
+              }
+            }}>
+              Confirm
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
