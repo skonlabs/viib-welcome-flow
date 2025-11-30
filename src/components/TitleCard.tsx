@@ -2,7 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { TitleWithAvailability } from "@/lib/services/TitleCatalogService";
-import { Play, Share2, Check, Plus, X } from "lucide-react";
+import { Play, Share2, Check, Plus, X, Trash2 } from "lucide-react";
 
 // Flexible title type to handle both TitleWithAvailability and TMDB format
 type FlexibleTitle = {
@@ -45,6 +45,7 @@ interface TitleCardProps {
     onWatched?: () => void;
     onWatchlist?: () => void;
     onPass?: () => void;
+    onRecommend?: () => void;
   };
 }
 
@@ -126,6 +127,21 @@ export function TitleCard({
             </Button>
           </div>
         )}
+        {actions?.onPass && (
+          <div className="absolute top-1.5 left-1.5 sm:top-2 sm:left-2 animate-fade-in z-10">
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 w-7 sm:h-8 sm:w-8 p-0 bg-red-500/80 hover:bg-red-600/90 backdrop-blur-sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                actions.onPass?.();
+              }}
+            >
+              <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
+            </Button>
+          </div>
+        )}
         {/* Action buttons positioned at bottom of poster */}
         <div className="absolute bottom-2 left-0 right-0 flex flex-col items-center gap-2 px-2">
           <Button
@@ -172,18 +188,18 @@ export function TitleCard({
                 </Button>
               )}
 
-              {actions.onPass && (
+              {actions.onRecommend && (
                 <Button
                   size="sm"
                   variant="outline"
-                  className="flex-1 gap-1 text-[9px] sm:text-xs bg-black/70 backdrop-blur-sm hover:bg-red-500/30 hover:text-red-300 hover:border-red-500/50 border-white/30 h-7 sm:h-8"
+                  className="flex-1 gap-1 text-[9px] sm:text-xs bg-black/70 backdrop-blur-sm hover:bg-purple-500/30 hover:text-purple-300 hover:border-purple-500/50 border-white/30 h-7 sm:h-8"
                   onClick={(e) => {
                     e.stopPropagation();
-                    actions.onPass?.();
+                    actions.onRecommend?.();
                   }}
                 >
-                  <X className="h-3 w-3" />
-                  <span>Pass</span>
+                  <Share2 className="h-3 w-3" />
+                  <span>Recommend</span>
                 </Button>
               )}
             </div>
