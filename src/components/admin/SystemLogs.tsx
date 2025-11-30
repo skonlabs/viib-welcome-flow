@@ -102,13 +102,13 @@ export default function SystemLogs() {
   const getSeverityIcon = (severity: string) => {
     switch (severity) {
       case 'error':
-        return <AlertCircle className="h-4 w-4 text-destructive" />;
+        return <AlertCircle className="h-4 w-4 text-icon-danger" />;
       case 'warning':
-        return <AlertCircle className="h-4 w-4 text-yellow-500" />;
+        return <AlertCircle className="h-4 w-4 text-icon-warning" />;
       case 'info':
-        return <Info className="h-4 w-4 text-blue-500" />;
+        return <Info className="h-4 w-4 text-icon-secondary" />;
       default:
-        return <Info className="h-4 w-4" />;
+        return <Info className="h-4 w-4 text-icon-default" />;
     }
   };
 
@@ -191,7 +191,7 @@ export default function SystemLogs() {
                               className="h-8 w-8"
                               onClick={() => setSelectedLog(log)}
                             >
-                              <Eye className="h-4 w-4" />
+                              <Eye className="h-4 w-4 text-icon-default" />
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent>
@@ -207,7 +207,7 @@ export default function SystemLogs() {
                                 className="h-8 w-8"
                                 onClick={() => setConfirmResolveLog(log)}
                               >
-                                <CheckCircle2 className="h-4 w-4" />
+                                <CheckCircle2 className="h-4 w-4 text-icon-success" />
                               </Button>
                             </TooltipTrigger>
                             <TooltipContent>

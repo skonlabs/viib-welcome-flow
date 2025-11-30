@@ -57,6 +57,16 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        icon: {
+          DEFAULT: "hsl(var(--icon-default))",
+          muted: "hsl(var(--icon-muted))",
+          primary: "hsl(var(--icon-primary))",
+          secondary: "hsl(var(--icon-secondary))",
+          accent: "hsl(var(--icon-accent))",
+          success: "hsl(var(--icon-success))",
+          warning: "hsl(var(--icon-warning))",
+          danger: "hsl(var(--icon-danger))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",

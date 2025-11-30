@@ -333,7 +333,7 @@ export default function ActivationCodes() {
                                   onClick={() => openInviteDialog(code)}
                                   disabled={!isActive}
                                 >
-                                  <Mail className="h-4 w-4" />
+                                  <Mail className="h-4 w-4 text-icon-primary" />
                                 </Button>
                               </TooltipTrigger>
                               <TooltipContent>
@@ -348,7 +348,7 @@ export default function ActivationCodes() {
                                   className="h-8 w-8"
                                   onClick={() => copyToClipboard(code.code)}
                                 >
-                                  <Copy className="h-4 w-4" />
+                                  <Copy className="h-4 w-4 text-icon-default" />
                                 </Button>
                               </TooltipTrigger>
                               <TooltipContent>
@@ -360,10 +360,10 @@ export default function ActivationCodes() {
                                 <Button
                                   size="icon"
                                   variant="ghost"
-                                  className="h-8 w-8 text-destructive hover:text-destructive"
+                                  className="h-8 w-8"
                                   onClick={() => openDeleteDialog(code.id)}
                                 >
-                                  <Trash2 className="h-4 w-4" />
+                                  <Trash2 className="h-4 w-4 text-icon-danger" />
                                 </Button>
                               </TooltipTrigger>
                               <TooltipContent>

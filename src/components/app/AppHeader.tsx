@@ -61,9 +61,9 @@ export const AppHeader = () => {
           <Button
             variant="ghost"
             size="icon"
-            className="text-cyan-400 hover:bg-white/5 relative"
+            className="hover:bg-white/5 relative"
           >
-            <Bell className="w-5 h-5" />
+            <Bell className="w-5 h-5 text-icon-secondary" />
             {unreadCount > 0 && (
               <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
             )}
@@ -72,23 +72,23 @@ export const AppHeader = () => {
           {user && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-2 hover:bg-cyan-400/10 rounded-xl px-2 py-1 transition-all duration-200 border border-transparent hover:border-cyan-400/20">
-                  <Avatar className="w-8 h-8 border-2 border-cyan-400/30">
+                <button className="flex items-center gap-2 hover:bg-white/10 rounded-xl px-2 py-1 transition-all duration-200 border border-transparent hover:border-white/20">
+                  <Avatar className="w-8 h-8 border-2 border-icon-secondary/30">
                     <AvatarImage src={user.user_metadata?.avatar_url} />
-                    <AvatarFallback className="bg-cyan-400/20 text-cyan-400 text-sm font-semibold">
+                    <AvatarFallback className="bg-icon-secondary/20 text-icon-secondary text-sm font-semibold">
                       {getUserInitials()}
                     </AvatarFallback>
                   </Avatar>
                   <span className="hidden sm:block text-sm text-foreground font-medium">
                     {user.full_name || user.email?.split('@')[0] || user.phone_number || 'User'}
                   </span>
-                  <ChevronDown className="w-4 h-4 text-cyan-400" />
+                  <ChevronDown className="w-4 h-4 text-icon-secondary" />
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent 
                 align="end" 
                 sideOffset={8}
-                className="w-56 bg-background/98 backdrop-blur-xl border border-cyan-400/20 shadow-lg shadow-cyan-400/10 rounded-2xl z-[100]"
+                className="w-56 bg-background/98 backdrop-blur-xl border border-white/20 shadow-lg rounded-2xl z-[100]"
               >
                 {visibleMenuItems.map((item) => (
               <DropdownMenuItem
@@ -96,18 +96,18 @@ export const AppHeader = () => {
                 onClick={() => navigate(item.href)}
                 className="flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-muted/50 focus:bg-muted/50 rounded-lg transition-colors"
               >
-                    <item.icon className="w-5 h-5 text-cyan-400" />
+                    <item.icon className="w-5 h-5 text-icon-secondary" />
                     <span className="text-foreground font-medium">{item.label}</span>
                   </DropdownMenuItem>
                 ))}
                 
-                <DropdownMenuSeparator className="bg-cyan-400/20 my-1" />
+                <DropdownMenuSeparator className="bg-white/20 my-1" />
                 
               <DropdownMenuItem
                 onClick={handleSignOut}
                 className="flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-muted/50 focus:bg-muted/50 rounded-lg transition-colors"
               >
-                  <LogOut className="w-5 h-5 text-cyan-400" />
+                  <LogOut className="w-5 h-5 text-icon-secondary" />
                   <span className="text-foreground font-medium">Sign Out</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
