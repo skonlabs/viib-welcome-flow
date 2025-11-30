@@ -2,11 +2,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Play } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { TrailerDialog } from "./TrailerDialog";
+import { supabase } from "@/integrations/supabase/client";
 
 interface TitleDetailsModalProps {
   title: {
+    tmdb_id?: number;
     external_id?: string;
     title: string;
     type: 'movie' | 'series';
@@ -16,7 +18,7 @@ interface TitleDetailsModalProps {
     trailer_url?: string | null;
     runtime_minutes?: number | null;
     avg_episode_minutes?: number | null;
-    genres?: string[];
+    genres?: string[] | number[];
     mood_tags?: string[];
     cast?: string[];
     description?: string | null;
@@ -39,16 +41,46 @@ interface TitleDetailsModalProps {
 
 export function TitleDetailsModal({ title, open, onOpenChange }: TitleDetailsModalProps) {
   const [trailerOpen, setTrailerOpen] = useState(false);
+  const [enrichedData, setEnrichedData] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (open && title && title.tmdb_id) {
+      fetchEnrichedData();
+    }
+  }, [open, title?.tmdb_id]);
+
+  const fetchEnrichedData = async () => {
+    if (!title?.tmdb_id) return;
+    
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('enrich-title-details', {
+        body: {
+          tmdb_id: title.tmdb_id,
+          type: title.type
+        }
+      });
+      
+      if (error) throw error;
+      setEnrichedData(data);
+    } catch (error) {
+      console.error('Failed to fetch enriched data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   if (!title) return null;
 
   const displayPoster = title.poster_url;
   const displayBackdrop = title.backdrop_url;
-  const displayTrailer = title.trailer_url;
-  const displayGenres = title.genres || [];
-  const displayRuntime = title.runtime_minutes;
-  const displayEpisodeLength = title.avg_episode_minutes;
-  const displayAvailability = title.availability || title.streaming_services || [];
+  const displayTrailer = enrichedData?.trailer_url || title.trailer_url;
+  const displayGenres = enrichedData?.genres || title.genres || [];
+  const displayCast = enrichedData?.cast || title.cast || [];
+  const displayRuntime = enrichedData?.runtime_minutes || title.runtime_minutes;
+  const displayEpisodeLength = enrichedData?.avg_episode_minutes || title.avg_episode_minutes;
+  const displayAvailability = enrichedData?.streaming_services || title.availability || title.streaming_services || [];
   const displayDescription = title.description || title.overview;
 
   return (
@@ -93,14 +125,22 @@ export function TitleDetailsModal({ title, open, onOpenChange }: TitleDetailsMod
               </div>
 
               {/* Genres & Moods */}
-              <div className="flex flex-wrap gap-2">
-                {displayGenres.slice(0, 3).map(genre => (
-                  <Badge key={genre} variant="secondary">{genre}</Badge>
-                ))}
-                {title.mood_tags?.slice(0, 3).map(tag => (
-                  <Badge key={tag} variant="outline">{tag}</Badge>
-                ))}
-              </div>
+              {(displayGenres.length > 0 || title.mood_tags?.length) && (
+                <div className="flex flex-wrap gap-2">
+                  {loading ? (
+                    <div className="text-sm text-muted-foreground">Loading genres...</div>
+                  ) : (
+                    displayGenres.slice(0, 4).map((genre: any, idx: number) => (
+                      <Badge key={idx} variant="secondary">
+                        {typeof genre === 'string' ? genre : genre}
+                      </Badge>
+                    ))
+                  )}
+                  {title.mood_tags?.slice(0, 3).map(tag => (
+                    <Badge key={tag} variant="outline">{tag}</Badge>
+                  ))}
+                </div>
+              )}
 
               {/* Description */}
               {displayDescription && (
@@ -108,13 +148,17 @@ export function TitleDetailsModal({ title, open, onOpenChange }: TitleDetailsMod
               )}
 
               {/* Cast */}
-              {title.cast && title.cast.length > 0 && (
+              {displayCast.length > 0 && (
                 <div className="space-y-2">
                   <p className="text-sm font-medium">Cast:</p>
                   <p className="text-sm text-muted-foreground">
-                    {title.cast.slice(0, 5).join(', ')}
+                    {displayCast.slice(0, 5).join(', ')}
                   </p>
                 </div>
+              )}
+              
+              {loading && displayCast.length === 0 && (
+                <div className="text-sm text-muted-foreground">Loading cast...</div>
               )}
 
               {/* Streaming Services */}
@@ -122,7 +166,7 @@ export function TitleDetailsModal({ title, open, onOpenChange }: TitleDetailsMod
                 <div className="space-y-2">
                   <p className="text-sm font-medium">Available on:</p>
                   <div className="flex flex-wrap gap-2">
-                    {displayAvailability.map((service, i) => (
+                    {displayAvailability.map((service: any, i: number) => (
                       <div
                         key={i}
                         className="flex items-center gap-2 px-3 py-1.5 border border-border rounded-md bg-muted/50"
@@ -135,6 +179,10 @@ export function TitleDetailsModal({ title, open, onOpenChange }: TitleDetailsMod
                     ))}
                   </div>
                 </div>
+              )}
+              
+              {loading && displayAvailability.length === 0 && (
+                <div className="text-sm text-muted-foreground">Loading streaming availability...</div>
               )}
             </div>
           </div>
