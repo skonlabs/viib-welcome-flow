@@ -12,6 +12,11 @@ import Home from "./pages/app/Home";
 import Admin from "./pages/app/Admin";
 import SendFeedback from "./pages/app/SendFeedback";
 import ViiBList from "./pages/app/ViiBList";
+import Search from "./pages/app/Search";
+import Watchlist from "./pages/app/Watchlist";
+import Social from "./pages/app/Social";
+import Mood from "./pages/app/Mood";
+import Together from "./pages/app/Together";
 import Login from "./pages/Login";
 import ForgotPassword from "./pages/ForgotPassword";
 import Privacy from "./pages/Privacy";
@@ -35,6 +40,11 @@ const AnimatedRoutes = () => {
         <Route path="/app/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
         <Route path="/app/feedback" element={<ProtectedRoute><SendFeedback /></ProtectedRoute>} />
         <Route path="/app/viiblist" element={<ProtectedRoute><ViiBList /></ProtectedRoute>} />
+        <Route path="/app/search" element={<ProtectedRoute><Search /></ProtectedRoute>} />
+        <Route path="/app/watchlist" element={<ProtectedRoute><Watchlist /></ProtectedRoute>} />
+        <Route path="/app/social" element={<ProtectedRoute><Social /></ProtectedRoute>} />
+        <Route path="/app/mood" element={<ProtectedRoute><Mood /></ProtectedRoute>} />
+        <Route path="/app/together" element={<ProtectedRoute><Together /></ProtectedRoute>} />
         <Route path="/app/onboarding" element={<Onboarding />} />
         <Route path="/app/onboarding/:step" element={<Onboarding />} />
         <Route path="/privacy" element={<Privacy />} />
