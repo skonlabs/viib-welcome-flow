@@ -10,6 +10,7 @@ import { Bookmark, Trash2, ArrowUpDown, Heart, Users } from "@/icons";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { TitleDetailsModal } from "@/components/TitleDetailsModal";
+import { RecommendTitleDialog } from "@/components/RecommendTitleDialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -59,6 +60,8 @@ export default function Watchlist() {
   const [avgRating, setAvgRating] = useState(0);
   const [selectedTitle, setSelectedTitle] = useState<EnrichedTitle | null>(null);
   const [loading, setLoading] = useState(false);
+  const [recommendDialogOpen, setRecommendDialogOpen] = useState(false);
+  const [titleToRecommend, setTitleToRecommend] = useState<{ id: string; name: string } | null>(null);
 
   const { user } = useAuth();
 
@@ -412,6 +415,10 @@ export default function Watchlist() {
                     showAvailability={true}
                     actions={{
                       onWatched: () => markAsWatched(item.id, item.title_id),
+                      onRecommend: () => {
+                        setTitleToRecommend({ id: item.title_id, name: item.title });
+                        setRecommendDialogOpen(true);
+                      },
                       onPass: () => {
                         setItemToDelete({ id: item.id, type: 'watchlist' });
                         setDeleteConfirmOpen(true);
@@ -442,6 +449,10 @@ export default function Watchlist() {
                     showAvailability={true}
                     actions={{
                       onWatchlist: () => moveToWatchlistFromWatched(item.id),
+                      onRecommend: () => {
+                        setTitleToRecommend({ id: item.title_id, name: item.title });
+                        setRecommendDialogOpen(true);
+                      },
                       onPass: () => {
                         setItemToDelete({ id: item.id, type: 'watched' });
                         setDeleteConfirmOpen(true);
@@ -475,6 +486,10 @@ export default function Watchlist() {
                     actions={{
                       onWatchlist: () => moveToWatchlist(item.title_id),
                       onWatched: () => moveToWatched(item.title_id),
+                      onRecommend: () => {
+                        setTitleToRecommend({ id: item.title_id, name: item.title });
+                        setRecommendDialogOpen(true);
+                      },
                       onPass: () => {
                         setItemToDelete({ id: item.id, type: 'recommended' });
                         setDeleteConfirmOpen(true);
@@ -525,6 +540,15 @@ export default function Watchlist() {
             }}
             open={!!selectedTitle}
             onOpenChange={(open) => !open && setSelectedTitle(null)}
+          />
+        )}
+
+        {titleToRecommend && (
+          <RecommendTitleDialog
+            open={recommendDialogOpen}
+            onOpenChange={setRecommendDialogOpen}
+            titleId={titleToRecommend.id}
+            titleName={titleToRecommend.name}
           />
         )}
       </div>
