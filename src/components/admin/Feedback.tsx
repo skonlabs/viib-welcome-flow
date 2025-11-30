@@ -76,10 +76,10 @@ const Feedback = ({ type }: FeedbackProps) => {
   const currentFeedback = feedback.slice(startIndex, endIndex);
 
   const getStatusBadge = (status: string) => {
-    const variants: Record<string, { variant: "default" | "secondary" | "destructive" | "outline", icon: any }> = {
-      pending: { variant: "outline", icon: Clock },
-      in_progress: { variant: "default", icon: Clock },
-      resolved: { variant: "secondary", icon: CheckCircle },
+    const variants: Record<string, { variant: "default" | "secondary" | "destructive" | "outline" | "success" | "warning", icon: any }> = {
+      pending: { variant: "warning", icon: Clock },
+      in_progress: { variant: "warning", icon: Clock },
+      resolved: { variant: "success", icon: CheckCircle },
       closed: { variant: "destructive", icon: XCircle },
     };
 
@@ -87,8 +87,8 @@ const Feedback = ({ type }: FeedbackProps) => {
     const Icon = config.icon;
     
     const iconColors = {
-      pending: 'text-icon-muted',
-      in_progress: 'text-icon-primary',
+      pending: 'text-icon-warning',
+      in_progress: 'text-icon-warning',
       resolved: 'text-icon-success',
       closed: 'text-icon-danger',
     };

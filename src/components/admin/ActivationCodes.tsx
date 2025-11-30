@@ -308,7 +308,7 @@ export default function ActivationCodes() {
                     <TableRow key={code.id}>
                       <TableCell className="font-mono font-medium text-sm truncate max-w-[150px]">{code.code}</TableCell>
                       <TableCell>
-                        <Badge variant={isActive ? 'default' : 'secondary'}>
+                        <Badge variant={isActive ? 'success' : isExpired ? 'destructive' : 'secondary'}>
                           {isExpired ? 'Expired' : isFullyUsed ? 'Used' : 'Active'}
                         </Badge>
                       </TableCell>

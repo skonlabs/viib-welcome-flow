@@ -117,7 +117,7 @@ export default function SystemLogs() {
       case 'error':
         return 'destructive';
       case 'warning':
-        return 'outline';
+        return 'warning';
       case 'info':
         return 'secondary';
       default:
@@ -166,7 +166,7 @@ export default function SystemLogs() {
                           {log.severity}
                         </Badge>
                         {log.resolved && (
-                          <Badge variant="outline" className="gap-1">
+                          <Badge variant="success" className="gap-1">
                             <CheckCircle2 className="h-3 w-3" />
                             Resolved
                           </Badge>
@@ -325,7 +325,7 @@ export default function SystemLogs() {
                 </div>
                 <div>
                   <h4 className="font-semibold mb-1">Status</h4>
-                  <Badge variant={selectedLog.resolved ? 'outline' : 'destructive'}>
+                  <Badge variant={selectedLog.resolved ? 'success' : 'destructive'}>
                     {selectedLog.resolved ? 'Resolved' : 'Unresolved'}
                   </Badge>
                 </div>

@@ -549,31 +549,31 @@ const Users = () => {
               </div>
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Account Status</p>
-                <Badge variant={selectedUser.is_active ? 'default' : 'destructive'}>
+                <Badge variant={selectedUser.is_active ? 'success' : 'destructive'}>
                   {selectedUser.is_active ? 'Active' : 'Inactive'}
                 </Badge>
               </div>
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Email Verified</p>
-                <Badge variant={selectedUser.is_email_verified ? 'default' : 'secondary'}>
+                <Badge variant={selectedUser.is_email_verified ? 'success' : 'outline'}>
                   {selectedUser.is_email_verified ? 'Yes' : 'No'}
                 </Badge>
               </div>
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Phone Verified</p>
-                <Badge variant={selectedUser.is_phone_verified ? 'default' : 'secondary'}>
+                <Badge variant={selectedUser.is_phone_verified ? 'success' : 'outline'}>
                   {selectedUser.is_phone_verified ? 'Yes' : 'No'}
                 </Badge>
               </div>
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Age Over 18</p>
-                <Badge variant={selectedUser.is_age_over_18 ? 'default' : 'secondary'}>
+                <Badge variant={selectedUser.is_age_over_18 ? 'success' : 'outline'}>
                   {selectedUser.is_age_over_18 ? 'Yes' : 'No'}
                 </Badge>
               </div>
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Onboarding Status</p>
-                <Badge variant={selectedUser.onboarding_completed ? 'default' : 'secondary'}>
+                <Badge variant={selectedUser.onboarding_completed ? 'success' : 'warning'}>
                   {selectedUser.onboarding_completed ? 'Complete' : 'Incomplete'}
                 </Badge>
               </div>
