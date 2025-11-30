@@ -6,10 +6,10 @@ import { useAuth } from "@/hooks/useAuth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Bookmark, Trash2, ArrowUpDown, Heart } from "@/icons";
+import { Bookmark, Trash2, ArrowUpDown, Heart, Users } from "@/icons";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { TitleDetailsModal } from "@/components/TitleDetailsModal";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,23 +23,42 @@ import {
 
 type SortOption = "date" | "alpha" | "rating";
 
-interface WatchlistItem {
+interface EnrichedTitle {
   id: string;
   title_id: string;
-  status: string;
+  title: string;
+  type: 'movie' | 'series';
+  year?: number;
+  poster_url?: string;
+  trailer_url?: string;
+  runtime_minutes?: number;
+  avg_episode_minutes?: number;
+  genres?: string[];
+  cast?: string[];
+  certification?: string;
+  number_of_seasons?: number;
+  streaming_services?: Array<{
+    service_code: string;
+    service_name: string;
+    logo_url?: string;
+  }>;
   added_at: string;
-  title_name?: string;
+  recommended_by?: string;
+  recommendation_note?: string;
 }
 
 export default function Watchlist() {
-  const [pendingTitles, setPendingTitles] = useState<WatchlistItem[]>([]);
-  const [watchedTitles, setWatchedTitles] = useState<WatchlistItem[]>([]);
+  const [pendingTitles, setPendingTitles] = useState<EnrichedTitle[]>([]);
+  const [watchedTitles, setWatchedTitles] = useState<EnrichedTitle[]>([]);
+  const [recommendedTitles, setRecommendedTitles] = useState<EnrichedTitle[]>([]);
   const [activeTab, setActiveTab] = useState("pending");
   const [sortBy, setSortBy] = useState<SortOption>("date");
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-  const [titleToDelete, setTitleToDelete] = useState<string | null>(null);
+  const [itemToDelete, setItemToDelete] = useState<{ id: string; type: string } | null>(null);
   const [totalWatchTime, setTotalWatchTime] = useState(0);
   const [avgRating, setAvgRating] = useState(0);
+  const [selectedTitle, setSelectedTitle] = useState<EnrichedTitle | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const { user } = useAuth();
 
@@ -47,12 +66,28 @@ export default function Watchlist() {
     if (user) {
       loadWatchlist("pending");
       loadWatchlist("watched");
+      loadRecommendedTitles();
       calculateStats();
     }
   }, [user]);
 
+  const enrichTitleData = async (titleId: string) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('enrich-title-details', {
+        body: { tmdb_id: titleId, type: 'movie' }
+      });
+      
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Failed to enrich title:', error);
+      return null;
+    }
+  };
+
   const loadWatchlist = async (status: string) => {
     if (!user) return;
+    setLoading(true);
 
     try {
       const { data, error } = await supabase
@@ -64,21 +99,85 @@ export default function Watchlist() {
 
       if (error) throw error;
 
-      const items = (data || []).map(item => ({
-        id: item.id,
-        title_id: item.title_id,
-        status,
-        added_at: item.created_at,
-        title_name: `Title ${item.title_id.substring(0, 8)}`
-      }));
+      const enrichedTitles: EnrichedTitle[] = await Promise.all(
+        (data || []).map(async (item) => {
+          const enrichedData = await enrichTitleData(item.title_id);
+          return {
+            id: item.id,
+            title_id: item.title_id,
+            title: enrichedData?.title || `Title ${item.title_id.substring(0, 8)}`,
+            type: enrichedData?.type || 'movie',
+            year: enrichedData?.year,
+            poster_url: enrichedData?.poster_url,
+            trailer_url: enrichedData?.trailer_url,
+            runtime_minutes: enrichedData?.runtime_minutes,
+            genres: enrichedData?.genres,
+            cast: enrichedData?.cast,
+            certification: enrichedData?.certification,
+            streaming_services: enrichedData?.streaming_services,
+            added_at: item.created_at,
+          };
+        })
+      );
 
       if (status === 'pending') {
-        setPendingTitles(items);
+        setPendingTitles(enrichedTitles);
       } else {
-        setWatchedTitles(items);
+        setWatchedTitles(enrichedTitles);
       }
     } catch (error) {
       console.error('Failed to load watchlist:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadRecommendedTitles = async () => {
+    if (!user) return;
+    setLoading(true);
+
+    try {
+      const { data, error } = await supabase
+        .from('user_social_recommendations')
+        .select(`
+          *,
+          sender:sender_user_id(full_name, username)
+        `)
+        .eq('receiver_user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const enrichedTitles: EnrichedTitle[] = await Promise.all(
+        (data || []).map(async (item) => {
+          const enrichedData = await enrichTitleData(item.title_id);
+          const senderName = (item.sender as any)?.full_name || (item.sender as any)?.username || 'Someone';
+          
+          return {
+            id: item.id,
+            title_id: item.title_id,
+            title: enrichedData?.title || `Title ${item.title_id.substring(0, 8)}`,
+            type: enrichedData?.type || 'movie',
+            year: enrichedData?.year,
+            poster_url: enrichedData?.poster_url,
+            trailer_url: enrichedData?.trailer_url,
+            runtime_minutes: enrichedData?.runtime_minutes,
+            genres: enrichedData?.genres,
+            cast: enrichedData?.cast,
+            certification: enrichedData?.certification,
+            streaming_services: enrichedData?.streaming_services,
+            added_at: item.created_at,
+            recommended_by: senderName,
+            recommendation_note: item.message,
+          };
+        })
+      );
+
+      setRecommendedTitles(enrichedTitles);
+    } catch (error) {
+      console.error('Failed to load recommended titles:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -111,14 +210,14 @@ export default function Watchlist() {
     }
   };
 
-  const markAsWatched = async (titleId: string) => {
+  const markAsWatched = async (interactionId: string, titleId: string) => {
     if (!user) return;
 
     try {
       await supabase
         .from('user_title_interactions')
         .update({ interaction_type: 'completed' })
-        .eq('id', titleId)
+        .eq('id', interactionId)
         .eq('user_id', user.id);
 
       toast.success('Marked as watched!');
@@ -131,34 +230,113 @@ export default function Watchlist() {
     }
   };
 
-  const removeFromWatchlist = async (titleId: string) => {
+  const moveToWatchlist = async (titleId: string) => {
+    if (!user) return;
+
+    try {
+      const { error } = await supabase
+        .from('user_title_interactions')
+        .insert({
+          user_id: user.id,
+          title_id: titleId,
+          interaction_type: 'wishlisted'
+        });
+
+      if (error) throw error;
+
+      toast.success('Added to watchlist!');
+      loadWatchlist('pending');
+      loadRecommendedTitles();
+    } catch (error) {
+      console.error('Failed to add to watchlist:', error);
+      toast.error('Failed to add to watchlist');
+    }
+  };
+
+  const moveToWatched = async (titleId: string) => {
+    if (!user) return;
+
+    try {
+      const { error } = await supabase
+        .from('user_title_interactions')
+        .insert({
+          user_id: user.id,
+          title_id: titleId,
+          interaction_type: 'completed'
+        });
+
+      if (error) throw error;
+
+      toast.success('Marked as watched!');
+      loadWatchlist('watched');
+      loadRecommendedTitles();
+      calculateStats();
+    } catch (error) {
+      console.error('Failed to mark as watched:', error);
+      toast.error('Failed to mark as watched');
+    }
+  };
+
+  const moveToWatchlistFromWatched = async (interactionId: string) => {
     if (!user) return;
 
     try {
       await supabase
         .from('user_title_interactions')
-        .delete()
-        .eq('id', titleId)
+        .update({ interaction_type: 'wishlisted' })
+        .eq('id', interactionId)
         .eq('user_id', user.id);
 
-      toast.success('Removed from watchlist');
+      toast.success('Moved to watchlist!');
       loadWatchlist('pending');
       loadWatchlist('watched');
       calculateStats();
+    } catch (error) {
+      console.error('Failed to move:', error);
+      toast.error('Failed to move');
+    }
+  };
+
+  const removeItem = async (id: string, type: string) => {
+    if (!user) return;
+
+    try {
+      if (type === 'recommended') {
+        await supabase
+          .from('user_social_recommendations')
+          .delete()
+          .eq('id', id)
+          .eq('receiver_user_id', user.id);
+      } else {
+        await supabase
+          .from('user_title_interactions')
+          .delete()
+          .eq('id', id)
+          .eq('user_id', user.id);
+      }
+
+      toast.success('Removed successfully');
+      if (type === 'recommended') {
+        loadRecommendedTitles();
+      } else {
+        loadWatchlist('pending');
+        loadWatchlist('watched');
+        calculateStats();
+      }
       setDeleteConfirmOpen(false);
-      setTitleToDelete(null);
+      setItemToDelete(null);
     } catch (error) {
       console.error('Failed to remove:', error);
       toast.error('Failed to remove');
     }
   };
 
-  const sortTitles = (titles: WatchlistItem[]) => {
+  const sortTitles = (titles: EnrichedTitle[]) => {
     const sorted = [...titles];
     if (sortBy === "date") {
       sorted.sort((a, b) => new Date(b.added_at).getTime() - new Date(a.added_at).getTime());
     } else if (sortBy === "alpha") {
-      sorted.sort((a, b) => (a.title_name || '').localeCompare(b.title_name || ''));
+      sorted.sort((a, b) => a.title.localeCompare(b.title));
     }
     return sorted;
   };
@@ -174,7 +352,7 @@ export default function Watchlist() {
         </div>
 
         <WatchlistStats
-          totalTitles={pendingTitles.length + watchedTitles.length}
+          totalTitles={pendingTitles.length + watchedTitles.length + recommendedTitles.length}
           watchedCount={watchedTitles.length}
           totalWatchTime={totalWatchTime}
           avgRating={avgRating}
@@ -190,6 +368,10 @@ export default function Watchlist() {
               <TabsTrigger value="watched" className="gap-2">
                 <Heart className="w-4 h-4" />
                 Watched ({watchedTitles.length})
+              </TabsTrigger>
+              <TabsTrigger value="recommended" className="gap-2">
+                <Users className="w-4 h-4" />
+                Recommended ({recommendedTitles.length})
               </TabsTrigger>
             </TabsList>
 
@@ -209,7 +391,9 @@ export default function Watchlist() {
           </div>
 
           <TabsContent value="pending" className="space-y-4">
-            {pendingTitles.length === 0 ? (
+            {loading && pendingTitles.length === 0 ? (
+              <div className="text-center py-12">Loading...</div>
+            ) : pendingTitles.length === 0 ? (
               <Card className="p-12 text-center">
                 <Bookmark className="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-50" />
                 <h3 className="text-lg font-semibold mb-2">No titles in your watchlist yet</h3>
@@ -221,36 +405,28 @@ export default function Watchlist() {
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                 {sortTitles(pendingTitles).map((item) => (
-                  <div key={item.id} className="relative group">
-                    <Card className="p-4 text-center">
-                      <div className="h-48 bg-muted rounded mb-3 flex items-center justify-center">
-                        <Bookmark className="w-12 h-12 text-muted-foreground" />
-                      </div>
-                      <h4 className="font-medium truncate">{item.title_name}</h4>
-                      <div className="flex gap-2 mt-3">
-                        <Button size="sm" className="flex-1" onClick={() => markAsWatched(item.id)}>
-                          Watched
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            setTitleToDelete(item.id);
-                            setDeleteConfirmOpen(true);
-                          }}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </Card>
-                  </div>
+                  <TitleCard
+                    key={item.id}
+                    title={item}
+                    onClick={() => setSelectedTitle(item)}
+                    showAvailability={true}
+                    actions={{
+                      onWatched: () => markAsWatched(item.id, item.title_id),
+                      onPass: () => {
+                        setItemToDelete({ id: item.id, type: 'watchlist' });
+                        setDeleteConfirmOpen(true);
+                      }
+                    }}
+                  />
                 ))}
               </div>
             )}
           </TabsContent>
 
           <TabsContent value="watched" className="space-y-4">
-            {watchedTitles.length === 0 ? (
+            {loading && watchedTitles.length === 0 ? (
+              <div className="text-center py-12">Loading...</div>
+            ) : watchedTitles.length === 0 ? (
               <Card className="p-12 text-center">
                 <Heart className="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-50" />
                 <h3 className="text-lg font-semibold mb-2">No watched titles yet</h3>
@@ -259,27 +435,52 @@ export default function Watchlist() {
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                 {sortTitles(watchedTitles).map((item) => (
-                  <div key={item.id} className="relative group">
-                    <Card className="p-4 text-center">
-                      <Badge className="mb-2">Watched</Badge>
-                      <div className="h-48 bg-muted rounded mb-3 flex items-center justify-center">
-                        <Heart className="w-12 h-12 text-muted-foreground" />
-                      </div>
-                      <h4 className="font-medium truncate">{item.title_name}</h4>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="w-full mt-3"
-                        onClick={() => {
-                          setTitleToDelete(item.id);
-                          setDeleteConfirmOpen(true);
-                        }}
-                      >
-                        <Trash2 className="w-4 h-4 mr-2" />
-                        Remove
-                      </Button>
-                    </Card>
-                  </div>
+                  <TitleCard
+                    key={item.id}
+                    title={item}
+                    onClick={() => setSelectedTitle(item)}
+                    showAvailability={true}
+                    actions={{
+                      onWatchlist: () => moveToWatchlistFromWatched(item.id),
+                      onPass: () => {
+                        setItemToDelete({ id: item.id, type: 'watched' });
+                        setDeleteConfirmOpen(true);
+                      }
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="recommended" className="space-y-4">
+            {loading && recommendedTitles.length === 0 ? (
+              <div className="text-center py-12">Loading...</div>
+            ) : recommendedTitles.length === 0 ? (
+              <Card className="p-12 text-center">
+                <Users className="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-50" />
+                <h3 className="text-lg font-semibold mb-2">No recommendations yet</h3>
+                <p className="text-muted-foreground">Your friends haven't recommended anything yet</p>
+              </Card>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                {sortTitles(recommendedTitles).map((item) => (
+                  <TitleCard
+                    key={item.id}
+                    title={item}
+                    onClick={() => setSelectedTitle(item)}
+                    showAvailability={true}
+                    recommendedBy={item.recommended_by}
+                    recommendationNote={item.recommendation_note}
+                    actions={{
+                      onWatchlist: () => moveToWatchlist(item.title_id),
+                      onWatched: () => moveToWatched(item.title_id),
+                      onPass: () => {
+                        setItemToDelete({ id: item.id, type: 'recommended' });
+                        setDeleteConfirmOpen(true);
+                      }
+                    }}
+                  />
                 ))}
               </div>
             )}
@@ -289,15 +490,15 @@ export default function Watchlist() {
         <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Remove from watchlist?</AlertDialogTitle>
+              <AlertDialogTitle>Remove this item?</AlertDialogTitle>
               <AlertDialogDescription>
-                This title will be permanently removed from your watchlist.
+                This will be permanently removed.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction
-                onClick={() => titleToDelete && removeFromWatchlist(titleToDelete)}
+                onClick={() => itemToDelete && removeItem(itemToDelete.id, itemToDelete.type)}
                 className="bg-destructive hover:bg-destructive/90"
               >
                 Remove
@@ -305,6 +506,27 @@ export default function Watchlist() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {selectedTitle && (
+          <TitleDetailsModal
+            title={{
+              tmdb_id: parseInt(selectedTitle.title_id),
+              external_id: selectedTitle.title_id,
+              title: selectedTitle.title,
+              type: selectedTitle.type,
+              year: selectedTitle.year,
+              poster_url: selectedTitle.poster_url,
+              trailer_url: selectedTitle.trailer_url,
+              runtime_minutes: selectedTitle.runtime_minutes,
+              avg_episode_minutes: selectedTitle.avg_episode_minutes,
+              genres: selectedTitle.genres,
+              cast: selectedTitle.cast,
+              streaming_services: selectedTitle.streaming_services,
+            }}
+            open={!!selectedTitle}
+            onOpenChange={(open) => !open && setSelectedTitle(null)}
+          />
+        )}
       </div>
     </div>
   );
