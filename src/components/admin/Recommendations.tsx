@@ -17,7 +17,7 @@ const Recommendations = () => {
         </CardHeader>
         <CardContent>
           <Alert>
-            <Info className="h-4 w-4" />
+            <Info className="h-4 w-4 text-icon-secondary" />
             <AlertDescription>
               Analytics edge function 'get-analytics' is required to display this data.
             </AlertDescription>

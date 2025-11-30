@@ -11,6 +11,7 @@ import { Switch } from '@/components/ui/switch';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Loader2, Plus, Edit, Trash2 } from '@/icons';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface EmailTemplate {
   id?: string;
@@ -135,7 +136,7 @@ export const EmailTemplates = () => {
                 is_active: true,
               });
             }}>
-              <Plus className="h-4 w-4 mr-2" />
+              <Plus className="h-4 w-4 mr-2 text-icon-primary" />
               New Template
             </Button>
           </DialogTrigger>
@@ -206,7 +207,7 @@ export const EmailTemplates = () => {
               </div>
 
               <Button onClick={handleSave} disabled={loading} className="w-full">
-                {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                {loading && <Loader2 className="h-4 w-4 animate-spin mr-2 text-icon-primary" />}
                 {editingTemplate ? 'Update Template' : 'Create Template'}
               </Button>
             </div>
@@ -241,21 +242,39 @@ export const EmailTemplates = () => {
                       {template.is_active ? 'Active' : 'Inactive'}
                     </span>
                   </TableCell>
-                  <TableCell className="text-right space-x-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleEdit(template)}
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => template.id && handleDelete(template.id)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-1">
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => handleEdit(template)}
+                            >
+                              <Edit className="h-4 w-4 text-icon-default" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Edit</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => template.id && handleDelete(template.id)}
+                            >
+                              <Trash2 className="h-4 w-4 text-icon-danger" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Delete</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

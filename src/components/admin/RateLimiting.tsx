@@ -10,6 +10,7 @@ import { Switch } from '@/components/ui/switch';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Loader2, Plus, Edit, Trash2 } from '@/icons';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface RateLimit {
   id?: string;
@@ -133,7 +134,7 @@ const RateLimiting = () => {
                 description: '',
               });
             }}>
-              <Plus className="h-4 w-4 mr-2" />
+              <Plus className="h-4 w-4 mr-2 text-icon-primary" />
               Add Rate Limit
             </Button>
           </DialogTrigger>
@@ -199,10 +200,10 @@ const RateLimiting = () => {
                 <Label htmlFor="is_active">Active</Label>
               </div>
 
-              <Button onClick={handleSave} disabled={loading} className="w-full">
-                {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                {editingLimit ? 'Update Rate Limit' : 'Create Rate Limit'}
-              </Button>
+          <Button onClick={handleSave} disabled={loading} className="w-full">
+            {loading && <Loader2 className="h-4 w-4 animate-spin mr-2 text-icon-primary" />}
+            {editingLimit ? 'Update Rate Limit' : 'Create Rate Limit'}
+          </Button>
             </div>
           </DialogContent>
         </Dialog>
@@ -235,21 +236,39 @@ const RateLimiting = () => {
                       {limit.is_active ? 'Active' : 'Inactive'}
                     </span>
                   </TableCell>
-                  <TableCell className="text-right space-x-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleEdit(limit)}
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => limit.id && handleDelete(limit.id)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-1">
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => handleEdit(limit)}
+                            >
+                              <Edit className="h-4 w-4 text-icon-default" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Edit</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => limit.id && handleDelete(limit.id)}
+                            >
+                              <Trash2 className="h-4 w-4 text-icon-danger" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Delete</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
