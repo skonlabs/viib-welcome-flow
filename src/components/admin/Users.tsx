@@ -358,12 +358,12 @@ const Users = () => {
                     <TableCell>{user.email || '-'}</TableCell>
                     <TableCell>{user.phone_number || '-'}</TableCell>
                     <TableCell>
-                      <Badge variant={user.is_active ? 'default' : 'destructive'}>
+                      <Badge variant={user.is_active ? 'success' : 'destructive'}>
                         {user.is_active ? 'Active' : 'Inactive'}
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={user.onboarding_completed ? 'default' : 'secondary'}>
+                      <Badge variant={user.onboarding_completed ? 'success' : 'warning'}>
                         {user.onboarding_completed ? 'Complete' : 'Incomplete'}
                       </Badge>
                     </TableCell>
