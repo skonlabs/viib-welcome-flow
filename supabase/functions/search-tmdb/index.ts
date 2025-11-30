@@ -32,16 +32,22 @@ serve(async (req) => {
       tvResponse.json()
     ]);
 
-    // Fetch certifications for movies
+    // Fetch certifications and details for movies
     const moviesWithCertifications = await Promise.all(
       (movieData.results || []).slice(0, 10).map(async (movie: any) => {
         try {
-          const certResponse = await fetch(`${TMDB_BASE_URL}/movie/${movie.id}/release_dates?api_key=${TMDB_API_KEY}`);
-          const certData = await certResponse.json();
+          const [certResponse, detailsResponse] = await Promise.all([
+            fetch(`${TMDB_BASE_URL}/movie/${movie.id}/release_dates?api_key=${TMDB_API_KEY}`),
+            fetch(`${TMDB_BASE_URL}/movie/${movie.id}?api_key=${TMDB_API_KEY}&language=${language}`)
+          ]);
+          const [certData, details] = await Promise.all([
+            certResponse.json(),
+            detailsResponse.json()
+          ]);
           
           // Find US certification
           const usCertification = certData.results?.find((r: any) => r.iso_3166_1 === 'US');
-          const certification = usCertification?.release_dates?.[0]?.certification || '';
+          const certification = usCertification?.release_dates?.[0]?.certification || 'NR';
           
           return {
             id: `tmdb-movie-${movie.id}`,
@@ -58,10 +64,11 @@ serve(async (req) => {
             mood_tags: [],
             rating: movie.vote_average,
             popularity: movie.popularity,
-            certification: certification
+            certification: certification,
+            runtime_minutes: details.runtime
           };
         } catch (error) {
-          console.error(`Error fetching certification for movie ${movie.id}:`, error);
+          console.error(`Error fetching details for movie ${movie.id}:`, error);
           return {
             id: `tmdb-movie-${movie.id}`,
             tmdb_id: movie.id,
@@ -76,7 +83,8 @@ serve(async (req) => {
             genres: movie.genre_ids || [],
             mood_tags: [],
             rating: movie.vote_average,
-            popularity: movie.popularity
+            popularity: movie.popularity,
+            certification: 'NR'
           };
         }
       })
@@ -97,7 +105,7 @@ serve(async (req) => {
           
           // Find US certification
           const usCertification = certData.results?.find((r: any) => r.iso_3166_1 === 'US');
-          const certification = usCertification?.rating || '';
+          const certification = usCertification?.rating || 'NR';
           
           return {
             id: `tmdb-tv-${tv.id}`,
@@ -115,7 +123,8 @@ serve(async (req) => {
             rating: tv.vote_average,
             popularity: tv.popularity,
             number_of_seasons: details.number_of_seasons,
-            certification: certification
+            certification: certification,
+            avg_episode_minutes: details.episode_run_time?.[0]
           };
         } catch (error) {
           console.error(`Error fetching details for TV show ${tv.id}:`, error);
@@ -133,7 +142,8 @@ serve(async (req) => {
             genres: tv.genre_ids || [],
             mood_tags: [],
             rating: tv.vote_average,
-            popularity: tv.popularity
+            popularity: tv.popularity,
+            certification: 'NR'
           };
         }
       })
