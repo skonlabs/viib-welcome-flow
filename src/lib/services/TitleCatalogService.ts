@@ -1,6 +1,5 @@
 // TMDB API Integration for Movie and TV Show Search
-// TMDB API keys are public/publishable keys meant for frontend use
-const TMDB_API_KEY = 'a6e4ba96d27c6c65f2b5e91cf0c6e485';
+const TMDB_API_KEY = import.meta.env.VITE_TMDB_API_KEY || '';
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
 const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w500';
 
