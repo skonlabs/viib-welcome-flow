@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Apple, Menu, X } from "lucide-react";
+import { Apple, Menu, X } from "@/icons";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "react-router-dom";

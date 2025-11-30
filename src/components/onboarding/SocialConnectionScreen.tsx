@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
-import { Users, UserPlus, Mail, Phone, Link as LinkIcon, X, Copy, Check } from "lucide-react";
+import { Users, UserPlus, Mail, Phone, LinkIcon, X, Copy, Check } from "@/icons";
 import { BackButton } from "./BackButton";
 import { FloatingParticles } from "./FloatingParticles";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAdmin } from '@/hooks/useAdmin';
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider } from '@/components/ui/sidebar';
-import { BarChart3, Users, UserCheck, Clock, Heart, Eye, Send, Activity, UsersRound, HeadphonesIcon, Bug, Lightbulb, Mail, Settings, Shield, Database, Key, FileText, Zap } from 'lucide-react';
+import { BarChart3, Users, UserCheck, Clock, Heart, Eye, Send, Activity, UsersRound, HeadphonesIcon, Bug, Lightbulb, Mail, Settings, Shield, Database, Key, FileText, Zap } from '@/icons';
 import ActiveUsers from '@/components/admin/ActiveUsers';
 import UserRetention from '@/components/admin/UserRetention';
 import Sessions from '@/components/admin/Sessions';

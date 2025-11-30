@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence, PanInfo } from "framer-motion";
-import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowRight, ChevronLeft, ChevronRight } from "@/icons";
 import { BackButton } from "./BackButton";
 import { FloatingParticles } from "./FloatingParticles";
 import { supabase } from "@/integrations/supabase/client";

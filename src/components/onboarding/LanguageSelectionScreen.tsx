@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, ArrowRight, GripVertical } from "lucide-react";
+import { Check, ArrowRight, GripVertical } from "@/icons";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { BackButton } from "./BackButton";

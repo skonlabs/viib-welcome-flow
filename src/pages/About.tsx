@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Target, Users, Lightbulb, Heart } from "lucide-react";
+import { ArrowLeft, Target, Users, Lightbulb, Heart } from "@/icons";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { motion } from "framer-motion";
-import { ArrowRight, Eye, EyeOff, AlertCircle } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, AlertCircle } from "@/icons";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { FloatingParticles } from "@/components/onboarding/FloatingParticles";

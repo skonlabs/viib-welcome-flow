@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
-import { ArrowRight, Sparkles, Brain, Zap } from "lucide-react";
+import { ArrowRight, Sparkles, Brain, Zap } from "@/icons";
 import { BackButton } from "./BackButton";
 import { FloatingParticles } from "./FloatingParticles";
 

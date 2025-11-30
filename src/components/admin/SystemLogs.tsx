@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { CheckCircle2, AlertCircle, Info, RefreshCw, ChevronLeft, ChevronRight, Eye } from 'lucide-react';
+import { CheckCircle2, AlertCircle, Info, RefreshCw, ChevronLeft, ChevronRight, Eye } from '@/icons';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
