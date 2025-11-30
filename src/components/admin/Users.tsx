@@ -8,6 +8,7 @@ import { Search, Loader2, UserCheck, UserX, Eye } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 const Users = () => {
   const [users, setUsers] = useState<any[]>([]);
@@ -147,22 +148,40 @@ const Users = () => {
                     </TableCell>
                     <TableCell>{new Date(user.created_at).toLocaleDateString()}</TableCell>
                     <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => viewUserDetails(user)}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant={user.is_active ? 'destructive' : 'default'}
-                          onClick={() => toggleUserStatus(user.id, user.is_active)}
-                        >
-                          {user.is_active ? <UserX className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />}
-                        </Button>
-                      </div>
+                      <TooltipProvider>
+                        <div className="flex justify-end gap-2">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => viewUserDetails(user)}
+                              >
+                                <Eye className="h-4 w-4 mr-1" />
+                                <span className="text-xs">View</span>
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>View user details</p>
+                            </TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                size="sm"
+                                variant={user.is_active ? 'destructive' : 'default'}
+                                onClick={() => toggleUserStatus(user.id, user.is_active)}
+                              >
+                                {user.is_active ? <UserX className="h-4 w-4 mr-1" /> : <UserCheck className="h-4 w-4 mr-1" />}
+                                <span className="text-xs">{user.is_active ? 'Deactivate' : 'Activate'}</span>
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>{user.is_active ? 'Deactivate user account' : 'Activate user account'}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                      </TooltipProvider>
                     </TableCell>
                   </TableRow>
                 ))
