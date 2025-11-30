@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { motion } from "framer-motion";
-import { ArrowRight, ArrowLeft, AlertCircle, Eye, EyeOff, Check, X } from "lucide-react";
+import { ArrowRight, ArrowLeft, AlertCircle, Eye, EyeOff, Check, X } from "@/icons";
 import { supabase } from "@/integrations/supabase/client";
 import { FloatingParticles } from "@/components/onboarding/FloatingParticles";
 import { useNavigate } from "react-router-dom";

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Bell, Home, User, Settings, MessageSquare, Shield, LogOut, ChevronDown } from 'lucide-react';
+import { Bell, Home, User, Settings, MessageSquare, Shield, LogOut, ChevronDown } from '@/icons';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';

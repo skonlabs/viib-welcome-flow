@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { motion } from "framer-motion";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw } from "@/icons";
 import { FloatingParticles } from "./FloatingParticles";
 
 interface OTPVerificationBaseProps {

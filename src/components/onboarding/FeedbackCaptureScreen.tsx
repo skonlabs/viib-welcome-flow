@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
-import { ThumbsUp, ThumbsDown, Meh, ArrowRight } from "lucide-react";
+import { ThumbsUp, ThumbsDown, Meh, ArrowRight } from "@/icons";
 import { BackButton } from "./BackButton";
 import { FloatingParticles } from "./FloatingParticles";
 

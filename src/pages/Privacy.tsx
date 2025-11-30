@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft } from "@/icons";
 import { Link } from "react-router-dom";
 
 const Privacy = () => {

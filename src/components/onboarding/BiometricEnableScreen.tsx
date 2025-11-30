@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
-import { Fingerprint, ArrowRight, Lock } from "lucide-react";
+import { Fingerprint, ArrowRight, Lock } from "@/icons";
 import { BackButton } from "./BackButton";
 import { FloatingParticles } from "./FloatingParticles";
 

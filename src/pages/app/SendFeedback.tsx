@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { MessageSquare, Bug, Lightbulb, CheckCircle } from 'lucide-react';
+import { MessageSquare, Bug, Lightbulb, CheckCircle } from '@/icons';
 import { z } from 'zod';
 
 const feedbackSchema = z.object({

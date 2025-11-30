@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { motion } from "framer-motion";
-import { ArrowRight, Lock, AlertCircle } from "lucide-react";
+import { ArrowRight, Lock, AlertCircle } from "@/icons";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { motion } from "framer-motion";
-import { ArrowRight, Eye, EyeOff, Check, X, AlertCircle } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, Check, X, AlertCircle } from "@/icons";
 import { BackButton } from "./BackButton";
 import { supabase } from "@/integrations/supabase/client";
 import { z } from "zod";

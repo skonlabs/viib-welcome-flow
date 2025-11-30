@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { motion, AnimatePresence } from "framer-motion";
-import { Waves, Zap, Sparkles, Compass, ArrowRight, Check } from "lucide-react";
+import { Waves, Zap, Sparkles, Compass, ArrowRight, Check } from "@/icons";
 import calmImage from "@/assets/vibe-calm.png";
 import energeticImage from "@/assets/vibe-energetic.png";
 import curiousImage from "@/assets/vibe-curious.png";

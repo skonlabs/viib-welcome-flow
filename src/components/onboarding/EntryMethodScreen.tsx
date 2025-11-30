@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
-import { Mail, Phone, Apple, ArrowRight, Lock } from "lucide-react";
+import { Mail, Phone, Apple, ArrowRight, Lock } from "@/icons";
 import { BackButton } from "./BackButton";
 import { FloatingParticles } from "./FloatingParticles";
 

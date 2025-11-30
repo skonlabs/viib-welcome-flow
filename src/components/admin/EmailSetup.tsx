@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Loader2, Save } from 'lucide-react';
+import { Loader2, Save } from '@/icons';
 
 interface EmailConfig {
   id?: string;

@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { motion, useMotionValue, useTransform } from "framer-motion";
-import { ArrowRight, Sparkles, Lock } from "lucide-react";
+import { ArrowRight, Sparkles, Lock } from "@/icons";
 import { useEffect } from "react";
 import { FloatingParticles } from "./FloatingParticles";
 interface WelcomeScreenProps {

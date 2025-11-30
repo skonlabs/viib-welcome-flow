@@ -1,4 +1,4 @@
-import { Home, Heart, Search, Bookmark, Users, Clock, List } from 'lucide-react';
+import { Home, Heart, Search, Bookmark, Users, Clock, List } from '@/icons';
 import { motion } from 'framer-motion';
 import { useNavigate, useLocation } from 'react-router-dom';
 

@@ -1,4 +1,4 @@
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft } from "@/icons";
 import { motion } from "framer-motion";
 
 interface BackButtonProps {

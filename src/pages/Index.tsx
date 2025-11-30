@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Apple, PlayCircle, Users, Heart, Sparkles, ArrowRight, Star } from "lucide-react";
+import { Apple, PlayCircle, Users, Heart, Sparkles, ArrowRight, Star } from "@/icons";
 import LandingHeader from "@/components/LandingHeader";
 import { motion, useScroll, useTransform } from "framer-motion";
 import { useNavigate } from "react-router-dom";
