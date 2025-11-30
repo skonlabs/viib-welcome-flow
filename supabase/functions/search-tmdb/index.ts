@@ -96,7 +96,8 @@ serve(async (req) => {
             rating: movie.vote_average,
             popularity: movie.popularity,
             certification: certification,
-            runtime_minutes: details.runtime
+            runtime_minutes: details.runtime,
+            original_language: movie.original_language
           };
         } catch (error) {
           console.error(`Error fetching details for movie ${movie.id}:`, error);
@@ -115,7 +116,8 @@ serve(async (req) => {
             mood_tags: [],
             rating: movie.vote_average,
             popularity: movie.popularity,
-            certification: 'NR'
+            certification: 'NR',
+            original_language: movie.original_language
           };
         }
       })
@@ -155,7 +157,8 @@ serve(async (req) => {
             popularity: tv.popularity,
             number_of_seasons: details.number_of_seasons,
             certification: certification,
-            avg_episode_minutes: details.episode_run_time?.[0]
+            avg_episode_minutes: details.episode_run_time?.[0],
+            original_language: tv.original_language
           };
         } catch (error) {
           console.error(`Error fetching details for TV show ${tv.id}:`, error);
@@ -174,7 +177,8 @@ serve(async (req) => {
             mood_tags: [],
             rating: tv.vote_average,
             popularity: tv.popularity,
-            certification: 'NR'
+            certification: 'NR',
+            original_language: tv.original_language
           };
         }
       })

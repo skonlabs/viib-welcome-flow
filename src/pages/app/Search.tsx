@@ -38,10 +38,13 @@ export default function Search() {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
+  const [userLanguage, setUserLanguage] = useState<string>('');
+  const [userServices, setUserServices] = useState<string[]>([]);
 
   useEffect(() => {
     loadServices();
     loadEmotions();
+    loadUserPreferences();
   }, [user]);
 
   useEffect(() => {
@@ -84,6 +87,32 @@ export default function Search() {
       }
     };
   }, [hasMore, loadingMore, loading, results.length]);
+
+  const loadUserPreferences = async () => {
+    if (!user) return;
+
+    // Load user's language preference
+    const { data: userData } = await supabase
+      .from('users')
+      .select('language_preference')
+      .eq('id', user.id)
+      .single();
+
+    if (userData?.language_preference) {
+      setUserLanguage(userData.language_preference);
+    }
+
+    // Load user's streaming subscriptions
+    const { data: userSubscriptions } = await supabase
+      .from('user_streaming_subscriptions')
+      .select('streaming_service_id')
+      .eq('user_id', user.id)
+      .eq('is_active', true);
+
+    if (userSubscriptions) {
+      setUserServices(userSubscriptions.map(sub => sub.streaming_service_id));
+    }
+  };
 
   const loadServices = async () => {
     if (!user) return;
@@ -161,6 +190,40 @@ export default function Search() {
     setDetailsOpen(true);
   };
 
+  const sortResults = (titles: TitleWithAvailability[]) => {
+    return [...titles].sort((a, b) => {
+      // 1. Sort by release date (newest first)
+      const dateA = a.year || 0;
+      const dateB = b.year || 0;
+      if (dateA !== dateB) {
+        return dateB - dateA;
+      }
+
+      // 2. Sort by language match (user's preferred language first)
+      const langA = (a as any).original_language === userLanguage ? 1 : 0;
+      const langB = (b as any).original_language === userLanguage ? 1 : 0;
+      if (langA !== langB) {
+        return langB - langA;
+      }
+
+      // 3. Sort by streaming service availability (user's services first)
+      const aServices = (a as any).streaming_services || [];
+      const bServices = (b as any).streaming_services || [];
+      const hasServiceA = aServices.some((s: any) => 
+        userServices.includes(s.service_code)
+      ) ? 1 : 0;
+      const hasServiceB = bServices.some((s: any) => 
+        userServices.includes(s.service_code)
+      ) ? 1 : 0;
+      if (hasServiceA !== hasServiceB) {
+        return hasServiceB - hasServiceA;
+      }
+
+      // 4. Finally, sort by popularity as tiebreaker
+      return ((b as any).popularity || 0) - ((a as any).popularity || 0);
+    });
+  };
+
   const handleSearchButtonClick = () => {
     setShowDropdown(false);
     handleSearch();
@@ -185,7 +248,8 @@ export default function Search() {
       });
       
       if (error) throw error;
-      setResults(data.titles || []);
+      const sortedResults = sortResults(data.titles || []);
+      setResults(sortedResults);
       setHasMore((data.titles || []).length >= 20);
     } catch (error) {
       console.error('Search error:', error);
@@ -212,7 +276,8 @@ export default function Search() {
       
       if (error) throw error;
       const newTitles = data.titles || [];
-      setResults(prev => [...prev, ...newTitles]);
+      const sortedNewTitles = sortResults(newTitles);
+      setResults(prev => [...prev, ...sortedNewTitles]);
       setPage(nextPage);
       setHasMore(newTitles.length >= 20);
     } catch (error) {
