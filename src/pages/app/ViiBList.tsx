@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { AppLayout } from "@/components/app/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -416,7 +417,8 @@ export default function ViiBList() {
   const isOwnList = selectedList?.user_id === user?.id;
 
   return (
-    <div className="container max-w-6xl mx-auto p-4">
+    <AppLayout>
+      <div className="container max-w-6xl mx-auto p-4">
       <div className="flex items-start justify-between mt-6 mb-6 gap-4">
         <div className="flex-1 space-y-2">
           <h1 className="text-3xl font-bold">ViiBList</h1>
@@ -901,6 +903,7 @@ export default function ViiBList() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+      </div>
+    </AppLayout>
   );
 }

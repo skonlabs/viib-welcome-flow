@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { AppLayout } from '@/components/app/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -78,7 +79,8 @@ export default function SendFeedback() {
 
   if (submitted) {
     return (
-      <div className="container max-w-2xl mx-auto py-8 px-4">
+      <AppLayout>
+        <div className="container max-w-2xl mx-auto py-8 px-4">
         <Card>
           <CardContent className="pt-8 pb-8">
             <div className="flex flex-col items-center text-center space-y-4">
@@ -93,11 +95,13 @@ export default function SendFeedback() {
           </CardContent>
         </Card>
       </div>
+      </AppLayout>
     );
   }
 
   return (
-    <div className="container max-w-2xl mx-auto py-8 px-4">
+    <AppLayout>
+      <div className="container max-w-2xl mx-auto py-8 px-4">
       <div className="mb-6">
         <h1 className="text-3xl font-bold">Send Feedback</h1>
         <p className="text-muted-foreground mt-2">
@@ -272,5 +276,6 @@ export default function SendFeedback() {
         </TabsContent>
       </Tabs>
     </div>
+    </AppLayout>
   );
 }
