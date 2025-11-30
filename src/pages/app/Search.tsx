@@ -14,7 +14,6 @@ import { TitleDetailsModal } from "@/components/TitleDetailsModal";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
 const GENRES = ["Action", "Comedy", "Drama", "Thriller", "Romance", "Sci-Fi", "Horror", "Documentary", "Animation", "Fantasy"];
-const MOODS = ["light", "cozy", "funny", "intense", "thrilling", "deep", "emotional", "mind_bending", "feel_good", "background"];
 
 export default function Search() {
   const { user } = useAuth();
@@ -23,8 +22,10 @@ export default function Search() {
   const [loading, setLoading] = useState(false);
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
   const [selectedMoods, setSelectedMoods] = useState<string[]>([]);
+  const [moodIntensity, setMoodIntensity] = useState<number>(0.5);
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [services, setServices] = useState<any[]>([]);
+  const [emotions, setEmotions] = useState<Array<{ id: string; emotion_label: string }>>([]);
   const [selectedTitle, setSelectedTitle] = useState<TitleWithAvailability | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [suggestions, setSuggestions] = useState<TitleWithAvailability[]>([]);
@@ -35,6 +36,7 @@ export default function Search() {
 
   useEffect(() => {
     loadServices();
+    loadEmotions();
   }, [user]);
 
   useEffect(() => {
@@ -65,6 +67,27 @@ export default function Search() {
       .eq('is_active', true);
 
     setServices(streamingServices || []);
+
+    // Pre-select user's streaming subscriptions
+    const { data: userSubscriptions } = await supabase
+      .from('user_streaming_subscriptions')
+      .select('streaming_service_id')
+      .eq('user_id', user.id)
+      .eq('is_active', true);
+
+    if (userSubscriptions) {
+      setSelectedServices(userSubscriptions.map(sub => sub.streaming_service_id));
+    }
+  };
+
+  const loadEmotions = async () => {
+    const { data: emotionData } = await supabase
+      .from('emotion_master')
+      .select('id, emotion_label')
+      .eq('category', 'user_state')
+      .order('emotion_label');
+
+    setEmotions(emotionData || []);
   };
 
   const handleQueryChange = (value: string) => {
@@ -300,17 +323,34 @@ export default function Search() {
                 <div className="space-y-3">
                   <Label className="text-base font-semibold">Moods</Label>
                   <div className="flex flex-wrap gap-2">
-                    {MOODS.map(mood => (
+                    {emotions.map(emotion => (
                       <Badge
-                        key={mood}
-                        variant={selectedMoods.includes(mood) ? "default" : "outline"}
+                        key={emotion.id}
+                        variant={selectedMoods.includes(emotion.emotion_label) ? "default" : "outline"}
                         className="cursor-pointer"
-                        onClick={() => toggleMood(mood)}
+                        onClick={() => toggleMood(emotion.emotion_label)}
                       >
-                        {mood}
+                        {emotion.emotion_label}
                       </Badge>
                     ))}
                   </div>
+                </div>
+
+                {/* Mood Intensity */}
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <Label className="text-base font-semibold">Mood Intensity</Label>
+                    <span className="text-sm text-muted-foreground">{Math.round(moodIntensity * 100)}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0.1"
+                    max="1.0"
+                    step="0.1"
+                    value={moodIntensity}
+                    onChange={(e) => setMoodIntensity(parseFloat(e.target.value))}
+                    className="w-full h-2 bg-accent rounded-lg appearance-none cursor-pointer slider"
+                  />
                 </div>
 
                 {/* Services */}
