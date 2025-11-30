@@ -134,6 +134,11 @@ export default function Search() {
     setDetailsOpen(true);
   };
 
+  const handleSearchButtonClick = () => {
+    setShowDropdown(false);
+    handleSearch();
+  };
+
   const handleSearch = async () => {
     if (!user) return;
 
@@ -410,7 +415,7 @@ export default function Search() {
               </div>
             </SheetContent>
           </Sheet>
-          <Button onClick={handleSearch} disabled={loading}>
+          <Button onClick={handleSearchButtonClick} disabled={loading}>
             {loading ? 'Searching...' : 'Search'}
           </Button>
         </div>
