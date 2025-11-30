@@ -6,6 +6,11 @@ interface CustomUser {
   email: string | null;
   phone_number: string | null;
   full_name: string | null;
+  username: string | null;
+  country: string | null;
+  timezone: string | null;
+  language_preference: string | null;
+  created_at: string;
   user_metadata?: {
     avatar_url?: string;
     full_name?: string;
@@ -62,7 +67,7 @@ export const useAuth = () => {
       // Fetch user from database
       const { data: userData, error: userError } = await supabase
         .from('users')
-        .select('id, email, phone_number, full_name')
+        .select('id, email, phone_number, full_name, username, country, timezone, language_preference, created_at')
         .eq('id', userId)
         .eq('is_active', true)
         .single();
@@ -79,6 +84,11 @@ export const useAuth = () => {
         email: userData.email,
         phone_number: userData.phone_number,
         full_name: userData.full_name,
+        username: userData.username,
+        country: userData.country,
+        timezone: userData.timezone,
+        language_preference: userData.language_preference,
+        created_at: userData.created_at,
         user_metadata: {
           full_name: userData.full_name || undefined,
         }

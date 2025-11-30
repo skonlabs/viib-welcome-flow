@@ -141,6 +141,9 @@ export {
   Apple,
   PlayCircle,
   Star,
+  Moon,
+  Globe,
+  Calendar,
   
   // Loading
   Loader2,

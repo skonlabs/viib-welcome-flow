@@ -12,6 +12,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { FeedbackModal } from './FeedbackModal';
+import { ProfileModal } from './ProfileModal';
+import { SettingsModal } from './SettingsModal';
 
 export const AppHeader = () => {
   const { user, isAdmin, signOut } = useAuth();
@@ -20,11 +22,13 @@ export const AppHeader = () => {
   // Track unread messages count (would connect to real notifications in production)
   const [unreadCount] = useState(0);
   const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const [settingsModalOpen, setSettingsModalOpen] = useState(false);
 
   const menuItems = [
     { icon: Home, label: 'Home', href: '/app/home', showWhenLoggedOut: true, onClick: null },
-    { icon: User, label: 'Profile', href: '/app/profile', showWhenLoggedOut: false, onClick: null },
-    { icon: Settings, label: 'Settings', href: '/app/settings', showWhenLoggedOut: false, onClick: null },
+    { icon: User, label: 'Profile', href: null, showWhenLoggedOut: false, onClick: () => setProfileModalOpen(true) },
+    { icon: Settings, label: 'Settings', href: null, showWhenLoggedOut: false, onClick: () => setSettingsModalOpen(true) },
     { icon: MessageSquare, label: 'Send Feedback', href: null, showWhenLoggedOut: true, onClick: () => setFeedbackModalOpen(true) },
     { icon: Shield, label: 'Admin Console', href: '/app/admin', showWhenLoggedOut: false, adminOnly: true, onClick: null },
   ];
@@ -119,6 +123,8 @@ export const AppHeader = () => {
       </div>
 
       <FeedbackModal open={feedbackModalOpen} onOpenChange={setFeedbackModalOpen} />
+      <ProfileModal open={profileModalOpen} onOpenChange={setProfileModalOpen} />
+      <SettingsModal open={settingsModalOpen} onOpenChange={setSettingsModalOpen} />
     </header>
   );
 };
