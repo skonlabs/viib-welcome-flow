@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { errorLogger } from "@/lib/services/ErrorLoggerService";
 import { UserPlus, X } from "lucide-react";
 
 interface ManageTrustedCircleDialogProps {
@@ -36,8 +37,11 @@ export function ManageTrustedCircleDialog({ open, onOpenChange, listId }: Manage
       if (error) throw error;
       setSharedWith(data || []);
     } catch (error) {
-      console.error('Load shared with error:', error);
-      toast.error('Failed to load trusted circle');
+      await errorLogger.log(error, {
+        operation: 'load_trusted_circle',
+        listId
+      });
+      toast.error('Unable to load trusted circle. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -55,8 +59,11 @@ export function ManageTrustedCircleDialog({ open, onOpenChange, listId }: Manage
       toast.success('User removed from trusted circle');
       loadSharedWith();
     } catch (error) {
-      console.error('Remove user error:', error);
-      toast.error('Failed to remove user');
+      await errorLogger.log(error, {
+        operation: 'remove_user_from_trusted_circle',
+        sharedWithId
+      });
+      toast.error('Unable to remove user. Please try again.');
     }
   };
 

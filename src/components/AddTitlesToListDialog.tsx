@@ -6,6 +6,7 @@ import { Search, Plus, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { errorLogger } from "@/lib/services/ErrorLoggerService";
 
 interface AddTitlesToListDialogProps {
   open: boolean;
@@ -77,8 +78,12 @@ export function AddTitlesToListDialog({ open, onOpenChange, listId, onTitlesAdde
       
       setSearchResults(prev => prev.filter(t => t.external_id !== title.external_id));
     } catch (error) {
-      console.error('Add title error:', error);
-      toast.error('Failed to add title');
+      await errorLogger.log(error, {
+        operation: 'add_title_to_list',
+        listId,
+        titleId: title.external_id
+      });
+      toast.error('Unable to add title. Please try again.');
     }
   };
 

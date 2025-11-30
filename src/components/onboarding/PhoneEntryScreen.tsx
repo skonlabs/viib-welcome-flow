@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BackButton } from "./BackButton";
 import { FloatingParticles } from "./FloatingParticles";
+import { errorLogger } from "@/lib/services/ErrorLoggerService";
 interface PhoneEntryScreenProps {
   onContinue: (phone: string, countryCode: string) => void;
   onBack: () => void;
@@ -45,6 +46,10 @@ export const PhoneEntryScreen = ({
         .maybeSingle();
 
       if (checkError) {
+        await errorLogger.log(checkError, {
+          operation: 'phone_signup_check_existing',
+          phone: fullPhone
+        });
         setError("Unable to verify phone number. Please try again.");
         return;
       }
@@ -68,12 +73,20 @@ export const PhoneEntryScreen = ({
         }
       });
       if (error) {
-        setError(error.message);
+        await errorLogger.log(error, {
+          operation: 'send_phone_otp',
+          phone: fullPhone
+        });
+        setError("Unable to send verification code. Please try again.");
         return;
       }
       onContinue(digits, countryCode);
     } catch (err) {
-      setError("Failed to send verification code");
+      await errorLogger.log(err, {
+        operation: 'phone_signup_process',
+        phone: `${countryCode}${phone.replace(/\D/g, '')}`
+      });
+      setError("Unable to send verification code. Please try again.");
     } finally {
       setLoading(false);
     }

@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { errorLogger } from "@/lib/services/ErrorLoggerService";
 
 interface SocialConnectionScreenProps {
   onInvite: () => void;
@@ -99,13 +100,18 @@ export const SocialConnectionScreen = ({ onInvite, onSkip, onBack }: SocialConne
       setInviteList([]);
       onInvite();
     } catch (error: any) {
-      console.error('Error sending invites:', error);
+      await errorLogger.log(error, {
+        operation: 'send_onboarding_invites',
+        userId,
+        method: inviteMethod,
+        count: inviteList.length
+      });
       toast({
         title: "Error",
-        description: error.message || "Failed to send invites. Please try again.",
+        description: "Unable to send invites. Please try again.",
         variant: "destructive"
       });
-    } finally {
+    } finally{
       setIsLoading(false);
     }
   };
@@ -120,9 +126,13 @@ export const SocialConnectionScreen = ({ onInvite, onSkip, onBack }: SocialConne
       });
       setTimeout(() => setLinkCopied(false), 2000);
     } catch (error) {
+      await errorLogger.log(error, {
+        operation: 'copy_invite_link',
+        userId
+      });
       toast({
         title: "Error",
-        description: "Failed to copy link",
+        description: "Unable to copy link. Please try again.",
         variant: "destructive"
       });
     }
