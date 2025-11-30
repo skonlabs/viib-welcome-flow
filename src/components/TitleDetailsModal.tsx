@@ -43,6 +43,8 @@ export function TitleDetailsModal({ title, open, onOpenChange }: TitleDetailsMod
   const [trailerOpen, setTrailerOpen] = useState(false);
   const [enrichedData, setEnrichedData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [selectedSeason, setSelectedSeason] = useState<any>(null);
+  const [seasonDetailsOpen, setSeasonDetailsOpen] = useState(false);
 
   useEffect(() => {
     if (open && title && title.tmdb_id) {
@@ -82,6 +84,12 @@ export function TitleDetailsModal({ title, open, onOpenChange }: TitleDetailsMod
   const displayEpisodeLength = enrichedData?.avg_episode_minutes || title.avg_episode_minutes;
   const displayAvailability = enrichedData?.streaming_services || title.availability || title.streaming_services || [];
   const displayDescription = title.description || title.overview;
+  const seasons = enrichedData?.seasons || [];
+
+  const handleSeasonClick = (season: any) => {
+    setSelectedSeason(season);
+    setSeasonDetailsOpen(true);
+  };
 
   return (
     <>
@@ -184,10 +192,128 @@ export function TitleDetailsModal({ title, open, onOpenChange }: TitleDetailsMod
               {loading && displayAvailability.length === 0 && (
                 <div className="text-sm text-muted-foreground">Loading streaming availability...</div>
               )}
+
+              {/* Seasons (for TV Shows) */}
+              {title.type === 'series' && seasons.length > 0 && (
+                <div className="space-y-3">
+                  <p className="text-sm font-medium">Seasons:</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {seasons.map((season: any) => (
+                      <button
+                        key={season.season_number}
+                        onClick={() => handleSeasonClick(season)}
+                        className="group relative overflow-hidden rounded-lg border border-border hover:border-primary transition-all hover:shadow-lg"
+                      >
+                        {season.poster_path ? (
+                          <img
+                            src={season.poster_path}
+                            alt={season.name}
+                            className="w-full aspect-[2/3] object-cover"
+                          />
+                        ) : (
+                          <div className="w-full aspect-[2/3] bg-muted flex items-center justify-center">
+                            <span className="text-4xl">📺</span>
+                          </div>
+                        )}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent flex flex-col justify-end p-3">
+                          <p className="text-white font-semibold text-sm">{season.name}</p>
+                          <p className="text-white/80 text-xs">{season.episode_count} episodes</p>
+                          {season.air_date && (
+                            <p className="text-white/60 text-xs">{new Date(season.air_date).getFullYear()}</p>
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {loading && title.type === 'series' && seasons.length === 0 && (
+                <div className="text-sm text-muted-foreground">Loading seasons...</div>
+              )}
             </div>
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Season Details Modal */}
+      {selectedSeason && (
+        <Dialog open={seasonDetailsOpen} onOpenChange={setSeasonDetailsOpen}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>{title.title} - {selectedSeason.name}</DialogTitle>
+              <DialogDescription>
+                {selectedSeason.episode_count} episodes
+                {selectedSeason.air_date && ` • ${new Date(selectedSeason.air_date).getFullYear()}`}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="grid md:grid-cols-[300px_1fr] gap-6">
+              {/* Season Poster */}
+              <div className="relative">
+                {selectedSeason.poster_path ? (
+                  <img
+                    src={selectedSeason.poster_path}
+                    alt={selectedSeason.name}
+                    className="w-full rounded-lg shadow-lg"
+                  />
+                ) : (
+                  <div className="w-full aspect-[2/3] bg-muted rounded-lg flex items-center justify-center">
+                    <span className="text-6xl">📺</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Season Details */}
+              <div className="space-y-4">
+                <div>
+                  <h2 className="text-2xl font-bold">{selectedSeason.name}</h2>
+                  <p className="text-muted-foreground">
+                    Season {selectedSeason.season_number} • {selectedSeason.episode_count} episodes
+                    {selectedSeason.air_date && ` • ${new Date(selectedSeason.air_date).getFullYear()}`}
+                  </p>
+                </div>
+
+                {/* Season Overview */}
+                {selectedSeason.overview && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">Overview:</p>
+                    <p className="text-sm leading-relaxed">{selectedSeason.overview}</p>
+                  </div>
+                )}
+
+                {/* Streaming Services (inherited from main title) */}
+                {displayAvailability.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">Available on:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {displayAvailability.map((service: any, i: number) => (
+                        <div
+                          key={i}
+                          className="flex items-center gap-2 px-3 py-1.5 border border-border rounded-md bg-muted/50"
+                        >
+                          {service.logo_url && (
+                            <img src={service.logo_url} alt={service.service_name} className="w-5 h-5 object-contain" />
+                          )}
+                          <span className="text-sm">{service.service_name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <Button
+                  variant="outline"
+                  onClick={() => setSeasonDetailsOpen(false)}
+                  className="w-full"
+                >
+                  Back to All Seasons
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
 
       <TrailerDialog
         open={trailerOpen}
