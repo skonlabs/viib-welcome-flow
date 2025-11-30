@@ -46,7 +46,7 @@ serve(async (req) => {
   }
 
   try {
-    const { query, genres, language = 'en', limit = 20, page = 1 } = await req.json();
+    const { query, genres, years, language = 'en', limit = 20, page = 1 } = await req.json();
 
     if (!TMDB_API_KEY) {
       throw new Error('TMDB_API_KEY not configured');
@@ -63,9 +63,21 @@ serve(async (req) => {
       tvResponse.json()
     ]);
 
+    // Filter by years if specified
+    const filterByYear = (item: any, isMovie: boolean) => {
+      if (!years || years.length === 0) return true;
+      const dateField = isMovie ? 'release_date' : 'first_air_date';
+      if (!item[dateField]) return false;
+      const itemYear = new Date(item[dateField]).getFullYear();
+      return years.includes(itemYear);
+    };
+
+    const filteredMovies = (movieData.results || []).filter((movie: any) => filterByYear(movie, true));
+    const filteredTv = (tvData.results || []).filter((tv: any) => filterByYear(tv, false));
+
     // Fetch certifications and details for movies
     const moviesWithCertifications = await Promise.all(
-      (movieData.results || []).slice(0, 10).map(async (movie: any) => {
+      filteredMovies.slice(0, 10).map(async (movie: any) => {
         try {
           const [certResponse, detailsResponse, providersResponse] = await Promise.all([
             fetch(`${TMDB_BASE_URL}/movie/${movie.id}/release_dates?api_key=${TMDB_API_KEY}`),
@@ -136,7 +148,7 @@ serve(async (req) => {
 
     // Fetch detailed info for TV shows to get number of seasons and certification
     const tvShowsWithDetails = await Promise.all(
-      (tvData.results || []).slice(0, 10).map(async (tv: any) => {
+      filteredTv.slice(0, 10).map(async (tv: any) => {
         try {
           const [detailsResponse, certResponse, providersResponse] = await Promise.all([
             fetch(`${TMDB_BASE_URL}/tv/${tv.id}?api_key=${TMDB_API_KEY}&language=${language}`),

@@ -15,6 +15,10 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 
 const GENRES = ["Action", "Comedy", "Drama", "Thriller", "Romance", "Sci-Fi", "Horror", "Documentary", "Animation", "Fantasy"];
 
+// Generate year options (current year and past 9 years)
+const currentYear = new Date().getFullYear();
+const YEARS = Array.from({ length: 10 }, (_, i) => currentYear - i);
+
 export default function Search() {
   const { user } = useAuth();
   const [query, setQuery] = useState("");
@@ -24,6 +28,7 @@ export default function Search() {
   const [selectedMoods, setSelectedMoods] = useState<string[]>([]);
   const [moodIntensity, setMoodIntensity] = useState<number>(0.5);
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
+  const [selectedYears, setSelectedYears] = useState<number[]>([currentYear, currentYear - 1, currentYear - 2]);
   const [services, setServices] = useState<any[]>([]);
   const [emotions, setEmotions] = useState<Array<{ id: string; emotion_label: string }>>([]);
   const [selectedTitle, setSelectedTitle] = useState<TitleWithAvailability | null>(null);
@@ -169,6 +174,7 @@ export default function Search() {
             body: {
               query: value,
               genres: selectedGenres.length > 0 ? selectedGenres : undefined,
+              years: selectedYears.length > 0 ? selectedYears : undefined,
               language: 'en',
               limit: 8
             }
@@ -256,6 +262,7 @@ export default function Search() {
         body: {
           query: query || 'popular',
           genres: selectedGenres.length > 0 ? selectedGenres : undefined,
+          years: selectedYears.length > 0 ? selectedYears : undefined,
           language: 'en',
           limit: 20
         }
@@ -282,6 +289,7 @@ export default function Search() {
         body: {
           query: query || 'popular',
           genres: selectedGenres.length > 0 ? selectedGenres : undefined,
+          years: selectedYears.length > 0 ? selectedYears : undefined,
           language: 'en',
           limit: 20,
           page: nextPage
@@ -319,10 +327,17 @@ export default function Search() {
     );
   };
 
+  const toggleYear = (year: number) => {
+    setSelectedYears(prev =>
+      prev.includes(year) ? prev.filter(y => y !== year) : [...prev, year]
+    );
+  };
+
   const clearFilters = () => {
     setSelectedGenres([]);
     setSelectedMoods([]);
     setSelectedServices([]);
+    setSelectedYears([currentYear, currentYear - 1, currentYear - 2]);
   };
 
   return (
@@ -331,7 +346,7 @@ export default function Search() {
         <h1 className="text-3xl font-bold">Search</h1>
 
         {/* Active Filters Display */}
-        {(selectedGenres.length > 0 || selectedMoods.length > 0) && (
+        {(selectedGenres.length > 0 || selectedMoods.length > 0 || selectedYears.length !== 3) && (
           <Card className="p-4">
             <div className="space-y-3">
               <div className="flex items-center justify-between">
@@ -340,6 +355,24 @@ export default function Search() {
                   Clear All
                 </Button>
               </div>
+
+              {selectedYears.length > 0 && selectedYears.length !== 3 && (
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Release Years</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedYears.sort((a, b) => b - a).map(year => (
+                      <Badge
+                        key={year}
+                        variant="secondary"
+                        className="cursor-pointer"
+                        onClick={() => toggleYear(year)}
+                      >
+                        {year} <X className="w-3 h-3 ml-1" />
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {selectedGenres.length > 0 && (
                 <div className="space-y-2">
@@ -523,6 +556,23 @@ export default function Search() {
                     onChange={(e) => setMoodIntensity(parseFloat(e.target.value))}
                     className="w-full h-2 bg-accent rounded-lg appearance-none cursor-pointer slider"
                   />
+                </div>
+
+                {/* Release Years */}
+                <div className="space-y-3">
+                  <Label className="text-base font-semibold">Release Years</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {YEARS.map(year => (
+                      <Badge
+                        key={year}
+                        variant={selectedYears.includes(year) ? "default" : "outline"}
+                        className="cursor-pointer"
+                        onClick={() => toggleYear(year)}
+                      >
+                        {year}
+                      </Badge>
+                    ))}
+                  </div>
                 </div>
 
                 {/* Services */}
