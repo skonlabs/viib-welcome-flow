@@ -11,6 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { FeedbackModal } from './FeedbackModal';
 
 export const AppHeader = () => {
   const { user, isAdmin, signOut } = useAuth();
@@ -18,13 +19,14 @@ export const AppHeader = () => {
   
   // Track unread messages count (would connect to real notifications in production)
   const [unreadCount] = useState(0);
+  const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
 
   const menuItems = [
-    { icon: Home, label: 'Home', href: '/app/home', showWhenLoggedOut: true },
-    { icon: User, label: 'Profile', href: '/app/profile', showWhenLoggedOut: false },
-    { icon: Settings, label: 'Settings', href: '/app/settings', showWhenLoggedOut: false },
-    { icon: MessageSquare, label: 'Send Feedback', href: '/app/feedback', showWhenLoggedOut: true },
-    { icon: Shield, label: 'Admin Console', href: '/app/admin', showWhenLoggedOut: false, adminOnly: true },
+    { icon: Home, label: 'Home', href: '/app/home', showWhenLoggedOut: true, onClick: null },
+    { icon: User, label: 'Profile', href: '/app/profile', showWhenLoggedOut: false, onClick: null },
+    { icon: Settings, label: 'Settings', href: '/app/settings', showWhenLoggedOut: false, onClick: null },
+    { icon: MessageSquare, label: 'Send Feedback', href: null, showWhenLoggedOut: true, onClick: () => setFeedbackModalOpen(true) },
+    { icon: Shield, label: 'Admin Console', href: '/app/admin', showWhenLoggedOut: false, adminOnly: true, onClick: null },
   ];
 
   const visibleMenuItems = menuItems.filter(item => {
@@ -93,7 +95,7 @@ export const AppHeader = () => {
                 {visibleMenuItems.map((item) => (
               <DropdownMenuItem
                 key={item.label}
-                onClick={() => navigate(item.href)}
+                onClick={() => item.onClick ? item.onClick() : navigate(item.href)}
                 className="flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-muted/50 focus:bg-muted/50 rounded-lg transition-colors"
               >
                     <item.icon className="w-5 h-5 text-icon-secondary" />
@@ -115,6 +117,8 @@ export const AppHeader = () => {
           )}
         </div>
       </div>
+
+      <FeedbackModal open={feedbackModalOpen} onOpenChange={setFeedbackModalOpen} />
     </header>
   );
 };
