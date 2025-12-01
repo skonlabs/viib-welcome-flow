@@ -44,7 +44,7 @@ serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // Parse request body for optional year range
+    // Parse request body for optional year range and languages
     let requestBody: any = {};
     try {
       const text = await req.text();
@@ -77,9 +77,10 @@ serve(async (req) => {
     const minRating = config.min_rating || 6.0;
     const titlesPerBatch = config.titles_per_batch || 100;
     
-    // Use year range from request body if provided, otherwise use config
+    // Use parameters from request body if provided, otherwise use config
     const startYear = requestBody.startYear || config.start_year || 2020;
     const endYear = requestBody.endYear || config.end_year || 2025;
+    const languageCodes = requestBody.languageCodes || null; // Array of specific language codes to process
 
     // Fetch all genres, languages, and streaming services
     const [genresRes, languagesRes, servicesRes] = await Promise.all([
@@ -89,8 +90,13 @@ serve(async (req) => {
     ]);
 
     const genres = genresRes.data || [];
-    const languages = languagesRes.data || [];
+    let languages = languagesRes.data || [];
     const streamingServices = servicesRes.data || [];
+
+    // Filter languages if specific codes were provided
+    if (languageCodes && Array.isArray(languageCodes) && languageCodes.length > 0) {
+      languages = languages.filter(lang => languageCodes.includes(lang.language_code));
+    }
 
     // Create genre name to UUID mapping
     const genreNameToId: Record<string, string> = {};
