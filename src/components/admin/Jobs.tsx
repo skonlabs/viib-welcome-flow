@@ -402,7 +402,7 @@ export const Jobs = () => {
 
         toast({
           title: "Orchestrator Started",
-          description: `Backend is dispatching ${chunks.length - startIndex} threads sequentially with 500ms delays. Estimated time: ${Math.ceil((chunks.length - startIndex) * 0.5 / 60)} minutes.`,
+          description: `Backend is dispatching ${chunks.length - startIndex} threads in batches of 5 with 10s delays. Estimated time: ~2-3 hours.`,
         });
       } catch (error) {
         console.error('Error starting orchestrator:', error);
