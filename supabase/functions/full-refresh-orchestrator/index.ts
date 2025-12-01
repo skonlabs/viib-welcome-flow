@@ -34,7 +34,7 @@ serve(async (req) => {
 
     // Dispatch threads in batches with proper concurrency control
     const dispatchAllThreads = async () => {
-      const BATCH_SIZE = 5; // Process 5 threads concurrently per batch
+      const BATCH_SIZE = 10; // Process 10 threads concurrently per batch
       const BATCH_DELAY_MS = 10000; // 10 second delay between batches
       const totalThreads = chunks.length - startIndex;
       const totalBatches = Math.ceil(totalThreads / BATCH_SIZE);
