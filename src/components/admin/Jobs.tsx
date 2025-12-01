@@ -116,36 +116,67 @@ export const Jobs = () => {
       const startYear = config.start_year || 2020;
       const endYear = config.end_year || 2025;
       
-      // Split into 2-year chunks for parallel processing
-      const yearChunks: Array<{ start: number; end: number }> = [];
-      for (let year = startYear; year <= endYear; year += 2) {
-        yearChunks.push({
-          start: year,
-          end: Math.min(year + 1, endYear)
-        });
+      // Fetch all languages from database
+      const { data: languagesData } = await supabase
+        .from('languages')
+        .select('language_code, language_name');
+      
+      const languages = languagesData || [];
+      
+      // Create fine-grained chunks: 1 year + 2-3 languages per job
+      const languagesPerChunk = 3;
+      const chunks: Array<{ year: number; languageCodes: string[] }> = [];
+      
+      for (let year = startYear; year <= endYear; year++) {
+        for (let i = 0; i < languages.length; i += languagesPerChunk) {
+          const languageSlice = languages.slice(i, i + languagesPerChunk);
+          chunks.push({
+            year,
+            languageCodes: languageSlice.map(l => l.language_code)
+          });
+        }
       }
 
       toast({
         title: "Parallel Jobs Started",
-        description: `Starting ${yearChunks.length} parallel jobs for years ${startYear}-${endYear}...`,
+        description: `Starting ${chunks.length} parallel jobs (${languages.length} languages × ${endYear - startYear + 1} years)...`,
       });
 
-      // Invoke all functions in parallel
-      const promises = yearChunks.map(chunk => 
-        supabase.functions.invoke('full-refresh-titles', {
-          body: { startYear: chunk.start, endYear: chunk.end }
-        })
-      );
+      // Process in batches of 10 concurrent requests to avoid overwhelming the system
+      const batchSize = 10;
+      let succeeded = 0;
+      let failed = 0;
 
-      const results = await Promise.allSettled(promises);
-      
-      // Count successes and failures
-      const succeeded = results.filter(r => r.status === 'fulfilled').length;
-      const failed = results.filter(r => r.status === 'rejected').length;
+      for (let i = 0; i < chunks.length; i += batchSize) {
+        const batch = chunks.slice(i, i + batchSize);
+        
+        const promises = batch.map(chunk => 
+          supabase.functions.invoke('full-refresh-titles', {
+            body: { 
+              startYear: chunk.year, 
+              endYear: chunk.year,
+              languageCodes: chunk.languageCodes
+            }
+          })
+        );
+
+        const results = await Promise.allSettled(promises);
+        succeeded += results.filter(r => r.status === 'fulfilled').length;
+        failed += results.filter(r => r.status === 'rejected').length;
+
+        // Update progress
+        toast({
+          title: "Progress Update",
+          description: `Completed ${i + batch.length}/${chunks.length} jobs (${succeeded} succeeded, ${failed} failed)`,
+        });
+
+        // Small delay between batches
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
 
       toast({
         title: "Parallel Jobs Completed",
-        description: `${succeeded} jobs succeeded, ${failed} jobs failed.`,
+        description: `All jobs finished: ${succeeded} succeeded, ${failed} failed.`,
         variant: failed > 0 ? "destructive" : "default"
       });
 
