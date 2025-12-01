@@ -140,7 +140,7 @@ export const Jobs = () => {
 
       toast({
         title: "Parallel Jobs Started",
-        description: `Starting ${chunks.length} sequential jobs with 30s delay (${genreIds.length} genres × ${endYear - startYear + 1} years)...`,
+        description: `Processing ${chunks.length} threads with 30s delay between each. This will take approximately ${Math.floor((chunks.length * 30) / 60)} minutes.`,
       });
 
       // Process jobs sequentially with 30-second delay between each
@@ -170,8 +170,8 @@ export const Jobs = () => {
 
         // Update progress after each job
         toast({
-          title: "Progress Update",
-          description: `Completed ${i + 1}/${chunks.length} jobs (${succeeded} succeeded, ${failed} failed)`,
+          title: `Thread ${i + 1}/${chunks.length} Completed`,
+          description: `Progress: ${succeeded} succeeded, ${failed} failed. ${chunks.length - (i + 1)} threads remaining.`,
         });
 
         // 30-second delay between jobs (except after the last one)
