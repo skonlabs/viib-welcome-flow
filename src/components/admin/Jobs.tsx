@@ -35,10 +35,20 @@ interface Job {
   configuration: any;
 }
 
+interface ParallelProgress {
+  jobId: string;
+  currentThread: number;
+  totalThreads: number;
+  succeeded: number;
+  failed: number;
+  titlesProcessed: number;
+}
+
 export const Jobs = () => {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [runningJobs, setRunningJobs] = useState<Set<string>>(new Set());
+  const [parallelProgress, setParallelProgress] = useState<ParallelProgress | null>(null);
   const { toast } = useToast();
 
   const fetchJobs = async () => {
@@ -138,6 +148,16 @@ export const Jobs = () => {
         })
         .eq('id', job.id);
 
+      // Initialize progress tracking
+      setParallelProgress({
+        jobId: job.id,
+        currentThread: 0,
+        totalThreads: chunks.length,
+        succeeded: 0,
+        failed: 0,
+        titlesProcessed: 0
+      });
+
       toast({
         title: "Parallel Jobs Started",
         description: `Processing ${chunks.length} threads with 30s delay between each. This will take approximately ${Math.floor((chunks.length * 30) / 60)} minutes.`,
@@ -168,6 +188,23 @@ export const Jobs = () => {
           failed++;
         }
 
+        // Fetch updated job to get current title count
+        const { data: updatedJob } = await supabase
+          .from('jobs')
+          .select('total_titles_processed')
+          .eq('id', job.id)
+          .single();
+
+        // Update progress state
+        setParallelProgress({
+          jobId: job.id,
+          currentThread: i + 1,
+          totalThreads: chunks.length,
+          succeeded,
+          failed,
+          titlesProcessed: updatedJob?.total_titles_processed || 0
+        });
+
         // Update progress after each job
         toast({
           title: `Thread ${i + 1}/${chunks.length} Completed`,
@@ -179,6 +216,9 @@ export const Jobs = () => {
           await new Promise(resolve => setTimeout(resolve, 30000));
         }
       }
+
+      // Clear progress tracking
+      setParallelProgress(null);
 
       toast({
         title: "Parallel Jobs Completed",
@@ -399,6 +439,40 @@ export const Jobs = () => {
                   <div className="font-medium">{job.total_titles_processed.toLocaleString()}</div>
                 </div>
               </div>
+
+              {/* Parallel Progress Display */}
+              {parallelProgress && parallelProgress.jobId === job.id && (
+                <div className="p-4 bg-primary/10 border border-primary/20 rounded-lg space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="font-semibold text-primary">
+                      Thread {parallelProgress.currentThread}/{parallelProgress.totalThreads}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      {Math.round((parallelProgress.currentThread / parallelProgress.totalThreads) * 100)}% Complete
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-sm">
+                    <div>
+                      <div className="text-muted-foreground text-xs">Succeeded</div>
+                      <div className="font-medium text-success">{parallelProgress.succeeded}</div>
+                    </div>
+                    <div>
+                      <div className="text-muted-foreground text-xs">Failed</div>
+                      <div className="font-medium text-destructive">{parallelProgress.failed}</div>
+                    </div>
+                    <div>
+                      <div className="text-muted-foreground text-xs">Titles</div>
+                      <div className="font-medium">{parallelProgress.titlesProcessed.toLocaleString()}</div>
+                    </div>
+                  </div>
+                  <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+                    <div 
+                      className="h-full bg-primary transition-all duration-300"
+                      style={{ width: `${(parallelProgress.currentThread / parallelProgress.totalThreads) * 100}%` }}
+                    />
+                  </div>
+                </div>
+              )}
 
               {/* Error Message */}
               {job.error_message && (
