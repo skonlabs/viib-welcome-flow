@@ -34,26 +34,14 @@ serve(async (req) => {
 
     // Dispatch all threads asynchronously in the background
     const dispatchAllThreads = async () => {
-      const STAGGER_DELAY_MS = 5000; // 5 seconds between each invocation
+      console.log(`Starting rapid dispatch of ${chunks.length - startIndex} threads...`);
       
       for (let i = startIndex; i < chunks.length; i++) {
         const chunk = chunks[i];
         
-        // Check if job was stopped
-        const { data: jobStatus } = await supabase
-          .from('jobs')
-          .select('status')
-          .eq('id', jobId)
-          .single();
-        
-        if (jobStatus?.status === 'failed' || jobStatus?.status === 'idle') {
-          console.log(`Job ${jobId} was stopped. Halting orchestration at thread ${i + 1}.`);
-          break;
-        }
-        
         try {
-          // Invoke the worker function
-          await supabase.functions.invoke('full-refresh-titles', {
+          // Invoke the worker function (fire and forget)
+          supabase.functions.invoke('full-refresh-titles', {
             body: {
               languageCode: chunk.languageCode,
               startYear: chunk.year,
@@ -61,20 +49,20 @@ serve(async (req) => {
               genreId: chunk.genreId,
               jobId: jobId
             }
+          }).catch(error => {
+            console.error(`Error dispatching thread ${i + 1}:`, error);
           });
           
-          console.log(`Thread ${i + 1}/${chunks.length} dispatched successfully`);
+          // Log every 100 threads
+          if ((i - startIndex + 1) % 100 === 0) {
+            console.log(`Dispatched ${i - startIndex + 1}/${chunks.length - startIndex} threads`);
+          }
         } catch (error) {
           console.error(`Error dispatching thread ${i + 1}:`, error);
         }
-        
-        // Stagger the next invocation
-        if (i < chunks.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, STAGGER_DELAY_MS));
-        }
       }
       
-      console.log(`Orchestrator completed: all threads dispatched for job ${jobId}`);
+      console.log(`Orchestrator completed: all ${chunks.length - startIndex} threads dispatched for job ${jobId}`);
     };
 
     // Use waitUntil to ensure background task continues even if response is sent
