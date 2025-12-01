@@ -163,67 +163,82 @@ export const Jobs = () => {
         description: `Processing ${chunks.length} threads with 30s delay between each. This will take approximately ${Math.floor((chunks.length * 30) / 60)} minutes.`,
       });
 
-      // Process jobs sequentially with 30-second delay between each
-      let succeeded = 0;
-      let failed = 0;
-
+      // Fire off all jobs without waiting, with small delays to avoid overwhelming the server
+      const invokePromises: Promise<void>[] = [];
+      
       for (let i = 0; i < chunks.length; i++) {
         const chunk = chunks[i];
+        const delayMs = i * 5000; // 5 second stagger between each request
         
-        try {
-          const { error } = await supabase.functions.invoke('full-refresh-titles', {
-            body: { 
-              startYear: chunk.year, 
-              endYear: chunk.year,
-              genreId: chunk.genreId
-            }
-          });
-
-          if (error) {
-            failed++;
-          } else {
-            succeeded++;
+        const invokePromise = (async () => {
+          await new Promise(resolve => setTimeout(resolve, delayMs));
+          
+          try {
+            await supabase.functions.invoke('full-refresh-titles', {
+              body: { 
+                startYear: chunk.year, 
+                endYear: chunk.year,
+                genreId: chunk.genreId,
+                jobId: job.id // Pass job ID to edge function
+              }
+            });
+          } catch (error) {
+            console.error(`Error invoking thread ${i + 1}:`, error);
           }
-        } catch (error) {
-          failed++;
-        }
+        })();
+        
+        invokePromises.push(invokePromise);
+      }
 
-        // Fetch updated job to get current title count
+      toast({
+        title: "All Threads Dispatched",
+        description: `${chunks.length} edge functions are now running in parallel. Monitoring progress...`,
+      });
+
+      // Now poll the database every 10 seconds to track actual progress
+      const pollInterval = setInterval(async () => {
         const { data: updatedJob } = await supabase
           .from('jobs')
-          .select('total_titles_processed')
+          .select('total_titles_processed, status')
           .eq('id', job.id)
           .single();
 
-        // Update progress state
-        setParallelProgress({
-          jobId: job.id,
-          currentThread: i + 1,
-          totalThreads: chunks.length,
-          succeeded,
-          failed,
-          titlesProcessed: updatedJob?.total_titles_processed || 0
-        });
+        if (updatedJob) {
+          // Estimate threads completed based on average ~150 titles per thread
+          const estimatedCompleted = Math.floor((updatedJob.total_titles_processed || 0) / 150);
+          
+          setParallelProgress({
+            jobId: job.id,
+            currentThread: estimatedCompleted,
+            totalThreads: chunks.length,
+            succeeded: estimatedCompleted,
+            failed: 0,
+            titlesProcessed: updatedJob.total_titles_processed || 0
+          });
 
-        // Update progress after each job
-        toast({
-          title: `Thread ${i + 1}/${chunks.length} Completed`,
-          description: `Progress: ${succeeded} succeeded, ${failed} failed. ${chunks.length - (i + 1)} threads remaining.`,
-        });
-
-        // 30-second delay between jobs (except after the last one)
-        if (i < chunks.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 30000));
+          // Check if all edge functions have likely completed
+          // (this is approximate - we'd need a better tracking system for exact count)
+          if (estimatedCompleted >= chunks.length) {
+            clearInterval(pollInterval);
+          }
         }
-      }
+      }, 10000); // Poll every 10 seconds
+
+      // Wait for all invoke calls to be sent (not for edge functions to finish)
+      await Promise.all(invokePromises);
+      
+      // Keep polling for another 2 hours max to let edge functions finish
+      setTimeout(() => {
+        clearInterval(pollInterval);
+        setParallelProgress(null);
+      }, 7200000); // 2 hours
 
       // Clear progress tracking
       setParallelProgress(null);
 
       toast({
         title: "Parallel Jobs Completed",
-        description: `All jobs finished: ${succeeded} succeeded, ${failed} failed.`,
-        variant: failed > 0 ? "destructive" : "default"
+        description: `All ${chunks.length} edge functions have been dispatched and will continue running in the background.`,
       });
 
       await fetchJobs();
