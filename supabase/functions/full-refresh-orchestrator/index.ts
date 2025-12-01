@@ -32,16 +32,38 @@ serve(async (req) => {
 
     console.log(`Orchestrator started: dispatching ${chunks.length - startIndex} threads for job ${jobId}`);
 
-    // Dispatch all threads asynchronously in the background
+    // Dispatch all threads in batches to avoid overwhelming the system
     const dispatchAllThreads = async () => {
-      console.log(`Starting rapid dispatch of ${chunks.length - startIndex} threads...`);
+      const BATCH_SIZE = 50; // Dispatch 50 threads at a time
+      const BATCH_DELAY_MS = 2000; // 2 second delay between batches
+      const totalThreads = chunks.length - startIndex;
       
-      for (let i = startIndex; i < chunks.length; i++) {
-        const chunk = chunks[i];
+      console.log(`Starting batched dispatch: ${totalThreads} threads in batches of ${BATCH_SIZE}`);
+      
+      for (let batchStart = startIndex; batchStart < chunks.length; batchStart += BATCH_SIZE) {
+        const batchEnd = Math.min(batchStart + BATCH_SIZE, chunks.length);
+        const batchNum = Math.floor((batchStart - startIndex) / BATCH_SIZE) + 1;
+        const totalBatches = Math.ceil(totalThreads / BATCH_SIZE);
         
-        try {
-          // Invoke the worker function (fire and forget)
-          supabase.functions.invoke('full-refresh-titles', {
+        // Check if job was stopped
+        const { data: jobStatus } = await supabase
+          .from('jobs')
+          .select('status')
+          .eq('id', jobId)
+          .single();
+        
+        if (jobStatus?.status === 'failed' || jobStatus?.status === 'idle') {
+          console.log(`Job ${jobId} was stopped. Halting orchestration at batch ${batchNum}.`);
+          break;
+        }
+        
+        console.log(`Dispatching batch ${batchNum}/${totalBatches} (threads ${batchStart + 1}-${batchEnd})...`);
+        
+        // Dispatch all threads in current batch simultaneously
+        const batchPromises = [];
+        for (let i = batchStart; i < batchEnd; i++) {
+          const chunk = chunks[i];
+          const invokePromise = supabase.functions.invoke('full-refresh-titles', {
             body: {
               languageCode: chunk.languageCode,
               startYear: chunk.year,
@@ -52,17 +74,21 @@ serve(async (req) => {
           }).catch(error => {
             console.error(`Error dispatching thread ${i + 1}:`, error);
           });
-          
-          // Log every 100 threads
-          if ((i - startIndex + 1) % 100 === 0) {
-            console.log(`Dispatched ${i - startIndex + 1}/${chunks.length - startIndex} threads`);
-          }
-        } catch (error) {
-          console.error(`Error dispatching thread ${i + 1}:`, error);
+          batchPromises.push(invokePromise);
+        }
+        
+        // Wait for all threads in batch to be dispatched
+        await Promise.all(batchPromises);
+        
+        console.log(`Batch ${batchNum}/${totalBatches} dispatched successfully`);
+        
+        // Wait before next batch (except for last batch)
+        if (batchEnd < chunks.length) {
+          await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
         }
       }
       
-      console.log(`Orchestrator completed: all ${chunks.length - startIndex} threads dispatched for job ${jobId}`);
+      console.log(`Orchestrator completed: all batches dispatched for job ${jobId}`);
     };
 
     // Use waitUntil to ensure background task continues even if response is sent
