@@ -42,14 +42,21 @@ serve(async (req) => {
       for (let i = startIndex; i < chunks.length; i++) {
         // Check if job was stopped every 10 threads
         if (i % 10 === 0) {
-          const { data: jobStatus } = await supabase
+          const { data: jobStatus, error: statusError } = await supabase
             .from('jobs')
-            .select('status')
+            .select('status, error_message, updated_at')
             .eq('id', jobId)
             .single();
           
+          console.log(`Status check at thread ${i + 1}:`, { 
+            status: jobStatus?.status, 
+            error_message: jobStatus?.error_message,
+            updated_at: jobStatus?.updated_at,
+            statusError 
+          });
+          
           if (jobStatus?.status === 'failed' || jobStatus?.status === 'idle') {
-            console.log(`Job ${jobId} was stopped. Halting orchestration at thread ${i + 1}.`);
+            console.error(`Job ${jobId} status changed to '${jobStatus.status}'. Error: ${jobStatus.error_message}. Halting orchestration at thread ${i + 1}.`);
             break;
           }
         }
