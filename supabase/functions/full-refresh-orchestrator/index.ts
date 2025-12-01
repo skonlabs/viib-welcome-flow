@@ -34,10 +34,10 @@ serve(async (req) => {
 
     // Dispatch threads with proper staggering to respect concurrency limits
     const dispatchAllThreads = async () => {
-      const THREAD_DELAY_MS = 500; // 500ms delay between each individual thread
+      const THREAD_DELAY_MS = 3000; // 3 second delay between threads to prevent overwhelming concurrency
       const totalThreads = chunks.length - startIndex;
       
-      console.log(`Starting sequential dispatch: ${totalThreads} threads with ${THREAD_DELAY_MS}ms stagger`);
+      console.log(`Starting sequential dispatch: ${totalThreads} threads with ${THREAD_DELAY_MS / 1000}s stagger`);
       
       for (let i = startIndex; i < chunks.length; i++) {
         // Check if job was stopped every 10 threads

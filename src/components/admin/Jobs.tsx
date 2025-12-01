@@ -378,8 +378,8 @@ export const Jobs = () => {
       toast({
         title: isResume ? "Resuming Parallel Jobs" : "Starting Parallel Jobs",
         description: isResume 
-          ? `Resuming from thread ${startIndex + 1}. Backend orchestrator will dispatch ${chunks.length - startIndex} remaining threads in batches of 50.`
-          : `Backend orchestrator will dispatch all ${chunks.length} threads in batches of 50 (2s delay between batches). Job will continue even if you close your browser.`,
+          ? `Resuming from thread ${startIndex + 1}. Backend orchestrator will dispatch ${chunks.length - startIndex} remaining threads sequentially (3s delay between each).`
+          : `Backend orchestrator will dispatch all ${chunks.length} threads sequentially with 3s delay between each. Estimated time: ${Math.ceil(chunks.length * 3 / 60)} min. Job continues even if you close browser.`,
       });
 
       // Invoke the orchestrator edge function - it will handle all dispatching server-side
