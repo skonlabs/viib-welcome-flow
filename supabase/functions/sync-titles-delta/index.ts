@@ -67,6 +67,8 @@ serve(async (req) => {
     const config = jobData?.configuration as any || {};
     const minRating = config.min_rating || 6.0;
     const lookbackDays = config.lookback_days || 7;
+    const startYear = config.start_year || null;
+    const endYear = config.end_year || null;
 
     // Calculate date range
     const endDate = new Date();
@@ -75,6 +77,11 @@ serve(async (req) => {
 
     const startDateStr = startDate.toISOString().split('T')[0];
     const endDateStr = endDate.toISOString().split('T')[0];
+
+    console.log(`Syncing titles from ${startDateStr} to ${endDateStr}`);
+    if (startYear && endYear) {
+      console.log(`Year filter: ${startYear}-${endYear}`);
+    }
 
     // Fetch all genres, languages, and streaming services
     const [genresRes, languagesRes, servicesRes] = await Promise.all([
@@ -103,7 +110,12 @@ serve(async (req) => {
       console.log(`Fetching: Lang=${language.language_name}`);
 
       // Fetch new movies
-      const moviesUrl = `https://api.themoviedb.org/3/discover/movie?api_key=${TMDB_API_KEY}&primary_release_date.gte=${startDateStr}&primary_release_date.lte=${endDateStr}&with_original_language=${language.language_code}&vote_average.gte=${minRating}&vote_count.gte=5&sort_by=release_date.desc&page=1`;
+      let moviesUrl = `https://api.themoviedb.org/3/discover/movie?api_key=${TMDB_API_KEY}&primary_release_date.gte=${startDateStr}&primary_release_date.lte=${endDateStr}&with_original_language=${language.language_code}&vote_average.gte=${minRating}&vote_count.gte=5&sort_by=release_date.desc&page=1`;
+      
+      // Add year filter if specified
+      if (startYear && endYear) {
+        moviesUrl += `&primary_release_date.gte=${startYear}-01-01&primary_release_date.lte=${endYear}-12-31`;
+      }
       
       const moviesResponse = await fetch(moviesUrl);
       const moviesData = await moviesResponse.json();
@@ -177,7 +189,12 @@ serve(async (req) => {
       }
 
       // Fetch new TV shows
-      const tvUrl = `https://api.themoviedb.org/3/discover/tv?api_key=${TMDB_API_KEY}&first_air_date.gte=${startDateStr}&first_air_date.lte=${endDateStr}&with_original_language=${language.language_code}&vote_average.gte=${minRating}&vote_count.gte=5&sort_by=first_air_date.desc&page=1`;
+      let tvUrl = `https://api.themoviedb.org/3/discover/tv?api_key=${TMDB_API_KEY}&first_air_date.gte=${startDateStr}&first_air_date.lte=${endDateStr}&with_original_language=${language.language_code}&vote_average.gte=${minRating}&vote_count.gte=5&sort_by=first_air_date.desc&page=1`;
+      
+      // Add year filter if specified
+      if (startYear && endYear) {
+        tvUrl += `&first_air_date.gte=${startYear}-01-01&first_air_date.lte=${endYear}-12-31`;
+      }
       
       const tvResponse = await fetch(tvUrl);
       const tvData = await tvResponse.json();
