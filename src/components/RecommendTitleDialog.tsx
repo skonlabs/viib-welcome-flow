@@ -11,10 +11,13 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import { Users } from "@/icons";
+import { Users, X, Mail, Phone } from "@/icons";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { errorLogger } from "@/lib/services/ErrorLoggerService";
 
 interface Friend {
   id: string;
@@ -37,6 +40,9 @@ export function RecommendTitleDialog({
 }: RecommendTitleDialogProps) {
   const [friends, setFriends] = useState<Friend[]>([]);
   const [selectedFriends, setSelectedFriends] = useState<string[]>([]);
+  const [method, setMethod] = useState<"email" | "phone">("email");
+  const [contactInput, setContactInput] = useState("");
+  const [newContacts, setNewContacts] = useState<string[]>([]);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const { user } = useAuth();
@@ -73,44 +79,104 @@ export function RecommendTitleDialog({
 
       setFriends(friendsList);
     } catch (error) {
-      console.error("Failed to load friends:", error);
+      await errorLogger.log(error, {
+        operation: 'recommend_title_load_friends',
+        titleId
+      });
       toast.error("Failed to load friends list");
     }
   };
 
+  const validateContact = (contact: string) => {
+    if (method === "email") {
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact);
+    } else {
+      return /^\+?[\d\s\-()]+$/.test(contact);
+    }
+  };
+
+  const addNewContact = () => {
+    if (!contactInput.trim()) {
+      toast.error(`Please enter ${method === "email" ? "an email address" : "a phone number"}`);
+      return;
+    }
+
+    if (!validateContact(contactInput)) {
+      toast.error(`Please enter a valid ${method === "email" ? "email address" : "phone number"}`);
+      return;
+    }
+
+    if (newContacts.includes(contactInput)) {
+      toast.error("This contact has already been added");
+      return;
+    }
+
+    setNewContacts([...newContacts, contactInput]);
+    setContactInput("");
+  };
+
+  const removeNewContact = (contact: string) => {
+    setNewContacts(newContacts.filter((c) => c !== contact));
+  };
+
   const handleRecommend = async () => {
-    if (!user || selectedFriends.length === 0) {
-      toast.error("Please select at least one friend");
+    const totalRecipients = selectedFriends.length + newContacts.length;
+    
+    if (!user || totalRecipients === 0) {
+      toast.error("Please select at least one friend or add a contact");
       return;
     }
 
     setLoading(true);
 
     try {
-      const recommendations = selectedFriends.map((friendId) => ({
-        sender_user_id: user.id,
-        receiver_user_id: friendId,
-        title_id: titleId,
-        message: message || null,
-      }));
+      // Send recommendations to existing friends
+      if (selectedFriends.length > 0) {
+        const recommendations = selectedFriends.map((friendId) => ({
+          sender_user_id: user.id,
+          receiver_user_id: friendId,
+          title_id: titleId,
+          message: message || null,
+        }));
 
-      const { error } = await supabase
-        .from("user_social_recommendations")
-        .insert(recommendations);
+        const { error } = await supabase
+          .from("user_social_recommendations")
+          .insert(recommendations);
 
-      if (error) throw error;
+        if (error) throw error;
+      }
+
+      // Send invitations to new contacts with recommendation
+      if (newContacts.length > 0) {
+        const { error: inviteError } = await supabase.functions.invoke('send-invites', {
+          body: {
+            userId: user.id,
+            method,
+            contacts: newContacts,
+            note: `${message ? message + '\n\n' : ''}Check out "${titleName}" on ViiB!`
+          }
+        });
+
+        if (inviteError) throw inviteError;
+      }
 
       toast.success(
-        `Recommended "${titleName}" to ${selectedFriends.length} friend${
-          selectedFriends.length > 1 ? "s" : ""
+        `Recommended "${titleName}" to ${totalRecipients} recipient${
+          totalRecipients > 1 ? "s" : ""
         }!`
       );
       
       setSelectedFriends([]);
+      setNewContacts([]);
+      setContactInput("");
       setMessage("");
       onOpenChange(false);
     } catch (error) {
-      console.error("Failed to send recommendations:", error);
+      await errorLogger.log(error, {
+        operation: 'send_title_recommendation',
+        titleId,
+        recipientCount: totalRecipients
+      });
       toast.error("Failed to send recommendations");
     } finally {
       setLoading(false);
@@ -127,30 +193,25 @@ export function RecommendTitleDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[600px] max-w-[95vw] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Users className="w-5 h-5" />
             Recommend "{titleName}"
           </DialogTitle>
           <DialogDescription>
-            Share this title with friends from your trusted circle
+            Share this title with friends or invite new people
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          {friends.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <Users className="w-12 h-12 mx-auto mb-3 opacity-50" />
-              <p>No friends in your trusted circle yet</p>
-              <p className="text-sm mt-1">Add friends to start sharing recommendations</p>
-            </div>
-          ) : (
-            <>
-              <div className="space-y-3 max-h-[200px] overflow-y-auto">
-                <Label className="text-sm font-semibold">
-                  Select Friends ({selectedFriends.length} selected)
-                </Label>
+          {/* Existing Friends */}
+          {friends.length > 0 && (
+            <div className="space-y-3">
+              <Label className="text-sm font-semibold">
+                Your Friends ({selectedFriends.length} selected)
+              </Label>
+              <div className="space-y-2 max-h-[150px] overflow-y-auto border rounded-md p-2">
                 {friends.map((friend) => (
                   <div
                     key={friend.friend_user_id}
@@ -170,37 +231,105 @@ export function RecommendTitleDialog({
                   </div>
                 ))}
               </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="message" className="text-sm font-semibold">
-                  Personal Note (Optional)
-                </Label>
-                <Textarea
-                  id="message"
-                  placeholder="Add a personal message about why you're recommending this..."
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  rows={3}
-                  className="resize-none"
-                />
-              </div>
-            </>
+            </div>
           )}
+
+          {/* Add New Contacts */}
+          <div className="space-y-3">
+            <Label className="text-sm font-semibold">Invite New People</Label>
+            
+            <Tabs value={method} onValueChange={(v) => setMethod(v as "email" | "phone")} className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="email" className="flex items-center gap-2">
+                  <Mail className="w-4 h-4" />
+                  Email
+                </TabsTrigger>
+                <TabsTrigger value="phone" className="flex items-center gap-2">
+                  <Phone className="w-4 h-4" />
+                  Phone
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="email" className="space-y-2 mt-3">
+                <div className="flex gap-2">
+                  <Input
+                    type="email"
+                    placeholder="friend@example.com"
+                    value={contactInput}
+                    onChange={(e) => setContactInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && addNewContact()}
+                  />
+                  <Button type="button" onClick={addNewContact} size="sm">Add</Button>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="phone" className="space-y-2 mt-3">
+                <div className="flex gap-2">
+                  <Input
+                    type="tel"
+                    placeholder="+1 (555) 123-4567"
+                    value={contactInput}
+                    onChange={(e) => setContactInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && addNewContact()}
+                  />
+                  <Button type="button" onClick={addNewContact} size="sm">Add</Button>
+                </div>
+              </TabsContent>
+            </Tabs>
+
+            {newContacts.length > 0 && (
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">
+                  New contacts ({newContacts.length})
+                </Label>
+                <div className="flex flex-wrap gap-2 p-2 border rounded-md bg-muted/20 max-h-[100px] overflow-y-auto">
+                  {newContacts.map((contact) => (
+                    <div
+                      key={contact}
+                      className="flex items-center gap-1 px-2 py-1 bg-background border rounded-md text-sm"
+                    >
+                      <span className="truncate max-w-[150px]">{contact}</span>
+                      <button
+                        type="button"
+                        onClick={() => removeNewContact(contact)}
+                        className="ml-1 hover:text-destructive transition-colors"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Personal Message */}
+          <div className="space-y-2">
+            <Label htmlFor="message" className="text-sm font-semibold">
+              Personal Note (Optional)
+            </Label>
+            <Textarea
+              id="message"
+              placeholder="Add a personal message about why you're recommending this..."
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              rows={3}
+              className="resize-none"
+            />
+          </div>
         </div>
 
-        {friends.length > 0 && (
-          <DialogFooter>
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleRecommend}
-              disabled={loading || selectedFriends.length === 0}
-            >
-              {loading ? "Sending..." : "Send Recommendation"}
-            </Button>
-          </DialogFooter>
-        )}
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleRecommend}
+            disabled={loading || (selectedFriends.length === 0 && newContacts.length === 0)}
+          >
+            {loading ? "Sending..." : `Send to ${selectedFriends.length + newContacts.length} recipient${selectedFriends.length + newContacts.length !== 1 ? 's' : ''}`}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
