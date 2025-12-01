@@ -60,6 +60,29 @@ export const Jobs = () => {
 
       if (error) throw error;
       setJobs(data || []);
+      
+      // Restore parallel progress UI if a job is running with thread tracking
+      const runningJob = data?.find(job => job.status === 'running');
+      if (runningJob) {
+        const config = (runningJob.configuration as any) || {};
+        const tracking = config.thread_tracking;
+        
+        if (tracking && config.total_threads) {
+          const threadsCompleted = (tracking.succeeded || 0) + (tracking.failed || 0);
+          
+          // Only restore progress if we haven't completed all threads yet
+          if (threadsCompleted < config.total_threads) {
+            setParallelProgress({
+              jobId: runningJob.id,
+              currentThread: threadsCompleted,
+              totalThreads: config.total_threads,
+              succeeded: tracking.succeeded || 0,
+              failed: tracking.failed || 0,
+              titlesProcessed: runningJob.total_titles_processed || 0
+            });
+          }
+        }
+      }
     } catch (error) {
       await errorLogger.log(error, { operation: 'fetch_jobs' });
       toast({
@@ -157,6 +180,7 @@ export const Jobs = () => {
         // Reset the job counter and tracking
         const resetConfig = {
           ...config,
+          total_threads: numChunks,
           thread_tracking: { succeeded: 0, failed: 0 }
         };
         
@@ -281,6 +305,7 @@ export const Jobs = () => {
       // Reset the job counter and thread tracking before starting parallel processing
       const resetConfig = {
         ...config,
+        total_threads: chunks.length,
         thread_tracking: { succeeded: 0, failed: 0 }
       };
       
