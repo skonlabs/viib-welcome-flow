@@ -331,7 +331,7 @@ export const Jobs = () => {
 
       toast({
         title: "Parallel Jobs Started",
-        description: `Processing ${chunks.length} threads with 30s delay between each. This will take approximately ${Math.floor((chunks.length * 30) / 60)} minutes.`,
+        description: `Processing ${chunks.length} threads with 10s delay between each. This will take approximately ${Math.floor((chunks.length * 10) / 60)} minutes.`,
       });
 
       // Fire off all jobs without waiting, with small delays to avoid overwhelming the server
@@ -339,7 +339,7 @@ export const Jobs = () => {
       
       for (let i = 0; i < chunks.length; i++) {
         const chunk = chunks[i];
-        const delayMs = i * 5000; // 5 second stagger between each request
+        const delayMs = i * 10000; // 10 second stagger between each request
         
         const invokePromise = (async () => {
           await new Promise(resolve => setTimeout(resolve, delayMs));
