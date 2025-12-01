@@ -121,9 +121,23 @@ serve(async (req) => {
 
         for (const movie of movies) {
           try {
+            // Check if title already exists - skip if it does
+            const { data: existingTitle } = await supabase
+              .from('titles')
+              .select('id')
+              .eq('tmdb_id', movie.id)
+              .eq('content_type', 'movie')
+              .maybeSingle();
+
+            if (existingTitle) {
+              // Title already exists, skip all processing
+              continue;
+            }
+
+            // Insert new title only
             const { data: insertedTitle, error: titleError } = await supabase
               .from('titles')
-              .upsert({
+              .insert({
                 tmdb_id: movie.id,
                 title_name: movie.title,
                 original_title_name: movie.original_title,
@@ -133,7 +147,7 @@ serve(async (req) => {
                 synopsis: movie.overview,
                 original_language: movie.original_language,
                 popularity_score: movie.popularity
-              }, { onConflict: 'tmdb_id,content_type' })
+              })
               .select('id')
               .single();
 
@@ -219,9 +233,23 @@ serve(async (req) => {
 
         for (const show of shows) {
           try {
+            // Check if title already exists - skip if it does
+            const { data: existingTitle } = await supabase
+              .from('titles')
+              .select('id')
+              .eq('tmdb_id', show.id)
+              .eq('content_type', 'series')
+              .maybeSingle();
+
+            if (existingTitle) {
+              // Title already exists, skip all processing
+              continue;
+            }
+
+            // Insert new title only
             const { data: insertedTitle, error: titleError } = await supabase
               .from('titles')
-              .upsert({
+              .insert({
                 tmdb_id: show.id,
                 title_name: show.name,
                 original_title_name: show.original_name,
@@ -230,7 +258,7 @@ serve(async (req) => {
                 synopsis: show.overview,
                 original_language: show.original_language,
                 popularity_score: show.popularity
-              }, { onConflict: 'tmdb_id,content_type' })
+              })
               .select('id')
               .single();
 
