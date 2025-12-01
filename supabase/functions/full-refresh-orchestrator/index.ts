@@ -44,11 +44,15 @@ serve(async (req) => {
       console.log(`Starting batch dispatch: ${totalThreads} threads in ${totalBatches} batches of ${BATCH_SIZE}`);
       
       for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
-        // Check if approaching orchestrator timeout
+        const batchStart = startIndex + (batchIndex * BATCH_SIZE);
+        const batchEnd = Math.min(batchStart + BATCH_SIZE, chunks.length);
+        const batchNumber = batchIndex + 1;
+        
+        // Check if approaching orchestrator timeout BEFORE starting this batch
         const orchestratorElapsed = Date.now() - orchestratorStartTime;
         if (orchestratorElapsed > MAX_ORCHESTRATOR_RUNTIME_MS) {
-          const nextStartIndex = startIndex + (batchIndex * BATCH_SIZE);
-          console.log(`Orchestrator approaching timeout at ${orchestratorElapsed}ms. Stopping at batch ${batchIndex + 1}. Next start index: ${nextStartIndex}`);
+          const nextStartIndex = batchStart; // Start next orchestrator from THIS batch
+          console.log(`Orchestrator approaching timeout at ${orchestratorElapsed}ms. Stopping at batch ${batchNumber}. Next start index: ${nextStartIndex}`);
           
           // Relaunch orchestrator with remaining chunks
           console.log(`Relaunching orchestrator for remaining ${chunks.length - nextStartIndex} threads...`);
@@ -58,10 +62,6 @@ serve(async (req) => {
           
           return; // Exit current orchestrator
         }
-
-        const batchStart = startIndex + (batchIndex * BATCH_SIZE);
-        const batchEnd = Math.min(batchStart + BATCH_SIZE, chunks.length);
-        const batchNumber = batchIndex + 1;
         
         console.log(`Starting batch ${batchNumber}/${totalBatches}: threads ${batchStart + 1} to ${batchEnd}`);
         
