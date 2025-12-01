@@ -460,6 +460,54 @@ export type Database = {
         }
         Relationships: []
       }
+      jobs: {
+        Row: {
+          configuration: Json | null
+          created_at: string
+          error_message: string | null
+          id: string
+          is_active: boolean
+          job_name: string
+          job_type: string
+          last_run_at: string | null
+          last_run_duration_seconds: number | null
+          next_run_at: string | null
+          status: string
+          total_titles_processed: number | null
+          updated_at: string
+        }
+        Insert: {
+          configuration?: Json | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          is_active?: boolean
+          job_name: string
+          job_type: string
+          last_run_at?: string | null
+          last_run_duration_seconds?: number | null
+          next_run_at?: string | null
+          status?: string
+          total_titles_processed?: number | null
+          updated_at?: string
+        }
+        Update: {
+          configuration?: Json | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          is_active?: boolean
+          job_name?: string
+          job_type?: string
+          last_run_at?: string | null
+          last_run_duration_seconds?: number | null
+          next_run_at?: string | null
+          status?: string
+          total_titles_processed?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       language_master: {
         Row: {
           language_code: string
