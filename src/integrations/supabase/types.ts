@@ -1903,6 +1903,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      increment_job_titles: {
+        Args: { p_increment: number; p_job_type: string }
+        Returns: undefined
+      }
       log_recommendation_outcome: {
         Args: {
           p_rating_value: Database["public"]["Enums"]["rating_value"]
