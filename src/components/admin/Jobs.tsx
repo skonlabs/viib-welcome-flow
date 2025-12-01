@@ -140,39 +140,44 @@ export const Jobs = () => {
 
       toast({
         title: "Parallel Jobs Started",
-        description: `Starting ${chunks.length} parallel jobs (${genreIds.length} genres × ${endYear - startYear + 1} years)...`,
+        description: `Starting ${chunks.length} sequential jobs with 30s delay (${genreIds.length} genres × ${endYear - startYear + 1} years)...`,
       });
 
-      // Process in batches of 10 concurrent requests
-      const batchSize = 10;
+      // Process jobs sequentially with 30-second delay between each
       let succeeded = 0;
       let failed = 0;
 
-      for (let i = 0; i < chunks.length; i += batchSize) {
-        const batch = chunks.slice(i, i + batchSize);
+      for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i];
         
-        const promises = batch.map(chunk => 
-          supabase.functions.invoke('full-refresh-titles', {
+        try {
+          const { error } = await supabase.functions.invoke('full-refresh-titles', {
             body: { 
               startYear: chunk.year, 
               endYear: chunk.year,
               genreId: chunk.genreId
             }
-          })
-        );
+          });
 
-        const results = await Promise.allSettled(promises);
-        succeeded += results.filter(r => r.status === 'fulfilled').length;
-        failed += results.filter(r => r.status === 'rejected').length;
+          if (error) {
+            failed++;
+          } else {
+            succeeded++;
+          }
+        } catch (error) {
+          failed++;
+        }
 
-        // Update progress
+        // Update progress after each job
         toast({
           title: "Progress Update",
-          description: `Completed ${i + batch.length}/${chunks.length} jobs (${succeeded} succeeded, ${failed} failed)`,
+          description: `Completed ${i + 1}/${chunks.length} jobs (${succeeded} succeeded, ${failed} failed)`,
         });
 
-        // Small delay between batches
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // 30-second delay between jobs (except after the last one)
+        if (i < chunks.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 30000));
+        }
       }
 
       toast({
