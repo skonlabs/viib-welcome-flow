@@ -329,17 +329,24 @@ export const Jobs = () => {
         titlesProcessed: 0
       });
 
+      // Determine starting point for resume functionality
+      const existingTracking = (job.configuration as any)?.thread_tracking || { succeeded: 0, failed: 0 };
+      const startIndex = existingTracking.succeeded + existingTracking.failed;
+      const isResume = startIndex > 0;
+      
       toast({
-        title: "Parallel Jobs Started",
-        description: `Processing ${chunks.length} threads with 10s delay between each. This will take approximately ${Math.floor((chunks.length * 10) / 60)} minutes.`,
+        title: isResume ? "Resuming Parallel Jobs" : "Parallel Jobs Started",
+        description: isResume 
+          ? `Resuming from thread ${startIndex + 1}. Processing ${chunks.length - startIndex} remaining threads.`
+          : `Processing ${chunks.length} threads with 10s delay between each. This will take approximately ${Math.floor((chunks.length * 10) / 60)} minutes.`,
       });
 
       // Fire off all jobs without waiting, with small delays to avoid overwhelming the server
       const invokePromises: Promise<void>[] = [];
       
-      for (let i = 0; i < chunks.length; i++) {
+      for (let i = startIndex; i < chunks.length; i++) {
         const chunk = chunks[i];
-        const delayMs = i * 10000; // 10 second stagger between each request
+        const delayMs = (i - startIndex) * 10000; // 10 second stagger between each request
         
         const invokePromise = (async () => {
           await new Promise(resolve => setTimeout(resolve, delayMs));
@@ -363,8 +370,8 @@ export const Jobs = () => {
       }
 
       toast({
-        title: "All Threads Dispatched",
-        description: `${chunks.length} edge functions are now running in parallel. Monitoring progress...`,
+        title: isResume ? "Resume Threads Dispatched" : "All Threads Dispatched",
+        description: `${chunks.length - startIndex} edge functions are now running in parallel. Monitoring progress...`,
       });
 
       // Now poll the database every 10 seconds to track actual progress
