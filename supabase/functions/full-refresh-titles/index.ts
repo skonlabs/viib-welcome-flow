@@ -89,13 +89,8 @@ serve(async (req) => {
     ]);
 
     const genres = genresRes.data || [];
-    let languages = languagesRes.data || [];
+    const languages = languagesRes.data || [];
     const streamingServices = servicesRes.data || [];
-
-    // Filter languages if specific codes were provided
-    if (languageCodes && Array.isArray(languageCodes) && languageCodes.length > 0) {
-      languages = languages.filter(lang => languageCodes.includes(lang.language_code));
-    }
 
     // Create genre name to UUID mapping
     const genreNameToId: Record<string, string> = {};
@@ -103,14 +98,17 @@ serve(async (req) => {
       genreNameToId[g.genre_name.toLowerCase()] = g.id;
     });
 
-    console.log(`Processing: ${languages.length} languages, ${streamingServices.length} services, years ${startYear}-${endYear}`);
+    // Get TMDB genre IDs (we'll query by genre to get more comprehensive results)
+    const tmdbGenreIds = Object.keys(TMDB_GENRE_MAP).map(Number);
+
+    console.log(`Processing: ${tmdbGenreIds.length} genres, ${streamingServices.length} services, years ${startYear}-${endYear}`);
 
     let totalProcessed = 0;
     const MAX_RUNTIME_MS = 90000; // 90 seconds safety margin
 
-    // Process each combination
+    // Process each year + genre combination (this gets us past the 500-result-per-query limit)
     for (let year = startYear; year <= endYear; year++) {
-      for (const language of languages) {
+      for (const tmdbGenreId of tmdbGenreIds) {
         // Check if we're approaching time limit
         const elapsed = Date.now() - startTime;
         if (elapsed > MAX_RUNTIME_MS) {
@@ -118,14 +116,15 @@ serve(async (req) => {
           break;
         }
 
-        console.log(`Fetching: Year=${year}, Lang=${language.language_name}`);
+        const genreName = TMDB_GENRE_MAP[tmdbGenreId];
+        console.log(`Fetching: Year=${year}, Genre=${genreName}`);
 
-        // Fetch movies with pagination (TMDB limits to 20 pages max)
+        // Fetch movies with pagination (TMDB limits to 20 pages = 500 results max per query)
         let moviePage = 1;
         let movieTotalPages = 1;
         
         while (moviePage <= movieTotalPages && moviePage <= 20) {
-          const moviesUrl = `https://api.themoviedb.org/3/discover/movie?api_key=${TMDB_API_KEY}&primary_release_year=${year}&with_original_language=${language.language_code}&vote_average.gte=${minRating}&vote_count.gte=10&sort_by=popularity.desc&page=${moviePage}`;
+          const moviesUrl = `https://api.themoviedb.org/3/discover/movie?api_key=${TMDB_API_KEY}&primary_release_year=${year}&with_genres=${tmdbGenreId}&vote_average.gte=${minRating}&vote_count.gte=10&sort_by=popularity.desc&page=${moviePage}`;
           
           try {
             const moviesResponse = await fetch(moviesUrl);
@@ -161,26 +160,32 @@ serve(async (req) => {
                   totalProcessed++;
 
                   // Map TMDB genre IDs to our genre UUIDs
-                  const tmdbGenreIds = movie.genre_ids || [];
-                  for (const tmdbGenreId of tmdbGenreIds) {
-                    const genreName = TMDB_GENRE_MAP[tmdbGenreId];
+                  const movieGenreIds = movie.genre_ids || [];
+                  for (const genreId of movieGenreIds) {
+                    const genreName = TMDB_GENRE_MAP[genreId];
                     if (genreName) {
-                      const genreId = genreNameToId[genreName.toLowerCase()];
-                      if (genreId) {
+                      const ourGenreId = genreNameToId[genreName.toLowerCase()];
+                      if (ourGenreId) {
                         await supabase
                           .from('title_genres')
-                          .upsert({ title_id: insertedTitle.id, genre_id: genreId }, { onConflict: 'title_id,genre_id' });
+                          .upsert({ title_id: insertedTitle.id, genre_id: ourGenreId }, { onConflict: 'title_id,genre_id' });
                       }
                     }
                   }
 
-                  await supabase
-                    .from('title_languages')
-                    .upsert({
-                      title_id: insertedTitle.id,
-                      language_code: language.language_code,
-                      language_type: 'original'
-                    }, { onConflict: 'title_id,language_code,language_type' });
+                  // Store original language if available
+                  if (movie.original_language) {
+                    const langExists = languages.find(l => l.language_code === movie.original_language);
+                    if (langExists) {
+                      await supabase
+                        .from('title_languages')
+                        .upsert({
+                          title_id: insertedTitle.id,
+                          language_code: movie.original_language,
+                          language_type: 'original'
+                        }, { onConflict: 'title_id,language_code,language_type' });
+                    }
+                  }
 
                   for (const service of streamingServices) {
                     await supabase
@@ -213,12 +218,12 @@ serve(async (req) => {
           }
         }
 
-        // Fetch TV shows with pagination (TMDB limits to 20 pages max)
+        // Fetch TV shows with pagination (TMDB limits to 20 pages = 500 results max per query)
         let tvPage = 1;
         let tvTotalPages = 1;
         
         while (tvPage <= tvTotalPages && tvPage <= 20) {
-          const tvUrl = `https://api.themoviedb.org/3/discover/tv?api_key=${TMDB_API_KEY}&first_air_date_year=${year}&with_original_language=${language.language_code}&vote_average.gte=${minRating}&vote_count.gte=10&sort_by=popularity.desc&page=${tvPage}`;
+          const tvUrl = `https://api.themoviedb.org/3/discover/tv?api_key=${TMDB_API_KEY}&first_air_date_year=${year}&with_genres=${tmdbGenreId}&vote_average.gte=${minRating}&vote_count.gte=10&sort_by=popularity.desc&page=${tvPage}`;
           
           try {
             const tvResponse = await fetch(tvUrl);
@@ -252,26 +257,32 @@ serve(async (req) => {
                 if (insertedTitle) {
                   totalProcessed++;
 
-                  const tmdbGenreIds = show.genre_ids || [];
-                  for (const tmdbGenreId of tmdbGenreIds) {
-                    const genreName = TMDB_GENRE_MAP[tmdbGenreId];
+                  const showGenreIds = show.genre_ids || [];
+                  for (const genreId of showGenreIds) {
+                    const genreName = TMDB_GENRE_MAP[genreId];
                     if (genreName) {
-                      const genreId = genreNameToId[genreName.toLowerCase()];
-                      if (genreId) {
+                      const ourGenreId = genreNameToId[genreName.toLowerCase()];
+                      if (ourGenreId) {
                         await supabase
                           .from('title_genres')
-                          .upsert({ title_id: insertedTitle.id, genre_id: genreId }, { onConflict: 'title_id,genre_id' });
+                          .upsert({ title_id: insertedTitle.id, genre_id: ourGenreId }, { onConflict: 'title_id,genre_id' });
                       }
                     }
                   }
 
-                  await supabase
-                    .from('title_languages')
-                    .upsert({
-                      title_id: insertedTitle.id,
-                      language_code: language.language_code,
-                      language_type: 'original'
-                    }, { onConflict: 'title_id,language_code,language_type' });
+                  // Store original language if available
+                  if (show.original_language) {
+                    const langExists = languages.find(l => l.language_code === show.original_language);
+                    if (langExists) {
+                      await supabase
+                        .from('title_languages')
+                        .upsert({
+                          title_id: insertedTitle.id,
+                          language_code: show.original_language,
+                          language_type: 'original'
+                        }, { onConflict: 'title_id,language_code,language_type' });
+                    }
+                  }
 
                   for (const service of streamingServices) {
                     await supabase
@@ -304,14 +315,14 @@ serve(async (req) => {
           }
         }
 
-        // Update progress after each language
+        // Update progress after each genre
         await supabase
           .from('jobs')
           .update({ total_titles_processed: totalProcessed })
           .eq('job_type', 'full_refresh');
-        console.log(`Progress: ${totalProcessed} titles processed (Year: ${year}, Lang: ${language.language_name})`);
+        console.log(`Progress: ${totalProcessed} titles processed (Year: ${year}, Genre: ${genreName})`);
 
-        // Rate limit delay between language combinations
+        // Rate limit delay between genre combinations
         await new Promise(resolve => setTimeout(resolve, 100));
       }
       
