@@ -30,18 +30,35 @@ serve(async (req) => {
       throw new Error('Missing required parameters: jobId, chunks');
     }
 
-    console.log(`Orchestrator started: dispatching ${chunks.length - startIndex} threads for job ${jobId}`);
+    console.log(`Orchestrator started: dispatching ${chunks.length - startIndex} threads for job ${jobId} from index ${startIndex}`);
 
     // Dispatch threads in batches with proper concurrency control
     const dispatchAllThreads = async () => {
       const BATCH_SIZE = 10; // Process 10 threads concurrently per batch
       const BATCH_DELAY_MS = 10000; // 10 second delay between batches
+      const MAX_ORCHESTRATOR_RUNTIME_MS = 240000; // 4 minutes safety margin before timeout
+      const orchestratorStartTime = Date.now();
       const totalThreads = chunks.length - startIndex;
       const totalBatches = Math.ceil(totalThreads / BATCH_SIZE);
       
       console.log(`Starting batch dispatch: ${totalThreads} threads in ${totalBatches} batches of ${BATCH_SIZE}`);
       
       for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+        // Check if approaching orchestrator timeout
+        const orchestratorElapsed = Date.now() - orchestratorStartTime;
+        if (orchestratorElapsed > MAX_ORCHESTRATOR_RUNTIME_MS) {
+          const nextStartIndex = startIndex + (batchIndex * BATCH_SIZE);
+          console.log(`Orchestrator approaching timeout at ${orchestratorElapsed}ms. Stopping at batch ${batchIndex + 1}. Next start index: ${nextStartIndex}`);
+          
+          // Relaunch orchestrator with remaining chunks
+          console.log(`Relaunching orchestrator for remaining ${chunks.length - nextStartIndex} threads...`);
+          await supabase.functions.invoke('full-refresh-orchestrator', {
+            body: { jobId, chunks, startIndex: nextStartIndex }
+          });
+          
+          return; // Exit current orchestrator
+        }
+
         const batchStart = startIndex + (batchIndex * BATCH_SIZE);
         const batchEnd = Math.min(batchStart + BATCH_SIZE, chunks.length);
         const batchNumber = batchIndex + 1;
