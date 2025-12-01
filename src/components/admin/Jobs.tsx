@@ -417,6 +417,7 @@ export const Jobs = () => {
 
   const handleStopJob = async (job: Job) => {
     try {
+      // Stop the job and clear progress
       const { error } = await supabase
         .from('jobs')
         .update({ 
@@ -427,9 +428,12 @@ export const Jobs = () => {
 
       if (error) throw error;
 
+      // Clear parallel progress UI immediately
+      setParallelProgress(null);
+
       toast({
         title: "Job Stopped",
-        description: `${job.job_name} has been stopped.`,
+        description: `${job.job_name} has been stopped. Running threads will complete but won't update the job.`,
       });
 
       await fetchJobs();

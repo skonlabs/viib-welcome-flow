@@ -183,9 +183,22 @@ serve(async (req) => {
     if (jobId) {
       const { data: currentJob } = await supabase
         .from('jobs')
-        .select('configuration')
+        .select('configuration, status')
         .eq('id', jobId)
         .single();
+      
+      // Don't update if job was stopped by admin
+      if (currentJob?.status === 'failed' || currentJob?.status === 'idle') {
+        console.log('Job was stopped, skipping tracking update');
+        return new Response(
+          JSON.stringify({
+            success: true,
+            totalProcessed: processed,
+            message: 'Job was stopped, skipping update'
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
       
       const currentConfig = (currentJob?.configuration as any) || {};
       const tracking = currentConfig.thread_tracking || { succeeded: 0, failed: 0 };
@@ -201,7 +214,8 @@ serve(async (req) => {
             }
           }
         })
-        .eq('id', jobId);
+        .eq('id', jobId)
+        .eq('status', 'running'); // Only update if still running
     }
     
     console.log(`Trailer enrichment completed: ${enriched} enriched, ${failed} failed, ${processed} processed in ${duration}s`);
@@ -231,25 +245,31 @@ serve(async (req) => {
       if (jobId) {
         const { data: currentJob } = await supabase
           .from('jobs')
-          .select('configuration')
+          .select('configuration, status')
           .eq('id', jobId)
           .single();
         
-        const currentConfig = (currentJob?.configuration as any) || {};
-        const tracking = currentConfig.thread_tracking || { succeeded: 0, failed: 0 };
-        
-        await supabase
-          .from('jobs')
-          .update({
-            configuration: {
-              ...currentConfig,
-              thread_tracking: {
-                succeeded: tracking.succeeded,
-                failed: tracking.failed + 1
+        // Don't update if job was stopped by admin
+        if (currentJob?.status === 'failed' || currentJob?.status === 'idle') {
+          console.log('Job was stopped, skipping failure tracking');
+        } else {
+          const currentConfig = (currentJob?.configuration as any) || {};
+          const tracking = currentConfig.thread_tracking || { succeeded: 0, failed: 0 };
+          
+          await supabase
+            .from('jobs')
+            .update({
+              configuration: {
+                ...currentConfig,
+                thread_tracking: {
+                  succeeded: tracking.succeeded,
+                  failed: tracking.failed + 1
+                }
               }
-            }
-          })
-          .eq('id', jobId);
+            })
+            .eq('id', jobId)
+            .eq('status', 'running'); // Only update if still running
+        }
       }
     } catch (trackError) {
       console.error('Error tracking failure:', trackError);
