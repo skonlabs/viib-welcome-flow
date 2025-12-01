@@ -467,16 +467,6 @@ export const Jobs = () => {
         clearInterval(pollInterval);
         setParallelProgress(null);
       }, 7200000); // 2 hours
-
-      // Clear progress tracking
-      setParallelProgress(null);
-
-      toast({
-        title: "Parallel Jobs Completed",
-        description: `All ${chunks.length} edge functions have been dispatched and will continue running in the background.`,
-      });
-
-      await fetchJobs();
     } catch (error) {
       await errorLogger.log(error, { 
         operation: 'run_parallel_jobs',
