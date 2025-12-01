@@ -149,6 +149,8 @@ export {
   Waves,
   Apple,
   PlayCircle,
+  Play,
+  Pause,
   Star,
   Moon,
   Globe,
