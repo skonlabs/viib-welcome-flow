@@ -1016,6 +1016,7 @@ export type Database = {
           content_type: string
           created_at: string
           id: string
+          is_tmdb_trailer: boolean | null
           original_language: string | null
           original_title_name: string | null
           popularity_score: number | null
@@ -1024,11 +1025,13 @@ export type Database = {
           synopsis: string | null
           title_name: string
           tmdb_id: number | null
+          trailer_url: string | null
         }
         Insert: {
           content_type: string
           created_at?: string
           id?: string
+          is_tmdb_trailer?: boolean | null
           original_language?: string | null
           original_title_name?: string | null
           popularity_score?: number | null
@@ -1037,11 +1040,13 @@ export type Database = {
           synopsis?: string | null
           title_name: string
           tmdb_id?: number | null
+          trailer_url?: string | null
         }
         Update: {
           content_type?: string
           created_at?: string
           id?: string
+          is_tmdb_trailer?: boolean | null
           original_language?: string | null
           original_title_name?: string | null
           popularity_score?: number | null
@@ -1050,6 +1055,7 @@ export type Database = {
           synopsis?: string | null
           title_name?: string
           tmdb_id?: number | null
+          trailer_url?: string | null
         }
         Relationships: [
           {
