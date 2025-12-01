@@ -335,44 +335,39 @@ export const Jobs = () => {
       const isResume = startIndex > 0;
       
       toast({
-        title: isResume ? "Resuming Parallel Jobs" : "Parallel Jobs Started",
+        title: isResume ? "Resuming Parallel Jobs" : "Starting Parallel Jobs",
         description: isResume 
-          ? `Resuming from thread ${startIndex + 1}. Processing ${chunks.length - startIndex} remaining threads.`
-          : `Processing ${chunks.length} threads with 5s delay between each. This will take approximately ${Math.floor((chunks.length * 5) / 60)} minutes.`,
+          ? `Resuming from thread ${startIndex + 1}. Backend orchestrator will dispatch ${chunks.length - startIndex} remaining threads.`
+          : `Backend orchestrator will dispatch ${chunks.length} threads with 5s stagger. Job will continue even if you close your browser.`,
       });
 
-      // Fire off all jobs without waiting, with small delays to avoid overwhelming the server
-      const invokePromises: Promise<void>[] = [];
-      
-      for (let i = startIndex; i < chunks.length; i++) {
-        const chunk = chunks[i];
-        const delayMs = (i - startIndex) * 5000; // 5 second stagger between each request
-        
-        const invokePromise = (async () => {
-          await new Promise(resolve => setTimeout(resolve, delayMs));
-          
-          try {
-            await supabase.functions.invoke('full-refresh-titles', {
-              body: { 
-                languageCode: chunk.languageCode,
-                startYear: chunk.year, 
-                endYear: chunk.year,
-                genreId: chunk.genreId,
-                jobId: job.id // Pass job ID to edge function
-              }
-            });
-          } catch (error) {
-            console.error(`Error invoking thread ${i + 1}:`, error);
+      // Invoke the orchestrator edge function - it will handle all dispatching server-side
+      try {
+        const { error: orchestratorError } = await supabase.functions.invoke('full-refresh-orchestrator', {
+          body: {
+            jobId: job.id,
+            chunks: chunks,
+            startIndex: startIndex
           }
-        })();
-        
-        invokePromises.push(invokePromise);
-      }
+        });
 
-      toast({
-        title: isResume ? "Resume Threads Dispatched" : "All Threads Dispatched",
-        description: `${chunks.length - startIndex} edge functions are now running in parallel. Monitoring progress...`,
-      });
+        if (orchestratorError) {
+          throw orchestratorError;
+        }
+
+        toast({
+          title: "Orchestrator Started",
+          description: `Backend is now dispatching ${chunks.length - startIndex} threads. Job will continue running even if you lock your screen or close this page.`,
+        });
+      } catch (error) {
+        console.error('Error starting orchestrator:', error);
+        toast({
+          title: "Orchestrator Failed",
+          description: "Failed to start backend orchestrator. Check logs for details.",
+          variant: "destructive"
+        });
+        return;
+      }
 
       // Now poll the database every 10 seconds to track actual progress
       const pollInterval = setInterval(async () => {
@@ -415,11 +410,8 @@ export const Jobs = () => {
           }
         }
       }, 10000); // Poll every 10 seconds
-
-      // Wait for all invoke calls to be sent (not for edge functions to finish)
-      await Promise.all(invokePromises);
       
-      // Keep polling for another 2 hours max to let edge functions finish
+      // Keep polling for up to 2 hours to let edge functions finish
       setTimeout(() => {
         clearInterval(pollInterval);
         setParallelProgress(null);
