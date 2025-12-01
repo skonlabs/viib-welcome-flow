@@ -6,6 +6,28 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// TMDB Genre ID to Name mapping
+const TMDB_GENRE_MAP: Record<number, string> = {
+  28: 'Action',
+  12: 'Adventure',
+  16: 'Animation',
+  35: 'Comedy',
+  80: 'Crime',
+  99: 'Documentary',
+  18: 'Drama',
+  10751: 'Family',
+  14: 'Fantasy',
+  36: 'History',
+  27: 'Horror',
+  10402: 'Music',
+  9648: 'Mystery',
+  10749: 'Romance',
+  878: 'Science Fiction',
+  53: 'Thriller',
+  10752: 'War',
+  37: 'Western'
+};
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -59,32 +81,37 @@ serve(async (req) => {
     const languages = languagesRes.data || [];
     const streamingServices = servicesRes.data || [];
 
-    console.log(`Processing: ${genres.length} genres, ${languages.length} languages, ${streamingServices.length} services, years ${startYear}-${endYear}`);
+    // Create genre name to UUID mapping
+    const genreNameToId: Record<string, string> = {};
+    genres.forEach(g => {
+      genreNameToId[g.genre_name.toLowerCase()] = g.id;
+    });
+
+    console.log(`Processing: ${languages.length} languages, ${streamingServices.length} services, years ${startYear}-${endYear}`);
 
     let totalProcessed = 0;
-    const processedTitles = new Set<number>(); // Track TMDB IDs to avoid duplicates
 
-    // Process each combination
-    for (const genre of genres) {
-      for (let year = startYear; year <= endYear; year++) {
-        for (const language of languages) {
-          console.log(`Fetching: Genre=${genre.genre_name}, Year=${year}, Lang=${language.language_name}`);
+    // Process each combination - FETCH ALL GENRES TOGETHER, then map
+    for (let year = startYear; year <= endYear; year++) {
+      for (const language of languages) {
+        console.log(`Fetching: Year=${year}, Lang=${language.language_name}`);
 
-          // Fetch movies
-          const moviesUrl = `https://api.themoviedb.org/3/discover/movie?api_key=${TMDB_API_KEY}&with_genres=${genre.id}&primary_release_year=${year}&with_original_language=${language.language_code}&vote_average.gte=${minRating}&vote_count.gte=10&sort_by=popularity.desc&page=1`;
-          
-          const moviesResponse = await fetch(moviesUrl);
-          const moviesData = await moviesResponse.json();
-          const movies = (moviesData.results || []).slice(0, titlesPerBatch);
+        // Fetch movies (all genres in one call)
+        const moviesUrl = `https://api.themoviedb.org/3/discover/movie?api_key=${TMDB_API_KEY}&primary_release_year=${year}&with_original_language=${language.language_code}&vote_average.gte=${minRating}&vote_count.gte=10&sort_by=popularity.desc&per_page=${titlesPerBatch}&page=1`;
+        
+        const moviesResponse = await fetch(moviesUrl);
+        const moviesData = await moviesResponse.json();
+        const movies = moviesData.results || [];
 
-          for (const movie of movies) {
-            if (processedTitles.has(movie.id)) continue;
-            processedTitles.add(movie.id);
+        console.log(`Found ${movies.length} movies`);
 
-            // Insert title
-            const { data: insertedTitle } = await supabase
+        for (const movie of movies) {
+          try {
+            // Insert/update title with TMDB ID
+            const { data: insertedTitle, error: titleError } = await supabase
               .from('titles')
               .upsert({
+                tmdb_id: movie.id,
                 title_name: movie.title,
                 original_title_name: movie.original_title,
                 content_type: 'movie',
@@ -93,17 +120,31 @@ serve(async (req) => {
                 synopsis: movie.overview,
                 original_language: movie.original_language,
                 popularity_score: movie.popularity
-              }, { onConflict: 'title_name,release_year' })
+              }, { onConflict: 'tmdb_id,content_type' })
               .select('id')
               .single();
+
+            if (titleError) {
+              console.error(`Error inserting movie ${movie.title}:`, titleError);
+              continue;
+            }
 
             if (insertedTitle) {
               totalProcessed++;
 
-              // Insert genre mapping
-              await supabase
-                .from('title_genres')
-                .upsert({ title_id: insertedTitle.id, genre_id: genre.id }, { onConflict: 'title_id,genre_id' });
+              // Map TMDB genre IDs to our genre UUIDs
+              const tmdbGenreIds = movie.genre_ids || [];
+              for (const tmdbGenreId of tmdbGenreIds) {
+                const genreName = TMDB_GENRE_MAP[tmdbGenreId];
+                if (genreName) {
+                  const genreId = genreNameToId[genreName.toLowerCase()];
+                  if (genreId) {
+                    await supabase
+                      .from('title_genres')
+                      .upsert({ title_id: insertedTitle.id, genre_id: genreId }, { onConflict: 'title_id,genre_id' });
+                  }
+                }
+              }
 
               // Insert language mapping
               await supabase
@@ -114,7 +155,7 @@ serve(async (req) => {
                   language_type: 'original'
                 }, { onConflict: 'title_id,language_code,language_type' });
 
-              // Insert streaming availability for all services (simplified - TMDB doesn't provide this data easily)
+              // Insert streaming availability for all services
               for (const service of streamingServices) {
                 await supabase
                   .from('title_streaming_availability')
@@ -125,22 +166,26 @@ serve(async (req) => {
                   }, { onConflict: 'title_id,streaming_service_id,region_code' });
               }
             }
+          } catch (error) {
+            console.error(`Error processing movie ${movie.title}:`, error);
           }
+        }
 
-          // Fetch TV shows
-          const tvUrl = `https://api.themoviedb.org/3/discover/tv?api_key=${TMDB_API_KEY}&with_genres=${genre.id}&first_air_date_year=${year}&with_original_language=${language.language_code}&vote_average.gte=${minRating}&vote_count.gte=10&sort_by=popularity.desc&page=1`;
-          
-          const tvResponse = await fetch(tvUrl);
-          const tvData = await tvResponse.json();
-          const shows = (tvData.results || []).slice(0, titlesPerBatch);
+        // Fetch TV shows (all genres in one call)
+        const tvUrl = `https://api.themoviedb.org/3/discover/tv?api_key=${TMDB_API_KEY}&first_air_date_year=${year}&with_original_language=${language.language_code}&vote_average.gte=${minRating}&vote_count.gte=10&sort_by=popularity.desc&per_page=${titlesPerBatch}&page=1`;
+        
+        const tvResponse = await fetch(tvUrl);
+        const tvData = await tvResponse.json();
+        const shows = tvData.results || [];
 
-          for (const show of shows) {
-            if (processedTitles.has(show.id)) continue;
-            processedTitles.add(show.id);
+        console.log(`Found ${shows.length} TV shows`);
 
-            const { data: insertedTitle } = await supabase
+        for (const show of shows) {
+          try {
+            const { data: insertedTitle, error: titleError } = await supabase
               .from('titles')
               .upsert({
+                tmdb_id: show.id,
                 title_name: show.name,
                 original_title_name: show.original_name,
                 content_type: 'series',
@@ -148,16 +193,31 @@ serve(async (req) => {
                 synopsis: show.overview,
                 original_language: show.original_language,
                 popularity_score: show.popularity
-              }, { onConflict: 'title_name,release_year' })
+              }, { onConflict: 'tmdb_id,content_type' })
               .select('id')
               .single();
+
+            if (titleError) {
+              console.error(`Error inserting show ${show.name}:`, titleError);
+              continue;
+            }
 
             if (insertedTitle) {
               totalProcessed++;
 
-              await supabase
-                .from('title_genres')
-                .upsert({ title_id: insertedTitle.id, genre_id: genre.id }, { onConflict: 'title_id,genre_id' });
+              // Map TMDB genre IDs to our genre UUIDs
+              const tmdbGenreIds = show.genre_ids || [];
+              for (const tmdbGenreId of tmdbGenreIds) {
+                const genreName = TMDB_GENRE_MAP[tmdbGenreId];
+                if (genreName) {
+                  const genreId = genreNameToId[genreName.toLowerCase()];
+                  if (genreId) {
+                    await supabase
+                      .from('title_genres')
+                      .upsert({ title_id: insertedTitle.id, genre_id: genreId }, { onConflict: 'title_id,genre_id' });
+                  }
+                }
+              }
 
               await supabase
                 .from('title_languages')
@@ -177,20 +237,22 @@ serve(async (req) => {
                   }, { onConflict: 'title_id,streaming_service_id,region_code' });
               }
             }
+          } catch (error) {
+            console.error(`Error processing show ${show.name}:`, error);
           }
-
-          // Update progress periodically
-          if (totalProcessed % 100 === 0) {
-            await supabase
-              .from('jobs')
-              .update({ total_titles_processed: totalProcessed })
-              .eq('job_type', 'full_refresh');
-            console.log(`Progress: ${totalProcessed} titles processed`);
-          }
-
-          // Rate limit: 40 requests per second for TMDB
-          await new Promise(resolve => setTimeout(resolve, 50));
         }
+
+        // Update progress periodically
+        if (totalProcessed % 100 === 0 && totalProcessed > 0) {
+          await supabase
+            .from('jobs')
+            .update({ total_titles_processed: totalProcessed })
+            .eq('job_type', 'full_refresh');
+          console.log(`Progress: ${totalProcessed} titles processed`);
+        }
+
+        // Rate limit: 40 requests per second for TMDB
+        await new Promise(resolve => setTimeout(resolve, 50));
       }
     }
 
