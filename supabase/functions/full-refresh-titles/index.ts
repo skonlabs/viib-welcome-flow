@@ -44,7 +44,16 @@ serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    console.log('Starting Full Refresh job...');
+    // Parse request body for optional year range
+    let requestBody: any = {};
+    try {
+      const text = await req.text();
+      if (text) requestBody = JSON.parse(text);
+    } catch (e) {
+      // Ignore if no body or invalid JSON
+    }
+
+    console.log('Starting Full Refresh job...', requestBody);
 
     // Update job status to running
     const startTime = Date.now();
@@ -67,8 +76,10 @@ serve(async (req) => {
     const config = jobData?.configuration as any || {};
     const minRating = config.min_rating || 6.0;
     const titlesPerBatch = config.titles_per_batch || 100;
-    const startYear = config.start_year || 2020;
-    const endYear = config.end_year || 2025;
+    
+    // Use year range from request body if provided, otherwise use config
+    const startYear = requestBody.startYear || config.start_year || 2020;
+    const endYear = requestBody.endYear || config.end_year || 2025;
 
     // Fetch all genres, languages, and streaming services
     const [genresRes, languagesRes, servicesRes] = await Promise.all([
