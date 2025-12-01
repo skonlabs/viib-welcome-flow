@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { errorLogger } from "@/lib/services/ErrorLoggerService";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { X, Mail, Phone } from "@/icons";
+import { X, Mail, Phone, LinkIcon, Copy, Check } from "@/icons";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 interface InviteFriendDialogProps {
@@ -18,12 +18,29 @@ interface InviteFriendDialogProps {
 }
 
 export const InviteFriendDialog = ({ open, onOpenChange, onInviteSent }: InviteFriendDialogProps) => {
-  const [method, setMethod] = useState<"email" | "phone">("email");
+  const [method, setMethod] = useState<"email" | "phone" | "link">("link");
   const [contactInput, setContactInput] = useState("");
   const [contacts, setContacts] = useState<string[]>([]);
   const [message, setMessage] = useState("Hey! Join me on ViiB - it's an amazing app for discovering movies and shows based on your mood!");
   const [loading, setLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
   const { user } = useAuth();
+
+  const inviteLink = user ? `${window.location.origin}?invited_by=${user.id}` : "";
+
+  const copyInviteLink = async () => {
+    try {
+      await navigator.clipboard.writeText(inviteLink);
+      setCopied(true);
+      toast.success("Invite link copied to clipboard!");
+      setTimeout(() => setCopied(false), 2000);
+    } catch (error) {
+      await errorLogger.log(error, {
+        operation: 'copy_invite_link'
+      });
+      toast.error("Failed to copy link. Please try again.");
+    }
+  };
 
   const validateContact = (contact: string) => {
     if (method === "email") {
@@ -109,8 +126,12 @@ export const InviteFriendDialog = ({ open, onOpenChange, onInviteSent }: InviteF
           </DialogDescription>
         </DialogHeader>
         
-        <Tabs value={method} onValueChange={(v) => setMethod(v as "email" | "phone")} className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+        <Tabs value={method} onValueChange={(v) => setMethod(v as "email" | "phone" | "link")} className="w-full">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="link" className="flex items-center gap-2">
+              <LinkIcon className="w-4 h-4" />
+              Link
+            </TabsTrigger>
             <TabsTrigger value="email" className="flex items-center gap-2">
               <Mail className="w-4 h-4" />
               Email
@@ -120,6 +141,39 @@ export const InviteFriendDialog = ({ open, onOpenChange, onInviteSent }: InviteF
               Phone
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="link" className="space-y-4 mt-4">
+            <div className="space-y-3">
+              <Label>Your Personal Invite Link</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={inviteLink}
+                  readOnly
+                  className="font-mono text-sm"
+                />
+                <Button
+                  type="button"
+                  onClick={copyInviteLink}
+                  className="flex items-center gap-2 shrink-0"
+                >
+                  {copied ? (
+                    <>
+                      <Check className="w-4 h-4" />
+                      Copied
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-4 h-4" />
+                      Copy
+                    </>
+                  )}
+                </Button>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Share this link via messaging apps, social media, or anywhere you'd like to invite friends to ViiB.
+              </p>
+            </div>
+          </TabsContent>
 
           <TabsContent value="email" className="space-y-4 mt-4">
             <div>
@@ -195,11 +249,13 @@ export const InviteFriendDialog = ({ open, onOpenChange, onInviteSent }: InviteF
 
         <div className="flex justify-end gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
+            {method === "link" ? "Close" : "Cancel"}
           </Button>
-          <Button onClick={handleSendInvites} disabled={loading || contacts.length === 0}>
-            {loading ? 'Sending...' : `Send ${contacts.length > 0 ? contacts.length : ''} Invite${contacts.length !== 1 ? 's' : ''}`}
-          </Button>
+          {method !== "link" && (
+            <Button onClick={handleSendInvites} disabled={loading || contacts.length === 0}>
+              {loading ? 'Sending...' : `Send ${contacts.length > 0 ? contacts.length : ''} Invite${contacts.length !== 1 ? 's' : ''}`}
+            </Button>
+          )}
         </div>
       </DialogContent>
     </Dialog>
