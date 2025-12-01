@@ -116,25 +116,12 @@ export const Jobs = () => {
       const startYear = config.start_year || 2020;
       const endYear = config.end_year || 2025;
       
-      // Fetch all languages from database
-      const { data: languagesData } = await supabase
-        .from('languages')
-        .select('language_code, language_name');
-      
-      const languages = languagesData || [];
-      
-      // Create fine-grained chunks: 1 year + 2-3 languages per job
-      const languagesPerChunk = 3;
-      const chunks: Array<{ year: number; languageCodes: string[] }> = [];
+      // The edge function now processes by genre instead of language for better coverage
+      // Each job processes 1 year + all genres (genres are processed sequentially within each job)
+      const chunks: Array<{ year: number }> = [];
       
       for (let year = startYear; year <= endYear; year++) {
-        for (let i = 0; i < languages.length; i += languagesPerChunk) {
-          const languageSlice = languages.slice(i, i + languagesPerChunk);
-          chunks.push({
-            year,
-            languageCodes: languageSlice.map(l => l.language_code)
-          });
-        }
+        chunks.push({ year });
       }
 
       // Reset the job counter before starting parallel processing
@@ -149,11 +136,11 @@ export const Jobs = () => {
 
       toast({
         title: "Parallel Jobs Started",
-        description: `Starting ${chunks.length} parallel jobs (${languages.length} languages × ${endYear - startYear + 1} years)...`,
+        description: `Starting ${chunks.length} parallel jobs (1 per year, ${startYear}-${endYear})...`,
       });
 
-      // Process in batches of 10 concurrent requests to avoid overwhelming the system
-      const batchSize = 10;
+      // Process in batches of 6 concurrent requests (one per year)
+      const batchSize = 6;
       let succeeded = 0;
       let failed = 0;
 
@@ -164,8 +151,7 @@ export const Jobs = () => {
           supabase.functions.invoke('full-refresh-titles', {
             body: { 
               startYear: chunk.year, 
-              endYear: chunk.year,
-              languageCodes: chunk.languageCodes
+              endYear: chunk.year
             }
           })
         );
@@ -177,7 +163,7 @@ export const Jobs = () => {
         // Update progress
         toast({
           title: "Progress Update",
-          description: `Completed ${i + batch.length}/${chunks.length} jobs (${succeeded} succeeded, ${failed} failed)`,
+          description: `Completed ${i + batch.length}/${chunks.length} years (${succeeded} succeeded, ${failed} failed)`,
         });
 
         // Small delay between batches
