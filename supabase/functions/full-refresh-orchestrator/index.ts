@@ -34,7 +34,8 @@ serve(async (req) => {
 
     // Dispatch threads in batches with proper concurrency control
     const dispatchAllThreads = async () => {
-      const BATCH_SIZE = 20; // Process 20 threads concurrently per batch
+      const BATCH_SIZE = 5; // Process 5 threads concurrently per batch
+      const BATCH_DELAY_MS = 10000; // 10 second delay between batches
       const totalThreads = chunks.length - startIndex;
       const totalBatches = Math.ceil(totalThreads / BATCH_SIZE);
       
@@ -91,6 +92,12 @@ serve(async (req) => {
         // Wait for all threads in this batch to complete
         await Promise.all(batchPromises);
         console.log(`Batch ${batchNumber}/${totalBatches} completed (threads ${batchStart + 1}-${batchEnd})`);
+        
+        // Add delay between batches to prevent overwhelming Supabase
+        if (batchIndex < totalBatches - 1) {
+          console.log(`Waiting ${BATCH_DELAY_MS}ms before starting next batch...`);
+          await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
+        }
       }
       
       console.log(`Orchestrator completed: all ${totalThreads} threads dispatched in ${totalBatches} batches for job ${jobId}`);
