@@ -319,7 +319,7 @@ export const Jobs = () => {
       };
       
       const jobStartTime = Date.now();
-      await supabase
+      const { error: updateError } = await supabase
         .from('jobs')
         .update({ 
           status: 'running',
@@ -332,6 +332,33 @@ export const Jobs = () => {
           last_run_at: new Date().toISOString()
         })
         .eq('id', job.id);
+
+      if (updateError) {
+        console.error('Failed to update job status:', updateError);
+        toast({
+          title: "Failed to Start Job",
+          description: "Could not update job status to 'running'. Check console for details.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Verify the status was actually updated
+      const { data: verifyJob, error: verifyError } = await supabase
+        .from('jobs')
+        .select('status, error_message')
+        .eq('id', job.id)
+        .single();
+
+      if (verifyError || verifyJob?.status !== 'running') {
+        console.error('Job status verification failed:', { status: verifyJob?.status, error: verifyError });
+        toast({
+          title: "Job Status Update Failed",
+          description: `Job status is '${verifyJob?.status}' instead of 'running'. Cannot start threads.`,
+          variant: "destructive"
+        });
+        return;
+      }
 
       // Initialize progress tracking
       setParallelProgress({
