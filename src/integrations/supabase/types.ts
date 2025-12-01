@@ -1038,6 +1038,7 @@ export type Database = {
           runtime_minutes: number | null
           synopsis: string | null
           title_name: string
+          tmdb_id: number | null
         }
         Insert: {
           content_type: string
@@ -1050,6 +1051,7 @@ export type Database = {
           runtime_minutes?: number | null
           synopsis?: string | null
           title_name: string
+          tmdb_id?: number | null
         }
         Update: {
           content_type?: string
@@ -1062,6 +1064,7 @@ export type Database = {
           runtime_minutes?: number | null
           synopsis?: string | null
           title_name?: string
+          tmdb_id?: number | null
         }
         Relationships: [
           {
