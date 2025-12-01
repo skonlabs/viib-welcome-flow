@@ -90,20 +90,35 @@ serve(async (req) => {
     console.log(`Processing: ${languages.length} languages, ${streamingServices.length} services, years ${startYear}-${endYear}`);
 
     let totalProcessed = 0;
+    const MAX_RUNTIME_MS = 90000; // 90 seconds safety margin
 
     // Process each combination - FETCH ALL GENRES TOGETHER, then map
     for (let year = startYear; year <= endYear; year++) {
       for (const language of languages) {
+        // Check if we're approaching time limit
+        const elapsed = Date.now() - startTime;
+        if (elapsed > MAX_RUNTIME_MS) {
+          console.log(`Approaching time limit at ${elapsed}ms. Stopping gracefully.`);
+          break;
+        }
+
         console.log(`Fetching: Year=${year}, Lang=${language.language_name}`);
 
         // Fetch movies (all genres in one call)
         const moviesUrl = `https://api.themoviedb.org/3/discover/movie?api_key=${TMDB_API_KEY}&primary_release_year=${year}&with_original_language=${language.language_code}&vote_average.gte=${minRating}&vote_count.gte=10&sort_by=popularity.desc&per_page=${titlesPerBatch}&page=1`;
         
-        const moviesResponse = await fetch(moviesUrl);
-        const moviesData = await moviesResponse.json();
-        const movies = moviesData.results || [];
-
-        console.log(`Found ${movies.length} movies`);
+        let moviesResponse;
+        let moviesData;
+        let movies = [];
+        
+        try {
+          moviesResponse = await fetch(moviesUrl);
+          moviesData = await moviesResponse.json();
+          movies = moviesData.results || [];
+          console.log(`Found ${movies.length} movies`);
+        } catch (err) {
+          console.error('Error fetching movies:', err);
+        }
 
         for (const movie of movies) {
           try {
@@ -171,14 +186,27 @@ serve(async (req) => {
           }
         }
 
+        // Clear movies array to free memory
+        movies.length = 0;
+        movies = [];
+        moviesData = null;
+        moviesResponse = null;
+
         // Fetch TV shows (all genres in one call)
         const tvUrl = `https://api.themoviedb.org/3/discover/tv?api_key=${TMDB_API_KEY}&first_air_date_year=${year}&with_original_language=${language.language_code}&vote_average.gte=${minRating}&vote_count.gte=10&sort_by=popularity.desc&per_page=${titlesPerBatch}&page=1`;
         
-        const tvResponse = await fetch(tvUrl);
-        const tvData = await tvResponse.json();
-        const shows = tvData.results || [];
-
-        console.log(`Found ${shows.length} TV shows`);
+        let tvResponse;
+        let tvData;
+        let shows = [];
+        
+        try {
+          tvResponse = await fetch(tvUrl);
+          tvData = await tvResponse.json();
+          shows = tvData.results || [];
+          console.log(`Found ${shows.length} TV shows`);
+        } catch (err) {
+          console.error('Error fetching TV shows:', err);
+        }
 
         for (const show of shows) {
           try {
@@ -242,17 +270,28 @@ serve(async (req) => {
           }
         }
 
-        // Update progress periodically
-        if (totalProcessed % 100 === 0 && totalProcessed > 0) {
-          await supabase
-            .from('jobs')
-            .update({ total_titles_processed: totalProcessed })
-            .eq('job_type', 'full_refresh');
-          console.log(`Progress: ${totalProcessed} titles processed`);
-        }
+        // Clear TV shows array to free memory
+        shows.length = 0;
+        shows = [];
+        tvData = null;
+        tvResponse = null;
+
+        // Update progress after each language
+        await supabase
+          .from('jobs')
+          .update({ total_titles_processed: totalProcessed })
+          .eq('job_type', 'full_refresh');
+        console.log(`Progress: ${totalProcessed} titles processed (Year: ${year}, Lang: ${language.language_name})`);
 
         // Rate limit: 40 requests per second for TMDB
-        await new Promise(resolve => setTimeout(resolve, 50));
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      
+      // Check again after each year completes
+      const elapsed = Date.now() - startTime;
+      if (elapsed > MAX_RUNTIME_MS) {
+        console.log(`Time limit reached after year ${year}. Stopping.`);
+        break;
       }
     }
 
