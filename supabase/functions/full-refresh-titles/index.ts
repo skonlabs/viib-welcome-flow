@@ -80,6 +80,7 @@ serve(async (req) => {
     const startYear = requestBody.startYear || config.start_year || 2020;
     const endYear = requestBody.endYear || config.end_year || 2025;
     const genreId = requestBody.genreId || null; // Specific TMDB genre ID to process
+    const languageCode = requestBody.languageCode || null; // Specific language code to filter by
 
     // Fetch all genres, languages, and streaming services
     const [genresRes, languagesRes, servicesRes] = await Promise.all([
@@ -100,31 +101,35 @@ serve(async (req) => {
 
     // If genreId is specified, process only that genre; otherwise process all genres
     const tmdbGenreIds = genreId ? [genreId] : Object.keys(TMDB_GENRE_MAP).map(Number);
+    
+    // If languageCode is specified, process only that language; otherwise process all languages
+    const languageCodes = languageCode ? [languageCode] : languages.map(l => l.language_code);
 
-    console.log(`Processing: ${tmdbGenreIds.length} genre(s), ${streamingServices.length} services, years ${startYear}-${endYear}`);
+    console.log(`Processing: ${languageCodes.length} language(s), ${tmdbGenreIds.length} genre(s), ${streamingServices.length} services, years ${startYear}-${endYear}`);
 
     let totalProcessed = 0;
     const MAX_RUNTIME_MS = 90000; // 90 seconds safety margin
 
-    // Process each year + genre combination
-    for (let year = startYear; year <= endYear; year++) {
-      for (const tmdbGenreId of tmdbGenreIds) {
-        // Check if we're approaching time limit
-        const elapsed = Date.now() - startTime;
-        if (elapsed > MAX_RUNTIME_MS) {
-          console.log(`Approaching time limit at ${elapsed}ms. Stopping gracefully.`);
-          break;
-        }
+    // Process each language + year + genre combination
+    for (const langCode of languageCodes) {
+      for (let year = startYear; year <= endYear; year++) {
+        for (const tmdbGenreId of tmdbGenreIds) {
+          // Check if we're approaching time limit
+          const elapsed = Date.now() - startTime;
+          if (elapsed > MAX_RUNTIME_MS) {
+            console.log(`Approaching time limit at ${elapsed}ms. Stopping gracefully.`);
+            break;
+          }
 
-        const genreName = TMDB_GENRE_MAP[tmdbGenreId];
-        console.log(`Fetching: Year=${year}, Genre=${genreName} (ID: ${tmdbGenreId})`);
+          const genreName = TMDB_GENRE_MAP[tmdbGenreId];
+          console.log(`Fetching: Language=${langCode}, Year=${year}, Genre=${genreName} (ID: ${tmdbGenreId})`);
 
-        // Fetch movies with pagination (TMDB limits to 20 pages = 500 results max per query)
-        let moviePage = 1;
-        let movieTotalPages = 1;
-        
-        while (moviePage <= movieTotalPages && moviePage <= 20) {
-          const moviesUrl = `https://api.themoviedb.org/3/discover/movie?api_key=${TMDB_API_KEY}&primary_release_year=${year}&with_genres=${tmdbGenreId}&vote_average.gte=${minRating}&vote_count.gte=10&sort_by=popularity.desc&page=${moviePage}`;
+          // Fetch movies with pagination (TMDB limits to 20 pages = 500 results max per query)
+          let moviePage = 1;
+          let movieTotalPages = 1;
+          
+          while (moviePage <= movieTotalPages && moviePage <= 20) {
+            const moviesUrl = `https://api.themoviedb.org/3/discover/movie?api_key=${TMDB_API_KEY}&primary_release_year=${year}&with_genres=${tmdbGenreId}&with_original_language=${langCode}&vote_average.gte=${minRating}&vote_count.gte=10&sort_by=popularity.desc&page=${moviePage}`;
           
           try {
             const moviesResponse = await fetch(moviesUrl);
@@ -218,12 +223,12 @@ serve(async (req) => {
           }
         }
 
-        // Fetch TV shows with pagination (TMDB limits to 20 pages = 500 results max per query)
-        let tvPage = 1;
-        let tvTotalPages = 1;
-        
-        while (tvPage <= tvTotalPages && tvPage <= 20) {
-          const tvUrl = `https://api.themoviedb.org/3/discover/tv?api_key=${TMDB_API_KEY}&first_air_date_year=${year}&with_genres=${tmdbGenreId}&vote_average.gte=${minRating}&vote_count.gte=10&sort_by=popularity.desc&page=${tvPage}`;
+          // Fetch TV shows with pagination (TMDB limits to 20 pages = 500 results max per query)
+          let tvPage = 1;
+          let tvTotalPages = 1;
+          
+          while (tvPage <= tvTotalPages && tvPage <= 20) {
+            const tvUrl = `https://api.themoviedb.org/3/discover/tv?api_key=${TMDB_API_KEY}&first_air_date_year=${year}&with_genres=${tmdbGenreId}&with_original_language=${langCode}&vote_average.gte=${minRating}&vote_count.gte=10&sort_by=popularity.desc&page=${tvPage}`;
           
           try {
             const tvResponse = await fetch(tvUrl);
@@ -320,7 +325,7 @@ serve(async (req) => {
           .from('jobs')
           .update({ total_titles_processed: totalProcessed })
           .eq('job_type', 'full_refresh');
-        console.log(`Progress: ${totalProcessed} titles processed (Year: ${year}, Genre: ${genreName})`);
+        console.log(`Progress: ${totalProcessed} titles processed (Language: ${langCode}, Year: ${year}, Genre: ${genreName})`);
 
         // Rate limit delay between genre combinations
         await new Promise(resolve => setTimeout(resolve, 100));
@@ -333,6 +338,7 @@ serve(async (req) => {
         break;
       }
     }
+  }
 
     const duration = Math.floor((Date.now() - startTime) / 1000);
 

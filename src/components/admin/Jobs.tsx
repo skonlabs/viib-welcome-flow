@@ -126,15 +126,25 @@ export const Jobs = () => {
       const startYear = config.start_year || 2020;
       const endYear = config.end_year || 2025;
       
+      // Fetch languages from database
+      const { data: languages } = await supabase
+        .from('languages')
+        .select('language_code')
+        .order('language_code');
+      
+      const languageCodes = languages?.map(l => l.language_code) || [];
+      
       // TMDB Genre IDs that we'll process
       const genreIds = [28, 12, 16, 35, 80, 99, 18, 10751, 14, 36, 27, 10402, 9648, 10749, 878, 53, 10752, 37];
       
-      // Create fine-grained chunks: 1 year + 1 genre per job (avoids CPU timeout)
-      const chunks: Array<{ year: number; genreId: number }> = [];
+      // Create fine-grained chunks: 1 language + 1 year + 1 genre per job
+      const chunks: Array<{ languageCode: string; year: number; genreId: number }> = [];
       
-      for (let year = startYear; year <= endYear; year++) {
-        for (const genreId of genreIds) {
-          chunks.push({ year, genreId });
+      for (const langCode of languageCodes) {
+        for (let year = startYear; year <= endYear; year++) {
+          for (const genreId of genreIds) {
+            chunks.push({ languageCode: langCode, year, genreId });
+          }
         }
       }
 
@@ -176,6 +186,7 @@ export const Jobs = () => {
           try {
             await supabase.functions.invoke('full-refresh-titles', {
               body: { 
+                languageCode: chunk.languageCode,
                 startYear: chunk.year, 
                 endYear: chunk.year,
                 genreId: chunk.genreId,
