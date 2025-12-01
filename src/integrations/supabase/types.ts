@@ -508,21 +508,6 @@ export type Database = {
         }
         Relationships: []
       }
-      language_master: {
-        Row: {
-          language_code: string
-          language_name: string
-        }
-        Insert: {
-          language_code: string
-          language_name: string
-        }
-        Update: {
-          language_code?: string
-          language_name?: string
-        }
-        Relationships: []
-      }
       languages: {
         Row: {
           created_at: string | null
@@ -967,7 +952,7 @@ export type Database = {
             foreignKeyName: "title_languages_language_code_fkey"
             columns: ["language_code"]
             isOneToOne: false
-            referencedRelation: "language_master"
+            referencedRelation: "languages"
             referencedColumns: ["language_code"]
           },
           {
@@ -1071,7 +1056,7 @@ export type Database = {
             foreignKeyName: "titles_original_language_fkey"
             columns: ["original_language"]
             isOneToOne: false
-            referencedRelation: "language_master"
+            referencedRelation: "languages"
             referencedColumns: ["language_code"]
           },
         ]
@@ -1197,7 +1182,7 @@ export type Database = {
             foreignKeyName: "user_language_preferences_language_code_fkey"
             columns: ["language_code"]
             isOneToOne: false
-            referencedRelation: "language_master"
+            referencedRelation: "languages"
             referencedColumns: ["language_code"]
           },
           {
