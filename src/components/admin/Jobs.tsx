@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Play, Pause, RefreshCw, Clock, Calendar, Settings } from "@/icons";
+import { Play, Pause, RefreshCw, Clock, Calendar as CalendarIcon, Settings } from "@/icons";
 import { errorLogger } from "@/lib/services/ErrorLoggerService";
 import {
   Dialog,
@@ -16,6 +16,10 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
 
 interface Job {
   id: string;
@@ -134,11 +138,16 @@ export const Jobs = () => {
     }
   };
 
-  const handleUpdateConfig = async (job: Job, newConfig: any) => {
+  const handleUpdateConfig = async (job: Job, newConfig: any, nextRunAt?: string) => {
     try {
+      const updateData: any = { configuration: newConfig };
+      if (nextRunAt) {
+        updateData.next_run_at = nextRunAt;
+      }
+
       const { error } = await supabase
         .from('jobs')
-        .update({ configuration: newConfig })
+        .update(updateData)
         .eq('id', job.id);
 
       if (error) throw error;
@@ -248,7 +257,7 @@ export const Jobs = () => {
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div className="space-y-1">
                   <div className="flex items-center text-muted-foreground">
-                    <Calendar className="w-4 h-4 mr-2" />
+                    <CalendarIcon className="w-4 h-4 mr-2" />
                     Last Run
                   </div>
                   <div className="font-medium">{formatDate(job.last_run_at)}</div>
@@ -326,15 +335,28 @@ export const Jobs = () => {
 
 interface JobConfigDialogProps {
   job: Job;
-  onUpdate: (job: Job, config: any) => Promise<void>;
+  onUpdate: (job: Job, config: any, nextRunAt?: string) => Promise<void>;
 }
 
 const JobConfigDialog = ({ job, onUpdate }: JobConfigDialogProps) => {
   const [config, setConfig] = useState(job.configuration);
   const [open, setOpen] = useState(false);
+  const [scheduledDate, setScheduledDate] = useState<Date | undefined>(
+    job.next_run_at ? new Date(job.next_run_at) : undefined
+  );
+  const [scheduledTime, setScheduledTime] = useState<string>(
+    job.next_run_at ? format(new Date(job.next_run_at), "HH:mm") : "02:00"
+  );
 
   const handleSave = async () => {
-    await onUpdate(job, config);
+    let nextRunAt: string | undefined;
+    if (scheduledDate) {
+      const [hours, minutes] = scheduledTime.split(':');
+      const date = new Date(scheduledDate);
+      date.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+      nextRunAt = date.toISOString();
+    }
+    await onUpdate(job, config, nextRunAt);
     setOpen(false);
   };
 
@@ -349,72 +371,146 @@ const JobConfigDialog = ({ job, onUpdate }: JobConfigDialogProps) => {
         <DialogHeader>
           <DialogTitle>Configure {job.job_name}</DialogTitle>
           <DialogDescription>
-            Adjust job parameters to customize behavior
+            Adjust job parameters and scheduling
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4 py-4">
-          {job.job_type === 'full_refresh' ? (
-            <>
-              <div className="space-y-2">
-                <Label>Minimum Rating</Label>
-                <Input
-                  type="number"
-                  step="0.1"
-                  value={config.min_rating}
-                  onChange={(e) => setConfig({ ...config, min_rating: parseFloat(e.target.value) })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Titles Per Batch</Label>
-                <Input
-                  type="number"
-                  value={config.titles_per_batch}
-                  onChange={(e) => setConfig({ ...config, titles_per_batch: parseInt(e.target.value) })}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-6 py-4 max-h-[60vh] overflow-y-auto">
+          {/* Scheduling Section */}
+          <div className="space-y-4 border-b pb-4">
+            <h4 className="font-semibold text-sm">Schedule</h4>
+            <div className="space-y-2">
+              <Label>Next Run Date</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !scheduledDate && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {scheduledDate ? format(scheduledDate, "PPP") : <span>Pick a date</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={scheduledDate}
+                    onSelect={setScheduledDate}
+                    disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                    initialFocus
+                    className={cn("p-3 pointer-events-auto")}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+            <div className="space-y-2">
+              <Label>Time (24-hour format)</Label>
+              <Input
+                type="time"
+                value={scheduledTime}
+                onChange={(e) => setScheduledTime(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Job will run at this time on the selected date
+              </p>
+            </div>
+          </div>
+
+          {/* Configuration Section */}
+          <div className="space-y-4">
+            <h4 className="font-semibold text-sm">Configuration</h4>
+            {job.job_type === 'full_refresh' ? (
+              <>
                 <div className="space-y-2">
-                  <Label>Start Year</Label>
+                  <Label>Minimum Rating</Label>
                   <Input
                     type="number"
-                    value={config.start_year}
-                    onChange={(e) => setConfig({ ...config, start_year: parseInt(e.target.value) })}
+                    step="0.1"
+                    min="0"
+                    max="10"
+                    value={config.min_rating}
+                    onChange={(e) => setConfig({ ...config, min_rating: parseFloat(e.target.value) })}
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Only fetch titles with rating ≥ this value (0-10)
+                  </p>
                 </div>
                 <div className="space-y-2">
-                  <Label>End Year</Label>
+                  <Label>Titles Per Batch</Label>
                   <Input
                     type="number"
-                    value={config.end_year}
-                    onChange={(e) => setConfig({ ...config, end_year: parseInt(e.target.value) })}
+                    min="10"
+                    max="500"
+                    value={config.titles_per_batch}
+                    onChange={(e) => setConfig({ ...config, titles_per_batch: parseInt(e.target.value) })}
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Number of titles to fetch per API request (10-500)
+                  </p>
                 </div>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="space-y-2">
-                <Label>Minimum Rating</Label>
-                <Input
-                  type="number"
-                  step="0.1"
-                  value={config.min_rating}
-                  onChange={(e) => setConfig({ ...config, min_rating: parseFloat(e.target.value) })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Lookback Days</Label>
-                <Input
-                  type="number"
-                  value={config.lookback_days}
-                  onChange={(e) => setConfig({ ...config, lookback_days: parseInt(e.target.value) })}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Number of days to look back for new titles
-                </p>
-              </div>
-            </>
-          )}
+                <div className="border-t pt-4">
+                  <h5 className="font-semibold text-sm mb-3">Year Range</h5>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Start Year</Label>
+                      <Input
+                        type="number"
+                        min="1900"
+                        max={new Date().getFullYear()}
+                        value={config.start_year}
+                        onChange={(e) => setConfig({ ...config, start_year: parseInt(e.target.value) })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>End Year</Label>
+                      <Input
+                        type="number"
+                        min="1900"
+                        max={new Date().getFullYear()}
+                        value={config.end_year}
+                        onChange={(e) => setConfig({ ...config, end_year: parseInt(e.target.value) })}
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Fetch titles released between these years
+                  </p>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <Label>Minimum Rating</Label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="10"
+                    value={config.min_rating}
+                    onChange={(e) => setConfig({ ...config, min_rating: parseFloat(e.target.value) })}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Only fetch titles with rating ≥ this value (0-10)
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Lookback Days</Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    max="365"
+                    value={config.lookback_days}
+                    onChange={(e) => setConfig({ ...config, lookback_days: parseInt(e.target.value) })}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Number of days to look back for new titles (1-365)
+                  </p>
+                </div>
+              </>
+            )}
+          </div>
         </div>
         <div className="flex justify-end gap-2">
           <Button variant="outline" onClick={() => setOpen(false)}>
