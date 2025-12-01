@@ -83,14 +83,32 @@ export const Jobs = () => {
     try {
       setRunningJobs(prev => new Set([...prev, job.id]));
       
-      const functionName = job.job_type === 'full_refresh' ? 'full-refresh-titles' : 'sync-titles-delta';
+      let functionName: string;
+      let functionBody: any = {};
+      
+      if (job.job_type === 'full_refresh') {
+        functionName = 'full-refresh-titles';
+      } else if (job.job_type === 'sync_delta') {
+        functionName = 'sync-titles-delta';
+      } else if (job.job_type === 'enrich_trailers') {
+        functionName = 'enrich-title-trailers';
+        functionBody = {
+          batchSize: job.configuration?.batch_size || 50,
+          startOffset: job.configuration?.start_offset || 0,
+          jobId: job.id
+        };
+      } else {
+        throw new Error(`Unknown job type: ${job.job_type}`);
+      }
       
       toast({
         title: "Job Started",
         description: `${job.job_name} is now running. This may take several minutes...`,
       });
 
-      const { data, error } = await supabase.functions.invoke(functionName);
+      const { data, error } = await supabase.functions.invoke(functionName, {
+        body: functionBody
+      });
 
       if (error) throw error;
 
@@ -123,6 +141,98 @@ export const Jobs = () => {
   const handleRunParallel = async (job: Job) => {
     try {
       const config = job.configuration;
+
+      if (job.job_type === 'enrich_trailers') {
+        // For trailer enrichment, divide work by batch offset
+        const { count } = await supabase
+          .from('titles')
+          .select('*', { count: 'exact', head: true })
+          .not('tmdb_id', 'is', null)
+          .is('trailer_url', null);
+
+        const totalTitles = count || 0;
+        const batchSize = config.batch_size || 50;
+        const numChunks = Math.ceil(totalTitles / batchSize);
+
+        // Reset the job counter
+        await supabase
+          .from('jobs')
+          .update({ 
+            status: 'running',
+            total_titles_processed: 0,
+            last_run_at: new Date().toISOString()
+          })
+          .eq('id', job.id);
+
+        setParallelProgress({
+          jobId: job.id,
+          currentThread: 0,
+          totalThreads: numChunks,
+          succeeded: 0,
+          failed: 0,
+          titlesProcessed: 0
+        });
+
+        toast({
+          title: "Parallel Trailer Enrichment Started",
+          description: `Processing ${numChunks} batches with ${batchSize} titles each. Total: ${totalTitles} titles.`,
+        });
+
+        // Fire off all batches with staggered delays
+        for (let i = 0; i < numChunks; i++) {
+          const delayMs = i * 3000; // 3 second stagger
+          
+          setTimeout(async () => {
+            try {
+              await supabase.functions.invoke('enrich-title-trailers', {
+                body: { 
+                  batchSize,
+                  startOffset: i * batchSize,
+                  jobId: job.id
+                }
+              });
+            } catch (error) {
+              console.error(`Error invoking batch ${i + 1}:`, error);
+            }
+          }, delayMs);
+        }
+
+        // Poll for progress
+        const pollInterval = setInterval(async () => {
+          const { data: updatedJob } = await supabase
+            .from('jobs')
+            .select('total_titles_processed, status')
+            .eq('id', job.id)
+            .single();
+
+          if (updatedJob) {
+            const estimatedCompleted = Math.floor((updatedJob.total_titles_processed || 0) / batchSize);
+            
+            setParallelProgress({
+              jobId: job.id,
+              currentThread: estimatedCompleted,
+              totalThreads: numChunks,
+              succeeded: estimatedCompleted,
+              failed: 0,
+              titlesProcessed: updatedJob.total_titles_processed || 0
+            });
+
+            if (estimatedCompleted >= numChunks) {
+              clearInterval(pollInterval);
+              setParallelProgress(null);
+            }
+          }
+        }, 10000);
+
+        setTimeout(() => {
+          clearInterval(pollInterval);
+          setParallelProgress(null);
+        }, 7200000); // 2 hours max
+
+        return;
+      }
+
+      // Original full_refresh parallel logic
       const startYear = config.start_year || 2020;
       const endYear = config.end_year || 2025;
       
@@ -720,6 +830,34 @@ const JobConfigDialog = ({ job, onUpdate }: JobConfigDialogProps) => {
                   </div>
                   <p className="text-xs text-muted-foreground mt-2">
                     Fetch titles released between these years
+                  </p>
+                </div>
+              </>
+            ) : job.job_type === 'enrich_trailers' ? (
+              <>
+                <div className="space-y-2">
+                  <Label>Batch Size</Label>
+                  <Input
+                    type="number"
+                    min="10"
+                    max="100"
+                    value={config.batch_size || 50}
+                    onChange={(e) => setConfig({ ...config, batch_size: parseInt(e.target.value) })}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Number of titles to process per batch (10-100)
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Start Offset</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={config.start_offset || 0}
+                    onChange={(e) => setConfig({ ...config, start_offset: parseInt(e.target.value) })}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Starting position in the titles table (0 = from beginning)
                   </p>
                 </div>
               </>
