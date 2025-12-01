@@ -475,6 +475,30 @@ export type Database = {
         }
         Relationships: []
       }
+      languages: {
+        Row: {
+          created_at: string | null
+          flag_emoji: string | null
+          id: string
+          language_code: string
+          language_name: string
+        }
+        Insert: {
+          created_at?: string | null
+          flag_emoji?: string | null
+          id?: string
+          language_code: string
+          language_name: string
+        }
+        Update: {
+          created_at?: string | null
+          flag_emoji?: string | null
+          id?: string
+          language_code?: string
+          language_name?: string
+        }
+        Relationships: []
+      }
       personality_profiles: {
         Row: {
           analytical_thinking: number | null

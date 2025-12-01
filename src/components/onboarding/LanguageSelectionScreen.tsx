@@ -6,31 +6,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { BackButton } from "./BackButton";
 import { FloatingParticles } from "./FloatingParticles";
+import { errorLogger } from "@/lib/services/ErrorLoggerService";
 
 interface LanguageSelectionScreenProps {
   onContinue: (languages: string[]) => void;
   onBack: () => void;
   initialLanguages?: string[];
 }
-
-// Map language codes to flag emojis
-const languageFlags: Record<string, string> = {
-  "en": "🇺🇸",
-  "es": "🇪🇸",
-  "fr": "🇫🇷",
-  "de": "🇩🇪",
-  "it": "🇮🇹",
-  "pt": "🇵🇹",
-  "ja": "🇯🇵",
-  "ko": "🇰🇷",
-  "zh": "🇨🇳",
-  "hi": "🇮🇳",
-  "ar": "🇸🇦",
-  "ru": "🇷🇺",
-  "tr": "🇹🇷",
-  "nl": "🇳🇱",
-  "sv": "🇸🇪",
-};
 
 export const LanguageSelectionScreen = ({ onContinue, onBack, initialLanguages = [] }: LanguageSelectionScreenProps) => {
   const [selectedLanguages, setSelectedLanguages] = useState<string[]>(initialLanguages);
@@ -47,8 +29,8 @@ export const LanguageSelectionScreen = ({ onContinue, onBack, initialLanguages =
     const fetchLanguages = async () => {
       try {
         const { data, error } = await supabase
-          .from('language_master')
-          .select('language_code, language_name')
+          .from('languages')
+          .select('language_code, language_name, flag_emoji')
           .order('language_name');
 
         if (error) throw error;
@@ -56,12 +38,14 @@ export const LanguageSelectionScreen = ({ onContinue, onBack, initialLanguages =
         const mappedLanguages = data.map(lang => ({
           code: lang.language_code,
           name: lang.language_name,
-          flag: languageFlags[lang.language_code] || "🌐"
+          flag: lang.flag_emoji || "🌐"
         }));
 
         setLanguages(mappedLanguages);
       } catch (error) {
-        console.error('Error fetching languages:', error);
+        await errorLogger.log(error, {
+          operation: 'fetch_languages_onboarding'
+        });
         toast({
           title: "Error loading languages",
           description: "Please refresh the page to try again.",
