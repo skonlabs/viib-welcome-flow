@@ -56,6 +56,8 @@ serve(async (req) => {
     console.log('Starting Full Refresh job...', requestBody);
 
     const startTime = Date.now();
+    
+    const jobId = requestBody.jobId; // Extract job ID if provided
 
     // Fetch configuration
     const { data: jobData } = await supabase
@@ -331,22 +333,16 @@ serve(async (req) => {
 
     if (incrementError) {
       console.error('Error incrementing title count:', incrementError);
-      // Fallback: try regular update
-      const { data: currentJob } = await supabase
-        .from('jobs')
-        .select('total_titles_processed')
-        .eq('job_type', 'full_refresh')
-        .single();
-      
-      const newTotal = (currentJob?.total_titles_processed || 0) + totalProcessed;
-      
+    }
+    
+    // Always update duration for this specific job (not by job_type, by jobId if provided)
+    if (jobId) {
       await supabase
         .from('jobs')
         .update({ 
-          total_titles_processed: newTotal,
           last_run_duration_seconds: duration
         })
-        .eq('job_type', 'full_refresh');
+        .eq('id', jobId);
     }
 
     console.log(`Full Refresh completed: ${totalProcessed} titles processed in ${duration} seconds for ${languageCode}/${year}/${genreName}`);

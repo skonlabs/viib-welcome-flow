@@ -218,8 +218,18 @@ export const Jobs = () => {
             });
 
             if (estimatedCompleted >= numChunks) {
+              // All chunks completed - update job status
+              await supabase
+                .from('jobs')
+                .update({ 
+                  status: 'completed',
+                  error_message: null
+                })
+                .eq('id', job.id);
+              
               clearInterval(pollInterval);
               setParallelProgress(null);
+              await fetchJobs(); // Refresh job list
             }
           }
         }, 10000);
@@ -338,9 +348,19 @@ export const Jobs = () => {
           });
 
           // Check if all edge functions have likely completed
-          // (this is approximate - we'd need a better tracking system for exact count)
           if (estimatedCompleted >= chunks.length) {
+            // Mark job as completed
+            await supabase
+              .from('jobs')
+              .update({ 
+                status: 'completed',
+                error_message: null
+              })
+              .eq('id', job.id);
+            
             clearInterval(pollInterval);
+            setParallelProgress(null);
+            await fetchJobs(); // Refresh job list
           }
         }
       }, 10000); // Poll every 10 seconds
