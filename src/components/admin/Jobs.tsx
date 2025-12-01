@@ -375,11 +375,15 @@ export const Jobs = () => {
       const startIndex = existingTracking.succeeded + existingTracking.failed;
       const isResume = startIndex > 0;
       
+      const batchSize = 20;
+      const totalBatches = Math.ceil((chunks.length - startIndex) / batchSize);
+      const estimatedMinutes = Math.ceil(totalBatches * 0.5); // ~30s per batch
+      
       toast({
         title: isResume ? "Resuming Parallel Jobs" : "Starting Parallel Jobs",
         description: isResume 
-          ? `Resuming from thread ${startIndex + 1}. Backend orchestrator will dispatch ${chunks.length - startIndex} remaining threads sequentially (3s delay between each).`
-          : `Backend orchestrator will dispatch all ${chunks.length} threads sequentially with 3s delay between each. Estimated time: ${Math.ceil(chunks.length * 3 / 60)} min. Job continues even if you close browser.`,
+          ? `Resuming from thread ${startIndex + 1}. Processing ${chunks.length - startIndex} threads in batches of ${batchSize}. Est: ${estimatedMinutes} min.`
+          : `Processing ${chunks.length} threads in ${totalBatches} batches of ${batchSize} concurrently. Est: ${estimatedMinutes} min. Job continues in background.`,
       });
 
       // Invoke the orchestrator edge function - it will handle all dispatching server-side

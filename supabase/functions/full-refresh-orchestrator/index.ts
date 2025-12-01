@@ -32,40 +32,47 @@ serve(async (req) => {
 
     console.log(`Orchestrator started: dispatching ${chunks.length - startIndex} threads for job ${jobId}`);
 
-    // Dispatch threads with proper staggering to respect concurrency limits
+    // Dispatch threads in batches with proper concurrency control
     const dispatchAllThreads = async () => {
-      const THREAD_DELAY_MS = 3000; // 3 second delay between threads to prevent overwhelming concurrency
+      const BATCH_SIZE = 20; // Process 20 threads concurrently per batch
       const totalThreads = chunks.length - startIndex;
+      const totalBatches = Math.ceil(totalThreads / BATCH_SIZE);
       
-      console.log(`Starting sequential dispatch: ${totalThreads} threads with ${THREAD_DELAY_MS / 1000}s stagger`);
+      console.log(`Starting batch dispatch: ${totalThreads} threads in ${totalBatches} batches of ${BATCH_SIZE}`);
       
-      for (let i = startIndex; i < chunks.length; i++) {
-        // Check if job was stopped every 10 threads
-        if (i % 10 === 0) {
-          const { data: jobStatus, error: statusError } = await supabase
-            .from('jobs')
-            .select('status, error_message, updated_at')
-            .eq('id', jobId)
-            .single();
-          
-          console.log(`Status check at thread ${i + 1}:`, { 
-            status: jobStatus?.status, 
-            error_message: jobStatus?.error_message,
-            updated_at: jobStatus?.updated_at,
-            statusError 
-          });
-          
-          if (jobStatus?.status === 'failed' || jobStatus?.status === 'idle') {
-            console.error(`Job ${jobId} status changed to '${jobStatus.status}'. Error: ${jobStatus.error_message}. Halting orchestration at thread ${i + 1}.`);
-            break;
-          }
+      for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+        const batchStart = startIndex + (batchIndex * BATCH_SIZE);
+        const batchEnd = Math.min(batchStart + BATCH_SIZE, chunks.length);
+        const batchNumber = batchIndex + 1;
+        
+        console.log(`Starting batch ${batchNumber}/${totalBatches}: threads ${batchStart + 1} to ${batchEnd}`);
+        
+        // Check if job was stopped before starting batch
+        const { data: jobStatus, error: statusError } = await supabase
+          .from('jobs')
+          .select('status, error_message, updated_at')
+          .eq('id', jobId)
+          .single();
+        
+        console.log(`Status check before batch ${batchNumber}:`, { 
+          status: jobStatus?.status, 
+          error_message: jobStatus?.error_message,
+          updated_at: jobStatus?.updated_at,
+          statusError 
+        });
+        
+        if (jobStatus?.status === 'failed' || jobStatus?.status === 'idle') {
+          console.error(`Job ${jobId} status changed to '${jobStatus.status}'. Error: ${jobStatus.error_message}. Halting orchestration at batch ${batchNumber}.`);
+          break;
         }
         
-        const chunk = chunks[i];
-        const threadNum = i + 1;
-        
-        try {
-          await supabase.functions.invoke('full-refresh-titles', {
+        // Dispatch all threads in current batch simultaneously
+        const batchPromises = [];
+        for (let i = batchStart; i < batchEnd; i++) {
+          const chunk = chunks[i];
+          const threadNum = i + 1;
+          
+          const promise = supabase.functions.invoke('full-refresh-titles', {
             body: {
               languageCode: chunk.languageCode,
               startYear: chunk.year,
@@ -73,22 +80,20 @@ serve(async (req) => {
               genreId: chunk.genreId,
               jobId: jobId
             }
+          }).catch(error => {
+            console.error(`Error dispatching thread ${threadNum}:`, error);
+            return { error };
           });
           
-          if (threadNum % 50 === 0) {
-            console.log(`Dispatched ${threadNum}/${chunks.length} threads`);
-          }
-        } catch (error) {
-          console.error(`Error dispatching thread ${threadNum}:`, error);
+          batchPromises.push(promise);
         }
         
-        // Wait before next thread (except last thread)
-        if (i < chunks.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, THREAD_DELAY_MS));
-        }
+        // Wait for all threads in this batch to complete
+        await Promise.all(batchPromises);
+        console.log(`Batch ${batchNumber}/${totalBatches} completed (threads ${batchStart + 1}-${batchEnd})`);
       }
       
-      console.log(`Orchestrator completed: all ${totalThreads} threads dispatched for job ${jobId}`);
+      console.log(`Orchestrator completed: all ${totalThreads} threads dispatched in ${totalBatches} batches for job ${jobId}`);
     };
 
     // Use waitUntil to ensure background task continues even if response is sent
