@@ -79,7 +79,7 @@ serve(async (req) => {
     // Use parameters from request body if provided, otherwise use config
     const startYear = requestBody.startYear || config.start_year || 2020;
     const endYear = requestBody.endYear || config.end_year || 2025;
-    const languageCodes = requestBody.languageCodes || null; // Array of specific language codes to process
+    const genreId = requestBody.genreId || null; // Specific TMDB genre ID to process
 
     // Fetch all genres, languages, and streaming services
     const [genresRes, languagesRes, servicesRes] = await Promise.all([
@@ -98,15 +98,15 @@ serve(async (req) => {
       genreNameToId[g.genre_name.toLowerCase()] = g.id;
     });
 
-    // Get TMDB genre IDs (we'll query by genre to get more comprehensive results)
-    const tmdbGenreIds = Object.keys(TMDB_GENRE_MAP).map(Number);
+    // If genreId is specified, process only that genre; otherwise process all genres
+    const tmdbGenreIds = genreId ? [genreId] : Object.keys(TMDB_GENRE_MAP).map(Number);
 
-    console.log(`Processing: ${tmdbGenreIds.length} genres, ${streamingServices.length} services, years ${startYear}-${endYear}`);
+    console.log(`Processing: ${tmdbGenreIds.length} genre(s), ${streamingServices.length} services, years ${startYear}-${endYear}`);
 
     let totalProcessed = 0;
     const MAX_RUNTIME_MS = 90000; // 90 seconds safety margin
 
-    // Process each year + genre combination (this gets us past the 500-result-per-query limit)
+    // Process each year + genre combination
     for (let year = startYear; year <= endYear; year++) {
       for (const tmdbGenreId of tmdbGenreIds) {
         // Check if we're approaching time limit
@@ -117,7 +117,7 @@ serve(async (req) => {
         }
 
         const genreName = TMDB_GENRE_MAP[tmdbGenreId];
-        console.log(`Fetching: Year=${year}, Genre=${genreName}`);
+        console.log(`Fetching: Year=${year}, Genre=${genreName} (ID: ${tmdbGenreId})`);
 
         // Fetch movies with pagination (TMDB limits to 20 pages = 500 results max per query)
         let moviePage = 1;

@@ -116,12 +116,16 @@ export const Jobs = () => {
       const startYear = config.start_year || 2020;
       const endYear = config.end_year || 2025;
       
-      // The edge function now processes by genre instead of language for better coverage
-      // Each job processes 1 year + all genres (genres are processed sequentially within each job)
-      const chunks: Array<{ year: number }> = [];
+      // TMDB Genre IDs that we'll process
+      const genreIds = [28, 12, 16, 35, 80, 99, 18, 10751, 14, 36, 27, 10402, 9648, 10749, 878, 53, 10752, 37];
+      
+      // Create fine-grained chunks: 1 year + 1 genre per job (avoids CPU timeout)
+      const chunks: Array<{ year: number; genreId: number }> = [];
       
       for (let year = startYear; year <= endYear; year++) {
-        chunks.push({ year });
+        for (const genreId of genreIds) {
+          chunks.push({ year, genreId });
+        }
       }
 
       // Reset the job counter before starting parallel processing
@@ -136,11 +140,11 @@ export const Jobs = () => {
 
       toast({
         title: "Parallel Jobs Started",
-        description: `Starting ${chunks.length} parallel jobs (1 per year, ${startYear}-${endYear})...`,
+        description: `Starting ${chunks.length} parallel jobs (${genreIds.length} genres × ${endYear - startYear + 1} years)...`,
       });
 
-      // Process in batches of 6 concurrent requests (one per year)
-      const batchSize = 6;
+      // Process in batches of 10 concurrent requests
+      const batchSize = 10;
       let succeeded = 0;
       let failed = 0;
 
@@ -151,7 +155,8 @@ export const Jobs = () => {
           supabase.functions.invoke('full-refresh-titles', {
             body: { 
               startYear: chunk.year, 
-              endYear: chunk.year
+              endYear: chunk.year,
+              genreId: chunk.genreId
             }
           })
         );
@@ -163,7 +168,7 @@ export const Jobs = () => {
         // Update progress
         toast({
           title: "Progress Update",
-          description: `Completed ${i + batch.length}/${chunks.length} years (${succeeded} succeeded, ${failed} failed)`,
+          description: `Completed ${i + batch.length}/${chunks.length} jobs (${succeeded} succeeded, ${failed} failed)`,
         });
 
         // Small delay between batches
