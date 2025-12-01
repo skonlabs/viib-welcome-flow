@@ -338,7 +338,7 @@ export const Jobs = () => {
         title: isResume ? "Resuming Parallel Jobs" : "Parallel Jobs Started",
         description: isResume 
           ? `Resuming from thread ${startIndex + 1}. Processing ${chunks.length - startIndex} remaining threads.`
-          : `Processing ${chunks.length} threads with 10s delay between each. This will take approximately ${Math.floor((chunks.length * 10) / 60)} minutes.`,
+          : `Processing ${chunks.length} threads with 5s delay between each. This will take approximately ${Math.floor((chunks.length * 5) / 60)} minutes.`,
       });
 
       // Fire off all jobs without waiting, with small delays to avoid overwhelming the server
@@ -346,7 +346,7 @@ export const Jobs = () => {
       
       for (let i = startIndex; i < chunks.length; i++) {
         const chunk = chunks[i];
-        const delayMs = (i - startIndex) * 10000; // 10 second stagger between each request
+        const delayMs = (i - startIndex) * 5000; // 5 second stagger between each request
         
         const invokePromise = (async () => {
           await new Promise(resolve => setTimeout(resolve, delayMs));
