@@ -191,6 +191,7 @@ export const Jobs = () => {
           .update({ 
             status: 'running',
             total_titles_processed: 0,
+            error_message: null, // Clear any previous error messages
             configuration: resetConfig,
             last_run_at: new Date().toISOString()
           })
@@ -323,6 +324,7 @@ export const Jobs = () => {
         .update({ 
           status: 'running',
           total_titles_processed: 0,
+          error_message: null, // Clear any previous error messages
           configuration: {
             ...resetConfig,
             start_time: jobStartTime
