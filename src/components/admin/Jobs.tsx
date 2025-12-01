@@ -178,9 +178,11 @@ export const Jobs = () => {
         const numChunks = Math.ceil(totalTitles / batchSize);
 
         // Reset the job counter and tracking
+        const trailerJobStartTime = Date.now();
         const resetConfig = {
           ...config,
           total_threads: numChunks,
+          start_time: trailerJobStartTime,
           thread_tracking: { succeeded: 0, failed: 0 }
         };
         
@@ -250,11 +252,17 @@ export const Jobs = () => {
             });
 
             if (threadsCompleted >= numChunks) {
+              // Calculate total job duration
+              const trailerStartTime = jobConfig.start_time || Date.now();
+              const trailerEndTime = Date.now();
+              const durationSeconds = Math.floor((trailerEndTime - trailerStartTime) / 1000);
+              
               // All chunks completed
               await supabase
                 .from('jobs')
                 .update({ 
                   status: 'completed',
+                  last_run_duration_seconds: durationSeconds,
                   error_message: tracking.failed > 0 
                     ? `Completed with ${tracking.failed} failed chunk(s)` 
                     : null
@@ -309,12 +317,16 @@ export const Jobs = () => {
         thread_tracking: { succeeded: 0, failed: 0 }
       };
       
+      const jobStartTime = Date.now();
       await supabase
         .from('jobs')
         .update({ 
           status: 'running',
           total_titles_processed: 0,
-          configuration: resetConfig,
+          configuration: {
+            ...resetConfig,
+            start_time: jobStartTime
+          },
           last_run_at: new Date().toISOString()
         })
         .eq('id', job.id);
@@ -393,11 +405,17 @@ export const Jobs = () => {
 
           // Check if all threads completed
           if (threadsCompleted >= chunks.length) {
+            // Calculate total job duration
+            const jobStartTime = jobConfig.start_time || Date.now();
+            const jobEndTime = Date.now();
+            const durationSeconds = Math.floor((jobEndTime - jobStartTime) / 1000);
+            
             // Mark job as completed
             await supabase
               .from('jobs')
               .update({ 
                 status: 'completed',
+                last_run_duration_seconds: durationSeconds,
                 error_message: tracking.failed > 0 
                   ? `Completed with ${tracking.failed} failed thread(s)` 
                   : null
