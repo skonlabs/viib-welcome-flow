@@ -138,6 +138,7 @@ export {
   Activity,
   Zap,
   HeadphonesIcon,
+  Layers,
   
   // Branding & Features
   Sparkles,

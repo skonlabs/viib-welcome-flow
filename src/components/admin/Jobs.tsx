@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Play, Pause, RefreshCw, Clock, Calendar as CalendarIcon, Settings, XCircle } from "@/icons";
+import { Play, Pause, RefreshCw, Clock, Calendar as CalendarIcon, Settings, XCircle, Layers } from "@/icons";
 import { errorLogger } from "@/lib/services/ErrorLoggerService";
 import {
   Dialog,
@@ -106,6 +106,59 @@ export const Jobs = () => {
         const newSet = new Set(prev);
         newSet.delete(job.id);
         return newSet;
+      });
+    }
+  };
+
+  const handleRunParallel = async (job: Job) => {
+    try {
+      const config = job.configuration;
+      const startYear = config.start_year || 2020;
+      const endYear = config.end_year || 2025;
+      
+      // Split into 2-year chunks for parallel processing
+      const yearChunks: Array<{ start: number; end: number }> = [];
+      for (let year = startYear; year <= endYear; year += 2) {
+        yearChunks.push({
+          start: year,
+          end: Math.min(year + 1, endYear)
+        });
+      }
+
+      toast({
+        title: "Parallel Jobs Started",
+        description: `Starting ${yearChunks.length} parallel jobs for years ${startYear}-${endYear}...`,
+      });
+
+      // Invoke all functions in parallel
+      const promises = yearChunks.map(chunk => 
+        supabase.functions.invoke('full-refresh-titles', {
+          body: { startYear: chunk.start, endYear: chunk.end }
+        })
+      );
+
+      const results = await Promise.allSettled(promises);
+      
+      // Count successes and failures
+      const succeeded = results.filter(r => r.status === 'fulfilled').length;
+      const failed = results.filter(r => r.status === 'rejected').length;
+
+      toast({
+        title: "Parallel Jobs Completed",
+        description: `${succeeded} jobs succeeded, ${failed} jobs failed.`,
+        variant: failed > 0 ? "destructive" : "default"
+      });
+
+      await fetchJobs();
+    } catch (error) {
+      await errorLogger.log(error, { 
+        operation: 'run_parallel_jobs',
+        jobId: job.id
+      });
+      toast({
+        title: "Parallel Jobs Failed",
+        description: "Failed to run parallel jobs. Please check the logs.",
+        variant: "destructive",
       });
     }
   };
@@ -330,23 +383,35 @@ export const Jobs = () => {
                     Stop Job
                   </Button>
                 ) : (
-                  <Button
-                    onClick={() => handleRunJob(job)}
-                    disabled={runningJobs.has(job.id)}
-                    className="flex-1"
-                  >
-                    {runningJobs.has(job.id) ? (
-                      <>
-                        <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                        Running...
-                      </>
-                    ) : (
-                      <>
-                        <Play className="w-4 h-4 mr-2" />
-                        Run Now
-                      </>
+                  <>
+                    <Button
+                      onClick={() => handleRunJob(job)}
+                      disabled={runningJobs.has(job.id)}
+                      className="flex-1"
+                    >
+                      {runningJobs.has(job.id) ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                          Running...
+                        </>
+                      ) : (
+                        <>
+                          <Play className="w-4 h-4 mr-2" />
+                          Run Now
+                        </>
+                      )}
+                    </Button>
+                    {job.job_type === 'full_refresh' && (
+                      <Button
+                        onClick={() => handleRunParallel(job)}
+                        disabled={runningJobs.has(job.id)}
+                        variant="secondary"
+                      >
+                        <Layers className="w-4 h-4 mr-2" />
+                        Parallel
+                      </Button>
                     )}
-                  </Button>
+                  </>
                 )}
                 <Button
                   onClick={() => handleToggleActive(job)}
