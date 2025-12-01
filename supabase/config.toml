@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.sync-titles-delta]
 verify_jwt = false
+
+[functions.enrich-title-trailers]
+verify_jwt = false
