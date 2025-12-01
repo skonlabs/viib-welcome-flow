@@ -154,12 +154,18 @@ export const Jobs = () => {
         const batchSize = config.batch_size || 50;
         const numChunks = Math.ceil(totalTitles / batchSize);
 
-        // Reset the job counter
+        // Reset the job counter and tracking
+        const resetConfig = {
+          ...config,
+          thread_tracking: { succeeded: 0, failed: 0 }
+        };
+        
         await supabase
           .from('jobs')
           .update({ 
             status: 'running',
             total_titles_processed: 0,
+            configuration: resetConfig,
             last_run_at: new Date().toISOString()
           })
           .eq('id', job.id);
@@ -201,29 +207,33 @@ export const Jobs = () => {
         const pollInterval = setInterval(async () => {
           const { data: updatedJob } = await supabase
             .from('jobs')
-            .select('total_titles_processed, status')
+            .select('total_titles_processed, status, configuration')
             .eq('id', job.id)
             .single();
 
           if (updatedJob) {
-            const estimatedCompleted = Math.floor((updatedJob.total_titles_processed || 0) / batchSize);
+            const jobConfig = (updatedJob.configuration as any) || {};
+            const tracking = jobConfig.thread_tracking || { succeeded: 0, failed: 0 };
+            const threadsCompleted = tracking.succeeded + tracking.failed;
             
             setParallelProgress({
               jobId: job.id,
-              currentThread: estimatedCompleted,
+              currentThread: threadsCompleted,
               totalThreads: numChunks,
-              succeeded: estimatedCompleted,
-              failed: 0,
+              succeeded: tracking.succeeded,
+              failed: tracking.failed,
               titlesProcessed: updatedJob.total_titles_processed || 0
             });
 
-            if (estimatedCompleted >= numChunks) {
-              // All chunks completed - update job status
+            if (threadsCompleted >= numChunks) {
+              // All chunks completed
               await supabase
                 .from('jobs')
                 .update({ 
                   status: 'completed',
-                  error_message: null
+                  error_message: tracking.failed > 0 
+                    ? `Completed with ${tracking.failed} failed chunk(s)` 
+                    : null
                 })
                 .eq('id', job.id);
               
@@ -268,12 +278,18 @@ export const Jobs = () => {
         }
       }
 
-      // Reset the job counter before starting parallel processing
+      // Reset the job counter and thread tracking before starting parallel processing
+      const resetConfig = {
+        ...config,
+        thread_tracking: { succeeded: 0, failed: 0 }
+      };
+      
       await supabase
         .from('jobs')
         .update({ 
           status: 'running',
           total_titles_processed: 0,
+          configuration: resetConfig,
           last_run_at: new Date().toISOString()
         })
         .eq('id', job.id);
@@ -330,31 +346,34 @@ export const Jobs = () => {
       const pollInterval = setInterval(async () => {
         const { data: updatedJob } = await supabase
           .from('jobs')
-          .select('total_titles_processed, status')
+          .select('total_titles_processed, status, configuration')
           .eq('id', job.id)
           .single();
 
         if (updatedJob) {
-          // Estimate threads completed based on average ~150 titles per thread
-          const estimatedCompleted = Math.floor((updatedJob.total_titles_processed || 0) / 150);
+          const jobConfig = (updatedJob.configuration as any) || {};
+          const tracking = jobConfig.thread_tracking || { succeeded: 0, failed: 0 };
+          const threadsCompleted = tracking.succeeded + tracking.failed;
           
           setParallelProgress({
             jobId: job.id,
-            currentThread: estimatedCompleted,
+            currentThread: threadsCompleted,
             totalThreads: chunks.length,
-            succeeded: estimatedCompleted,
-            failed: 0,
+            succeeded: tracking.succeeded,
+            failed: tracking.failed,
             titlesProcessed: updatedJob.total_titles_processed || 0
           });
 
-          // Check if all edge functions have likely completed
-          if (estimatedCompleted >= chunks.length) {
+          // Check if all threads completed
+          if (threadsCompleted >= chunks.length) {
             // Mark job as completed
             await supabase
               .from('jobs')
               .update({ 
                 status: 'completed',
-                error_message: null
+                error_message: tracking.failed > 0 
+                  ? `Completed with ${tracking.failed} failed thread(s)` 
+                  : null
               })
               .eq('id', job.id);
             
@@ -598,34 +617,54 @@ export const Jobs = () => {
 
               {/* Parallel Progress Display */}
               {parallelProgress && parallelProgress.jobId === job.id && (
-                <div className="p-4 bg-primary/10 border border-primary/20 rounded-lg space-y-2">
+                <div className="p-4 bg-primary/10 border border-primary/20 rounded-lg space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="font-semibold text-primary">
-                      Thread {parallelProgress.currentThread}/{parallelProgress.totalThreads}
+                      Parallel Processing Active
                     </div>
-                    <div className="text-sm text-muted-foreground">
-                      {Math.round((parallelProgress.currentThread / parallelProgress.totalThreads) * 100)}% Complete
+                    <Badge variant="outline" className="animate-pulse">
+                      Running
+                    </Badge>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Threads Completed</span>
+                      <span className="font-mono font-medium">
+                        {parallelProgress.currentThread} / {parallelProgress.totalThreads}
+                      </span>
+                    </div>
+                    <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+                      <div 
+                        className="h-full bg-primary transition-all duration-300"
+                        style={{ width: `${(parallelProgress.currentThread / parallelProgress.totalThreads) * 100}%` }}
+                      />
+                    </div>
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>{Math.round((parallelProgress.currentThread / parallelProgress.totalThreads) * 100)}% Complete</span>
+                      <span>{parallelProgress.totalThreads - parallelProgress.currentThread} Remaining</span>
                     </div>
                   </div>
-                  <div className="grid grid-cols-3 gap-2 text-sm">
-                    <div>
-                      <div className="text-muted-foreground text-xs">Succeeded</div>
-                      <div className="font-medium text-success">{parallelProgress.succeeded}</div>
+
+                  <div className="grid grid-cols-3 gap-3 pt-2">
+                    <div className="text-center p-2 rounded-lg border border-green-500/20 bg-green-500/10">
+                      <div className="text-xl font-bold text-green-500">
+                        {parallelProgress.succeeded}
+                      </div>
+                      <div className="text-xs text-muted-foreground">Succeeded</div>
                     </div>
-                    <div>
-                      <div className="text-muted-foreground text-xs">Failed</div>
-                      <div className="font-medium text-destructive">{parallelProgress.failed}</div>
+                    <div className="text-center p-2 rounded-lg border border-red-500/20 bg-red-500/10">
+                      <div className="text-xl font-bold text-red-500">
+                        {parallelProgress.failed}
+                      </div>
+                      <div className="text-xs text-muted-foreground">Failed</div>
                     </div>
-                    <div>
-                      <div className="text-muted-foreground text-xs">Titles</div>
-                      <div className="font-medium">{parallelProgress.titlesProcessed.toLocaleString()}</div>
+                    <div className="text-center p-2 rounded-lg border border-blue-500/20 bg-blue-500/10">
+                      <div className="text-xl font-bold text-blue-500">
+                        {parallelProgress.titlesProcessed.toLocaleString()}
+                      </div>
+                      <div className="text-xs text-muted-foreground">Titles</div>
                     </div>
-                  </div>
-                  <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
-                    <div 
-                      className="h-full bg-primary transition-all duration-300"
-                      style={{ width: `${(parallelProgress.currentThread / parallelProgress.totalThreads) * 100}%` }}
-                    />
                   </div>
                 </div>
               )}

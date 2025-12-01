@@ -33,16 +33,20 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const TMDB_API_KEY = Deno.env.get('TMDB_API_KEY');
+  const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
+  const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+
+  if (!TMDB_API_KEY || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+    return new Response(
+      JSON.stringify({ error: 'Missing required environment variables' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
   try {
-    const TMDB_API_KEY = Deno.env.get('TMDB_API_KEY');
-    const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
-    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-
-    if (!TMDB_API_KEY || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-      throw new Error('Missing required environment variables');
-    }
-
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     // Parse request body for parameters
     let requestBody: any = {};
@@ -345,6 +349,31 @@ serve(async (req) => {
         .eq('id', jobId);
     }
 
+    // Update thread tracking in job configuration
+    if (jobId) {
+      const { data: currentJob } = await supabase
+        .from('jobs')
+        .select('configuration')
+        .eq('id', jobId)
+        .single();
+      
+      const currentConfig = (currentJob?.configuration as any) || {};
+      const tracking = currentConfig.thread_tracking || { succeeded: 0, failed: 0 };
+      
+      await supabase
+        .from('jobs')
+        .update({
+          configuration: {
+            ...currentConfig,
+            thread_tracking: {
+              succeeded: tracking.succeeded + 1,
+              failed: tracking.failed
+            }
+          }
+        })
+        .eq('id', jobId);
+    }
+
     console.log(`Full Refresh completed: ${totalProcessed} titles processed in ${duration} seconds for ${languageCode}/${year}/${genreName}`);
 
     return new Response(
@@ -363,6 +392,38 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error in full-refresh-titles:', error);
     const errorMessage = error instanceof Error ? error.message : String(error);
+
+    // Track failed thread
+    try {
+      const requestBody = await req.clone().json();
+      const jobId = requestBody.jobId;
+      
+      if (jobId) {
+        const { data: currentJob } = await supabase
+          .from('jobs')
+          .select('configuration')
+          .eq('id', jobId)
+          .single();
+        
+        const currentConfig = (currentJob?.configuration as any) || {};
+        const tracking = currentConfig.thread_tracking || { succeeded: 0, failed: 0 };
+        
+        await supabase
+          .from('jobs')
+          .update({
+            configuration: {
+              ...currentConfig,
+              thread_tracking: {
+                succeeded: tracking.succeeded,
+                failed: tracking.failed + 1
+              }
+            }
+          })
+          .eq('id', jobId);
+      }
+    } catch (trackError) {
+      console.error('Error tracking failure:', trackError);
+    }
 
     return new Response(
       JSON.stringify({ error: errorMessage }),

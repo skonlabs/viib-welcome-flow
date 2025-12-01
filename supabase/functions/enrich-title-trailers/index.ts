@@ -179,6 +179,31 @@ serve(async (req) => {
 
     const duration = Math.floor((Date.now() - startTime) / 1000);
     
+    // Update thread tracking
+    if (jobId) {
+      const { data: currentJob } = await supabase
+        .from('jobs')
+        .select('configuration')
+        .eq('id', jobId)
+        .single();
+      
+      const currentConfig = (currentJob?.configuration as any) || {};
+      const tracking = currentConfig.thread_tracking || { succeeded: 0, failed: 0 };
+      
+      await supabase
+        .from('jobs')
+        .update({
+          configuration: {
+            ...currentConfig,
+            thread_tracking: {
+              succeeded: tracking.succeeded + 1,
+              failed: tracking.failed
+            }
+          }
+        })
+        .eq('id', jobId);
+    }
+    
     console.log(`Trailer enrichment completed: ${enriched} enriched, ${failed} failed, ${processed} processed in ${duration}s`);
 
     return new Response(
@@ -196,6 +221,39 @@ serve(async (req) => {
   } catch (error) {
     console.error('Trailer enrichment error:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    
+    // Track failed thread
+    try {
+      const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+      const requestBody = await req.clone().json();
+      const jobId = requestBody.jobId;
+      
+      if (jobId) {
+        const { data: currentJob } = await supabase
+          .from('jobs')
+          .select('configuration')
+          .eq('id', jobId)
+          .single();
+        
+        const currentConfig = (currentJob?.configuration as any) || {};
+        const tracking = currentConfig.thread_tracking || { succeeded: 0, failed: 0 };
+        
+        await supabase
+          .from('jobs')
+          .update({
+            configuration: {
+              ...currentConfig,
+              thread_tracking: {
+                succeeded: tracking.succeeded,
+                failed: tracking.failed + 1
+              }
+            }
+          })
+          .eq('id', jobId);
+      }
+    } catch (trackError) {
+      console.error('Error tracking failure:', trackError);
+    }
     
     return new Response(
       JSON.stringify({ 
