@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Play, Pause, RefreshCw, Clock, Calendar as CalendarIcon, Settings } from "@/icons";
+import { Play, Pause, RefreshCw, Clock, Calendar as CalendarIcon, Settings, XCircle } from "@/icons";
 import { errorLogger } from "@/lib/services/ErrorLoggerService";
 import {
   Dialog,
@@ -106,6 +106,37 @@ export const Jobs = () => {
         const newSet = new Set(prev);
         newSet.delete(job.id);
         return newSet;
+      });
+    }
+  };
+
+  const handleStopJob = async (job: Job) => {
+    try {
+      const { error } = await supabase
+        .from('jobs')
+        .update({ 
+          status: 'failed',
+          error_message: 'Job manually stopped by administrator'
+        })
+        .eq('id', job.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Job Stopped",
+        description: `${job.job_name} has been stopped.`,
+      });
+
+      await fetchJobs();
+    } catch (error) {
+      await errorLogger.log(error, { 
+        operation: 'stop_job',
+        jobId: job.id
+      });
+      toast({
+        title: "Error",
+        description: "Failed to stop job. Please try again.",
+        variant: "destructive",
       });
     }
   };
@@ -289,23 +320,34 @@ export const Jobs = () => {
 
               {/* Actions */}
               <div className="flex gap-2 pt-2">
-                <Button
-                  onClick={() => handleRunJob(job)}
-                  disabled={runningJobs.has(job.id) || job.status === 'running'}
-                  className="flex-1"
-                >
-                  {runningJobs.has(job.id) || job.status === 'running' ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                      Running...
-                    </>
-                  ) : (
-                    <>
-                      <Play className="w-4 h-4 mr-2" />
-                      Run Now
-                    </>
-                  )}
-                </Button>
+                {job.status === 'running' ? (
+                  <Button
+                    onClick={() => handleStopJob(job)}
+                    variant="destructive"
+                    className="flex-1"
+                  >
+                    <XCircle className="w-4 h-4 mr-2" />
+                    Stop Job
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={() => handleRunJob(job)}
+                    disabled={runningJobs.has(job.id)}
+                    className="flex-1"
+                  >
+                    {runningJobs.has(job.id) ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                        Running...
+                      </>
+                    ) : (
+                      <>
+                        <Play className="w-4 h-4 mr-2" />
+                        Run Now
+                      </>
+                    )}
+                  </Button>
+                )}
                 <Button
                   onClick={() => handleToggleActive(job)}
                   variant={job.is_active ? "destructive" : "default"}
