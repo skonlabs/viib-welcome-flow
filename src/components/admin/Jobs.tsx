@@ -508,6 +508,34 @@ const JobConfigDialog = ({ job, onUpdate }: JobConfigDialogProps) => {
                     Number of days to look back for new titles (1-365)
                   </p>
                 </div>
+                <div className="border-t pt-4">
+                  <h5 className="font-semibold text-sm mb-3">Year Range (Optional)</h5>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Start Year</Label>
+                      <Input
+                        type="number"
+                        min="1900"
+                        max={new Date().getFullYear()}
+                        value={config.start_year || new Date().getFullYear() - 2}
+                        onChange={(e) => setConfig({ ...config, start_year: parseInt(e.target.value) })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>End Year</Label>
+                      <Input
+                        type="number"
+                        min="1900"
+                        max={new Date().getFullYear()}
+                        value={config.end_year || new Date().getFullYear()}
+                        onChange={(e) => setConfig({ ...config, end_year: parseInt(e.target.value) })}
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Filter titles released between these years (optional)
+                  </p>
+                </div>
               </>
             )}
           </div>
