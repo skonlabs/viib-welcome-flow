@@ -75,7 +75,6 @@ serve(async (req) => {
 
     const config = jobData?.configuration as any || {};
     const minRating = config.min_rating || 6.0;
-    const titlesPerBatch = config.titles_per_batch || 100;
     
     // Use parameters from request body if provided, otherwise use config
     const startYear = requestBody.startYear || config.start_year || 2020;
@@ -109,7 +108,7 @@ serve(async (req) => {
     let totalProcessed = 0;
     const MAX_RUNTIME_MS = 90000; // 90 seconds safety margin
 
-    // Process each combination - FETCH ALL GENRES TOGETHER, then map
+    // Process each combination
     for (let year = startYear; year <= endYear; year++) {
       for (const language of languages) {
         // Check if we're approaching time limit
@@ -121,177 +120,189 @@ serve(async (req) => {
 
         console.log(`Fetching: Year=${year}, Lang=${language.language_name}`);
 
-        // Fetch movies (all genres in one call)
-        const moviesUrl = `https://api.themoviedb.org/3/discover/movie?api_key=${TMDB_API_KEY}&primary_release_year=${year}&with_original_language=${language.language_code}&vote_average.gte=${minRating}&vote_count.gte=10&sort_by=popularity.desc&per_page=${titlesPerBatch}&page=1`;
+        // Fetch movies with pagination (TMDB limits to 20 pages max)
+        let moviePage = 1;
+        let movieTotalPages = 1;
         
-        let moviesResponse;
-        let moviesData;
-        let movies = [];
-        
-        try {
-          moviesResponse = await fetch(moviesUrl);
-          moviesData = await moviesResponse.json();
-          movies = moviesData.results || [];
-          console.log(`Found ${movies.length} movies`);
-        } catch (err) {
-          console.error('Error fetching movies:', err);
-        }
-
-        for (const movie of movies) {
+        while (moviePage <= movieTotalPages && moviePage <= 20) {
+          const moviesUrl = `https://api.themoviedb.org/3/discover/movie?api_key=${TMDB_API_KEY}&primary_release_year=${year}&with_original_language=${language.language_code}&vote_average.gte=${minRating}&vote_count.gte=10&sort_by=popularity.desc&page=${moviePage}`;
+          
           try {
-            // Insert/update title with TMDB ID
-            const { data: insertedTitle, error: titleError } = await supabase
-              .from('titles')
-              .upsert({
-                tmdb_id: movie.id,
-                title_name: movie.title,
-                original_title_name: movie.original_title,
-                content_type: 'movie',
-                release_year: new Date(movie.release_date || `${year}-01-01`).getFullYear(),
-                runtime_minutes: movie.runtime || null,
-                synopsis: movie.overview,
-                original_language: movie.original_language,
-                popularity_score: movie.popularity
-              }, { onConflict: 'tmdb_id,content_type' })
-              .select('id')
-              .single();
+            const moviesResponse = await fetch(moviesUrl);
+            const moviesData = await moviesResponse.json();
+            const movies = moviesData.results || [];
+            movieTotalPages = Math.min(moviesData.total_pages || 1, 20);
+            console.log(`Found ${movies.length} movies (page ${moviePage}/${movieTotalPages})`);
 
-            if (titleError) {
-              console.error(`Error inserting movie ${movie.title}:`, titleError);
-              continue;
-            }
+            for (const movie of movies) {
+              try {
+                const { data: insertedTitle, error: titleError } = await supabase
+                  .from('titles')
+                  .upsert({
+                    tmdb_id: movie.id,
+                    title_name: movie.title,
+                    original_title_name: movie.original_title,
+                    content_type: 'movie',
+                    release_year: new Date(movie.release_date || `${year}-01-01`).getFullYear(),
+                    runtime_minutes: movie.runtime || null,
+                    synopsis: movie.overview,
+                    original_language: movie.original_language,
+                    popularity_score: movie.popularity
+                  }, { onConflict: 'tmdb_id,content_type' })
+                  .select('id')
+                  .single();
 
-            if (insertedTitle) {
-              totalProcessed++;
+                if (titleError) {
+                  console.error(`Error inserting movie ${movie.title}:`, titleError);
+                  continue;
+                }
 
-              // Map TMDB genre IDs to our genre UUIDs
-              const tmdbGenreIds = movie.genre_ids || [];
-              for (const tmdbGenreId of tmdbGenreIds) {
-                const genreName = TMDB_GENRE_MAP[tmdbGenreId];
-                if (genreName) {
-                  const genreId = genreNameToId[genreName.toLowerCase()];
-                  if (genreId) {
+                if (insertedTitle) {
+                  totalProcessed++;
+
+                  // Map TMDB genre IDs to our genre UUIDs
+                  const tmdbGenreIds = movie.genre_ids || [];
+                  for (const tmdbGenreId of tmdbGenreIds) {
+                    const genreName = TMDB_GENRE_MAP[tmdbGenreId];
+                    if (genreName) {
+                      const genreId = genreNameToId[genreName.toLowerCase()];
+                      if (genreId) {
+                        await supabase
+                          .from('title_genres')
+                          .upsert({ title_id: insertedTitle.id, genre_id: genreId }, { onConflict: 'title_id,genre_id' });
+                      }
+                    }
+                  }
+
+                  await supabase
+                    .from('title_languages')
+                    .upsert({
+                      title_id: insertedTitle.id,
+                      language_code: language.language_code,
+                      language_type: 'original'
+                    }, { onConflict: 'title_id,language_code,language_type' });
+
+                  for (const service of streamingServices) {
                     await supabase
-                      .from('title_genres')
-                      .upsert({ title_id: insertedTitle.id, genre_id: genreId }, { onConflict: 'title_id,genre_id' });
+                      .from('title_streaming_availability')
+                      .upsert({
+                        title_id: insertedTitle.id,
+                        streaming_service_id: service.id,
+                        region_code: 'US'
+                      }, { onConflict: 'title_id,streaming_service_id,region_code' });
                   }
                 }
-              }
-
-              // Insert language mapping
-              await supabase
-                .from('title_languages')
-                .upsert({
-                  title_id: insertedTitle.id,
-                  language_code: language.language_code,
-                  language_type: 'original'
-                }, { onConflict: 'title_id,language_code,language_type' });
-
-              // Insert streaming availability for all services
-              for (const service of streamingServices) {
-                await supabase
-                  .from('title_streaming_availability')
-                  .upsert({
-                    title_id: insertedTitle.id,
-                    streaming_service_id: service.id,
-                    region_code: 'US'
-                  }, { onConflict: 'title_id,streaming_service_id,region_code' });
+              } catch (error) {
+                console.error(`Error processing movie ${movie.title}:`, error);
               }
             }
-          } catch (error) {
-            console.error(`Error processing movie ${movie.title}:`, error);
+
+            moviePage++;
+            await new Promise(resolve => setTimeout(resolve, 250));
+
+          } catch (err) {
+            console.error('Error fetching movies page:', err);
+            break;
+          }
+
+          // Check time limit during pagination
+          const elapsed = Date.now() - startTime;
+          if (elapsed > MAX_RUNTIME_MS) {
+            console.log(`Approaching time limit at ${elapsed}ms. Stopping.`);
+            break;
           }
         }
 
-        // Clear movies array to free memory
-        movies.length = 0;
-        movies = [];
-        moviesData = null;
-        moviesResponse = null;
-
-        // Fetch TV shows (all genres in one call)
-        const tvUrl = `https://api.themoviedb.org/3/discover/tv?api_key=${TMDB_API_KEY}&first_air_date_year=${year}&with_original_language=${language.language_code}&vote_average.gte=${minRating}&vote_count.gte=10&sort_by=popularity.desc&per_page=${titlesPerBatch}&page=1`;
+        // Fetch TV shows with pagination (TMDB limits to 20 pages max)
+        let tvPage = 1;
+        let tvTotalPages = 1;
         
-        let tvResponse;
-        let tvData;
-        let shows = [];
-        
-        try {
-          tvResponse = await fetch(tvUrl);
-          tvData = await tvResponse.json();
-          shows = tvData.results || [];
-          console.log(`Found ${shows.length} TV shows`);
-        } catch (err) {
-          console.error('Error fetching TV shows:', err);
-        }
-
-        for (const show of shows) {
+        while (tvPage <= tvTotalPages && tvPage <= 20) {
+          const tvUrl = `https://api.themoviedb.org/3/discover/tv?api_key=${TMDB_API_KEY}&first_air_date_year=${year}&with_original_language=${language.language_code}&vote_average.gte=${minRating}&vote_count.gte=10&sort_by=popularity.desc&page=${tvPage}`;
+          
           try {
-            const { data: insertedTitle, error: titleError } = await supabase
-              .from('titles')
-              .upsert({
-                tmdb_id: show.id,
-                title_name: show.name,
-                original_title_name: show.original_name,
-                content_type: 'series',
-                release_year: new Date(show.first_air_date || `${year}-01-01`).getFullYear(),
-                synopsis: show.overview,
-                original_language: show.original_language,
-                popularity_score: show.popularity
-              }, { onConflict: 'tmdb_id,content_type' })
-              .select('id')
-              .single();
+            const tvResponse = await fetch(tvUrl);
+            const tvData = await tvResponse.json();
+            const shows = tvData.results || [];
+            tvTotalPages = Math.min(tvData.total_pages || 1, 20);
+            console.log(`Found ${shows.length} TV shows (page ${tvPage}/${tvTotalPages})`);
 
-            if (titleError) {
-              console.error(`Error inserting show ${show.name}:`, titleError);
-              continue;
-            }
+            for (const show of shows) {
+              try {
+                const { data: insertedTitle, error: titleError } = await supabase
+                  .from('titles')
+                  .upsert({
+                    tmdb_id: show.id,
+                    title_name: show.name,
+                    original_title_name: show.original_name,
+                    content_type: 'series',
+                    release_year: new Date(show.first_air_date || `${year}-01-01`).getFullYear(),
+                    synopsis: show.overview,
+                    original_language: show.original_language,
+                    popularity_score: show.popularity
+                  }, { onConflict: 'tmdb_id,content_type' })
+                  .select('id')
+                  .single();
 
-            if (insertedTitle) {
-              totalProcessed++;
+                if (titleError) {
+                  console.error(`Error inserting show ${show.name}:`, titleError);
+                  continue;
+                }
 
-              // Map TMDB genre IDs to our genre UUIDs
-              const tmdbGenreIds = show.genre_ids || [];
-              for (const tmdbGenreId of tmdbGenreIds) {
-                const genreName = TMDB_GENRE_MAP[tmdbGenreId];
-                if (genreName) {
-                  const genreId = genreNameToId[genreName.toLowerCase()];
-                  if (genreId) {
+                if (insertedTitle) {
+                  totalProcessed++;
+
+                  const tmdbGenreIds = show.genre_ids || [];
+                  for (const tmdbGenreId of tmdbGenreIds) {
+                    const genreName = TMDB_GENRE_MAP[tmdbGenreId];
+                    if (genreName) {
+                      const genreId = genreNameToId[genreName.toLowerCase()];
+                      if (genreId) {
+                        await supabase
+                          .from('title_genres')
+                          .upsert({ title_id: insertedTitle.id, genre_id: genreId }, { onConflict: 'title_id,genre_id' });
+                      }
+                    }
+                  }
+
+                  await supabase
+                    .from('title_languages')
+                    .upsert({
+                      title_id: insertedTitle.id,
+                      language_code: language.language_code,
+                      language_type: 'original'
+                    }, { onConflict: 'title_id,language_code,language_type' });
+
+                  for (const service of streamingServices) {
                     await supabase
-                      .from('title_genres')
-                      .upsert({ title_id: insertedTitle.id, genre_id: genreId }, { onConflict: 'title_id,genre_id' });
+                      .from('title_streaming_availability')
+                      .upsert({
+                        title_id: insertedTitle.id,
+                        streaming_service_id: service.id,
+                        region_code: 'US'
+                      }, { onConflict: 'title_id,streaming_service_id,region_code' });
                   }
                 }
-              }
-
-              await supabase
-                .from('title_languages')
-                .upsert({
-                  title_id: insertedTitle.id,
-                  language_code: language.language_code,
-                  language_type: 'original'
-                }, { onConflict: 'title_id,language_code,language_type' });
-
-              for (const service of streamingServices) {
-                await supabase
-                  .from('title_streaming_availability')
-                  .upsert({
-                    title_id: insertedTitle.id,
-                    streaming_service_id: service.id,
-                    region_code: 'US'
-                  }, { onConflict: 'title_id,streaming_service_id,region_code' });
+              } catch (error) {
+                console.error(`Error processing show ${show.name}:`, error);
               }
             }
-          } catch (error) {
-            console.error(`Error processing show ${show.name}:`, error);
+
+            tvPage++;
+            await new Promise(resolve => setTimeout(resolve, 250));
+
+          } catch (err) {
+            console.error('Error fetching TV shows page:', err);
+            break;
+          }
+
+          // Check time limit during pagination
+          const elapsed = Date.now() - startTime;
+          if (elapsed > MAX_RUNTIME_MS) {
+            console.log(`Approaching time limit at ${elapsed}ms. Stopping.`);
+            break;
           }
         }
-
-        // Clear TV shows array to free memory
-        shows.length = 0;
-        shows = [];
-        tvData = null;
-        tvResponse = null;
 
         // Update progress after each language
         await supabase
@@ -300,7 +311,7 @@ serve(async (req) => {
           .eq('job_type', 'full_refresh');
         console.log(`Progress: ${totalProcessed} titles processed (Year: ${year}, Lang: ${language.language_name})`);
 
-        // Rate limit: 40 requests per second for TMDB
+        // Rate limit delay between language combinations
         await new Promise(resolve => setTimeout(resolve, 100));
       }
       
