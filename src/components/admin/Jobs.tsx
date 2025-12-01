@@ -459,7 +459,7 @@ const JobConfigDialog = ({ job, onUpdate }: JobConfigDialogProps) => {
                         type="number"
                         min="1900"
                         max={new Date().getFullYear()}
-                        value={config.start_year}
+                        value={config.start_year || 2020}
                         onChange={(e) => setConfig({ ...config, start_year: parseInt(e.target.value) })}
                       />
                     </div>
@@ -469,7 +469,7 @@ const JobConfigDialog = ({ job, onUpdate }: JobConfigDialogProps) => {
                         type="number"
                         min="1900"
                         max={new Date().getFullYear()}
-                        value={config.end_year}
+                        value={config.end_year || new Date().getFullYear()}
                         onChange={(e) => setConfig({ ...config, end_year: parseInt(e.target.value) })}
                       />
                     </div>
