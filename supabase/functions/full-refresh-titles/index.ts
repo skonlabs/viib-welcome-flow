@@ -314,12 +314,20 @@ serve(async (req) => {
 
     const duration = Math.floor((Date.now() - startTime) / 1000);
 
-    // Mark job as completed
+    // Increment total_titles_processed (for parallel job aggregation)
+    const { data: currentJob } = await supabase
+      .from('jobs')
+      .select('total_titles_processed')
+      .eq('job_type', 'full_refresh')
+      .single();
+    
+    const newTotal = (currentJob?.total_titles_processed || 0) + totalProcessed;
+    
     await supabase
       .from('jobs')
       .update({ 
         status: 'completed',
-        total_titles_processed: totalProcessed,
+        total_titles_processed: newTotal,
         last_run_duration_seconds: duration
       })
       .eq('job_type', 'full_refresh');

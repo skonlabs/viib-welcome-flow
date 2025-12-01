@@ -137,6 +137,16 @@ export const Jobs = () => {
         }
       }
 
+      // Reset the job counter before starting parallel processing
+      await supabase
+        .from('jobs')
+        .update({ 
+          status: 'running',
+          total_titles_processed: 0,
+          last_run_at: new Date().toISOString()
+        })
+        .eq('id', job.id);
+
       toast({
         title: "Parallel Jobs Started",
         description: `Starting ${chunks.length} parallel jobs (${languages.length} languages × ${endYear - startYear + 1} years)...`,
