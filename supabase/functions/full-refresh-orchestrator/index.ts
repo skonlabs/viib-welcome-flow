@@ -54,6 +54,22 @@ serve(async (req) => {
           const nextStartIndex = batchStart; // Start next orchestrator from THIS batch
           console.log(`Orchestrator approaching timeout at ${orchestratorElapsed}ms. Stopping at batch ${batchNumber}. Next start index: ${nextStartIndex}`);
           
+          // Log timeout to system_logs
+          await supabase.from('system_logs').insert({
+            severity: 'warning',
+            operation: 'full-refresh-orchestrator-timeout',
+            error_message: `Orchestrator approaching timeout at ${orchestratorElapsed}ms after processing ${batchStart} threads`,
+            context: {
+              jobId,
+              batchNumber,
+              totalBatches,
+              threadsProcessed: batchStart,
+              totalThreads: chunks.length,
+              elapsedMs: orchestratorElapsed,
+              nextStartIndex
+            }
+          });
+          
           // Relaunch orchestrator with remaining chunks
           console.log(`Relaunching orchestrator for remaining ${chunks.length - nextStartIndex} threads...`);
           await supabase.functions.invoke('full-refresh-orchestrator', {
@@ -81,6 +97,23 @@ serve(async (req) => {
         
         if (jobStatus?.status === 'failed' || jobStatus?.status === 'idle') {
           console.error(`Job ${jobId} status changed to '${jobStatus.status}'. Error: ${jobStatus.error_message}. Halting orchestration at batch ${batchNumber}.`);
+          
+          // Log job stoppage to system_logs
+          await supabase.from('system_logs').insert({
+            severity: 'error',
+            operation: 'full-refresh-orchestrator-stopped',
+            error_message: `Job manually stopped or failed. Status: ${jobStatus.status}. ${jobStatus.error_message || ''}`,
+            context: {
+              jobId,
+              status: jobStatus.status,
+              batchNumber,
+              totalBatches,
+              threadsProcessed: batchStart,
+              totalThreads: chunks.length,
+              errorMessage: jobStatus.error_message
+            }
+          });
+          
           break;
         }
         
@@ -98,8 +131,23 @@ serve(async (req) => {
               genreId: chunk.genreId,
               jobId: jobId
             }
-          }).catch(error => {
+          }).catch(async error => {
             console.error(`Error dispatching thread ${threadNum}:`, error);
+            
+            // Log dispatch failure to system_logs
+            await supabase.from('system_logs').insert({
+              severity: 'error',
+              operation: 'full-refresh-thread-dispatch-failed',
+              error_message: `Failed to dispatch thread ${threadNum}: ${error.message || String(error)}`,
+              error_stack: error.stack || null,
+              context: {
+                jobId,
+                threadNum,
+                batchNumber,
+                chunk
+              }
+            });
+            
             return { error };
           });
           

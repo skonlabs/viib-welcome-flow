@@ -113,6 +113,24 @@ serve(async (req) => {
       const elapsed = Date.now() - startTime;
       if (elapsed > MAX_RUNTIME_MS) {
         console.log(`Approaching time limit at ${elapsed}ms. Stopping gracefully.`);
+        
+        // Log timeout to system_logs
+        await supabase.from('system_logs').insert({
+          severity: 'warning',
+          operation: 'full-refresh-titles-timeout',
+          error_message: `Thread approaching time limit at ${elapsed}ms for ${languageCode}/${year}/${genreName}`,
+          context: {
+            languageCode,
+            year,
+            genre: genreName,
+            genreId: tmdbGenreId,
+            totalProcessed,
+            elapsedMs: elapsed,
+            phase: 'movies',
+            page: moviePage
+          }
+        });
+        
         break;
       }
 
@@ -225,6 +243,24 @@ serve(async (req) => {
       const elapsed = Date.now() - startTime;
       if (elapsed > MAX_RUNTIME_MS) {
         console.log(`Approaching time limit at ${elapsed}ms. Stopping gracefully.`);
+        
+        // Log timeout to system_logs
+        await supabase.from('system_logs').insert({
+          severity: 'warning',
+          operation: 'full-refresh-titles-timeout',
+          error_message: `Thread approaching time limit at ${elapsed}ms for ${languageCode}/${year}/${genreName}`,
+          context: {
+            languageCode,
+            year,
+            genre: genreName,
+            genreId: tmdbGenreId,
+            totalProcessed,
+            elapsedMs: elapsed,
+            phase: 'tv',
+            page: tvPage
+          }
+        });
+        
         break;
       }
 
@@ -360,6 +396,23 @@ serve(async (req) => {
       // Don't update if job was stopped by admin
       if (currentJob?.status === 'failed' || currentJob?.status === 'idle') {
         console.log('Job was stopped, skipping tracking update');
+        
+        // Log job stoppage to system_logs
+        await supabase.from('system_logs').insert({
+          severity: 'warning',
+          operation: 'full-refresh-titles-stopped',
+          error_message: `Thread detected job was stopped/failed for ${languageCode}/${year}/${genreName}`,
+          context: {
+            jobId,
+            languageCode,
+            year,
+            genre: genreName,
+            genreId: tmdbGenreId,
+            totalProcessed,
+            jobStatus: currentJob?.status
+          }
+        });
+        
         return new Response(
           JSON.stringify({ 
             success: true, 
@@ -407,6 +460,26 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error in full-refresh-titles:', error);
     const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : null;
+
+    // Log error to system_logs
+    try {
+      const requestBody = await req.clone().json().catch(() => ({}));
+      await supabase.from('system_logs').insert({
+        severity: 'error',
+        operation: 'full-refresh-titles-error',
+        error_message: `Thread error: ${errorMessage}`,
+        error_stack: errorStack,
+        context: {
+          languageCode: requestBody.languageCode,
+          year: requestBody.startYear,
+          genreId: requestBody.genreId,
+          jobId: requestBody.jobId
+        }
+      });
+    } catch (logError) {
+      console.error('Error logging to system_logs:', logError);
+    }
 
     // Track failed thread
     try {
