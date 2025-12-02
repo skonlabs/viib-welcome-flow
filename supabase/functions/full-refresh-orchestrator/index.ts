@@ -182,7 +182,43 @@ serve(async (req) => {
             // Map genreId to genre name for logging
             const genreName = GENRE_MAP[chunk.genreId] || 'Unknown';
             
-            // Log dispatch failure to system_logs
+            // Fetch job configuration to get minRating for TMDB parameters
+            const { data: jobConfig } = await supabase
+              .from('jobs')
+              .select('configuration')
+              .eq('id', jobId)
+              .single();
+            
+            const minRating = jobConfig?.configuration?.min_rating || 6.0;
+            
+            // Store complete TMDB API parameters for retry
+            const tmdbParameters = {
+              movies: {
+                endpoint: 'https://api.themoviedb.org/3/discover/movie',
+                parameters: {
+                  api_key: '[REDACTED]',
+                  primary_release_year: chunk.year,
+                  with_genres: chunk.genreId,
+                  with_original_language: chunk.languageCode,
+                  'popularity.gte': 60,
+                  sort_by: 'popularity.desc'
+                }
+              },
+              tv: {
+                endpoint: 'https://api.themoviedb.org/3/discover/tv',
+                parameters: {
+                  api_key: '[REDACTED]',
+                  'air_date.gte': `${chunk.year}-01-01`,
+                  'air_date.lte': `${chunk.year}-12-31`,
+                  with_genres: chunk.genreId,
+                  with_original_language: chunk.languageCode,
+                  'popularity.gte': 60,
+                  sort_by: 'popularity.desc'
+                }
+              }
+            };
+            
+            // Log dispatch failure with complete retry parameters
             await supabase.from('system_logs').insert({
               severity: 'error',
               operation: 'full-refresh-thread-dispatch-failed',
@@ -192,11 +228,23 @@ serve(async (req) => {
                 jobId,
                 threadNum,
                 batchNumber,
-                languageCode: chunk.languageCode,
-                year: chunk.year,
-                genreId: chunk.genreId,
-                genreName: genreName,
-                chunk
+                retry_parameters: {
+                  languageCode: chunk.languageCode,
+                  languageName: chunk.languageName,
+                  startYear: chunk.year,
+                  endYear: chunk.year,
+                  genreId: chunk.genreId,
+                  genreName: genreName,
+                  minRating: minRating
+                },
+                tmdb_api_parameters: tmdbParameters,
+                edge_function_body: {
+                  languageCode: chunk.languageCode,
+                  startYear: chunk.year,
+                  endYear: chunk.year,
+                  genreId: chunk.genreId,
+                  jobId: jobId
+                }
               }
             });
             

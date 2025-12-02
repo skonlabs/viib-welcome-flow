@@ -508,17 +508,64 @@ serve(async (req) => {
       const requestBody = await req.clone().json().catch(() => ({}));
       const genreName = TMDB_GENRE_MAP[requestBody.genreId] || 'Unknown';
       
+      // Fetch job configuration for minRating
+      const { data: jobConfig, error: jobError } = await supabase
+        .from('jobs')
+        .select('configuration')
+        .eq('id', requestBody.jobId)
+        .single();
+      
+      const minRating = (!jobError && jobConfig?.configuration?.min_rating) || 6.0;
+      
+      // Store complete TMDB API parameters for retry
+      const tmdbParameters = {
+        movies: {
+          endpoint: 'https://api.themoviedb.org/3/discover/movie',
+          parameters: {
+            api_key: '[REDACTED]',
+            primary_release_year: requestBody.startYear,
+            with_genres: requestBody.genreId,
+            with_original_language: requestBody.languageCode,
+            'popularity.gte': 60,
+            sort_by: 'popularity.desc'
+          }
+        },
+        tv: {
+          endpoint: 'https://api.themoviedb.org/3/discover/tv',
+          parameters: {
+            api_key: '[REDACTED]',
+            'air_date.gte': `${requestBody.startYear}-01-01`,
+            'air_date.lte': `${requestBody.startYear}-12-31`,
+            with_genres: requestBody.genreId,
+            with_original_language: requestBody.languageCode,
+            'popularity.gte': 60,
+            sort_by: 'popularity.desc'
+          }
+        }
+      };
+      
       await supabase.from('system_logs').insert({
         severity: 'error',
         operation: 'full-refresh-titles-error',
         error_message: `Thread error for ${requestBody.languageCode}/${requestBody.startYear}/${genreName}: ${errorMessage}`,
         error_stack: errorStack,
         context: {
-          languageCode: requestBody.languageCode,
-          year: requestBody.startYear,
-          genreId: requestBody.genreId,
-          genreName: genreName,
-          jobId: requestBody.jobId
+          retry_parameters: {
+            languageCode: requestBody.languageCode,
+            startYear: requestBody.startYear,
+            endYear: requestBody.startYear,
+            genreId: requestBody.genreId,
+            genreName: genreName,
+            minRating: minRating
+          },
+          tmdb_api_parameters: tmdbParameters,
+          edge_function_body: {
+            languageCode: requestBody.languageCode,
+            startYear: requestBody.startYear,
+            endYear: requestBody.startYear,
+            genreId: requestBody.genreId,
+            jobId: requestBody.jobId
+          }
         }
       });
     } catch (logError) {
