@@ -265,6 +265,81 @@ serve(async (req) => {
         }
       }
       
+      // RETRY FAILED THREADS
+      // After all new threads complete, automatically retry any previously failed threads
+      const { data: retryJobData } = await supabase
+        .from('jobs')
+        .select('configuration')
+        .eq('id', jobId)
+        .single();
+      
+      const retryConfig = retryJobData?.configuration || {};
+      const failedUnits = retryConfig.failed_work_units || [];
+      
+      if (failedUnits.length > 0) {
+        console.log(`Found ${failedUnits.length} failed threads to retry`);
+        
+        const retryBatchSize = 5;
+        const totalRetryBatches = Math.ceil(failedUnits.length / retryBatchSize);
+        const successfulRetries: any[] = [];
+        const stillFailedRetries: any[] = [];
+        
+        for (let retryBatchIndex = 0; retryBatchIndex < totalRetryBatches; retryBatchIndex++) {
+          const retryBatchStart = retryBatchIndex * retryBatchSize;
+          const retryBatchEnd = Math.min(retryBatchStart + retryBatchSize, failedUnits.length);
+          const retryBatchNum = retryBatchIndex + 1;
+          
+          console.log(`Starting retry batch ${retryBatchNum}/${totalRetryBatches}: retrying ${retryBatchStart + 1} to ${retryBatchEnd}`);
+          
+          const retryPromises = [];
+          for (let i = retryBatchStart; i < retryBatchEnd; i++) {
+            const failedUnit = failedUnits[i];
+            
+            const promise = supabase.functions.invoke('full-refresh-titles', {
+              body: {
+                languageCode: failedUnit.languageCode,
+                startYear: failedUnit.year,
+                endYear: failedUnit.year,
+                genreId: failedUnit.genreId,
+                jobId: jobId
+              }
+            }).then(() => {
+              console.log(`Retry succeeded: ${failedUnit.languageCode}/${failedUnit.year}/${failedUnit.genreId}`);
+              successfulRetries.push(failedUnit);
+              return { success: true, unit: failedUnit };
+            }).catch(error => {
+              console.error(`Retry failed: ${failedUnit.languageCode}/${failedUnit.year}/${failedUnit.genreId}:`, error);
+              stillFailedRetries.push({ ...failedUnit, attempts: (failedUnit.attempts || 0) + 1 });
+              return { success: false, unit: failedUnit, error };
+            });
+            
+            retryPromises.push(promise);
+          }
+          
+          await Promise.all(retryPromises);
+          console.log(`Retry batch ${retryBatchNum}/${totalRetryBatches} completed`);
+          
+          if (retryBatchIndex < totalRetryBatches - 1) {
+            await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
+          }
+        }
+        
+        // Update job configuration: remove successful retries, keep still-failed ones
+        if (successfulRetries.length > 0 || stillFailedRetries.length !== failedUnits.length) {
+          await supabase
+            .from('jobs')
+            .update({
+              configuration: {
+                ...retryConfig,
+                failed_work_units: stillFailedRetries
+              }
+            })
+            .eq('id', jobId);
+          
+          console.log(`Retry complete: ${successfulRetries.length} succeeded, ${stillFailedRetries.length} still failed`);
+        }
+      }
+      
       // Verify all work units completed
       const { data: finalJobData } = await supabase
         .from('jobs')
