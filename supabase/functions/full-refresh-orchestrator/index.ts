@@ -52,7 +52,30 @@ serve(async (req) => {
       throw new Error('Missing required parameters: jobId, chunks');
     }
 
-    console.log(`Orchestrator started: dispatching ${chunks.length - startIndex} threads for job ${jobId} from index ${startIndex}`);
+    // Fetch job configuration to get completed work units
+    const { data: jobData, error: jobError } = await supabase
+      .from('jobs')
+      .select('configuration')
+      .eq('id', jobId)
+      .single();
+
+    if (jobError) throw jobError;
+
+    const config = jobData.configuration || {};
+    const completedUnits = config.completed_work_units || [];
+    const failedUnits = config.failed_work_units || [];
+
+    // Filter out already-completed chunks
+    const remainingChunks = chunks.filter((chunk: any) => {
+      const isCompleted = completedUnits.some((unit: any) => 
+        unit.languageCode === chunk.languageCode && 
+        unit.year === chunk.year && 
+        unit.genreId === chunk.genreId
+      );
+      return !isCompleted;
+    });
+
+    console.log(`Orchestrator started: ${remainingChunks.length} remaining threads (${completedUnits.length} already completed) for job ${jobId}`);
 
     // Dispatch threads in batches with proper concurrency control
     const dispatchAllThreads = async () => {
@@ -60,21 +83,20 @@ serve(async (req) => {
       const BATCH_DELAY_MS = 5000; // 5 second delay between batches
       const MAX_ORCHESTRATOR_RUNTIME_MS = 300000; // 5 minutes safety margin before timeout
       const orchestratorStartTime = Date.now();
-      const totalThreads = chunks.length - startIndex;
+      const totalThreads = remainingChunks.length;
       const totalBatches = Math.ceil(totalThreads / BATCH_SIZE);
       
       console.log(`Starting batch dispatch: ${totalThreads} threads in ${totalBatches} batches of ${BATCH_SIZE}`);
       
       for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
-        const batchStart = startIndex + (batchIndex * BATCH_SIZE);
-        const batchEnd = Math.min(batchStart + BATCH_SIZE, chunks.length);
+        const batchStart = batchIndex * BATCH_SIZE;
+        const batchEnd = Math.min(batchStart + BATCH_SIZE, remainingChunks.length);
         const batchNumber = batchIndex + 1;
         
         // Check if approaching orchestrator timeout BEFORE starting this batch
         const orchestratorElapsed = Date.now() - orchestratorStartTime;
         if (orchestratorElapsed > MAX_ORCHESTRATOR_RUNTIME_MS) {
-          const nextStartIndex = batchStart; // Start next orchestrator from THIS batch
-          console.log(`Orchestrator approaching timeout at ${orchestratorElapsed}ms. Stopping at batch ${batchNumber}. Next start index: ${nextStartIndex}`);
+          console.log(`Orchestrator approaching timeout at ${orchestratorElapsed}ms. Stopping at batch ${batchNumber}.`);
           
           // Log timeout to system_logs
           await supabase.from('system_logs').insert({
@@ -86,16 +108,17 @@ serve(async (req) => {
               batchNumber,
               totalBatches,
               threadsProcessed: batchStart,
-              totalThreads: chunks.length,
+              totalThreads: remainingChunks.length,
               elapsedMs: orchestratorElapsed,
-              nextStartIndex
+              completedCount: completedUnits.length,
+              totalWorkUnits: chunks.length
             }
           });
           
-          // Relaunch orchestrator with remaining chunks
-          console.log(`Relaunching orchestrator for remaining ${chunks.length - nextStartIndex} threads...`);
+          // Relaunch orchestrator with ALL original chunks (filtering happens on next invocation)
+          console.log(`Relaunching orchestrator to continue processing...`);
           await supabase.functions.invoke('full-refresh-orchestrator', {
-            body: { jobId, chunks, startIndex: nextStartIndex }
+            body: { jobId, chunks, startIndex: 0 }
           });
           
           return; // Exit current orchestrator
@@ -142,8 +165,8 @@ serve(async (req) => {
         // Dispatch all threads in current batch simultaneously
         const batchPromises = [];
         for (let i = batchStart; i < batchEnd; i++) {
-          const chunk = chunks[i];
-          const threadNum = i + 1;
+          const chunk = remainingChunks[i];
+          const threadNum = completedUnits.length + i + 1;
           
           const promise = supabase.functions.invoke('full-refresh-titles', {
             body: {
@@ -194,7 +217,18 @@ serve(async (req) => {
         }
       }
       
-      console.log(`Orchestrator completed: all ${totalThreads} threads dispatched in ${totalBatches} batches for job ${jobId}`);
+      // Verify all work units completed
+      const { data: finalJobData } = await supabase
+        .from('jobs')
+        .select('configuration')
+        .eq('id', jobId)
+        .single();
+      
+      const finalConfig = finalJobData?.configuration || {};
+      const finalCompleted = finalConfig.completed_work_units || [];
+      const finalFailed = finalConfig.failed_work_units || [];
+      
+      console.log(`Orchestrator completed: ${finalCompleted.length}/${chunks.length} threads completed, ${finalFailed.length} failed for job ${jobId}`);
     };
 
     // Use waitUntil to ensure background task continues even if response is sent
@@ -205,10 +239,12 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: true, 
-        message: `Orchestrator started. Dispatching ${chunks.length - startIndex} threads in the background.`,
+        message: `Orchestrator started. Dispatching ${remainingChunks.length} remaining threads in the background.`,
         jobId,
         totalThreads: chunks.length,
-        startIndex
+        remainingThreads: remainingChunks.length,
+        completedThreads: completedUnits.length,
+        failedThreads: failedUnits.length
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

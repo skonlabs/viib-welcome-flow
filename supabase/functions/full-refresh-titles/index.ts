@@ -444,6 +444,45 @@ serve(async (req) => {
 
     console.log(`Full Refresh completed: ${totalProcessed} titles processed in ${duration} seconds for ${languageCode}/${year}/${genreName}`);
 
+    // Mark work unit as completed
+    if (jobId) {
+      const genreName = TMDB_GENRE_MAP[tmdbGenreId] || 'Unknown';
+      const { data: currentJob } = await supabase
+        .from('jobs')
+        .select('configuration')
+        .eq('id', jobId)
+        .single();
+      
+      const currentConfig = (currentJob?.configuration as any) || {};
+      const completedUnits = currentConfig.completed_work_units || [];
+      const failedUnits = (currentConfig.failed_work_units || []).filter((u: any) =>
+        !(u.languageCode === languageCode && u.year === year && u.genreId === tmdbGenreId)
+      );
+      
+      // Add this work unit to completed
+      completedUnits.push({
+        languageCode,
+        year,
+        genreId: tmdbGenreId,
+        genreName,
+        completedAt: new Date().toISOString(),
+        titlesProcessed: totalProcessed
+      });
+      
+      await supabase
+        .from('jobs')
+        .update({
+          configuration: {
+            ...currentConfig,
+            completed_work_units: completedUnits,
+            failed_work_units: failedUnits
+          }
+        })
+        .eq('id', jobId);
+      
+      console.log(`Work unit completed: ${languageCode}/${year}/${genreName} - ${totalProcessed} titles`);
+    }
+
     return new Response(
       JSON.stringify({ 
         success: true, 
@@ -484,10 +523,14 @@ serve(async (req) => {
       console.error('Error logging to system_logs:', logError);
     }
 
-    // Track failed thread
+    // Track failed work unit
     try {
       const requestBody = await req.clone().json();
       const jobId = requestBody.jobId;
+      const languageCode = requestBody.languageCode;
+      const year = requestBody.startYear;
+      const tmdbGenreId = requestBody.genreId;
+      const genreName = TMDB_GENRE_MAP[tmdbGenreId] || 'Unknown';
       
       if (jobId) {
         const { data: currentJob } = await supabase
@@ -501,21 +544,41 @@ serve(async (req) => {
           console.log('Job was stopped, skipping failure tracking');
         } else {
           const currentConfig = (currentJob?.configuration as any) || {};
-          const tracking = currentConfig.thread_tracking || { succeeded: 0, failed: 0 };
+          const failedUnits = currentConfig.failed_work_units || [];
+          
+          // Find existing failed unit or create new
+          const existingIndex = failedUnits.findIndex((u: any) =>
+            u.languageCode === languageCode && u.year === year && u.genreId === tmdbGenreId
+          );
+          
+          if (existingIndex >= 0) {
+            failedUnits[existingIndex].attempts = (failedUnits[existingIndex].attempts || 0) + 1;
+            failedUnits[existingIndex].lastError = errorMessage;
+            failedUnits[existingIndex].lastAttempt = new Date().toISOString();
+          } else {
+            failedUnits.push({
+              languageCode,
+              year,
+              genreId: tmdbGenreId,
+              genreName,
+              error: errorMessage,
+              attempts: 1,
+              lastAttempt: new Date().toISOString()
+            });
+          }
           
           await supabase
             .from('jobs')
             .update({
               configuration: {
                 ...currentConfig,
-                thread_tracking: {
-                  succeeded: tracking.succeeded,
-                  failed: tracking.failed + 1
-                }
+                failed_work_units: failedUnits
               }
             })
             .eq('id', jobId)
             .eq('status', 'running'); // Only update if still running
+          
+          console.log(`Work unit failed: ${languageCode}/${year}/${genreName} - attempt ${existingIndex >= 0 ? failedUnits[existingIndex].attempts : 1}`);
         }
       }
     } catch (trackError) {
