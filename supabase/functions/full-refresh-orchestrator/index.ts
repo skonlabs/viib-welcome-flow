@@ -6,6 +6,28 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// TMDB Genre ID to Name mapping for readable logging
+const GENRE_MAP: Record<number, string> = {
+  28: 'Action',
+  12: 'Adventure',
+  16: 'Animation',
+  35: 'Comedy',
+  80: 'Crime',
+  99: 'Documentary',
+  18: 'Drama',
+  10751: 'Family',
+  14: 'Fantasy',
+  36: 'History',
+  27: 'Horror',
+  10402: 'Music',
+  9648: 'Mystery',
+  10749: 'Romance',
+  878: 'Science Fiction',
+  53: 'Thriller',
+  10752: 'War',
+  37: 'Western'
+};
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -134,16 +156,23 @@ serve(async (req) => {
           }).catch(async error => {
             console.error(`Error dispatching thread ${threadNum}:`, error);
             
+            // Map genreId to genre name for logging
+            const genreName = GENRE_MAP[chunk.genreId] || 'Unknown';
+            
             // Log dispatch failure to system_logs
             await supabase.from('system_logs').insert({
               severity: 'error',
               operation: 'full-refresh-thread-dispatch-failed',
-              error_message: `Failed to dispatch thread ${threadNum}: ${error.message || String(error)}`,
+              error_message: `Failed to dispatch thread ${threadNum} for ${chunk.languageCode}/${chunk.year}/${genreName}: ${error.message || String(error)}`,
               error_stack: error.stack || null,
               context: {
                 jobId,
                 threadNum,
                 batchNumber,
+                languageCode: chunk.languageCode,
+                year: chunk.year,
+                genreId: chunk.genreId,
+                genreName: genreName,
                 chunk
               }
             });

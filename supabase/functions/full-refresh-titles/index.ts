@@ -465,15 +465,18 @@ serve(async (req) => {
     // Log error to system_logs
     try {
       const requestBody = await req.clone().json().catch(() => ({}));
+      const genreName = TMDB_GENRE_MAP[requestBody.genreId] || 'Unknown';
+      
       await supabase.from('system_logs').insert({
         severity: 'error',
         operation: 'full-refresh-titles-error',
-        error_message: `Thread error: ${errorMessage}`,
+        error_message: `Thread error for ${requestBody.languageCode}/${requestBody.startYear}/${genreName}: ${errorMessage}`,
         error_stack: errorStack,
         context: {
           languageCode: requestBody.languageCode,
           year: requestBody.startYear,
           genreId: requestBody.genreId,
+          genreName: genreName,
           jobId: requestBody.jobId
         }
       });
