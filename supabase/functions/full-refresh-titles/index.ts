@@ -264,7 +264,9 @@ serve(async (req) => {
         break;
       }
 
-      const tvUrl = `https://api.themoviedb.org/3/discover/tv?api_key=${TMDB_API_KEY}&first_air_date_year=${year}&with_genres=${tmdbGenreId}&with_original_language=${languageCode}&vote_average.gte=${minRating}&vote_count.gte=10&sort_by=popularity.desc&page=${tvPage}`;
+      // Use air_date instead of first_air_date_year to catch shows with recent seasons
+      // This ensures we get shows like "Delhi Crime" (2019) that had a season in 2025
+      const tvUrl = `https://api.themoviedb.org/3/discover/tv?api_key=${TMDB_API_KEY}&air_date.gte=${year}-01-01&air_date.lte=${year}-12-31&with_genres=${tmdbGenreId}&with_original_language=${languageCode}&vote_average.gte=${minRating}&vote_count.gte=10&sort_by=popularity.desc&page=${tvPage}`;
       
       try {
         const tvResponse = await fetch(tvUrl);
