@@ -21,8 +21,5 @@ verify_jwt = false
 [functions.enrich-title-trailers]
 verify_jwt = false
 
-[functions.retry-failed-threads]
-verify_jwt = false
-
 [functions.full-refresh-orchestrator]
 verify_jwt = false
