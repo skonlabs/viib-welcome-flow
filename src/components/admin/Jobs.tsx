@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Play, Pause, RefreshCw, Clock, Calendar as CalendarIcon, Settings, XCircle, Layers } from "@/icons";
 import { errorLogger } from "@/lib/services/ErrorLoggerService";
+import { ThreadMonitor } from "./ThreadMonitor";
 import {
   Dialog,
   DialogContent,
@@ -315,6 +316,9 @@ export const Jobs = () => {
       const resetConfig = {
         ...config,
         total_threads: chunks.length,
+        total_work_units: chunks.length,
+        completed_work_units: [],
+        failed_work_units: [],
         thread_tracking: { succeeded: 0, failed: 0 }
       };
       
@@ -743,6 +747,17 @@ export const Jobs = () => {
                 <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-sm text-destructive">
                   <div className="font-semibold mb-1">Last Error:</div>
                   {job.error_message}
+                </div>
+              )}
+
+              {/* Thread Monitor for Full Refresh Jobs */}
+              {job.job_type === 'full_refresh' && job.status === 'running' && (
+                <div className="mt-4">
+                  <ThreadMonitor
+                    jobId={job.id}
+                    totalWorkUnits={job.configuration?.total_work_units || 1836}
+                    isRunning={job.status === 'running'}
+                  />
                 </div>
               )}
 
