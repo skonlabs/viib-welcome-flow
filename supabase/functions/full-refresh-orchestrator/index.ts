@@ -34,7 +34,7 @@ serve(async (req) => {
 
     // Dispatch threads in batches with proper concurrency control
     const dispatchAllThreads = async () => {
-      const BATCH_SIZE = 10; // Process 10 threads concurrently per batch
+      const BATCH_SIZE = 15; // Process 15 threads concurrently per batch
       const BATCH_DELAY_MS = 10000; // 10 second delay between batches
       const MAX_ORCHESTRATOR_RUNTIME_MS = 240000; // 4 minutes safety margin before timeout
       const orchestratorStartTime = Date.now();
