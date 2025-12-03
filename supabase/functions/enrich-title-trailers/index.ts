@@ -33,10 +33,19 @@ serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+    // Fetch official trailer channels from database
+    const { data: officialChannels } = await supabase
+      .from('official_trailer_channels')
+      .select('channel_name, language_code, priority')
+      .eq('is_active', true)
+      .order('priority', { ascending: false });
+
+    console.log(`Loaded ${officialChannels?.length || 0} official trailer channels`);
+
     // Fetch titles that need trailer enrichment - using new column names
     const { data: titles, error: fetchError } = await supabase
       .from('titles')
-      .select('id, tmdb_id, name, release_date, first_air_date, title_type')
+      .select('id, tmdb_id, name, release_date, first_air_date, title_type, original_language')
       .not('tmdb_id', 'is', null)
       .is('trailer_url', null)
       .range(startOffset, startOffset + batchSize - 1);
@@ -95,24 +104,13 @@ serve(async (req) => {
 
         // Fallback to YouTube search if no TMDB trailer - search official channels only
         if (!trailerUrl) {
-          console.log(`No TMDB trailer, searching YouTube official channels for: ${title.name}`);
+          const titleLang = title.original_language || 'en';
+          console.log(`No TMDB trailer, searching YouTube official channels for: ${title.name} (lang: ${titleLang})`);
           
-          // Official trailer channel IDs on YouTube
-          const OFFICIAL_TRAILER_CHANNELS = [
-            'UCuVPpxrm2VAgpH3Ktln4HXg', // Movieclips Trailers
-            'UCi8e0iOVk1fEOogdfu4YgfA', // Sony Pictures Entertainment
-            'UCjmJDM5pRKbUlVIzDYYWb6g', // Warner Bros. Pictures
-            'UC_IRYSp4auq7hKLvziWVH6w', // Paramount Pictures
-            'UCF9imwPMSGz4Vq1NiTWCC7g', // 20th Century Studios
-            'UC3gNmTGu-TTbFPpfSs5kNkg', // Universal Pictures
-            'UCKy1dAqELo0zrOtPkf0eTMw', // IGN
-            'UCnIup-Jnwr6emLxO8McEhSw', // FilmSelect Trailer
-            'UC0qHjhB5VmMl6PR4Dqmx6Hw', // Rotten Tomatoes Trailers
-            'UCVNcE1-j20Ksul25sGNvQww', // KinoCheck International
-            'UCWKmMqMQJD5mWUKQC-Rbjzg', // A24
-            'UCOpcACMWblDls9Z6GERVi1A', // Netflix
-            'UCW-thz5HxE-goYq8_WPOBCg', // Lionsgate Movies
-          ];
+          // Get official channel names for this language + global channels
+          const relevantChannels = (officialChannels || []).filter(c => 
+            c.language_code === titleLang || c.language_code === 'global' || c.language_code === 'en'
+          ).map(c => c.channel_name.toLowerCase());
           
           // Search with official trailer query
           const searchQuery = `${title.name} ${releaseYear || ''} official trailer`;
@@ -123,10 +121,11 @@ serve(async (req) => {
           if (youtubeSearchRes.ok) {
             const searchData = await youtubeSearchRes.json();
             
-            // First try to find a result from an official trailer channel
-            const officialChannelTrailer = searchData.items?.find((item: any) => 
-              OFFICIAL_TRAILER_CHANNELS.includes(item.snippet.channelId)
-            );
+            // First try to find a result from an official trailer channel (matched by name)
+            const officialChannelTrailer = searchData.items?.find((item: any) => {
+              const channelTitle = item.snippet.channelTitle?.toLowerCase() || '';
+              return relevantChannels.some(officialName => channelTitle.includes(officialName.toLowerCase()));
+            });
 
             if (officialChannelTrailer) {
               trailerUrl = `https://www.youtube.com/watch?v=${officialChannelTrailer.id.videoId}`;
@@ -149,10 +148,9 @@ serve(async (req) => {
                   channelTitle.includes('trailers') ||
                   channelTitle.includes('movies') ||
                   channelTitle.includes('films') ||
+                  channelTitle.includes('productions') ||
                   channelTitle.includes('netflix') ||
                   channelTitle.includes('disney') ||
-                  channelTitle.includes('hbo') ||
-                  channelTitle.includes('amazon') ||
                   channelTitle.includes('prime video');
                 
                 return hasOfficialInTitle && isOfficialChannel;
