@@ -161,17 +161,40 @@ serve(async (req) => {
     }
 
     // Helper function to fetch trailer from TMDB or YouTube (official channels only)
-    async function fetchTrailer(tmdbId: number, titleType: string, titleName: string, releaseYear: number | null, titleLang: string = 'en'): Promise<{ url: string | null, isTmdbTrailer: boolean }> {
+    // For TV series, fetches the latest season's trailer first
+    async function fetchTrailer(tmdbId: number, titleType: string, titleName: string, releaseYear: number | null, titleLang: string = 'en', latestSeasonNumber?: number): Promise<{ url: string | null, isTmdbTrailer: boolean }> {
       try {
-        const endpoint = titleType === 'movie' ? 'movie' : 'tv';
-        const videosRes = await fetch(`https://api.themoviedb.org/3/${endpoint}/${tmdbId}/videos?api_key=${TMDB_API_KEY}`);
-        
-        if (videosRes.ok) {
-          const videosData = await videosRes.json();
-          const trailer = videosData.results?.find((v: any) => v.type === 'Trailer' && v.site === 'YouTube');
-          if (trailer) {
-            return { url: `https://www.youtube.com/watch?v=${trailer.key}`, isTmdbTrailer: true };
+        let trailerKey: string | null = null;
+
+        // For TV series, try to get the latest season's trailer first
+        if (titleType === 'tv' && latestSeasonNumber && latestSeasonNumber > 0) {
+          const seasonVideosRes = await fetch(`https://api.themoviedb.org/3/tv/${tmdbId}/season/${latestSeasonNumber}/videos?api_key=${TMDB_API_KEY}`);
+          if (seasonVideosRes.ok) {
+            const seasonVideosData = await seasonVideosRes.json();
+            const seasonTrailer = seasonVideosData.results?.find((v: any) => v.type === 'Trailer' && v.site === 'YouTube');
+            if (seasonTrailer) {
+              trailerKey = seasonTrailer.key;
+              console.log(`Found season ${latestSeasonNumber} trailer for ${titleName}`);
+            }
           }
+        }
+
+        // Fallback to series/movie level trailer if no season trailer found
+        if (!trailerKey) {
+          const endpoint = titleType === 'movie' ? 'movie' : 'tv';
+          const videosRes = await fetch(`https://api.themoviedb.org/3/${endpoint}/${tmdbId}/videos?api_key=${TMDB_API_KEY}`);
+          
+          if (videosRes.ok) {
+            const videosData = await videosRes.json();
+            const trailer = videosData.results?.find((v: any) => v.type === 'Trailer' && v.site === 'YouTube');
+            if (trailer) {
+              trailerKey = trailer.key;
+            }
+          }
+        }
+
+        if (trailerKey) {
+          return { url: `https://www.youtube.com/watch?v=${trailerKey}`, isTmdbTrailer: true };
         }
 
         // YouTube fallback - search official channels only
@@ -427,9 +450,11 @@ serve(async (req) => {
             // Fetch full details
             const details = await fetchTvDetails(show.id);
             
-            // Fetch trailer
+            // Fetch trailer - use latest season number for TV series
             const releaseYear = show.first_air_date ? new Date(show.first_air_date).getFullYear() : null;
-            const { url: trailerUrl, isTmdbTrailer: isTmdbTrailerTv } = await fetchTrailer(show.id, 'tv', show.name, releaseYear, show.original_language || languageCode);
+            const seasons = details?.seasons?.filter((s: any) => s.season_number > 0) || [];
+            const latestSeasonNumber = seasons.length > 0 ? Math.max(...seasons.map((s: any) => s.season_number)) : undefined;
+            const { url: trailerUrl, isTmdbTrailer: isTmdbTrailerTv } = await fetchTrailer(show.id, 'tv', show.name, releaseYear, show.original_language || languageCode, latestSeasonNumber);
 
             // Upsert title (insert or update if exists)
             const { data: upsertedTitle, error: titleError } = await supabase
