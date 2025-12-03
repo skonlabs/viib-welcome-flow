@@ -175,16 +175,6 @@ serve(async (req) => {
 
         for (const movie of movies) {
           try {
-            // Check if title already exists
-            const { data: existingTitle } = await supabase
-              .from('titles')
-              .select('id')
-              .eq('tmdb_id', movie.id)
-              .eq('title_type', 'movie')
-              .maybeSingle();
-
-            if (existingTitle) continue;
-
             // Fetch full details for additional metadata
             const details = await fetchMovieDetails(movie.id);
             
@@ -192,10 +182,10 @@ serve(async (req) => {
             const releaseYear = movie.release_date ? new Date(movie.release_date).getFullYear() : null;
             const { url: trailerUrl } = await fetchTrailer(movie.id, 'movie', movie.title, releaseYear);
 
-            // Insert new title with all metadata
-            const { data: insertedTitle, error: titleError } = await supabase
+            // Upsert title (insert or update if exists)
+            const { data: upsertedTitle, error: titleError } = await supabase
               .from('titles')
-              .insert({
+              .upsert({
                 tmdb_id: movie.id,
                 title_type: 'movie',
                 name: movie.title,
@@ -215,17 +205,18 @@ serve(async (req) => {
                 is_adult: movie.adult || false,
                 imdb_id: details?.imdb_id || null,
                 tagline: details?.tagline || null,
-                trailer_url: trailerUrl
-              })
+                trailer_url: trailerUrl,
+                updated_at: new Date().toISOString()
+              }, { onConflict: 'tmdb_id,title_type' })
               .select('id')
               .single();
 
             if (titleError) {
-              console.error(`Error inserting movie ${movie.title}:`, titleError);
+              console.error(`Error upserting movie ${movie.title}:`, titleError);
               continue;
             }
 
-            if (insertedTitle) {
+            if (upsertedTitle) {
               totalProcessed++;
 
               // Map genres
@@ -235,7 +226,7 @@ serve(async (req) => {
                 if (gName) {
                   const ourGenreId = genreNameToId[gName.toLowerCase()];
                   if (ourGenreId) {
-                    await supabase.from('title_genres').upsert({ title_id: insertedTitle.id, genre_id: ourGenreId }, { onConflict: 'title_id,genre_id' });
+                    await supabase.from('title_genres').upsert({ title_id: upsertedTitle.id, genre_id: ourGenreId }, { onConflict: 'title_id,genre_id' });
                   }
                 }
               }
@@ -245,7 +236,7 @@ serve(async (req) => {
                 for (const lang of details.spoken_languages) {
                   // Ensure language exists in spoken_languages table
                   await supabase.from('spoken_languages').upsert({ iso_639_1: lang.iso_639_1, language_name: lang.english_name || lang.name }, { onConflict: 'iso_639_1' });
-                  await supabase.from('title_spoken_languages').upsert({ title_id: insertedTitle.id, iso_639_1: lang.iso_639_1 }, { onConflict: 'title_id,iso_639_1' });
+                  await supabase.from('title_spoken_languages').upsert({ title_id: upsertedTitle.id, iso_639_1: lang.iso_639_1 }, { onConflict: 'title_id,iso_639_1' });
                 }
               }
 
@@ -254,7 +245,7 @@ serve(async (req) => {
                 for (const kw of details.keywords.keywords.slice(0, 10)) {
                   const { data: kwData } = await supabase.from('keywords').upsert({ tmdb_keyword_id: kw.id, name: kw.name }, { onConflict: 'tmdb_keyword_id' }).select('id').single();
                   if (kwData) {
-                    await supabase.from('title_keywords').upsert({ title_id: insertedTitle.id, keyword_id: kwData.id }, { onConflict: 'title_id,keyword_id' });
+                    await supabase.from('title_keywords').upsert({ title_id: upsertedTitle.id, keyword_id: kwData.id }, { onConflict: 'title_id,keyword_id' });
                   }
                 }
               }
@@ -300,16 +291,6 @@ serve(async (req) => {
 
         for (const show of shows) {
           try {
-            // Check if title already exists
-            const { data: existingTitle } = await supabase
-              .from('titles')
-              .select('id')
-              .eq('tmdb_id', show.id)
-              .eq('title_type', 'tv')
-              .maybeSingle();
-
-            if (existingTitle) continue;
-
             // Fetch full details
             const details = await fetchTvDetails(show.id);
             
@@ -317,10 +298,10 @@ serve(async (req) => {
             const releaseYear = show.first_air_date ? new Date(show.first_air_date).getFullYear() : null;
             const { url: trailerUrl } = await fetchTrailer(show.id, 'tv', show.name, releaseYear);
 
-            // Insert new title with all metadata
-            const { data: insertedTitle, error: titleError } = await supabase
+            // Upsert title (insert or update if exists)
+            const { data: upsertedTitle, error: titleError } = await supabase
               .from('titles')
-              .insert({
+              .upsert({
                 tmdb_id: show.id,
                 title_type: 'tv',
                 name: show.name,
@@ -340,17 +321,18 @@ serve(async (req) => {
                 is_adult: show.adult || false,
                 imdb_id: details?.external_ids?.imdb_id || null,
                 tagline: details?.tagline || null,
-                trailer_url: trailerUrl
-              })
+                trailer_url: trailerUrl,
+                updated_at: new Date().toISOString()
+              }, { onConflict: 'tmdb_id,title_type' })
               .select('id')
               .single();
 
             if (titleError) {
-              console.error(`Error inserting show ${show.name}:`, titleError);
+              console.error(`Error upserting show ${show.name}:`, titleError);
               continue;
             }
 
-            if (insertedTitle) {
+            if (upsertedTitle) {
               totalProcessed++;
 
               // Map genres
@@ -360,7 +342,7 @@ serve(async (req) => {
                 if (gName) {
                   const ourGenreId = genreNameToId[gName.toLowerCase()];
                   if (ourGenreId) {
-                    await supabase.from('title_genres').upsert({ title_id: insertedTitle.id, genre_id: ourGenreId }, { onConflict: 'title_id,genre_id' });
+                    await supabase.from('title_genres').upsert({ title_id: upsertedTitle.id, genre_id: ourGenreId }, { onConflict: 'title_id,genre_id' });
                   }
                 }
               }
@@ -369,7 +351,7 @@ serve(async (req) => {
               if (details?.spoken_languages) {
                 for (const lang of details.spoken_languages) {
                   await supabase.from('spoken_languages').upsert({ iso_639_1: lang.iso_639_1, language_name: lang.english_name || lang.name }, { onConflict: 'iso_639_1' });
-                  await supabase.from('title_spoken_languages').upsert({ title_id: insertedTitle.id, iso_639_1: lang.iso_639_1 }, { onConflict: 'title_id,iso_639_1' });
+                  await supabase.from('title_spoken_languages').upsert({ title_id: upsertedTitle.id, iso_639_1: lang.iso_639_1 }, { onConflict: 'title_id,iso_639_1' });
                 }
               }
 
@@ -377,7 +359,7 @@ serve(async (req) => {
               if (details?.seasons) {
                 for (const season of details.seasons) {
                   await supabase.from('seasons').upsert({
-                    title_id: insertedTitle.id,
+                    title_id: upsertedTitle.id,
                     season_number: season.season_number,
                     episode_count: season.episode_count,
                     air_date: season.air_date || null,
@@ -393,7 +375,7 @@ serve(async (req) => {
                 for (const kw of details.keywords.results.slice(0, 10)) {
                   const { data: kwData } = await supabase.from('keywords').upsert({ tmdb_keyword_id: kw.id, name: kw.name }, { onConflict: 'tmdb_keyword_id' }).select('id').single();
                   if (kwData) {
-                    await supabase.from('title_keywords').upsert({ title_id: insertedTitle.id, keyword_id: kwData.id }, { onConflict: 'title_id,keyword_id' });
+                    await supabase.from('title_keywords').upsert({ title_id: upsertedTitle.id, keyword_id: kwData.id }, { onConflict: 'title_id,keyword_id' });
                   }
                 }
               }
