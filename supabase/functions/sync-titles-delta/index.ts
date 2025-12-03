@@ -73,7 +73,7 @@ serve(async (req) => {
     console.log(`Syncing titles from ${startDateStr} to ${endDateStr}`);
 
     const { data: genres } = await supabase.from('genres').select('id, genre_name');
-    const { data: languages } = await supabase.from('languages').select('language_code, language_name');
+    const { data: languages } = await supabase.from('spoken_languages').select('iso_639_1, language_name');
 
     const genreNameToId: Record<string, string> = {};
     (genres || []).forEach(g => {
@@ -128,7 +128,7 @@ serve(async (req) => {
       console.log(`Fetching: Lang=${language.language_name}`);
 
       // Fetch new movies - using same criteria as full refresh
-      const moviesUrl = `https://api.themoviedb.org/3/discover/movie?api_key=${TMDB_API_KEY}&primary_release_date.gte=${startDateStr}&primary_release_date.lte=${endDateStr}&with_original_language=${language.language_code}&vote_average.gte=${minRating}&sort_by=popularity.desc&page=1`;
+      const moviesUrl = `https://api.themoviedb.org/3/discover/movie?api_key=${TMDB_API_KEY}&primary_release_date.gte=${startDateStr}&primary_release_date.lte=${endDateStr}&with_original_language=${language.iso_639_1}&vote_average.gte=${minRating}&sort_by=popularity.desc&page=1`;
       
       const moviesResponse = await fetch(moviesUrl);
       const moviesData = await moviesResponse.json();
@@ -202,7 +202,7 @@ serve(async (req) => {
       }
 
       // Fetch new TV shows - using air_date like full refresh to catch shows with recent seasons
-      const tvUrl = `https://api.themoviedb.org/3/discover/tv?api_key=${TMDB_API_KEY}&air_date.gte=${startDateStr}&air_date.lte=${endDateStr}&with_original_language=${language.language_code}&vote_average.gte=${minRating}&sort_by=popularity.desc&page=1`;
+      const tvUrl = `https://api.themoviedb.org/3/discover/tv?api_key=${TMDB_API_KEY}&air_date.gte=${startDateStr}&air_date.lte=${endDateStr}&with_original_language=${language.iso_639_1}&vote_average.gte=${minRating}&sort_by=popularity.desc&page=1`;
       
       const tvResponse = await fetch(tvUrl);
       const tvData = await tvResponse.json();
