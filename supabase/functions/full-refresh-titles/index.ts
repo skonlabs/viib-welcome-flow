@@ -151,7 +151,24 @@ serve(async (req) => {
       }
     }
 
-    // Helper function to fetch trailer from TMDB or YouTube
+    // Official trailer channel IDs on YouTube
+    const OFFICIAL_TRAILER_CHANNELS = [
+      'UCuVPpxrm2VAgpH3Ktln4HXg', // Movieclips Trailers
+      'UCi8e0iOVk1fEOogdfu4YgfA', // Sony Pictures Entertainment
+      'UCjmJDM5pRKbUlVIzDYYWb6g', // Warner Bros. Pictures
+      'UC_IRYSp4auq7hKLvziWVH6w', // Paramount Pictures
+      'UCF9imwPMSGz4Vq1NiTWCC7g', // 20th Century Studios
+      'UC3gNmTGu-TTbFPpfSs5kNkg', // Universal Pictures
+      'UCKy1dAqELo0zrOtPkf0eTMw', // IGN
+      'UCnIup-Jnwr6emLxO8McEhSw', // FilmSelect Trailer
+      'UC0qHjhB5VmMl6PR4Dqmx6Hw', // Rotten Tomatoes Trailers
+      'UCVNcE1-j20Ksul25sGNvQww', // KinoCheck International
+      'UCWKmMqMQJD5mWUKQC-Rbjzg', // A24
+      'UCOpcACMWblDls9Z6GERVi1A', // Netflix
+      'UCW-thz5HxE-goYq8_WPOBCg', // Lionsgate Movies
+    ];
+
+    // Helper function to fetch trailer from TMDB or YouTube (official channels only)
     async function fetchTrailer(tmdbId: number, titleType: string, titleName: string, releaseYear: number | null): Promise<{ url: string | null, isTmdbTrailer: boolean }> {
       try {
         const endpoint = titleType === 'movie' ? 'movie' : 'tv';
@@ -165,16 +182,48 @@ serve(async (req) => {
           }
         }
 
-        // YouTube fallback
+        // YouTube fallback - search official channels only
         if (YOUTUBE_API_KEY) {
           const searchQuery = `${titleName} ${releaseYear || ''} official trailer`;
           const youtubeRes = await fetch(
-            `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(searchQuery)}&type=video&maxResults=3&key=${YOUTUBE_API_KEY}`
+            `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(searchQuery)}&type=video&maxResults=10&key=${YOUTUBE_API_KEY}`
           );
           if (youtubeRes.ok) {
             const searchData = await youtubeRes.json();
-            if (searchData.items?.length > 0) {
-              return { url: `https://www.youtube.com/watch?v=${searchData.items[0].id.videoId}`, isTmdbTrailer: false };
+            
+            // First try to find a result from an official trailer channel
+            const officialChannelTrailer = searchData.items?.find((item: any) => 
+              OFFICIAL_TRAILER_CHANNELS.includes(item.snippet.channelId)
+            );
+
+            if (officialChannelTrailer) {
+              return { url: `https://www.youtube.com/watch?v=${officialChannelTrailer.id.videoId}`, isTmdbTrailer: false };
+            }
+            
+            // Fallback: find results with "official trailer" in title from verified-looking channels
+            const verifiedTrailer = searchData.items?.find((item: any) => {
+              const channelTitle = item.snippet.channelTitle?.toLowerCase() || '';
+              const videoTitle = item.snippet.title?.toLowerCase() || '';
+              
+              const hasOfficialInTitle = videoTitle.includes('official trailer');
+              const isOfficialChannel = 
+                channelTitle.includes('pictures') ||
+                channelTitle.includes('studios') ||
+                channelTitle.includes('entertainment') ||
+                channelTitle.includes('trailers') ||
+                channelTitle.includes('movies') ||
+                channelTitle.includes('films') ||
+                channelTitle.includes('netflix') ||
+                channelTitle.includes('disney') ||
+                channelTitle.includes('hbo') ||
+                channelTitle.includes('amazon') ||
+                channelTitle.includes('prime video');
+              
+              return hasOfficialInTitle && isOfficialChannel;
+            });
+
+            if (verifiedTrailer) {
+              return { url: `https://www.youtube.com/watch?v=${verifiedTrailer.id.videoId}`, isTmdbTrailer: false };
             }
           }
         }
