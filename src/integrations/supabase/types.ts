@@ -576,6 +576,42 @@ export type Database = {
         }
         Relationships: []
       }
+      official_trailer_channels: {
+        Row: {
+          category: string | null
+          channel_id: string | null
+          channel_name: string
+          created_at: string
+          id: string
+          is_active: boolean
+          language_code: string
+          priority: number
+          region: string | null
+        }
+        Insert: {
+          category?: string | null
+          channel_id?: string | null
+          channel_name: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          language_code: string
+          priority?: number
+          region?: string | null
+        }
+        Update: {
+          category?: string | null
+          channel_id?: string | null
+          channel_name?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          language_code?: string
+          priority?: number
+          region?: string | null
+        }
+        Relationships: []
+      }
       personality_profiles: {
         Row: {
           analytical_thinking: number | null
