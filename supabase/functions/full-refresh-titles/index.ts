@@ -6,8 +6,9 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// TMDB Genre ID to Name mapping
+// TMDB Genre ID to Name mapping (includes both Movie and TV genre IDs)
 const TMDB_GENRE_MAP: Record<number, string> = {
+  // Movie genres
   28: 'Action',
   12: 'Adventure',
   16: 'Animation',
@@ -25,7 +26,16 @@ const TMDB_GENRE_MAP: Record<number, string> = {
   878: 'Science Fiction',
   53: 'Thriller',
   10752: 'War',
-  37: 'Western'
+  37: 'Western',
+  // TV-specific genres (TMDB uses different IDs for TV)
+  10759: 'Action', // Action & Adventure (TV)
+  10762: 'Kids',
+  10763: 'News',
+  10764: 'Reality',
+  10765: 'Science Fiction', // Sci-Fi & Fantasy (TV) - e.g., Stranger Things
+  10766: 'Soap',
+  10767: 'Talk',
+  10768: 'War', // War & Politics (TV)
 };
 
 // TMDB Provider ID to service name mapping (US region)
@@ -162,7 +172,7 @@ serve(async (req) => {
 
     // Helper function to fetch trailer from TMDB or YouTube (official channels only)
     // For TV series, fetches the latest season's trailer first
-    async function fetchTrailer(tmdbId: number, titleType: string, titleName: string, releaseYear: number | null, titleLang: string = 'en', latestSeasonNumber?: number): Promise<{ url: string | null, isTmdbTrailer: boolean }> {
+    async function fetchTrailer(tmdbId: number, titleType: string, titleName: string, releaseYear: number | null, titleLang: string = 'en', latestSeasonNumber?: number, seasonName?: string): Promise<{ url: string | null, isTmdbTrailer: boolean }> {
       try {
         let trailerKey: string | null = null;
 
@@ -204,7 +214,10 @@ serve(async (req) => {
             c.language_code === titleLang || c.language_code === 'global' || c.language_code === 'en'
           ).map(c => c.channel_name.toLowerCase());
 
-          const searchQuery = `${titleName} ${releaseYear || ''} official trailer`;
+          // For TV series with season info, search for season-specific trailer (e.g., "Delhi Crime Season 3")
+          const searchQuery = titleType === 'tv' && seasonName 
+            ? `${titleName} ${seasonName} official trailer`
+            : `${titleName} ${releaseYear || ''} official trailer`;
           const youtubeRes = await fetch(
             `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(searchQuery)}&type=video&maxResults=10&key=${YOUTUBE_API_KEY}`
           );
@@ -454,7 +467,9 @@ serve(async (req) => {
             const releaseYear = show.first_air_date ? new Date(show.first_air_date).getFullYear() : null;
             const seasons = details?.seasons?.filter((s: any) => s.season_number > 0) || [];
             const latestSeasonNumber = seasons.length > 0 ? Math.max(...seasons.map((s: any) => s.season_number)) : undefined;
-            const { url: trailerUrl, isTmdbTrailer: isTmdbTrailerTv } = await fetchTrailer(show.id, 'tv', show.name, releaseYear, show.original_language || languageCode, latestSeasonNumber);
+            const latestSeason = seasons.find((s: any) => s.season_number === latestSeasonNumber);
+            const seasonName = latestSeason?.name || (latestSeasonNumber ? `Season ${latestSeasonNumber}` : undefined);
+            const { url: trailerUrl, isTmdbTrailer: isTmdbTrailerTv } = await fetchTrailer(show.id, 'tv', show.name, releaseYear, show.original_language || languageCode, latestSeasonNumber, seasonName);
 
             // Upsert title (insert or update if exists)
             const { data: upsertedTitle, error: titleError } = await supabase
