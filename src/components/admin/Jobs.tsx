@@ -519,6 +519,135 @@ export const Jobs = () => {
     }
   };
 
+  const handleResumeJob = async (job: Job) => {
+    try {
+      const config = job.configuration || {};
+      const completedWorkUnits = config.completed_work_units || [];
+      
+      // Build the complete set of work units
+      const startYear = config.start_year || 2020;
+      const endYear = config.end_year || 2025;
+      
+      const { data: languages } = await supabase
+        .from('spoken_languages')
+        .select('iso_639_1')
+        .order('iso_639_1');
+      
+      const languageCodes = languages?.map(l => l.iso_639_1) || [];
+      const genreIds = [28, 12, 16, 35, 80, 99, 18, 10751, 14, 36, 27, 10402, 9648, 10749, 878, 53, 10752, 37];
+      
+      // Create all chunks
+      const allChunks: Array<{ languageCode: string; year: number; genreId: number }> = [];
+      for (const langCode of languageCodes) {
+        for (let year = startYear; year <= endYear; year++) {
+          for (const genreId of genreIds) {
+            allChunks.push({ languageCode: langCode, year, genreId });
+          }
+        }
+      }
+
+      // Filter out already completed work units
+      const completedSet = new Set(
+        completedWorkUnits.map((wu: any) => `${wu.languageCode}-${wu.year}-${wu.genreId}`)
+      );
+      
+      const remainingChunks = allChunks.filter(
+        chunk => !completedSet.has(`${chunk.languageCode}-${chunk.year}-${chunk.genreId}`)
+      );
+
+      if (remainingChunks.length === 0) {
+        toast({
+          title: "Job Already Complete",
+          description: "All work units have been processed.",
+        });
+        return;
+      }
+
+      // Update job status to running, clear error message
+      const { error: updateError } = await supabase
+        .from('jobs')
+        .update({ 
+          status: 'running',
+          error_message: null, // CRITICAL: Clear error message for resume
+          last_run_at: new Date().toISOString()
+        })
+        .eq('id', job.id);
+
+      if (updateError) throw updateError;
+
+      setParallelProgress({
+        jobId: job.id,
+        currentThread: completedWorkUnits.length,
+        totalThreads: allChunks.length,
+        succeeded: completedWorkUnits.length,
+        failed: config.failed_work_units?.length || 0,
+        titlesProcessed: job.total_titles_processed || 0
+      });
+
+      toast({
+        title: "Resuming Job",
+        description: `Resuming from ${completedWorkUnits.length} completed. ${remainingChunks.length} work units remaining.`,
+      });
+
+      // Invoke orchestrator with remaining chunks
+      const { error: orchestratorError } = await supabase.functions.invoke('full-refresh-orchestrator', {
+        body: {
+          jobId: job.id,
+          chunks: remainingChunks,
+          startIndex: 0
+        }
+      });
+
+      if (orchestratorError) throw orchestratorError;
+
+      // Poll for progress
+      const pollInterval = setInterval(async () => {
+        const { data: updatedJob } = await supabase
+          .from('jobs')
+          .select('total_titles_processed, status, configuration')
+          .eq('id', job.id)
+          .single();
+
+        if (updatedJob) {
+          const jobConfig = (updatedJob.configuration as any) || {};
+          const completed = jobConfig.completed_work_units?.length || 0;
+          const failed = jobConfig.failed_work_units?.length || 0;
+          
+          setParallelProgress({
+            jobId: job.id,
+            currentThread: completed,
+            totalThreads: allChunks.length,
+            succeeded: completed,
+            failed: failed,
+            titlesProcessed: updatedJob.total_titles_processed || 0
+          });
+
+          if (completed + failed >= allChunks.length || updatedJob.status === 'completed') {
+            clearInterval(pollInterval);
+            setParallelProgress(null);
+            await fetchJobs();
+          }
+        }
+      }, 10000);
+
+      setTimeout(() => {
+        clearInterval(pollInterval);
+        setParallelProgress(null);
+      }, 7200000);
+
+    } catch (error) {
+      await errorLogger.log(error, { 
+        operation: 'resume_job',
+        jobId: job.id
+      });
+      toast({
+        title: "Resume Failed",
+        description: "Failed to resume job. Please check the logs.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleToggleActive = async (job: Job) => {
     try {
       const { error } = await supabase
@@ -774,23 +903,46 @@ export const Jobs = () => {
                   </Button>
                 ) : (
                   <>
-                    <Button
-                      onClick={() => handleRunJob(job)}
-                      disabled={runningJobs.has(job.id)}
-                      className="flex-1"
-                    >
-                      {runningJobs.has(job.id) ? (
-                        <>
-                          <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                          Running...
-                        </>
-                      ) : (
-                        <>
-                          <Play className="w-4 h-4 mr-2" />
-                          Run Now
-                        </>
-                      )}
-                    </Button>
+                    {/* Show Resume button if job has progress to resume */}
+                    {job.job_type === 'full_refresh' && 
+                     job.configuration?.completed_work_units?.length > 0 && 
+                     job.status !== 'completed' ? (
+                      <Button
+                        onClick={() => handleResumeJob(job)}
+                        disabled={runningJobs.has(job.id)}
+                        className="flex-1"
+                      >
+                        {runningJobs.has(job.id) ? (
+                          <>
+                            <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                            Resuming...
+                          </>
+                        ) : (
+                          <>
+                            <Play className="w-4 h-4 mr-2" />
+                            Resume ({job.configuration.completed_work_units.length} done)
+                          </>
+                        )}
+                      </Button>
+                    ) : (
+                      <Button
+                        onClick={() => handleRunJob(job)}
+                        disabled={runningJobs.has(job.id)}
+                        className="flex-1"
+                      >
+                        {runningJobs.has(job.id) ? (
+                          <>
+                            <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                            Running...
+                          </>
+                        ) : (
+                          <>
+                            <Play className="w-4 h-4 mr-2" />
+                            Run Now
+                          </>
+                        )}
+                      </Button>
+                    )}
                     {job.job_type === 'full_refresh' && (
                       <Button
                         onClick={() => handleRunParallel(job)}
@@ -798,7 +950,7 @@ export const Jobs = () => {
                         variant="secondary"
                       >
                         <Layers className="w-4 h-4 mr-2" />
-                        Parallel
+                        {job.configuration?.completed_work_units?.length > 0 ? 'Restart' : 'Parallel'}
                       </Button>
                     )}
                   </>
