@@ -35,6 +35,7 @@ serve(async (req) => {
 
   try {
     const TMDB_API_KEY = Deno.env.get('TMDB_API_KEY');
+    const YOUTUBE_API_KEY = Deno.env.get('YOUTUBE_API_KEY');
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
@@ -46,18 +47,12 @@ serve(async (req) => {
 
     console.log('Starting Sync Delta job...');
 
-    // Update job status to running
     const startTime = Date.now();
     await supabase
       .from('jobs')
-      .update({ 
-        status: 'running', 
-        last_run_at: new Date().toISOString(),
-        error_message: null
-      })
+      .update({ status: 'running', last_run_at: new Date().toISOString(), error_message: null })
       .eq('job_type', 'sync_delta');
 
-    // Fetch configuration
     const { data: jobData } = await supabase
       .from('jobs')
       .select('configuration')
@@ -67,10 +62,7 @@ serve(async (req) => {
     const config = jobData?.configuration as any || {};
     const minRating = config.min_rating || 6.0;
     const lookbackDays = config.lookback_days || 7;
-    const startYear = config.start_year || null;
-    const endYear = config.end_year || null;
 
-    // Calculate date range
     const endDate = new Date();
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - lookbackDays);
@@ -79,43 +71,64 @@ serve(async (req) => {
     const endDateStr = endDate.toISOString().split('T')[0];
 
     console.log(`Syncing titles from ${startDateStr} to ${endDateStr}`);
-    if (startYear && endYear) {
-      console.log(`Year filter: ${startYear}-${endYear}`);
-    }
 
-    // Fetch all genres, languages, and streaming services
-    const [genresRes, languagesRes, servicesRes] = await Promise.all([
-      supabase.from('genres').select('id, genre_name'),
-      supabase.from('languages').select('language_code, language_name'),
-      supabase.from('streaming_services').select('id, service_name').eq('is_active', true)
-    ]);
+    const { data: genres } = await supabase.from('genres').select('id, genre_name');
+    const { data: languages } = await supabase.from('languages').select('language_code, language_name');
 
-    const genres = genresRes.data || [];
-    const languages = languagesRes.data || [];
-    const streamingServices = servicesRes.data || [];
-
-    // Create genre name to UUID mapping
     const genreNameToId: Record<string, string> = {};
-    genres.forEach(g => {
+    (genres || []).forEach(g => {
       genreNameToId[g.genre_name.toLowerCase()] = g.id;
     });
 
-    console.log(`Syncing titles from ${startDateStr} to ${endDateStr}`);
-    console.log(`Processing: ${languages.length} languages, ${streamingServices.length} services`);
+    console.log(`Processing: ${(languages || []).length} languages`);
 
     let totalProcessed = 0;
 
-    // Process each language
-    for (const language of languages) {
+    // Helper functions
+    async function fetchTrailer(tmdbId: number, titleType: string, titleName: string, releaseYear: number | null): Promise<string | null> {
+      try {
+        const endpoint = titleType === 'movie' ? 'movie' : 'tv';
+        const videosRes = await fetch(`https://api.themoviedb.org/3/${endpoint}/${tmdbId}/videos?api_key=${TMDB_API_KEY}`);
+        if (videosRes.ok) {
+          const data = await videosRes.json();
+          const trailer = data.results?.find((v: any) => v.type === 'Trailer' && v.site === 'YouTube');
+          if (trailer) return `https://www.youtube.com/watch?v=${trailer.key}`;
+        }
+        if (YOUTUBE_API_KEY) {
+          const searchQuery = `${titleName} ${releaseYear || ''} official trailer`;
+          const ytRes = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(searchQuery)}&type=video&maxResults=3&key=${YOUTUBE_API_KEY}`);
+          if (ytRes.ok) {
+            const ytData = await ytRes.json();
+            if (ytData.items?.length > 0) return `https://www.youtube.com/watch?v=${ytData.items[0].id.videoId}`;
+          }
+        }
+      } catch (e) {
+        console.error(`Error fetching trailer:`, e);
+      }
+      return null;
+    }
+
+    async function fetchMovieDetails(tmdbId: number) {
+      try {
+        const res = await fetch(`https://api.themoviedb.org/3/movie/${tmdbId}?api_key=${TMDB_API_KEY}`);
+        if (res.ok) return await res.json();
+      } catch (e) { /* ignore */ }
+      return null;
+    }
+
+    async function fetchTvDetails(tmdbId: number) {
+      try {
+        const res = await fetch(`https://api.themoviedb.org/3/tv/${tmdbId}?api_key=${TMDB_API_KEY}`);
+        if (res.ok) return await res.json();
+      } catch (e) { /* ignore */ }
+      return null;
+    }
+
+    for (const language of (languages || [])) {
       console.log(`Fetching: Lang=${language.language_name}`);
 
-      // Fetch new movies
-      let moviesUrl = `https://api.themoviedb.org/3/discover/movie?api_key=${TMDB_API_KEY}&primary_release_date.gte=${startDateStr}&primary_release_date.lte=${endDateStr}&with_original_language=${language.language_code}&vote_average.gte=${minRating}&vote_count.gte=5&sort_by=release_date.desc&page=1`;
-      
-      // Add year filter if specified
-      if (startYear && endYear) {
-        moviesUrl += `&primary_release_date.gte=${startYear}-01-01&primary_release_date.lte=${endYear}-12-31`;
-      }
+      // Fetch new movies - using same criteria as full refresh
+      const moviesUrl = `https://api.themoviedb.org/3/discover/movie?api_key=${TMDB_API_KEY}&primary_release_date.gte=${startDateStr}&primary_release_date.lte=${endDateStr}&with_original_language=${language.language_code}&vote_average.gte=${minRating}&sort_by=popularity.desc&page=1`;
       
       const moviesResponse = await fetch(moviesUrl);
       const moviesData = await moviesResponse.json();
@@ -125,21 +138,34 @@ serve(async (req) => {
 
       for (const movie of movies) {
         try {
-          const releaseYear = movie.release_date ? new Date(movie.release_date).getFullYear() : new Date().getFullYear();
+          const details = await fetchMovieDetails(movie.id);
+          const releaseYear = movie.release_date ? new Date(movie.release_date).getFullYear() : null;
+          const trailerUrl = await fetchTrailer(movie.id, 'movie', movie.title, releaseYear);
 
           const { data: insertedTitle, error: titleError } = await supabase
             .from('titles')
             .upsert({
               tmdb_id: movie.id,
-              title_name: movie.title,
-              original_title_name: movie.original_title,
-              content_type: 'movie',
-              release_year: releaseYear,
-              runtime_minutes: movie.runtime || null,
-              synopsis: movie.overview,
+              title_type: 'movie',
+              name: movie.title,
+              original_name: movie.original_title,
+              overview: movie.overview,
+              release_date: movie.release_date || null,
+              first_air_date: null,
+              last_air_date: null,
+              status: details?.status || null,
+              runtime: details?.runtime || null,
+              episode_run_time: null,
+              popularity: movie.popularity,
+              vote_average: movie.vote_average,
+              poster_path: movie.poster_path,
+              backdrop_path: movie.backdrop_path,
               original_language: movie.original_language,
-              popularity_score: movie.popularity
-            }, { onConflict: 'tmdb_id,content_type' })
+              is_adult: movie.adult || false,
+              imdb_id: details?.imdb_id || null,
+              tagline: details?.tagline || null,
+              trailer_url: trailerUrl
+            }, { onConflict: 'title_type,tmdb_id' })
             .select('id')
             .single();
 
@@ -151,36 +177,23 @@ serve(async (req) => {
           if (insertedTitle) {
             totalProcessed++;
 
-            // Map TMDB genre IDs to our genre UUIDs
-            const tmdbGenreIds = movie.genre_ids || [];
-            for (const tmdbGenreId of tmdbGenreIds) {
-              const genreName = TMDB_GENRE_MAP[tmdbGenreId];
-              if (genreName) {
-                const genreId = genreNameToId[genreName.toLowerCase()];
+            // Map genres
+            for (const gId of (movie.genre_ids || [])) {
+              const gName = TMDB_GENRE_MAP[gId];
+              if (gName) {
+                const genreId = genreNameToId[gName.toLowerCase()];
                 if (genreId) {
-                  await supabase
-                    .from('title_genres')
-                    .upsert({ title_id: insertedTitle.id, genre_id: genreId }, { onConflict: 'title_id,genre_id' });
+                  await supabase.from('title_genres').upsert({ title_id: insertedTitle.id, genre_id: genreId }, { onConflict: 'title_id,genre_id' });
                 }
               }
             }
 
-            await supabase
-              .from('title_languages')
-              .upsert({
-                title_id: insertedTitle.id,
-                language_code: language.language_code,
-                language_type: 'original'
-              }, { onConflict: 'title_id,language_code,language_type' });
-
-            for (const service of streamingServices) {
-              await supabase
-                .from('title_streaming_availability')
-                .upsert({
-                  title_id: insertedTitle.id,
-                  streaming_service_id: service.id,
-                  region_code: 'US'
-                }, { onConflict: 'title_id,streaming_service_id,region_code' });
+            // Store spoken languages
+            if (details?.spoken_languages) {
+              for (const lang of details.spoken_languages) {
+                await supabase.from('spoken_languages').upsert({ iso_639_1: lang.iso_639_1, language_name: lang.english_name || lang.name }, { onConflict: 'iso_639_1' });
+                await supabase.from('title_spoken_languages').upsert({ title_id: insertedTitle.id, iso_639_1: lang.iso_639_1 }, { onConflict: 'title_id,iso_639_1' });
+              }
             }
           }
         } catch (error) {
@@ -188,13 +201,8 @@ serve(async (req) => {
         }
       }
 
-      // Fetch new TV shows
-      let tvUrl = `https://api.themoviedb.org/3/discover/tv?api_key=${TMDB_API_KEY}&first_air_date.gte=${startDateStr}&first_air_date.lte=${endDateStr}&with_original_language=${language.language_code}&vote_average.gte=${minRating}&vote_count.gte=5&sort_by=first_air_date.desc&page=1`;
-      
-      // Add year filter if specified
-      if (startYear && endYear) {
-        tvUrl += `&first_air_date.gte=${startYear}-01-01&first_air_date.lte=${endYear}-12-31`;
-      }
+      // Fetch new TV shows - using air_date like full refresh to catch shows with recent seasons
+      const tvUrl = `https://api.themoviedb.org/3/discover/tv?api_key=${TMDB_API_KEY}&air_date.gte=${startDateStr}&air_date.lte=${endDateStr}&with_original_language=${language.language_code}&vote_average.gte=${minRating}&sort_by=popularity.desc&page=1`;
       
       const tvResponse = await fetch(tvUrl);
       const tvData = await tvResponse.json();
@@ -204,20 +212,34 @@ serve(async (req) => {
 
       for (const show of shows) {
         try {
-          const releaseYear = show.first_air_date ? new Date(show.first_air_date).getFullYear() : new Date().getFullYear();
+          const details = await fetchTvDetails(show.id);
+          const releaseYear = show.first_air_date ? new Date(show.first_air_date).getFullYear() : null;
+          const trailerUrl = await fetchTrailer(show.id, 'tv', show.name, releaseYear);
 
           const { data: insertedTitle, error: titleError } = await supabase
             .from('titles')
             .upsert({
               tmdb_id: show.id,
-              title_name: show.name,
-              original_title_name: show.original_name,
-              content_type: 'series',
-              release_year: releaseYear,
-              synopsis: show.overview,
+              title_type: 'tv',
+              name: show.name,
+              original_name: show.original_name,
+              overview: show.overview,
+              release_date: null,
+              first_air_date: show.first_air_date || null,
+              last_air_date: details?.last_air_date || null,
+              status: details?.status || null,
+              runtime: null,
+              episode_run_time: details?.episode_run_time || null,
+              popularity: show.popularity,
+              vote_average: show.vote_average,
+              poster_path: show.poster_path,
+              backdrop_path: show.backdrop_path,
               original_language: show.original_language,
-              popularity_score: show.popularity
-            }, { onConflict: 'tmdb_id,content_type' })
+              is_adult: show.adult || false,
+              imdb_id: details?.external_ids?.imdb_id || null,
+              tagline: details?.tagline || null,
+              trailer_url: trailerUrl
+            }, { onConflict: 'title_type,tmdb_id' })
             .select('id')
             .single();
 
@@ -229,36 +251,38 @@ serve(async (req) => {
           if (insertedTitle) {
             totalProcessed++;
 
-            // Map TMDB genre IDs to our genre UUIDs
-            const tmdbGenreIds = show.genre_ids || [];
-            for (const tmdbGenreId of tmdbGenreIds) {
-              const genreName = TMDB_GENRE_MAP[tmdbGenreId];
-              if (genreName) {
-                const genreId = genreNameToId[genreName.toLowerCase()];
+            // Map genres
+            for (const gId of (show.genre_ids || [])) {
+              const gName = TMDB_GENRE_MAP[gId];
+              if (gName) {
+                const genreId = genreNameToId[gName.toLowerCase()];
                 if (genreId) {
-                  await supabase
-                    .from('title_genres')
-                    .upsert({ title_id: insertedTitle.id, genre_id: genreId }, { onConflict: 'title_id,genre_id' });
+                  await supabase.from('title_genres').upsert({ title_id: insertedTitle.id, genre_id: genreId }, { onConflict: 'title_id,genre_id' });
                 }
               }
             }
 
-            await supabase
-              .from('title_languages')
-              .upsert({
-                title_id: insertedTitle.id,
-                language_code: language.language_code,
-                language_type: 'original'
-              }, { onConflict: 'title_id,language_code,language_type' });
+            // Store spoken languages
+            if (details?.spoken_languages) {
+              for (const lang of details.spoken_languages) {
+                await supabase.from('spoken_languages').upsert({ iso_639_1: lang.iso_639_1, language_name: lang.english_name || lang.name }, { onConflict: 'iso_639_1' });
+                await supabase.from('title_spoken_languages').upsert({ title_id: insertedTitle.id, iso_639_1: lang.iso_639_1 }, { onConflict: 'title_id,iso_639_1' });
+              }
+            }
 
-            for (const service of streamingServices) {
-              await supabase
-                .from('title_streaming_availability')
-                .upsert({
+            // Store seasons
+            if (details?.seasons) {
+              for (const season of details.seasons) {
+                await supabase.from('seasons').upsert({
                   title_id: insertedTitle.id,
-                  streaming_service_id: service.id,
-                  region_code: 'US'
-                }, { onConflict: 'title_id,streaming_service_id,region_code' });
+                  season_number: season.season_number,
+                  episode_count: season.episode_count,
+                  air_date: season.air_date || null,
+                  name: season.name,
+                  overview: season.overview,
+                  poster_path: season.poster_path
+                }, { onConflict: 'title_id,season_number' });
+              }
             }
           }
         } catch (error) {
@@ -266,27 +290,20 @@ serve(async (req) => {
         }
       }
 
-      // Update progress periodically
       if (totalProcessed % 50 === 0 && totalProcessed > 0) {
-        await supabase
-          .from('jobs')
-          .update({ total_titles_processed: totalProcessed })
-          .eq('job_type', 'sync_delta');
+        await supabase.from('jobs').update({ total_titles_processed: totalProcessed }).eq('job_type', 'sync_delta');
         console.log(`Progress: ${totalProcessed} new titles synced`);
       }
 
-      // Rate limit
       await new Promise(resolve => setTimeout(resolve, 50));
     }
 
     const duration = Math.floor((Date.now() - startTime) / 1000);
 
-    // Calculate next run (tomorrow at 2 AM)
     const nextRun = new Date();
     nextRun.setDate(nextRun.getDate() + 1);
     nextRun.setHours(2, 0, 0, 0);
 
-    // Mark job as completed
     await supabase
       .from('jobs')
       .update({ 
@@ -300,12 +317,7 @@ serve(async (req) => {
     console.log(`Sync Delta completed: ${totalProcessed} new titles synced in ${duration} seconds`);
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
-        totalProcessed, 
-        duration,
-        message: `Sync completed successfully. ${totalProcessed} new titles added.`
-      }),
+      JSON.stringify({ success: true, totalProcessed, duration, message: `Sync completed. ${totalProcessed} new titles added.` }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
@@ -313,7 +325,6 @@ serve(async (req) => {
     console.error('Error in sync-titles-delta:', error);
     const errorMessage = error instanceof Error ? error.message : String(error);
 
-    // Update job status to failed
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
@@ -325,11 +336,7 @@ serve(async (req) => {
 
       await supabase
         .from('jobs')
-        .update({ 
-          status: 'failed',
-          error_message: errorMessage,
-          next_run_at: nextRun.toISOString()
-        })
+        .update({ status: 'failed', error_message: errorMessage, next_run_at: nextRun.toISOString() })
         .eq('job_type', 'sync_delta');
     }
 
