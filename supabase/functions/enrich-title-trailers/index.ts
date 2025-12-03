@@ -68,6 +68,7 @@ serve(async (req) => {
       try {
         const endpoint = title.title_type === 'movie' ? 'movie' : 'tv';
         let trailerUrl: string | null = null;
+        let isTmdbTrailer: boolean = true;
 
         // Get release year from the appropriate date field
         const dateStr = title.title_type === 'movie' ? title.release_date : title.first_air_date;
@@ -87,6 +88,7 @@ serve(async (req) => {
 
           if (trailer) {
             trailerUrl = `https://www.youtube.com/watch?v=${trailer.key}`;
+            isTmdbTrailer = true;
             console.log(`Found TMDB trailer: ${trailerUrl}`);
           }
         }
@@ -117,9 +119,11 @@ serve(async (req) => {
 
             if (officialTrailer) {
               trailerUrl = `https://www.youtube.com/watch?v=${officialTrailer.id.videoId}`;
+              isTmdbTrailer = false;
               console.log(`Found YouTube trailer: ${trailerUrl}`);
             } else if (searchData.items && searchData.items.length > 0) {
               trailerUrl = `https://www.youtube.com/watch?v=${searchData.items[0].id.videoId}`;
+              isTmdbTrailer = false;
               console.log(`Using YouTube fallback trailer: ${trailerUrl}`);
             }
           }
@@ -129,7 +133,7 @@ serve(async (req) => {
         if (trailerUrl) {
           const { error: updateError } = await supabase
             .from('titles')
-            .update({ trailer_url: trailerUrl })
+            .update({ trailer_url: trailerUrl, is_tmdb_trailer: isTmdbTrailer })
             .eq('id', title.id);
 
           if (updateError) {

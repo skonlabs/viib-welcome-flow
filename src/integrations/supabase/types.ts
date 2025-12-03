@@ -1231,6 +1231,7 @@ export type Database = {
           id: string
           imdb_id: string | null
           is_adult: boolean | null
+          is_tmdb_trailer: boolean | null
           last_air_date: string | null
           name: string | null
           original_language: string | null
@@ -1256,6 +1257,7 @@ export type Database = {
           id?: string
           imdb_id?: string | null
           is_adult?: boolean | null
+          is_tmdb_trailer?: boolean | null
           last_air_date?: string | null
           name?: string | null
           original_language?: string | null
@@ -1281,6 +1283,7 @@ export type Database = {
           id?: string
           imdb_id?: string | null
           is_adult?: boolean | null
+          is_tmdb_trailer?: boolean | null
           last_air_date?: string | null
           name?: string | null
           original_language?: string | null
