@@ -102,9 +102,22 @@ serve(async (req) => {
         const releaseYear = dateStr ? new Date(dateStr).getFullYear() : null;
 
         // For TV series, try to get the latest season's trailer first
+        let latestSeasonNumber: number | null = null;
+        let seasonName: string | undefined;
         if (title.title_type === 'tv') {
-          const latestSeasonNumber = await getLatestSeasonNumber(title.tmdb_id);
+          latestSeasonNumber = await getLatestSeasonNumber(title.tmdb_id);
           if (latestSeasonNumber && latestSeasonNumber > 0) {
+            // Get season name for YouTube search
+            try {
+              const seasonRes = await fetch(`${TMDB_BASE_URL}/tv/${title.tmdb_id}/season/${latestSeasonNumber}?api_key=${TMDB_API_KEY}`);
+              if (seasonRes.ok) {
+                const seasonData = await seasonRes.json();
+                seasonName = seasonData.name || `Season ${latestSeasonNumber}`;
+              }
+            } catch (e) {
+              seasonName = `Season ${latestSeasonNumber}`;
+            }
+            
             console.log(`Fetching season ${latestSeasonNumber} trailer for ${title.name} (${title.tmdb_id})`);
             const seasonVideosRes = await fetch(
               `${TMDB_BASE_URL}/tv/${title.tmdb_id}/season/${latestSeasonNumber}/videos?api_key=${TMDB_API_KEY}`
@@ -152,8 +165,10 @@ serve(async (req) => {
             c.language_code === titleLang || c.language_code === 'global' || c.language_code === 'en'
           ).map(c => c.channel_name.toLowerCase());
           
-          // Search with official trailer query
-          const searchQuery = `${title.name} ${releaseYear || ''} official trailer`;
+          // For TV series with season info, search for season-specific trailer (e.g., "Delhi Crime Season 3")
+          const searchQuery = title.title_type === 'tv' && seasonName 
+            ? `${title.name} ${seasonName} official trailer`
+            : `${title.name} ${releaseYear || ''} official trailer`;
           const youtubeSearchRes = await fetch(
             `${YOUTUBE_SEARCH_URL}?part=snippet&q=${encodeURIComponent(searchQuery)}&type=video&maxResults=10&key=${YOUTUBE_API_KEY}`
           );
