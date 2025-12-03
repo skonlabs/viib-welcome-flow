@@ -292,11 +292,11 @@ export const Jobs = () => {
       
       // Fetch languages from database
       const { data: languages } = await supabase
-        .from('languages')
-        .select('language_code')
-        .order('language_code');
+        .from('spoken_languages')
+        .select('iso_639_1')
+        .order('iso_639_1');
       
-      const languageCodes = languages?.map(l => l.language_code) || [];
+      const languageCodes = languages?.map(l => l.iso_639_1) || [];
       
       // TMDB Genre IDs that we'll process
       const genreIds = [28, 12, 16, 35, 80, 99, 18, 10751, 14, 36, 27, 10402, 9648, 10749, 878, 53, 10752, 37];

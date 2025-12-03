@@ -29,14 +29,14 @@ export const LanguageSelectionScreen = ({ onContinue, onBack, initialLanguages =
     const fetchLanguages = async () => {
       try {
         const { data, error } = await supabase
-          .from('languages')
-          .select('language_code, language_name, flag_emoji')
+          .from('spoken_languages')
+          .select('iso_639_1, language_name, flag_emoji')
           .order('language_name');
 
         if (error) throw error;
 
         const mappedLanguages = data.map(lang => ({
-          code: lang.language_code,
+          code: lang.iso_639_1,
           name: lang.language_name,
           flag: lang.flag_emoji || "🌐"
         }));

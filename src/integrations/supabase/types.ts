@@ -576,30 +576,6 @@ export type Database = {
         }
         Relationships: []
       }
-      languages: {
-        Row: {
-          created_at: string | null
-          flag_emoji: string | null
-          id: string
-          language_code: string
-          language_name: string
-        }
-        Insert: {
-          created_at?: string | null
-          flag_emoji?: string | null
-          id?: string
-          language_code: string
-          language_name: string
-        }
-        Update: {
-          created_at?: string | null
-          flag_emoji?: string | null
-          id?: string
-          language_code?: string
-          language_name?: string
-        }
-        Relationships: []
-      }
       personality_profiles: {
         Row: {
           analytical_thinking: number | null
@@ -892,14 +868,17 @@ export type Database = {
       }
       spoken_languages: {
         Row: {
+          flag_emoji: string | null
           iso_639_1: string
           language_name: string
         }
         Insert: {
+          flag_emoji?: string | null
           iso_639_1: string
           language_name: string
         }
         Update: {
+          flag_emoji?: string | null
           iso_639_1?: string
           language_name?: string
         }
@@ -1123,46 +1102,6 @@ export type Database = {
           },
         ]
       }
-      title_languages: {
-        Row: {
-          language_code: string
-          language_type: string
-          title_id: string
-        }
-        Insert: {
-          language_code: string
-          language_type: string
-          title_id: string
-        }
-        Update: {
-          language_code?: string
-          language_type?: string
-          title_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "title_languages_language_code_fkey"
-            columns: ["language_code"]
-            isOneToOne: false
-            referencedRelation: "languages"
-            referencedColumns: ["language_code"]
-          },
-          {
-            foreignKeyName: "title_languages_title_id_fkey"
-            columns: ["title_id"]
-            isOneToOne: false
-            referencedRelation: "titles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "title_languages_title_id_fkey"
-            columns: ["title_id"]
-            isOneToOne: false
-            referencedRelation: "viib_recommendation_debug"
-            referencedColumns: ["title_id"]
-          },
-        ]
-      }
       title_providers: {
         Row: {
           provider_id: string
@@ -1359,15 +1298,7 @@ export type Database = {
           updated_at?: string | null
           vote_average?: number | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "titles_original_language_fkey"
-            columns: ["original_language"]
-            isOneToOne: false
-            referencedRelation: "languages"
-            referencedColumns: ["language_code"]
-          },
-        ]
+        Relationships: []
       }
       user_context_logs: {
         Row: {
@@ -1490,8 +1421,8 @@ export type Database = {
             foreignKeyName: "user_language_preferences_language_code_fkey"
             columns: ["language_code"]
             isOneToOne: false
-            referencedRelation: "languages"
-            referencedColumns: ["language_code"]
+            referencedRelation: "spoken_languages"
+            referencedColumns: ["iso_639_1"]
           },
           {
             foreignKeyName: "user_language_preferences_user_id_fkey"
