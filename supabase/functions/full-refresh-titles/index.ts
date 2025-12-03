@@ -152,7 +152,7 @@ serve(async (req) => {
     }
 
     // Helper function to fetch trailer from TMDB or YouTube
-    async function fetchTrailer(tmdbId: number, titleType: string, titleName: string, releaseYear: number | null): Promise<{ url: string | null }> {
+    async function fetchTrailer(tmdbId: number, titleType: string, titleName: string, releaseYear: number | null): Promise<{ url: string | null, isTmdbTrailer: boolean }> {
       try {
         const endpoint = titleType === 'movie' ? 'movie' : 'tv';
         const videosRes = await fetch(`https://api.themoviedb.org/3/${endpoint}/${tmdbId}/videos?api_key=${TMDB_API_KEY}`);
@@ -161,7 +161,7 @@ serve(async (req) => {
           const videosData = await videosRes.json();
           const trailer = videosData.results?.find((v: any) => v.type === 'Trailer' && v.site === 'YouTube');
           if (trailer) {
-            return { url: `https://www.youtube.com/watch?v=${trailer.key}` };
+            return { url: `https://www.youtube.com/watch?v=${trailer.key}`, isTmdbTrailer: true };
           }
         }
 
@@ -174,14 +174,14 @@ serve(async (req) => {
           if (youtubeRes.ok) {
             const searchData = await youtubeRes.json();
             if (searchData.items?.length > 0) {
-              return { url: `https://www.youtube.com/watch?v=${searchData.items[0].id.videoId}` };
+              return { url: `https://www.youtube.com/watch?v=${searchData.items[0].id.videoId}`, isTmdbTrailer: false };
             }
           }
         }
       } catch (e) {
         console.error(`Error fetching trailer for ${titleName}:`, e);
       }
-      return { url: null };
+      return { url: null, isTmdbTrailer: true };
     }
 
     // Helper function to fetch full movie details
@@ -248,7 +248,7 @@ serve(async (req) => {
             
             // Fetch trailer
             const releaseYear = movie.release_date ? new Date(movie.release_date).getFullYear() : null;
-            const { url: trailerUrl } = await fetchTrailer(movie.id, 'movie', movie.title, releaseYear);
+            const { url: trailerUrl, isTmdbTrailer } = await fetchTrailer(movie.id, 'movie', movie.title, releaseYear);
 
             // Upsert title (insert or update if exists)
             const { data: upsertedTitle, error: titleError } = await supabase
@@ -274,6 +274,7 @@ serve(async (req) => {
                 imdb_id: details?.imdb_id || null,
                 tagline: details?.tagline || null,
                 trailer_url: trailerUrl,
+                is_tmdb_trailer: isTmdbTrailer,
                 updated_at: new Date().toISOString()
               }, { onConflict: 'tmdb_id,title_type' })
               .select('id')
@@ -382,7 +383,7 @@ serve(async (req) => {
             
             // Fetch trailer
             const releaseYear = show.first_air_date ? new Date(show.first_air_date).getFullYear() : null;
-            const { url: trailerUrl } = await fetchTrailer(show.id, 'tv', show.name, releaseYear);
+            const { url: trailerUrl, isTmdbTrailer: isTmdbTrailerTv } = await fetchTrailer(show.id, 'tv', show.name, releaseYear);
 
             // Upsert title (insert or update if exists)
             const { data: upsertedTitle, error: titleError } = await supabase
@@ -408,6 +409,7 @@ serve(async (req) => {
                 imdb_id: details?.external_ids?.imdb_id || null,
                 tagline: details?.tagline || null,
                 trailer_url: trailerUrl,
+                is_tmdb_trailer: isTmdbTrailerTv,
                 updated_at: new Date().toISOString()
               }, { onConflict: 'tmdb_id,title_type' })
               .select('id')
