@@ -234,7 +234,7 @@ serve(async (req) => {
               tagline: details?.tagline || null,
               trailer_url: trailerUrl,
               updated_at: new Date().toISOString()
-            }, { onConflict: 'title_type,tmdb_id' })
+            }, { onConflict: 'tmdb_id,title_type' })
             .select('id')
             .single();
 
@@ -327,7 +327,7 @@ serve(async (req) => {
               tagline: details?.tagline || null,
               trailer_url: trailerUrl,
               updated_at: new Date().toISOString()
-            }, { onConflict: 'title_type,tmdb_id' })
+            }, { onConflict: 'tmdb_id,title_type' })
             .select('id')
             .single();
 
