@@ -338,6 +338,53 @@ export type Database = {
           },
         ]
       }
+      episodes: {
+        Row: {
+          air_date: string | null
+          created_at: string
+          episode_number: number
+          id: string
+          name: string | null
+          overview: string | null
+          runtime: number | null
+          season_id: string
+          still_path: string | null
+          vote_average: number | null
+        }
+        Insert: {
+          air_date?: string | null
+          created_at?: string
+          episode_number: number
+          id?: string
+          name?: string | null
+          overview?: string | null
+          runtime?: number | null
+          season_id: string
+          still_path?: string | null
+          vote_average?: number | null
+        }
+        Update: {
+          air_date?: string | null
+          created_at?: string
+          episode_number?: number
+          id?: string
+          name?: string | null
+          overview?: string | null
+          runtime?: number | null
+          season_id?: string
+          still_path?: string | null
+          vote_average?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "episodes_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       feedback: {
         Row: {
           created_at: string
@@ -449,14 +496,17 @@ export type Database = {
         Row: {
           genre_name: string
           id: string
+          tmdb_genre_id: number | null
         }
         Insert: {
           genre_name: string
           id?: string
+          tmdb_genre_id?: number | null
         }
         Update: {
           genre_name?: string
           id?: string
+          tmdb_genre_id?: number | null
         }
         Relationships: []
       }
@@ -505,6 +555,24 @@ export type Database = {
           status?: string
           total_titles_processed?: number | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      keywords: {
+        Row: {
+          id: string
+          name: string
+          tmdb_keyword_id: number | null
+        }
+        Insert: {
+          id?: string
+          name: string
+          tmdb_keyword_id?: number | null
+        }
+        Update: {
+          id?: string
+          name?: string
+          tmdb_keyword_id?: number | null
         }
         Relationships: []
       }
@@ -655,6 +723,27 @@ export type Database = {
           },
         ]
       }
+      providers: {
+        Row: {
+          id: string
+          logo_path: string | null
+          provider_name: string
+          tmdb_provider_id: number | null
+        }
+        Insert: {
+          id?: string
+          logo_path?: string | null
+          provider_name: string
+          tmdb_provider_id?: number | null
+        }
+        Update: {
+          id?: string
+          logo_path?: string | null
+          provider_name?: string
+          tmdb_provider_id?: number | null
+        }
+        Relationships: []
+      }
       rate_limit_config: {
         Row: {
           created_at: string | null
@@ -749,6 +838,72 @@ export type Database = {
             referencedColumns: ["user_id"]
           },
         ]
+      }
+      seasons: {
+        Row: {
+          air_date: string | null
+          created_at: string
+          episode_count: number | null
+          id: string
+          name: string | null
+          overview: string | null
+          poster_path: string | null
+          season_number: number
+          title_id: string
+        }
+        Insert: {
+          air_date?: string | null
+          created_at?: string
+          episode_count?: number | null
+          id?: string
+          name?: string | null
+          overview?: string | null
+          poster_path?: string | null
+          season_number: number
+          title_id: string
+        }
+        Update: {
+          air_date?: string | null
+          created_at?: string
+          episode_count?: number | null
+          id?: string
+          name?: string | null
+          overview?: string | null
+          poster_path?: string | null
+          season_number?: number
+          title_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "seasons_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: false
+            referencedRelation: "titles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seasons_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: false
+            referencedRelation: "viib_recommendation_debug"
+            referencedColumns: ["title_id"]
+          },
+        ]
+      }
+      spoken_languages: {
+        Row: {
+          iso_639_1: string
+          language_name: string
+        }
+        Insert: {
+          iso_639_1: string
+          language_name: string
+        }
+        Update: {
+          iso_639_1?: string
+          language_name?: string
+        }
+        Relationships: []
       }
       streaming_services: {
         Row: {
@@ -931,6 +1086,43 @@ export type Database = {
           },
         ]
       }
+      title_keywords: {
+        Row: {
+          keyword_id: string
+          title_id: string
+        }
+        Insert: {
+          keyword_id: string
+          title_id: string
+        }
+        Update: {
+          keyword_id?: string
+          title_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "title_keywords_keyword_id_fkey"
+            columns: ["keyword_id"]
+            isOneToOne: false
+            referencedRelation: "keywords"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "title_keywords_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: false
+            referencedRelation: "titles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "title_keywords_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: false
+            referencedRelation: "viib_recommendation_debug"
+            referencedColumns: ["title_id"]
+          },
+        ]
+      }
       title_languages: {
         Row: {
           language_code: string
@@ -964,6 +1156,86 @@ export type Database = {
           },
           {
             foreignKeyName: "title_languages_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: false
+            referencedRelation: "viib_recommendation_debug"
+            referencedColumns: ["title_id"]
+          },
+        ]
+      }
+      title_providers: {
+        Row: {
+          provider_id: string
+          provider_type: string
+          region: string
+          title_id: string
+        }
+        Insert: {
+          provider_id: string
+          provider_type: string
+          region: string
+          title_id: string
+        }
+        Update: {
+          provider_id?: string
+          provider_type?: string
+          region?: string
+          title_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "title_providers_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "providers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "title_providers_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: false
+            referencedRelation: "titles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "title_providers_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: false
+            referencedRelation: "viib_recommendation_debug"
+            referencedColumns: ["title_id"]
+          },
+        ]
+      }
+      title_spoken_languages: {
+        Row: {
+          iso_639_1: string
+          title_id: string
+        }
+        Insert: {
+          iso_639_1: string
+          title_id: string
+        }
+        Update: {
+          iso_639_1?: string
+          title_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "title_spoken_languages_iso_639_1_fkey"
+            columns: ["iso_639_1"]
+            isOneToOne: false
+            referencedRelation: "spoken_languages"
+            referencedColumns: ["iso_639_1"]
+          },
+          {
+            foreignKeyName: "title_spoken_languages_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: false
+            referencedRelation: "titles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "title_spoken_languages_title_id_fkey"
             columns: ["title_id"]
             isOneToOne: false
             referencedRelation: "viib_recommendation_debug"
@@ -1013,49 +1285,79 @@ export type Database = {
       }
       titles: {
         Row: {
-          content_type: string
+          backdrop_path: string | null
           created_at: string
+          episode_run_time: number[] | null
+          first_air_date: string | null
           id: string
-          is_tmdb_trailer: boolean | null
+          imdb_id: string | null
+          is_adult: boolean | null
+          last_air_date: string | null
+          name: string | null
           original_language: string | null
-          original_title_name: string | null
-          popularity_score: number | null
-          release_year: number | null
-          runtime_minutes: number | null
-          synopsis: string | null
-          title_name: string
+          original_name: string | null
+          overview: string | null
+          popularity: number | null
+          poster_path: string | null
+          release_date: string | null
+          runtime: number | null
+          status: string | null
+          tagline: string | null
+          title_type: string | null
           tmdb_id: number | null
           trailer_url: string | null
+          updated_at: string | null
+          vote_average: number | null
         }
         Insert: {
-          content_type: string
+          backdrop_path?: string | null
           created_at?: string
+          episode_run_time?: number[] | null
+          first_air_date?: string | null
           id?: string
-          is_tmdb_trailer?: boolean | null
+          imdb_id?: string | null
+          is_adult?: boolean | null
+          last_air_date?: string | null
+          name?: string | null
           original_language?: string | null
-          original_title_name?: string | null
-          popularity_score?: number | null
-          release_year?: number | null
-          runtime_minutes?: number | null
-          synopsis?: string | null
-          title_name: string
+          original_name?: string | null
+          overview?: string | null
+          popularity?: number | null
+          poster_path?: string | null
+          release_date?: string | null
+          runtime?: number | null
+          status?: string | null
+          tagline?: string | null
+          title_type?: string | null
           tmdb_id?: number | null
           trailer_url?: string | null
+          updated_at?: string | null
+          vote_average?: number | null
         }
         Update: {
-          content_type?: string
+          backdrop_path?: string | null
           created_at?: string
+          episode_run_time?: number[] | null
+          first_air_date?: string | null
           id?: string
-          is_tmdb_trailer?: boolean | null
+          imdb_id?: string | null
+          is_adult?: boolean | null
+          last_air_date?: string | null
+          name?: string | null
           original_language?: string | null
-          original_title_name?: string | null
-          popularity_score?: number | null
-          release_year?: number | null
-          runtime_minutes?: number | null
-          synopsis?: string | null
-          title_name?: string
+          original_name?: string | null
+          overview?: string | null
+          popularity?: number | null
+          poster_path?: string | null
+          release_date?: string | null
+          runtime?: number | null
+          status?: string | null
+          tagline?: string | null
+          title_type?: string | null
           tmdb_id?: number | null
           trailer_url?: string | null
+          updated_at?: string | null
+          vote_average?: number | null
         }
         Relationships: [
           {
@@ -2022,6 +2324,7 @@ export type Database = {
         | "friend_activity"
         | "system"
         | "reminder"
+      provider_type_enum: "buy" | "rent" | "stream" | "free"
       rating_value: "love_it" | "like_it" | "ok" | "dislike_it" | "not_rated"
       relationship_type:
         | "friend"
@@ -2039,6 +2342,7 @@ export type Database = {
         | "linkedin"
         | "other"
       time_of_day: "morning" | "afternoon" | "evening" | "night" | "late_night"
+      title_type_enum: "movie" | "tv"
       transformation_type: "soothe" | "stabilize" | "validate" | "amplify"
     }
     CompositeTypes: {
@@ -2227,6 +2531,7 @@ export const Constants = {
         "system",
         "reminder",
       ],
+      provider_type_enum: ["buy", "rent", "stream", "free"],
       rating_value: ["love_it", "like_it", "ok", "dislike_it", "not_rated"],
       relationship_type: [
         "friend",
@@ -2246,6 +2551,7 @@ export const Constants = {
         "other",
       ],
       time_of_day: ["morning", "afternoon", "evening", "night", "late_night"],
+      title_type_enum: ["movie", "tv"],
       transformation_type: ["soothe", "stabilize", "validate", "amplify"],
     },
   },

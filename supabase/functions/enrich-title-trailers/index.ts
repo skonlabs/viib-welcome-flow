@@ -33,10 +33,10 @@ serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // Fetch titles that need trailer enrichment
+    // Fetch titles that need trailer enrichment - using new column names
     const { data: titles, error: fetchError } = await supabase
       .from('titles')
-      .select('id, tmdb_id, title_name, release_year, content_type')
+      .select('id, tmdb_id, name, release_date, first_air_date, title_type')
       .not('tmdb_id', 'is', null)
       .is('trailer_url', null)
       .range(startOffset, startOffset + batchSize - 1);
@@ -49,11 +49,7 @@ serve(async (req) => {
     if (!titles || titles.length === 0) {
       console.log('No titles to process');
       return new Response(
-        JSON.stringify({ 
-          success: true, 
-          totalProcessed: 0,
-          message: 'No titles to enrich'
-        }),
+        JSON.stringify({ success: true, totalProcessed: 0, message: 'No titles to enrich' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -64,19 +60,21 @@ serve(async (req) => {
     let failed = 0;
 
     for (const title of titles) {
-      // Check runtime limit
       if (Date.now() - startTime > MAX_RUNTIME_MS) {
         console.log('Approaching time limit, stopping gracefully');
         break;
       }
 
       try {
-        const endpoint = title.content_type === 'movie' ? 'movie' : 'tv';
+        const endpoint = title.title_type === 'movie' ? 'movie' : 'tv';
         let trailerUrl: string | null = null;
-        let isTmdbTrailer = true;
+
+        // Get release year from the appropriate date field
+        const dateStr = title.title_type === 'movie' ? title.release_date : title.first_air_date;
+        const releaseYear = dateStr ? new Date(dateStr).getFullYear() : null;
 
         // Try TMDB first
-        console.log(`Fetching TMDB trailer for ${title.title_name} (${title.tmdb_id})`);
+        console.log(`Fetching TMDB trailer for ${title.name} (${title.tmdb_id})`);
         const tmdbVideosRes = await fetch(
           `${TMDB_BASE_URL}/${endpoint}/${title.tmdb_id}/videos?api_key=${TMDB_API_KEY}`
         );
@@ -95,9 +93,9 @@ serve(async (req) => {
 
         // Fallback to YouTube search if no TMDB trailer
         if (!trailerUrl) {
-          console.log(`No TMDB trailer, searching YouTube for: ${title.title_name}`);
+          console.log(`No TMDB trailer, searching YouTube for: ${title.name}`);
           
-          const searchQuery = `${title.title_name} ${title.release_year || ''} official trailer`;
+          const searchQuery = `${title.name} ${releaseYear || ''} official trailer`;
           const youtubeSearchRes = await fetch(
             `${YOUTUBE_SEARCH_URL}?part=snippet&q=${encodeURIComponent(searchQuery)}&type=video&maxResults=5&key=${YOUTUBE_API_KEY}`
           );
@@ -110,22 +108,18 @@ serve(async (req) => {
               const channelTitle = item.snippet.channelTitle?.toLowerCase() || '';
               const videoTitle = item.snippet.title?.toLowerCase() || '';
               
-              // Look for official indicators in channel or video title
               return (
                 channelTitle.includes('official') ||
                 videoTitle.includes('official trailer') ||
-                channelTitle.includes(title.title_name.toLowerCase().split(' ')[0])
+                channelTitle.includes(title.name.toLowerCase().split(' ')[0])
               );
             });
 
             if (officialTrailer) {
               trailerUrl = `https://www.youtube.com/watch?v=${officialTrailer.id.videoId}`;
-              isTmdbTrailer = false;
               console.log(`Found YouTube trailer: ${trailerUrl}`);
             } else if (searchData.items && searchData.items.length > 0) {
-              // Use first result as fallback
               trailerUrl = `https://www.youtube.com/watch?v=${searchData.items[0].id.videoId}`;
-              isTmdbTrailer = false;
               console.log(`Using YouTube fallback trailer: ${trailerUrl}`);
             }
           }
@@ -135,10 +129,7 @@ serve(async (req) => {
         if (trailerUrl) {
           const { error: updateError } = await supabase
             .from('titles')
-            .update({
-              trailer_url: trailerUrl,
-              is_tmdb_trailer: isTmdbTrailer
-            })
+            .update({ trailer_url: trailerUrl })
             .eq('id', title.id);
 
           if (updateError) {
@@ -146,10 +137,10 @@ serve(async (req) => {
             failed++;
           } else {
             enriched++;
-            console.log(`✓ Updated ${title.title_name} with ${isTmdbTrailer ? 'TMDB' : 'YouTube'} trailer`);
+            console.log(`✓ Updated ${title.name} with trailer`);
           }
         } else {
-          console.log(`No trailer found for ${title.title_name}`);
+          console.log(`No trailer found for ${title.name}`);
         }
 
         processed++;
@@ -187,15 +178,10 @@ serve(async (req) => {
         .eq('id', jobId)
         .single();
       
-      // Don't update if job was stopped by admin
       if (currentJob?.status === 'failed' || currentJob?.status === 'idle') {
         console.log('Job was stopped, skipping tracking update');
         return new Response(
-          JSON.stringify({
-            success: true,
-            totalProcessed: processed,
-            message: 'Job was stopped, skipping update'
-          }),
+          JSON.stringify({ success: true, totalProcessed: processed, message: 'Job was stopped' }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
@@ -208,14 +194,11 @@ serve(async (req) => {
         .update({
           configuration: {
             ...currentConfig,
-            thread_tracking: {
-              succeeded: tracking.succeeded + 1,
-              failed: tracking.failed
-            }
+            thread_tracking: { succeeded: tracking.succeeded + 1, failed: tracking.failed }
           }
         })
         .eq('id', jobId)
-        .eq('status', 'running'); // Only update if still running
+        .eq('status', 'running');
     }
     
     console.log(`Trailer enrichment completed: ${enriched} enriched, ${failed} failed, ${processed} processed in ${duration}s`);
@@ -249,10 +232,7 @@ serve(async (req) => {
           .eq('id', jobId)
           .single();
         
-        // Don't update if job was stopped by admin
-        if (currentJob?.status === 'failed' || currentJob?.status === 'idle') {
-          console.log('Job was stopped, skipping failure tracking');
-        } else {
+        if (currentJob?.status !== 'failed' && currentJob?.status !== 'idle') {
           const currentConfig = (currentJob?.configuration as any) || {};
           const tracking = currentConfig.thread_tracking || { succeeded: 0, failed: 0 };
           
@@ -261,14 +241,11 @@ serve(async (req) => {
             .update({
               configuration: {
                 ...currentConfig,
-                thread_tracking: {
-                  succeeded: tracking.succeeded,
-                  failed: tracking.failed + 1
-                }
+                thread_tracking: { succeeded: tracking.succeeded, failed: tracking.failed + 1 }
               }
             })
             .eq('id', jobId)
-            .eq('status', 'running'); // Only update if still running
+            .eq('status', 'running');
         }
       }
     } catch (trackError) {
@@ -276,14 +253,8 @@ serve(async (req) => {
     }
     
     return new Response(
-      JSON.stringify({ 
-        error: errorMessage,
-        success: false 
-      }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500,
-      }
+      JSON.stringify({ error: errorMessage, success: false }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
     );
   }
 });
