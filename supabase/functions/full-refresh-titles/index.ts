@@ -8,7 +8,7 @@ const corsHeaders = {
 
 // TMDB Genre ID to Name mapping (includes both Movie and TV genre IDs)
 const TMDB_GENRE_MAP: Record<number, string> = {
-  // Movie genres
+  // Movie genres (19 total)
   28: 'Action',
   12: 'Adventure',
   16: 'Animation',
@@ -24,10 +24,11 @@ const TMDB_GENRE_MAP: Record<number, string> = {
   9648: 'Mystery',
   10749: 'Romance',
   878: 'Science Fiction',
+  10770: 'TV Movie',
   53: 'Thriller',
   10752: 'War',
   37: 'Western',
-  // TV-specific genres (TMDB uses different IDs for TV)
+  // TV-specific genres (16 total - some overlap with movie IDs)
   10759: 'Action', // Action & Adventure (TV)
   10762: 'Kids',
   10763: 'News',
