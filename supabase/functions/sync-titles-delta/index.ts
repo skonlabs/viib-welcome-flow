@@ -28,6 +28,18 @@ const TMDB_GENRE_MAP: Record<number, string> = {
   37: 'Western'
 };
 
+// TMDB Provider ID to service name mapping (US region)
+const TMDB_PROVIDER_MAP: Record<number, string> = {
+  8: 'Netflix',
+  9: 'Prime Video',
+  119: 'Prime Video',
+  15: 'Hulu',
+  350: 'Apple TV',
+  2: 'Apple TV',
+  337: 'DisneyPlus',
+  390: 'DisneyPlus',
+};
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -75,6 +87,19 @@ serve(async (req) => {
     const { data: genres } = await supabase.from('genres').select('id, genre_name');
     const { data: languages } = await supabase.from('spoken_languages').select('iso_639_1, language_name');
 
+    // Fetch supported streaming services
+    const { data: streamingServices } = await supabase
+      .from('streaming_services')
+      .select('id, service_name')
+      .eq('is_active', true);
+
+    const serviceNameToId: Record<string, string> = {};
+    (streamingServices || []).forEach(s => {
+      serviceNameToId[s.service_name.toLowerCase()] = s.id;
+    });
+
+    console.log(`Supported streaming services: ${Object.keys(serviceNameToId).join(', ')}`);
+
     const genreNameToId: Record<string, string> = {};
     (genres || []).forEach(g => {
       genreNameToId[g.genre_name.toLowerCase()] = g.id;
@@ -83,6 +108,40 @@ serve(async (req) => {
     console.log(`Processing: ${(languages || []).length} languages`);
 
     let totalProcessed = 0;
+    let skippedNoProvider = 0;
+
+    // Helper function to fetch watch providers from TMDB
+    async function fetchWatchProviders(tmdbId: number, titleType: string): Promise<{ providers: Array<{ tmdbId: number; name: string; serviceId: string }> }> {
+      try {
+        const endpoint = titleType === 'movie' ? 'movie' : 'tv';
+        const res = await fetch(`https://api.themoviedb.org/3/${endpoint}/${tmdbId}/watch/providers?api_key=${TMDB_API_KEY}`);
+        if (!res.ok) return { providers: [] };
+        
+        const data = await res.json();
+        const usProviders = data.results?.US?.flatrate || [];
+        
+        const matchedProviders: Array<{ tmdbId: number; name: string; serviceId: string }> = [];
+        
+        for (const provider of usProviders) {
+          const mappedName = TMDB_PROVIDER_MAP[provider.provider_id];
+          if (mappedName) {
+            const serviceId = serviceNameToId[mappedName.toLowerCase()];
+            if (serviceId) {
+              matchedProviders.push({
+                tmdbId: provider.provider_id,
+                name: mappedName,
+                serviceId
+              });
+            }
+          }
+        }
+        
+        return { providers: matchedProviders };
+      } catch (e) {
+        console.error(`Error fetching watch providers for ${tmdbId}:`, e);
+        return { providers: [] };
+      }
+    }
 
     // Helper functions
     async function fetchTrailer(tmdbId: number, titleType: string, titleName: string, releaseYear: number | null): Promise<string | null> {
@@ -127,7 +186,7 @@ serve(async (req) => {
     for (const language of (languages || [])) {
       console.log(`Fetching: Lang=${language.language_name}`);
 
-      // Fetch new movies - using same criteria as full refresh
+      // Fetch new movies
       const moviesUrl = `https://api.themoviedb.org/3/discover/movie?api_key=${TMDB_API_KEY}&primary_release_date.gte=${startDateStr}&primary_release_date.lte=${endDateStr}&with_original_language=${language.iso_639_1}&vote_average.gte=${minRating}&sort_by=popularity.desc&page=1`;
       
       const moviesResponse = await fetch(moviesUrl);
@@ -138,6 +197,15 @@ serve(async (req) => {
 
       for (const movie of movies) {
         try {
+          // Check streaming availability first
+          const { providers } = await fetchWatchProviders(movie.id, 'movie');
+          
+          // Skip titles not available on any supported streaming service
+          if (providers.length === 0) {
+            skippedNoProvider++;
+            continue;
+          }
+
           const details = await fetchMovieDetails(movie.id);
           const releaseYear = movie.release_date ? new Date(movie.release_date).getFullYear() : null;
           const trailerUrl = await fetchTrailer(movie.id, 'movie', movie.title, releaseYear);
@@ -164,7 +232,8 @@ serve(async (req) => {
               is_adult: movie.adult || false,
               imdb_id: details?.imdb_id || null,
               tagline: details?.tagline || null,
-              trailer_url: trailerUrl
+              trailer_url: trailerUrl,
+              updated_at: new Date().toISOString()
             }, { onConflict: 'title_type,tmdb_id' })
             .select('id')
             .single();
@@ -176,6 +245,15 @@ serve(async (req) => {
 
           if (insertedTitle) {
             totalProcessed++;
+
+            // Save streaming availability
+            for (const provider of providers) {
+              await supabase.from('title_streaming_availability').upsert({
+                title_id: insertedTitle.id,
+                streaming_service_id: provider.serviceId,
+                region_code: 'US'
+              }, { onConflict: 'title_id,streaming_service_id,region_code' });
+            }
 
             // Map genres
             for (const gId of (movie.genre_ids || [])) {
@@ -201,7 +279,7 @@ serve(async (req) => {
         }
       }
 
-      // Fetch new TV shows - using air_date like full refresh to catch shows with recent seasons
+      // Fetch new TV shows
       const tvUrl = `https://api.themoviedb.org/3/discover/tv?api_key=${TMDB_API_KEY}&air_date.gte=${startDateStr}&air_date.lte=${endDateStr}&with_original_language=${language.iso_639_1}&vote_average.gte=${minRating}&sort_by=popularity.desc&page=1`;
       
       const tvResponse = await fetch(tvUrl);
@@ -212,6 +290,15 @@ serve(async (req) => {
 
       for (const show of shows) {
         try {
+          // Check streaming availability first
+          const { providers } = await fetchWatchProviders(show.id, 'tv');
+          
+          // Skip titles not available on any supported streaming service
+          if (providers.length === 0) {
+            skippedNoProvider++;
+            continue;
+          }
+
           const details = await fetchTvDetails(show.id);
           const releaseYear = show.first_air_date ? new Date(show.first_air_date).getFullYear() : null;
           const trailerUrl = await fetchTrailer(show.id, 'tv', show.name, releaseYear);
@@ -238,7 +325,8 @@ serve(async (req) => {
               is_adult: show.adult || false,
               imdb_id: details?.external_ids?.imdb_id || null,
               tagline: details?.tagline || null,
-              trailer_url: trailerUrl
+              trailer_url: trailerUrl,
+              updated_at: new Date().toISOString()
             }, { onConflict: 'title_type,tmdb_id' })
             .select('id')
             .single();
@@ -250,6 +338,15 @@ serve(async (req) => {
 
           if (insertedTitle) {
             totalProcessed++;
+
+            // Save streaming availability
+            for (const provider of providers) {
+              await supabase.from('title_streaming_availability').upsert({
+                title_id: insertedTitle.id,
+                streaming_service_id: provider.serviceId,
+                region_code: 'US'
+              }, { onConflict: 'title_id,streaming_service_id,region_code' });
+            }
 
             // Map genres
             for (const gId of (show.genre_ids || [])) {
@@ -292,7 +389,7 @@ serve(async (req) => {
 
       if (totalProcessed % 50 === 0 && totalProcessed > 0) {
         await supabase.from('jobs').update({ total_titles_processed: totalProcessed }).eq('job_type', 'sync_delta');
-        console.log(`Progress: ${totalProcessed} new titles synced`);
+        console.log(`Progress: ${totalProcessed} new titles synced (skipped ${skippedNoProvider} without streaming)`);
       }
 
       await new Promise(resolve => setTimeout(resolve, 50));
@@ -314,10 +411,10 @@ serve(async (req) => {
       })
       .eq('job_type', 'sync_delta');
 
-    console.log(`Sync Delta completed: ${totalProcessed} new titles synced in ${duration} seconds`);
+    console.log(`Sync Delta completed: ${totalProcessed} new titles synced in ${duration} seconds (skipped ${skippedNoProvider} without streaming)`);
 
     return new Response(
-      JSON.stringify({ success: true, totalProcessed, duration, message: `Sync completed. ${totalProcessed} new titles added.` }),
+      JSON.stringify({ success: true, totalProcessed, skippedNoProvider, duration, message: `Sync completed. ${totalProcessed} new titles added. ${skippedNoProvider} skipped (no streaming).` }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
