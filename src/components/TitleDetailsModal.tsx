@@ -1,7 +1,7 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Play } from "lucide-react";
+import { Play, Plus } from "lucide-react";
 import { useState, useEffect } from "react";
 import { TrailerDialog } from "./TrailerDialog";
 import { supabase } from "@/integrations/supabase/client";
@@ -37,9 +37,10 @@ interface TitleDetailsModalProps {
   } | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onAddToWatchlist?: (titleId: string, seasonNumber?: number) => void;
 }
 
-export function TitleDetailsModal({ title, open, onOpenChange }: TitleDetailsModalProps) {
+export function TitleDetailsModal({ title, open, onOpenChange, onAddToWatchlist }: TitleDetailsModalProps) {
   const [trailerOpen, setTrailerOpen] = useState(false);
   const [enrichedData, setEnrichedData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
@@ -322,6 +323,19 @@ export function TitleDetailsModal({ title, open, onOpenChange }: TitleDetailsMod
                       ))}
                     </div>
                   </div>
+                )}
+
+                {onAddToWatchlist && (
+                  <Button
+                    onClick={() => {
+                      const titleId = String(title?.tmdb_id || title?.external_id);
+                      onAddToWatchlist(titleId, selectedSeason.season_number);
+                    }}
+                    className="w-full gap-2"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add Season {selectedSeason.season_number} to Watchlist
+                  </Button>
                 )}
 
                 <Button

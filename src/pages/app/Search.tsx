@@ -12,6 +12,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { TitleWithAvailability } from "@/lib/services/TitleCatalogService";
 import { TitleDetailsModal } from "@/components/TitleDetailsModal";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { toast } from "sonner";
 
 const GENRES = ["Action", "Comedy", "Drama", "Thriller", "Romance", "Sci-Fi", "Horror", "Documentary", "Animation", "Fantasy"];
 
@@ -340,6 +341,43 @@ export default function Search() {
     setSelectedYears([currentYear, currentYear - 1, currentYear - 2]);
   };
 
+  const addToWatchlist = async (titleId: string) => {
+    if (!user) {
+      toast.error("Please sign in to add to watchlist");
+      return;
+    }
+
+    try {
+      // Check if already in watchlist
+      const { data: existing } = await supabase
+        .from('user_title_interactions')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('title_id', titleId)
+        .eq('interaction_type', 'wishlisted')
+        .single();
+
+      if (existing) {
+        toast.info("Already in your watchlist");
+        return;
+      }
+
+      const { error } = await supabase
+        .from('user_title_interactions')
+        .insert({
+          user_id: user.id,
+          title_id: titleId,
+          interaction_type: 'wishlisted'
+        });
+
+      if (error) throw error;
+      toast.success("Added to watchlist!");
+    } catch (error) {
+      console.error('Failed to add to watchlist:', error);
+      toast.error("Failed to add to watchlist");
+    }
+  };
+
   return (
     <div className="bg-gradient-to-br from-background to-accent/10 min-h-screen">
       <div className="max-w-2xl mx-auto px-4 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6">
@@ -625,6 +663,9 @@ export default function Search() {
                 setSelectedTitle(title);
                 setDetailsOpen(true);
               }}
+              actions={title.type === 'movie' ? {
+                onWatchlist: () => addToWatchlist(String((title as any).tmdb_id || title.external_id))
+              } : undefined}
             />
           ))}
         </div>
@@ -649,6 +690,7 @@ export default function Search() {
         title={selectedTitle}
         open={detailsOpen}
         onOpenChange={setDetailsOpen}
+        onAddToWatchlist={addToWatchlist}
       />
     </div>
   );
