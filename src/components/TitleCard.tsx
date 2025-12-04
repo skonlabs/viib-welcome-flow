@@ -1,8 +1,10 @@
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { TitleWithAvailability } from "@/lib/services/TitleCatalogService";
 import { Play, Share2, Check, Plus, X, Trash2 } from "lucide-react";
+import { TrailerDialog } from "./TrailerDialog";
 
 // Flexible title type to handle both TitleWithAvailability and TMDB format
 type FlexibleTitle = {
@@ -59,13 +61,13 @@ export function TitleCard({
   viibScore, 
   actions 
 }: TitleCardProps) {
+  const [trailerOpen, setTrailerOpen] = useState(false);
   const trailerUrl = title.trailer_url;
 
-  const handleTrailerClick = () => {
+  const handleTrailerClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
     if (trailerUrl) {
-      window.open(trailerUrl, '_blank');
-    } else {
-      console.log('No trailer available');
+      setTrailerOpen(true);
     }
   };
 
@@ -146,10 +148,7 @@ export function TitleCard({
         <div className="absolute bottom-2 left-0 right-0 flex flex-col items-center gap-2 px-2">
           <Button
             size="sm"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleTrailerClick();
-            }}
+            onClick={handleTrailerClick}
             disabled={!trailerUrl}
             className="gap-1.5 shadow-xl hover:scale-105 transition-transform duration-300 h-8 sm:h-9 text-xs sm:text-sm w-full max-w-[150px] bg-black/70 backdrop-blur-sm hover:bg-black/80 disabled:opacity-50"
           >
@@ -279,6 +278,13 @@ export function TitleCard({
           </div>
         )}
       </div>
+
+      <TrailerDialog
+        open={trailerOpen}
+        onOpenChange={setTrailerOpen}
+        trailerUrl={trailerUrl || null}
+        title={title.title}
+      />
     </Card>
   );
 }
