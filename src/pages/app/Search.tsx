@@ -355,14 +355,29 @@ export default function Search() {
         .eq('tmdb_id', parseInt(tmdbId))
         .maybeSingle();
 
-      let titleUuid: string;
-
-      if (existingTitle) {
-        titleUuid = existingTitle.id;
-      } else {
-        // Title doesn't exist in our database - show message
+      if (!existingTitle) {
         toast.error("This title is not yet in our catalog. Try searching from our synced titles.");
         return;
+      }
+
+      let interactionId: string;
+
+      // If seasonNumber provided, look up the season's UUID and use that
+      if (seasonNumber) {
+        const { data: seasonData } = await supabase
+          .from('seasons')
+          .select('id')
+          .eq('title_id', existingTitle.id)
+          .eq('season_number', seasonNumber)
+          .maybeSingle();
+
+        if (!seasonData) {
+          toast.error("Season not found in our catalog.");
+          return;
+        }
+        interactionId = seasonData.id;
+      } else {
+        interactionId = existingTitle.id;
       }
 
       // Check if already in watchlist
@@ -370,7 +385,7 @@ export default function Search() {
         .from('user_title_interactions')
         .select('id')
         .eq('user_id', user.id)
-        .eq('title_id', titleUuid)
+        .eq('title_id', interactionId)
         .eq('interaction_type', 'wishlisted')
         .maybeSingle();
 
@@ -383,7 +398,7 @@ export default function Search() {
         .from('user_title_interactions')
         .insert({
           user_id: user.id,
-          title_id: titleUuid,
+          title_id: interactionId,
           interaction_type: 'wishlisted'
         });
 
