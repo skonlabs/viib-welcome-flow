@@ -341,21 +341,38 @@ export default function Search() {
     setSelectedYears([currentYear, currentYear - 1, currentYear - 2]);
   };
 
-  const addToWatchlist = async (titleId: string) => {
+  const addToWatchlist = async (tmdbId: string, seasonNumber?: number) => {
     if (!user) {
       toast.error("Please sign in to add to watchlist");
       return;
     }
 
     try {
+      // First, look up the title in our database by tmdb_id
+      const { data: existingTitle } = await supabase
+        .from('titles')
+        .select('id')
+        .eq('tmdb_id', parseInt(tmdbId))
+        .maybeSingle();
+
+      let titleUuid: string;
+
+      if (existingTitle) {
+        titleUuid = existingTitle.id;
+      } else {
+        // Title doesn't exist in our database - show message
+        toast.error("This title is not yet in our catalog. Try searching from our synced titles.");
+        return;
+      }
+
       // Check if already in watchlist
       const { data: existing } = await supabase
         .from('user_title_interactions')
         .select('id')
         .eq('user_id', user.id)
-        .eq('title_id', titleId)
+        .eq('title_id', titleUuid)
         .eq('interaction_type', 'wishlisted')
-        .single();
+        .maybeSingle();
 
       if (existing) {
         toast.info("Already in your watchlist");
@@ -366,12 +383,12 @@ export default function Search() {
         .from('user_title_interactions')
         .insert({
           user_id: user.id,
-          title_id: titleId,
+          title_id: titleUuid,
           interaction_type: 'wishlisted'
         });
 
       if (error) throw error;
-      toast.success("Added to watchlist!");
+      toast.success(seasonNumber ? `Season ${seasonNumber} added to watchlist!` : "Added to watchlist!");
     } catch (error) {
       console.error('Failed to add to watchlist:', error);
       toast.error("Failed to add to watchlist");
