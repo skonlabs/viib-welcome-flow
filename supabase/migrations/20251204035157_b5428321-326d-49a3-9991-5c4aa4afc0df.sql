@@ -1,0 +1,1 @@
+UPDATE spoken_languages SET flag_emoji = '🇹🇷' WHERE iso_639_1 = 'tr';
