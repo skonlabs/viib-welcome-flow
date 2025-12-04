@@ -204,31 +204,123 @@ const SocialGraph = () => {
     }
   };
 
-  // Build graph data with force simulation
+  // Build graph data with concentric circle layout
   const { nodes, edges } = useMemo(() => {
     const nodeMap = new Map<string, GraphNode>();
     const edgeList: GraphEdge[] = [];
-
-    // Create nodes from users
     const centerX = 400;
     const centerY = 300;
-    const radius = 200;
 
-    users.forEach((user, index) => {
-      const angle = (2 * Math.PI * index) / users.length;
+    // First, calculate connection counts and depths
+    const directFriends = new Set<string>();
+    const friendsOfFriends = new Set<string>();
+
+    if (selectedNode) {
+      connections.forEach((conn) => {
+        if (conn.user_id === selectedNode) directFriends.add(conn.friend_user_id);
+        if (conn.friend_user_id === selectedNode) directFriends.add(conn.user_id);
+      });
+
+      connections.forEach((conn) => {
+        if (directFriends.has(conn.user_id) && conn.friend_user_id !== selectedNode && !directFriends.has(conn.friend_user_id)) {
+          friendsOfFriends.add(conn.friend_user_id);
+        }
+        if (directFriends.has(conn.friend_user_id) && conn.user_id !== selectedNode && !directFriends.has(conn.user_id)) {
+          friendsOfFriends.add(conn.user_id);
+        }
+      });
+    }
+
+    // Group users by depth
+    const ring0: User[] = []; // Selected user (center)
+    const ring1: User[] = []; // Direct friends
+    const ring2: User[] = []; // Friends of friends
+    const ring3: User[] = []; // Others
+
+    users.forEach((user) => {
+      if (selectedNode) {
+        if (user.id === selectedNode) ring0.push(user);
+        else if (directFriends.has(user.id)) ring1.push(user);
+        else if (friendsOfFriends.has(user.id)) ring2.push(user);
+        else ring3.push(user);
+      } else {
+        ring1.push(user); // When no selection, show all in one circle
+      }
+    });
+
+    // Position nodes in concentric circles
+    const ring1Radius = selectedNode ? 120 : 180;
+    const ring2Radius = 220;
+    const ring3Radius = 280;
+
+    // Center node (selected user)
+    ring0.forEach((user) => {
       const connectionCount = connections.filter(
         (c) => c.user_id === user.id || c.friend_user_id === user.id
       ).length;
-
       nodeMap.set(user.id, {
         id: user.id,
         name: user.full_name || user.username || user.email || 'Unknown',
-        x: centerX + Math.cos(angle) * radius + (Math.random() - 0.5) * 50,
-        y: centerY + Math.sin(angle) * radius + (Math.random() - 0.5) * 50,
+        x: centerX,
+        y: centerY,
         vx: 0,
         vy: 0,
         connections: connectionCount,
         depth: 0,
+      });
+    });
+
+    // Ring 1: Direct friends
+    ring1.forEach((user, index) => {
+      const angle = (2 * Math.PI * index) / ring1.length - Math.PI / 2;
+      const connectionCount = connections.filter(
+        (c) => c.user_id === user.id || c.friend_user_id === user.id
+      ).length;
+      nodeMap.set(user.id, {
+        id: user.id,
+        name: user.full_name || user.username || user.email || 'Unknown',
+        x: centerX + Math.cos(angle) * ring1Radius,
+        y: centerY + Math.sin(angle) * ring1Radius,
+        vx: 0,
+        vy: 0,
+        connections: connectionCount,
+        depth: selectedNode ? 1 : 0,
+      });
+    });
+
+    // Ring 2: Friends of friends
+    ring2.forEach((user, index) => {
+      const angle = (2 * Math.PI * index) / ring2.length - Math.PI / 2;
+      const connectionCount = connections.filter(
+        (c) => c.user_id === user.id || c.friend_user_id === user.id
+      ).length;
+      nodeMap.set(user.id, {
+        id: user.id,
+        name: user.full_name || user.username || user.email || 'Unknown',
+        x: centerX + Math.cos(angle) * ring2Radius,
+        y: centerY + Math.sin(angle) * ring2Radius,
+        vx: 0,
+        vy: 0,
+        connections: connectionCount,
+        depth: 2,
+      });
+    });
+
+    // Ring 3: Others (outer ring, dimmed)
+    ring3.forEach((user, index) => {
+      const angle = (2 * Math.PI * index) / ring3.length - Math.PI / 2;
+      const connectionCount = connections.filter(
+        (c) => c.user_id === user.id || c.friend_user_id === user.id
+      ).length;
+      nodeMap.set(user.id, {
+        id: user.id,
+        name: user.full_name || user.username || user.email || 'Unknown',
+        x: centerX + Math.cos(angle) * ring3Radius,
+        y: centerY + Math.sin(angle) * ring3Radius,
+        vx: 0,
+        vy: 0,
+        connections: connectionCount,
+        depth: 3,
       });
     });
 
@@ -241,33 +333,6 @@ const SocialGraph = () => {
         trust: conn.trust_score,
       });
     });
-
-    // Calculate depth for highlighting
-    if (selectedNode) {
-      const directFriends = new Set<string>();
-      const friendsOfFriends = new Set<string>();
-
-      connections.forEach((conn) => {
-        if (conn.user_id === selectedNode) directFriends.add(conn.friend_user_id);
-        if (conn.friend_user_id === selectedNode) directFriends.add(conn.user_id);
-      });
-
-      connections.forEach((conn) => {
-        if (directFriends.has(conn.user_id) && conn.friend_user_id !== selectedNode) {
-          friendsOfFriends.add(conn.friend_user_id);
-        }
-        if (directFriends.has(conn.friend_user_id) && conn.user_id !== selectedNode) {
-          friendsOfFriends.add(conn.user_id);
-        }
-      });
-
-      nodeMap.forEach((node) => {
-        if (node.id === selectedNode) node.depth = 0;
-        else if (directFriends.has(node.id)) node.depth = 1;
-        else if (friendsOfFriends.has(node.id)) node.depth = 2;
-        else node.depth = 3;
-      });
-    }
 
     return { nodes: Array.from(nodeMap.values()), edges: edgeList };
   }, [users, connections, selectedNode]);
@@ -427,9 +492,9 @@ const SocialGraph = () => {
       {/* Graph Visualization */}
       <Card className="mx-6 bg-card/30 backdrop-blur border-primary/20">
         <CardHeader>
-          <CardTitle>Network Visualization</CardTitle>
+          <CardTitle>Circle of Friends</CardTitle>
           <CardDescription>
-            Click on a node to highlight their connections. Direct friends appear in cyan, friends of friends in gold.
+            Click on a user to see their social circle. Inner ring shows direct friends (cyan), outer ring shows friends of friends (gold).
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -448,6 +513,10 @@ const SocialGraph = () => {
                     <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0.5" />
                     <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0" />
                   </radialGradient>
+                  <radialGradient id="centerGlow" cx="50%" cy="50%" r="50%">
+                    <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0.15" />
+                    <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0" />
+                  </radialGradient>
                   <filter id="glow">
                     <feGaussianBlur stdDeviation="3" result="coloredBlur" />
                     <feMerge>
@@ -456,6 +525,20 @@ const SocialGraph = () => {
                     </feMerge>
                   </filter>
                 </defs>
+
+                {/* Concentric circle guides */}
+                {selectedNode && (
+                  <g>
+                    <circle cx="400" cy="300" r="120" fill="none" stroke="hsl(173, 80%, 50%)" strokeOpacity="0.15" strokeWidth="40" />
+                    <circle cx="400" cy="300" r="220" fill="none" stroke="hsl(45, 90%, 60%)" strokeOpacity="0.1" strokeWidth="40" />
+                    <circle cx="400" cy="300" r="280" fill="none" stroke="hsl(var(--muted-foreground))" strokeOpacity="0.05" strokeWidth="20" />
+                    {/* Center glow */}
+                    <circle cx="400" cy="300" r="60" fill="url(#centerGlow)" />
+                  </g>
+                )}
+                {!selectedNode && (
+                  <circle cx="400" cy="300" r="180" fill="none" stroke="hsl(var(--primary))" strokeOpacity="0.1" strokeWidth="2" strokeDasharray="8 4" />
+                )}
 
                 {/* Edges */}
                 <g>
