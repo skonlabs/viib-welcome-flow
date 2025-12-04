@@ -294,7 +294,120 @@ serve(async (req) => {
       return null;
     }
 
-    // Process movies
+    // Process movies - TWO PHASES:
+    // Phase 1: Year-based discovery (movies released in specified year)
+    // Phase 2: Popularity-based discovery (top popular movies regardless of year - catches classics)
+
+    // Helper function to process a movie
+    async function processMovie(movie: any, phase: string) {
+      try {
+        // Check streaming availability first
+        const { providers } = await fetchWatchProviders(movie.id, 'movie');
+        
+        // Skip titles not available on any supported streaming service
+        if (providers.length === 0) {
+          skippedNoProvider++;
+          return false;
+        }
+
+        // Fetch full details for additional metadata
+        const details = await fetchMovieDetails(movie.id);
+        
+        // Fetch trailer
+        const releaseYear = movie.release_date ? new Date(movie.release_date).getFullYear() : null;
+        const { url: trailerUrl, isTmdbTrailer } = await fetchTrailer(movie.id, 'movie', movie.title, releaseYear, movie.original_language || languageCode);
+
+        // Upsert title (insert or update if exists)
+        const { data: upsertedTitle, error: titleError } = await supabase
+          .from('titles')
+          .upsert({
+            tmdb_id: movie.id,
+            title_type: 'movie',
+            name: movie.title,
+            original_name: movie.original_title,
+            overview: movie.overview,
+            release_date: movie.release_date || null,
+            first_air_date: null,
+            last_air_date: null,
+            status: details?.status || null,
+            runtime: details?.runtime || null,
+            episode_run_time: null,
+            popularity: movie.popularity,
+            vote_average: movie.vote_average,
+            poster_path: movie.poster_path,
+            backdrop_path: movie.backdrop_path,
+            original_language: movie.original_language,
+            is_adult: movie.adult || false,
+            imdb_id: details?.imdb_id || null,
+            tagline: details?.tagline || null,
+            trailer_url: trailerUrl,
+            is_tmdb_trailer: isTmdbTrailer,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'tmdb_id,title_type' })
+          .select('id')
+          .single();
+
+        if (titleError) {
+          console.error(`Error upserting movie ${movie.title} (${phase}):`, titleError);
+          return false;
+        }
+
+        if (upsertedTitle) {
+          totalProcessed++;
+
+          // Save streaming availability
+          for (const provider of providers) {
+            await supabase.from('title_streaming_availability').upsert({
+              title_id: upsertedTitle.id,
+              streaming_service_id: provider.serviceId,
+              region_code: 'US'
+            }, { onConflict: 'title_id,streaming_service_id,region_code' });
+          }
+
+          // Map genres
+          const movieGenreIds = movie.genre_ids || [];
+          for (const gId of movieGenreIds) {
+            const gName = TMDB_GENRE_MAP[gId];
+            if (gName) {
+              const ourGenreId = genreNameToId[gName.toLowerCase()];
+              if (ourGenreId) {
+                await supabase.from('title_genres').upsert({ title_id: upsertedTitle.id, genre_id: ourGenreId }, { onConflict: 'title_id,genre_id' });
+              }
+            }
+          }
+
+          // Store spoken languages from details - ONLY if language exists in our table
+          if (details?.spoken_languages) {
+            for (const lang of details.spoken_languages) {
+              // Only link to existing languages, never add new ones
+              if (validLanguageCodes.has(lang.iso_639_1)) {
+                await supabase.from('title_spoken_languages').upsert({ title_id: upsertedTitle.id, iso_639_1: lang.iso_639_1 }, { onConflict: 'title_id,iso_639_1' });
+              }
+            }
+          }
+
+          // Store keywords if available
+          if (details?.keywords?.keywords) {
+            for (const kw of details.keywords.keywords.slice(0, 10)) {
+              const { data: kwData } = await supabase.from('keywords').upsert({ tmdb_keyword_id: kw.id, name: kw.name }, { onConflict: 'tmdb_keyword_id' }).select('id').single();
+              if (kwData) {
+                await supabase.from('title_keywords').upsert({ title_id: upsertedTitle.id, keyword_id: kwData.id }, { onConflict: 'title_id,keyword_id' });
+              }
+            }
+          }
+          return true;
+        }
+        return false;
+      } catch (error) {
+        console.error(`Error processing movie ${movie.title} (${phase}):`, error);
+        return false;
+      }
+    }
+
+    // Track processed TMDB IDs to avoid duplicates between phases
+    const processedMovieIds = new Set<number>();
+
+    // PHASE 1: Year-based movie discovery (movies released in specified year)
     let moviePage = 1;
     let movieTotalPages = 1;
     
@@ -306,7 +419,7 @@ serve(async (req) => {
           severity: 'warning',
           operation: 'full-refresh-titles-timeout',
           error_message: `Thread approaching time limit at ${elapsed}ms for ${languageCode}/${year}/${genreName}`,
-          context: { languageCode, year, genre: genreName, genreId: tmdbGenreId, totalProcessed, elapsedMs: elapsed, phase: 'movies', page: moviePage }
+          context: { languageCode, year, genre: genreName, genreId: tmdbGenreId, totalProcessed, elapsedMs: elapsed, phase: 'movies-year', page: moviePage }
         });
         break;
       }
@@ -318,116 +431,66 @@ serve(async (req) => {
         const moviesData = await moviesResponse.json();
         const movies = moviesData.results || [];
         movieTotalPages = Math.min(moviesData.total_pages || 1, 20);
-        console.log(`Found ${movies.length} movies (page ${moviePage}/${movieTotalPages})`);
+        console.log(`[Year-based] Found ${movies.length} movies (page ${moviePage}/${movieTotalPages})`);
 
         for (const movie of movies) {
-          try {
-            // Check streaming availability first
-            const { providers } = await fetchWatchProviders(movie.id, 'movie');
-            
-            // Skip titles not available on any supported streaming service
-            if (providers.length === 0) {
-              skippedNoProvider++;
-              continue;
-            }
-
-            // Fetch full details for additional metadata
-            const details = await fetchMovieDetails(movie.id);
-            
-            // Fetch trailer
-            const releaseYear = movie.release_date ? new Date(movie.release_date).getFullYear() : null;
-            const { url: trailerUrl, isTmdbTrailer } = await fetchTrailer(movie.id, 'movie', movie.title, releaseYear, movie.original_language || languageCode);
-
-            // Upsert title (insert or update if exists)
-            const { data: upsertedTitle, error: titleError } = await supabase
-              .from('titles')
-              .upsert({
-                tmdb_id: movie.id,
-                title_type: 'movie',
-                name: movie.title,
-                original_name: movie.original_title,
-                overview: movie.overview,
-                release_date: movie.release_date || null,
-                first_air_date: null,
-                last_air_date: null,
-                status: details?.status || null,
-                runtime: details?.runtime || null,
-                episode_run_time: null,
-                popularity: movie.popularity,
-                vote_average: movie.vote_average,
-                poster_path: movie.poster_path,
-                backdrop_path: movie.backdrop_path,
-                original_language: movie.original_language,
-                is_adult: movie.adult || false,
-                imdb_id: details?.imdb_id || null,
-                tagline: details?.tagline || null,
-                trailer_url: trailerUrl,
-                is_tmdb_trailer: isTmdbTrailer,
-                updated_at: new Date().toISOString()
-              }, { onConflict: 'tmdb_id,title_type' })
-              .select('id')
-              .single();
-
-            if (titleError) {
-              console.error(`Error upserting movie ${movie.title}:`, titleError);
-              continue;
-            }
-
-            if (upsertedTitle) {
-              totalProcessed++;
-
-              // Save streaming availability
-              for (const provider of providers) {
-                await supabase.from('title_streaming_availability').upsert({
-                  title_id: upsertedTitle.id,
-                  streaming_service_id: provider.serviceId,
-                  region_code: 'US'
-                }, { onConflict: 'title_id,streaming_service_id,region_code' });
-              }
-
-              // Map genres
-              const movieGenreIds = movie.genre_ids || [];
-              for (const gId of movieGenreIds) {
-                const gName = TMDB_GENRE_MAP[gId];
-                if (gName) {
-                  const ourGenreId = genreNameToId[gName.toLowerCase()];
-                  if (ourGenreId) {
-                    await supabase.from('title_genres').upsert({ title_id: upsertedTitle.id, genre_id: ourGenreId }, { onConflict: 'title_id,genre_id' });
-                  }
-                }
-              }
-
-              // Store spoken languages from details - ONLY if language exists in our table
-              if (details?.spoken_languages) {
-                for (const lang of details.spoken_languages) {
-                  // Only link to existing languages, never add new ones
-                  if (validLanguageCodes.has(lang.iso_639_1)) {
-                    await supabase.from('title_spoken_languages').upsert({ title_id: upsertedTitle.id, iso_639_1: lang.iso_639_1 }, { onConflict: 'title_id,iso_639_1' });
-                  }
-                }
-              }
-
-              // Store keywords if available
-              if (details?.keywords?.keywords) {
-                for (const kw of details.keywords.keywords.slice(0, 10)) {
-                  const { data: kwData } = await supabase.from('keywords').upsert({ tmdb_keyword_id: kw.id, name: kw.name }, { onConflict: 'tmdb_keyword_id' }).select('id').single();
-                  if (kwData) {
-                    await supabase.from('title_keywords').upsert({ title_id: upsertedTitle.id, keyword_id: kwData.id }, { onConflict: 'title_id,keyword_id' });
-                  }
-                }
-              }
-            }
-          } catch (error) {
-            console.error(`Error processing movie ${movie.title}:`, error);
-          }
+          processedMovieIds.add(movie.id);
+          await processMovie(movie, 'year-based');
         }
 
         moviePage++;
         await new Promise(resolve => setTimeout(resolve, 250));
       } catch (err) {
-        console.error('Error fetching movies page:', err);
+        console.error('Error fetching movies page (year-based):', err);
         break;
       }
+    }
+
+    // PHASE 2: Popularity-based movie discovery (captures classic/popular movies regardless of year)
+    // Only run if we have time remaining
+    const elapsedAfterMoviePhase1 = Date.now() - startTime;
+    if (elapsedAfterMoviePhase1 < MAX_RUNTIME_MS - 30000) { // Need at least 30s for phase 2
+      console.log(`Starting Phase 2: Popularity-based movie discovery for ${languageCode}/${genreName}`);
+      
+      let popularMoviePage = 1;
+      let popularMovieTotalPages = 1;
+      const MAX_POPULAR_MOVIE_PAGES = 10; // Limit to top 200 popular movies per language/genre combo
+      
+      while (popularMoviePage <= popularMovieTotalPages && popularMoviePage <= MAX_POPULAR_MOVIE_PAGES) {
+        const elapsed = Date.now() - startTime;
+        if (elapsed > MAX_RUNTIME_MS) {
+          console.log(`Approaching time limit at ${elapsed}ms during Movie Phase 2. Stopping gracefully.`);
+          break;
+        }
+
+        // No year filter - get ALL popular movies for this language/genre
+        const popularMovieUrl = `https://api.themoviedb.org/3/discover/movie?api_key=${TMDB_API_KEY}&with_genres=${tmdbGenreId}&with_original_language=${languageCode}&vote_average.gte=${minRating}&sort_by=popularity.desc&page=${popularMoviePage}`;
+        
+        try {
+          const popularResponse = await fetch(popularMovieUrl);
+          const popularData = await popularResponse.json();
+          const movies = popularData.results || [];
+          popularMovieTotalPages = Math.min(popularData.total_pages || 1, MAX_POPULAR_MOVIE_PAGES);
+          console.log(`[Popularity-based] Found ${movies.length} movies (page ${popularMoviePage}/${popularMovieTotalPages})`);
+
+          for (const movie of movies) {
+            // Skip if already processed in Phase 1
+            if (processedMovieIds.has(movie.id)) {
+              continue;
+            }
+            processedMovieIds.add(movie.id);
+            await processMovie(movie, 'popularity-based');
+          }
+
+          popularMoviePage++;
+          await new Promise(resolve => setTimeout(resolve, 250));
+        } catch (err) {
+          console.error('Error fetching movies page (popularity-based):', err);
+          break;
+        }
+      }
+    } else {
+      console.log(`Skipping Movie Phase 2 due to time constraints (${elapsedAfterMoviePhase1}ms elapsed)`);
     }
 
     // Process TV shows - TWO PHASES:
