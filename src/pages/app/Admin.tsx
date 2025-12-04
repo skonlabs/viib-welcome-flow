@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAdmin } from '@/hooks/useAdmin';
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider } from '@/components/ui/sidebar';
-import { BarChart3, Users, UserCheck, Clock, Heart, Eye, Send, Activity, UsersRound, HeadphonesIcon, Bug, Lightbulb, Mail, Settings, Shield, Database, Key, FileText, Zap } from '@/icons';
+import { BarChart3, Users, UserCheck, Clock, Heart, Eye, Send, Activity, UsersRound, HeadphonesIcon, Bug, Lightbulb, Mail, Settings, Shield, Database, Key, FileText, Zap, Share2 } from '@/icons';
 import ActiveUsers from '@/components/admin/ActiveUsers';
 import UserRetention from '@/components/admin/UserRetention';
 import Sessions from '@/components/admin/Sessions';
@@ -11,6 +11,7 @@ import TitleWatch from '@/components/admin/TitleWatch';
 import PassRate from '@/components/admin/PassRate';
 import Recommendations from '@/components/admin/Recommendations';
 import SocialActivity from '@/components/admin/SocialActivity';
+import SocialGraph from '@/components/admin/SocialGraph';
 import AdminUsers from '@/components/admin/Users';
 import SupportRequests from '@/components/admin/SupportRequests';
 import Bugs from '@/components/admin/Bugs';
@@ -33,6 +34,7 @@ const metrics = [
   { id: 'pass-rate', title: 'Pass Rate', icon: BarChart3, component: PassRate, section: 'metrics' },
   { id: 'recommendations', title: 'Recommendations', icon: Send, component: Recommendations, section: 'metrics' },
   { id: 'social-activity', title: 'Social Activity', icon: Activity, component: SocialActivity, section: 'metrics' },
+  { id: 'social-graph', title: 'Social Graph', icon: Share2, component: SocialGraph, section: 'metrics' },
   { id: 'users', title: 'Users', icon: UsersRound, component: AdminUsers, section: 'management' },
   { id: 'activation-codes', title: 'Activation Codes', icon: Key, component: ActivationCodes, section: 'management' },
   { id: 'support-requests', title: 'Support Requests', icon: HeadphonesIcon, component: SupportRequests, section: 'support' },
