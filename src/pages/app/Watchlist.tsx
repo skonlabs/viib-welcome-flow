@@ -30,6 +30,7 @@ interface EnrichedTitle {
   title: string;
   type: 'movie' | 'series';
   tmdb_id?: number;
+  season_number?: number;
   year?: number;
   poster_url?: string;
   trailer_url?: string;
@@ -39,6 +40,7 @@ interface EnrichedTitle {
   cast?: string[];
   certification?: string;
   number_of_seasons?: number;
+  overview?: string;
   streaming_services?: Array<{
     service_code: string;
     service_name: string;
@@ -133,13 +135,17 @@ export default function Watchlist() {
             id: item.id,
             title_id: item.title_id,
             tmdb_id: titleData?.tmdb_id ?? undefined,
+            season_number: item.season_number,
             title: `${titleData?.name || 'Unknown'} - ${seasonData?.name || `Season ${item.season_number}`}`,
             type: 'series' as const,
             year: seasonData?.air_date ? new Date(seasonData.air_date).getFullYear() : undefined,
             poster_url: seasonData?.poster_path
               ? `https://image.tmdb.org/t/p/w500${seasonData.poster_path}` 
-              : undefined,
+              : titleData?.poster_path
+                ? `https://image.tmdb.org/t/p/w500${titleData.poster_path}`
+                : undefined,
             trailer_url: titleData?.trailer_url,
+            overview: seasonData?.overview,
             runtime_minutes: undefined,
             added_at: item.created_at,
           };
@@ -618,6 +624,8 @@ export default function Watchlist() {
               genres: selectedTitle.genres,
               cast: selectedTitle.cast,
               streaming_services: selectedTitle.streaming_services,
+              season_number: selectedTitle.season_number,
+              overview: selectedTitle.overview,
             }}
             open={!!selectedTitle}
             onOpenChange={(open) => !open && setSelectedTitle(null)}

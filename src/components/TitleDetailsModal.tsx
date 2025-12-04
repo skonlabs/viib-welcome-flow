@@ -23,6 +23,7 @@ interface TitleDetailsModalProps {
     cast?: string[];
     description?: string | null;
     overview?: string | null;
+    season_number?: number;
     streaming_services?: Array<{
       service_code: string;
       service_name: string;
@@ -53,7 +54,25 @@ export function TitleDetailsModal({ title, open, onOpenChange, onAddToWatchlist 
     if (open && title && title.tmdb_id) {
       fetchEnrichedData();
     }
+    // Reset selected season when modal closes
+    if (!open) {
+      setSelectedSeason(null);
+      setSeasonDetailsOpen(false);
+    }
   }, [open, title?.tmdb_id]);
+
+  // Auto-select season when enriched data loads and season_number is specified
+  useEffect(() => {
+    if (title?.season_number && enrichedData?.seasons?.length > 0) {
+      const targetSeason = enrichedData.seasons.find(
+        (s: any) => s.season_number === title.season_number
+      );
+      if (targetSeason) {
+        setSelectedSeason(targetSeason);
+        setSeasonDetailsOpen(true);
+      }
+    }
+  }, [enrichedData?.seasons, title?.season_number]);
 
   const fetchEnrichedData = async () => {
     if (!title?.tmdb_id) return;
