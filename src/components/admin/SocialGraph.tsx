@@ -42,6 +42,8 @@ interface GraphNode {
   vy: number;
   connections: number;
   depth: number;
+  isOverflow?: boolean; // Node represents overflow count
+  overflowCount?: number;
 }
 
 interface GraphEdge {
@@ -49,6 +51,8 @@ interface GraphEdge {
   target: string;
   type: string | null;
   trust: number;
+  sourceDepth?: number;
+  targetDepth?: number;
 }
 
 // 5-level hierarchical sample users
@@ -316,17 +320,19 @@ const SocialGraph = () => {
   };
 
   // Build graph data with 5-level concentric circle layout
-  const { nodes, edges } = useMemo(() => {
+  const { nodes, edges, ringCounts } = useMemo(() => {
     const nodeMap = new Map<string, GraphNode>();
     const edgeList: GraphEdge[] = [];
     const centerX = 400;
     const centerY = 300;
 
+    // Max nodes per ring for readability
+    const MAX_NODES_PER_RING = 12;
+
     // Calculate depths using BFS from selected node
     const depths = new Map<string, number>();
     
     if (selectedNode) {
-      // BFS to find depths up to 5 levels
       const queue: { id: string; depth: number }[] = [{ id: selectedNode, depth: 0 }];
       depths.set(selectedNode, 0);
 
@@ -347,25 +353,30 @@ const SocialGraph = () => {
       }
     }
 
-    // Group users by depth (0-5, where 6 means unconnected)
+    // Group users by depth
     const rings: User[][] = [[], [], [], [], [], [], []];
+    const counts = { total: users.length, byLevel: [0, 0, 0, 0, 0, 0, 0] };
 
     users.forEach((user) => {
       if (selectedNode) {
         const depth = depths.get(user.id) ?? 6;
         rings[Math.min(depth, 6)].push(user);
+        counts.byLevel[Math.min(depth, 6)]++;
       } else {
-        rings[1].push(user); // When no selection, show all in one circle
+        rings[1].push(user);
+        counts.byLevel[1]++;
       }
     });
 
-    // Ring radii for 5 levels
-    const ringRadii = [0, 80, 140, 200, 250, 290];
+    // Ring radii - wider spacing for more rings
+    const ringRadii = [0, 90, 155, 210, 260, 300];
 
-    // Position nodes in concentric circles
+    // Track visible node IDs for edge filtering
+    const visibleNodeIds = new Set<string>();
+
+    // Position nodes in concentric circles with overflow handling
     rings.forEach((ringUsers, depth) => {
       if (depth === 0) {
-        // Center node
         ringUsers.forEach((user) => {
           const connectionCount = connections.filter(
             (c) => c.user_id === user.id || c.friend_user_id === user.id
@@ -380,11 +391,19 @@ const SocialGraph = () => {
             connections: connectionCount,
             depth: 0,
           });
+          visibleNodeIds.add(user.id);
         });
       } else if (depth <= 5) {
-        const radius = selectedNode ? ringRadii[depth] : 180;
-        ringUsers.forEach((user, index) => {
-          const angle = (2 * Math.PI * index) / ringUsers.length - Math.PI / 2;
+        const radius = selectedNode ? ringRadii[depth] : 200;
+        const maxToShow = selectedNode ? MAX_NODES_PER_RING : Math.min(ringUsers.length, 24);
+        const overflow = ringUsers.length - maxToShow;
+
+        // Show limited nodes
+        const usersToShow = ringUsers.slice(0, maxToShow);
+        const angleStep = (2 * Math.PI) / (usersToShow.length + (overflow > 0 ? 1 : 0));
+
+        usersToShow.forEach((user, index) => {
+          const angle = angleStep * index - Math.PI / 2;
           const connectionCount = connections.filter(
             (c) => c.user_id === user.id || c.friend_user_id === user.id
           ).length;
@@ -398,39 +417,88 @@ const SocialGraph = () => {
             connections: connectionCount,
             depth: selectedNode ? depth : 0,
           });
+          visibleNodeIds.add(user.id);
         });
+
+        // Add overflow indicator node
+        if (overflow > 0) {
+          const overflowAngle = angleStep * usersToShow.length - Math.PI / 2;
+          nodeMap.set(`overflow-${depth}`, {
+            id: `overflow-${depth}`,
+            name: `+${overflow} more`,
+            x: centerX + Math.cos(overflowAngle) * radius,
+            y: centerY + Math.sin(overflowAngle) * radius,
+            vx: 0,
+            vy: 0,
+            connections: 0,
+            depth,
+            isOverflow: true,
+            overflowCount: overflow,
+          });
+        }
       } else {
-        // Unconnected users - place in outer ring
-        ringUsers.forEach((user, index) => {
-          const angle = (2 * Math.PI * index) / ringUsers.length - Math.PI / 2;
+        // Unconnected users
+        const maxToShow = MAX_NODES_PER_RING;
+        const overflow = ringUsers.length - maxToShow;
+        const usersToShow = ringUsers.slice(0, maxToShow);
+        const angleStep = (2 * Math.PI) / (usersToShow.length + (overflow > 0 ? 1 : 0));
+
+        usersToShow.forEach((user, index) => {
+          const angle = angleStep * index - Math.PI / 2;
           const connectionCount = connections.filter(
             (c) => c.user_id === user.id || c.friend_user_id === user.id
           ).length;
           nodeMap.set(user.id, {
             id: user.id,
             name: user.full_name || user.username || user.email || 'Unknown',
-            x: centerX + Math.cos(angle) * 320,
-            y: centerY + Math.sin(angle) * 320,
+            x: centerX + Math.cos(angle) * 340,
+            y: centerY + Math.sin(angle) * 340,
             vx: 0,
             vy: 0,
             connections: connectionCount,
             depth: 6,
           });
+          visibleNodeIds.add(user.id);
+        });
+
+        if (overflow > 0) {
+          const overflowAngle = angleStep * usersToShow.length - Math.PI / 2;
+          nodeMap.set('overflow-6', {
+            id: 'overflow-6',
+            name: `+${overflow} more`,
+            x: centerX + Math.cos(overflowAngle) * 340,
+            y: centerY + Math.sin(overflowAngle) * 340,
+            vx: 0,
+            vy: 0,
+            connections: 0,
+            depth: 6,
+            isOverflow: true,
+            overflowCount: overflow,
+          });
+        }
+      }
+    });
+
+    // Create edges with depth info (only for visible nodes)
+    connections.forEach((conn) => {
+      const sourceVisible = visibleNodeIds.has(conn.user_id);
+      const targetVisible = visibleNodeIds.has(conn.friend_user_id);
+      
+      if (sourceVisible && targetVisible) {
+        const sourceDepth = depths.get(conn.user_id) ?? 6;
+        const targetDepth = depths.get(conn.friend_user_id) ?? 6;
+        edgeList.push({
+          source: conn.user_id,
+          target: conn.friend_user_id,
+          type: conn.relationship_type,
+          trust: conn.trust_score,
+          sourceDepth,
+          targetDepth,
         });
       }
     });
 
-    // Create edges from connections
-    connections.forEach((conn) => {
-      edgeList.push({
-        source: conn.user_id,
-        target: conn.friend_user_id,
-        type: conn.relationship_type,
-        trust: conn.trust_score,
-      });
-    });
-
-    return { nodes: Array.from(nodeMap.values()), edges: edgeList };
+    return { nodes: Array.from(nodeMap.values()), edges: edgeList, ringCounts: counts };
   }, [users, connections, selectedNode]);
 
   // Level colors: 1=cyan, 2=gold, 3=rose, 4=violet, 5=emerald
@@ -458,21 +526,57 @@ const SocialGraph = () => {
 
   const getEdgeColor = useCallback(
     (edge: GraphEdge) => {
-      if (!selectedNode) return 'hsl(var(--primary) / 0.3)';
+      if (!selectedNode) return 'hsl(var(--primary) / 0.4)';
+      
+      // Edge connects to center
       if (edge.source === selectedNode || edge.target === selectedNode) {
         return LEVEL_COLORS[1];
       }
-      const sourceNode = nodes.find((n) => n.id === edge.source);
-      const targetNode = nodes.find((n) => n.id === edge.target);
-      const minDepth = Math.min(sourceNode?.depth ?? 6, targetNode?.depth ?? 6);
-      if (minDepth >= 1 && minDepth <= 5) {
-        // Return color with reduced opacity
-        const baseColor = LEVEL_COLORS[minDepth];
-        return baseColor.replace(')', ' / 0.4)');
+      
+      // Get depths from edge data
+      const sourceDepth = edge.sourceDepth ?? 6;
+      const targetDepth = edge.targetDepth ?? 6;
+      
+      // Cross-level connection (shows hierarchy)
+      if (sourceDepth !== targetDepth) {
+        const minDepth = Math.min(sourceDepth, targetDepth);
+        if (minDepth >= 1 && minDepth <= 5) {
+          return LEVEL_COLORS[minDepth];
+        }
       }
-      return 'hsl(var(--muted-foreground) / 0.1)';
+      
+      // Same-level connection
+      const depth = Math.min(sourceDepth, targetDepth);
+      if (depth >= 1 && depth <= 5) {
+        return LEVEL_COLORS[depth].replace(')', ' / 0.6)');
+      }
+      
+      return 'hsl(var(--muted-foreground) / 0.15)';
     },
-    [selectedNode, nodes]
+    [selectedNode]
+  );
+
+  const getEdgeWidth = useCallback(
+    (edge: GraphEdge) => {
+      if (!selectedNode) return 1;
+      
+      // Edge connects to center - thickest
+      if (edge.source === selectedNode || edge.target === selectedNode) {
+        return 2.5;
+      }
+      
+      const sourceDepth = edge.sourceDepth ?? 6;
+      const targetDepth = edge.targetDepth ?? 6;
+      
+      // Cross-level connections - more visible
+      if (sourceDepth !== targetDepth) {
+        return 2;
+      }
+      
+      // Same-level connections - thinner
+      return 1;
+    },
+    [selectedNode]
   );
 
   const getNodeSize = useCallback(
@@ -637,145 +741,184 @@ const SocialGraph = () => {
                 {/* 5-level concentric circle guides */}
                 {selectedNode && (
                   <g>
-                    <circle cx="400" cy="300" r="80" fill="none" stroke="hsl(173, 80%, 50%)" strokeOpacity="0.12" strokeWidth="25" />
-                    <circle cx="400" cy="300" r="140" fill="none" stroke="hsl(45, 90%, 60%)" strokeOpacity="0.1" strokeWidth="25" />
-                    <circle cx="400" cy="300" r="200" fill="none" stroke="hsl(350, 80%, 60%)" strokeOpacity="0.08" strokeWidth="25" />
-                    <circle cx="400" cy="300" r="250" fill="none" stroke="hsl(270, 70%, 60%)" strokeOpacity="0.06" strokeWidth="20" />
-                    <circle cx="400" cy="300" r="290" fill="none" stroke="hsl(160, 70%, 45%)" strokeOpacity="0.05" strokeWidth="15" />
+                    <circle cx="400" cy="300" r="90" fill="none" stroke="hsl(173, 80%, 50%)" strokeOpacity="0.12" strokeWidth="20" />
+                    <circle cx="400" cy="300" r="155" fill="none" stroke="hsl(45, 90%, 60%)" strokeOpacity="0.1" strokeWidth="20" />
+                    <circle cx="400" cy="300" r="210" fill="none" stroke="hsl(350, 80%, 60%)" strokeOpacity="0.08" strokeWidth="18" />
+                    <circle cx="400" cy="300" r="260" fill="none" stroke="hsl(270, 70%, 60%)" strokeOpacity="0.06" strokeWidth="16" />
+                    <circle cx="400" cy="300" r="300" fill="none" stroke="hsl(160, 70%, 45%)" strokeOpacity="0.05" strokeWidth="14" />
                     {/* Center glow */}
-                    <circle cx="400" cy="300" r="40" fill="url(#centerGlow)" />
+                    <circle cx="400" cy="300" r="35" fill="url(#centerGlow)" />
                   </g>
                 )}
                 {!selectedNode && (
-                  <circle cx="400" cy="300" r="180" fill="none" stroke="hsl(var(--primary))" strokeOpacity="0.1" strokeWidth="2" strokeDasharray="8 4" />
+                  <circle cx="400" cy="300" r="200" fill="none" stroke="hsl(var(--primary))" strokeOpacity="0.1" strokeWidth="2" strokeDasharray="8 4" />
                 )}
 
-                {/* Edges */}
+                {/* Edges - render cross-level first for proper layering */}
                 <g>
                   <AnimatePresence>
-                    {edges.map((edge, index) => {
-                      const sourceNode = nodes.find((n) => n.id === edge.source);
-                      const targetNode = nodes.find((n) => n.id === edge.target);
-                      if (!sourceNode || !targetNode) return null;
+                    {edges
+                      .sort((a, b) => {
+                        // Render same-level edges first, cross-level edges on top
+                        const aCross = a.sourceDepth !== a.targetDepth ? 1 : 0;
+                        const bCross = b.sourceDepth !== b.targetDepth ? 1 : 0;
+                        return aCross - bCross;
+                      })
+                      .map((edge, index) => {
+                        const sourceNode = nodes.find((n) => n.id === edge.source);
+                        const targetNode = nodes.find((n) => n.id === edge.target);
+                        if (!sourceNode || !targetNode) return null;
 
-                      const isHighlighted =
-                        selectedNode &&
-                        (edge.source === selectedNode || edge.target === selectedNode);
-
-                      return (
-                        <motion.line
-                          key={`${edge.source}-${edge.target}`}
-                          initial={{ opacity: 0 }}
-                          animate={{
-                            opacity: 1,
-                            x1: sourceNode.x,
-                            y1: sourceNode.y,
-                            x2: targetNode.x,
-                            y2: targetNode.y,
-                          }}
-                          transition={{ duration: 0.5, delay: index * 0.02 }}
-                          stroke={getEdgeColor(edge)}
-                          strokeWidth={isHighlighted ? 3 : 1.5}
-                          strokeOpacity={isHighlighted ? 1 : 0.6}
-                        />
-                      );
-                    })}
+                        return (
+                          <motion.line
+                            key={`${edge.source}-${edge.target}`}
+                            initial={{ opacity: 0 }}
+                            animate={{
+                              opacity: 1,
+                              x1: sourceNode.x,
+                              y1: sourceNode.y,
+                              x2: targetNode.x,
+                              y2: targetNode.y,
+                            }}
+                            transition={{ duration: 0.5, delay: index * 0.01 }}
+                            stroke={getEdgeColor(edge)}
+                            strokeWidth={getEdgeWidth(edge)}
+                            strokeOpacity={0.8}
+                          />
+                        );
+                      })}
                   </AnimatePresence>
                 </g>
 
                 {/* Nodes */}
                 <g>
                   <AnimatePresence>
-                    {nodes.map((node, index) => (
-                      <motion.g
-                        key={node.id}
-                        initial={{ scale: 0, opacity: 0 }}
-                        animate={{
-                          scale: 1,
-                          opacity: 1,
-                          x: node.x,
-                          y: node.y,
-                        }}
-                        transition={{
-                          type: 'spring',
-                          stiffness: 100,
-                          damping: 15,
-                          delay: index * 0.03,
-                        }}
-                        style={{ cursor: 'pointer' }}
-                        onClick={() => setSelectedNode(node.id === selectedNode ? null : node.id)}
-                        onMouseEnter={() => setHoveredNode(node.id)}
-                        onMouseLeave={() => setHoveredNode(null)}
-                      >
-                        {/* Glow effect for selected/hovered */}
-                        {(selectedNode === node.id || hoveredNode === node.id) && (
+                    {nodes.map((node, index) => {
+                      // Overflow indicator node
+                      if (node.isOverflow) {
+                        return (
+                          <motion.g
+                            key={node.id}
+                            initial={{ scale: 0, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 0.8, x: node.x, y: node.y }}
+                            transition={{ type: 'spring', stiffness: 100, damping: 15, delay: index * 0.03 }}
+                          >
+                            <rect
+                              x="-24"
+                              y="-12"
+                              width="48"
+                              height="24"
+                              rx="12"
+                              fill={LEVEL_COLORS[node.depth] || 'hsl(var(--muted))'}
+                              fillOpacity="0.3"
+                              stroke={LEVEL_COLORS[node.depth] || 'hsl(var(--muted-foreground))'}
+                              strokeWidth="1"
+                              strokeOpacity="0.5"
+                            />
+                            <text
+                              textAnchor="middle"
+                              dy="0.35em"
+                              fill={LEVEL_COLORS[node.depth] || 'hsl(var(--muted-foreground))'}
+                              fontSize="11"
+                              fontWeight="600"
+                            >
+                              {node.name}
+                            </text>
+                          </motion.g>
+                        );
+                      }
+
+                      // Regular node
+                      return (
+                        <motion.g
+                          key={node.id}
+                          initial={{ scale: 0, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1, x: node.x, y: node.y }}
+                          transition={{ type: 'spring', stiffness: 100, damping: 15, delay: index * 0.03 }}
+                          style={{ cursor: 'pointer' }}
+                          onClick={() => setSelectedNode(node.id === selectedNode ? null : node.id)}
+                          onMouseEnter={() => setHoveredNode(node.id)}
+                          onMouseLeave={() => setHoveredNode(null)}
+                        >
+                          {/* Glow effect for selected/hovered */}
+                          {(selectedNode === node.id || hoveredNode === node.id) && (
+                            <motion.circle
+                              r={getNodeSize(node) * 2}
+                              fill="url(#nodeGlow)"
+                              initial={{ scale: 0 }}
+                              animate={{ scale: 1 }}
+                            />
+                          )}
+
+                          {/* Main node circle */}
                           <motion.circle
-                            r={getNodeSize(node) * 2}
-                            fill="url(#nodeGlow)"
-                            initial={{ scale: 0 }}
-                            animate={{ scale: 1 }}
+                            r={getNodeSize(node)}
+                            fill={getNodeColor(node)}
+                            filter={selectedNode === node.id ? 'url(#glow)' : undefined}
+                            animate={{ r: getNodeSize(node), fill: getNodeColor(node) }}
+                            transition={{ duration: 0.2 }}
                           />
-                        )}
 
-                        {/* Main node circle */}
-                        <motion.circle
-                          r={getNodeSize(node)}
-                          fill={getNodeColor(node)}
-                          filter={selectedNode === node.id ? 'url(#glow)' : undefined}
-                          animate={{
-                            r: getNodeSize(node),
-                            fill: getNodeColor(node),
-                          }}
-                          transition={{ duration: 0.2 }}
-                        />
+                          {/* Connection count indicator */}
+                          {node.connections > 2 && (
+                            <text textAnchor="middle" dy="0.35em" fill="white" fontSize="10" fontWeight="bold">
+                              {node.connections}
+                            </text>
+                          )}
 
-                        {/* Connection count indicator */}
-                        {node.connections > 2 && (
-                          <text
-                            textAnchor="middle"
-                            dy="0.35em"
-                            fill="white"
-                            fontSize="10"
-                            fontWeight="bold"
-                          >
-                            {node.connections}
-                          </text>
-                        )}
-
-                        {/* Name label */}
-                        {(hoveredNode === node.id || selectedNode === node.id) && (
-                          <motion.text
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: getNodeSize(node) + 15 }}
-                            textAnchor="middle"
-                            fill="hsl(var(--foreground))"
-                            fontSize="12"
-                            fontWeight="500"
-                          >
-                            {node.name}
-                          </motion.text>
-                        )}
-                      </motion.g>
-                    ))}
+                          {/* Name label */}
+                          {(hoveredNode === node.id || selectedNode === node.id) && (
+                            <motion.text
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: getNodeSize(node) + 15 }}
+                              textAnchor="middle"
+                              fill="hsl(var(--foreground))"
+                              fontSize="12"
+                              fontWeight="500"
+                            >
+                              {node.name}
+                            </motion.text>
+                          )}
+                        </motion.g>
+                      );
+                    })}
                   </AnimatePresence>
                 </g>
               </svg>
 
-              {/* Legend */}
-              <div className="absolute bottom-4 left-4 bg-background/80 backdrop-blur rounded-lg p-3 text-sm">
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full bg-primary" />
-                    <span>Selected</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full" style={{ background: 'hsl(173, 80%, 50%)' }} />
-                    <span>Direct Friend</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full" style={{ background: 'hsl(45, 90%, 60%)' }} />
-                    <span>Friend of Friend</span>
-                  </div>
+              {/* Legend with counts */}
+              <div className="absolute bottom-4 left-4 bg-background/90 backdrop-blur rounded-lg p-3 text-xs">
+                <div className="flex flex-wrap items-center gap-3">
+                  {selectedNode ? (
+                    <>
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-2.5 h-2.5 rounded-full bg-primary" />
+                        <span>Center</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-2.5 h-2.5 rounded-full" style={{ background: 'hsl(173, 80%, 50%)' }} />
+                        <span>1° ({ringCounts.byLevel[1]})</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-2.5 h-2.5 rounded-full" style={{ background: 'hsl(45, 90%, 60%)' }} />
+                        <span>2° ({ringCounts.byLevel[2]})</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-2.5 h-2.5 rounded-full" style={{ background: 'hsl(350, 80%, 60%)' }} />
+                        <span>3° ({ringCounts.byLevel[3]})</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-2.5 h-2.5 rounded-full" style={{ background: 'hsl(270, 70%, 60%)' }} />
+                        <span>4° ({ringCounts.byLevel[4]})</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-2.5 h-2.5 rounded-full" style={{ background: 'hsl(160, 70%, 45%)' }} />
+                        <span>5° ({ringCounts.byLevel[5]})</span>
+                      </div>
+                    </>
+                  ) : (
+                    <span className="text-muted-foreground">Click a user to see their circle of friends</span>
+                  )}
                 </div>
               </div>
             </div>
