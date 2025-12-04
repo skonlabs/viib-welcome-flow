@@ -327,7 +327,7 @@ const SocialGraph = () => {
     const centerY = 300;
 
     // Max nodes per ring for readability
-    const MAX_NODES_PER_RING = 12;
+    const MAX_NODES_PER_RING = 25;
 
     // Calculate depths using BFS from selected node
     const depths = new Map<string, number>();
@@ -524,34 +524,38 @@ const SocialGraph = () => {
     [selectedNode, hoveredNode]
   );
 
+  // Get gradient ID for cross-level edges
+  const getEdgeGradientId = useCallback(
+    (edge: GraphEdge) => {
+      const sourceDepth = edge.sourceDepth ?? 6;
+      const targetDepth = edge.targetDepth ?? 6;
+      if (sourceDepth !== targetDepth && sourceDepth <= 5 && targetDepth <= 5) {
+        return `gradient-${Math.min(sourceDepth, targetDepth)}-${Math.max(sourceDepth, targetDepth)}`;
+      }
+      return null;
+    },
+    []
+  );
+
   const getEdgeColor = useCallback(
     (edge: GraphEdge) => {
-      if (!selectedNode) return 'hsl(var(--primary) / 0.4)';
+      if (!selectedNode) return 'hsl(var(--primary) / 0.15)';
       
-      // Edge connects to center
-      if (edge.source === selectedNode || edge.target === selectedNode) {
-        return LEVEL_COLORS[1];
-      }
-      
-      // Get depths from edge data
       const sourceDepth = edge.sourceDepth ?? 6;
       const targetDepth = edge.targetDepth ?? 6;
       
-      // Cross-level connection (shows hierarchy)
+      // Cross-level connection - will use gradient
       if (sourceDepth !== targetDepth) {
-        const minDepth = Math.min(sourceDepth, targetDepth);
-        if (minDepth >= 1 && minDepth <= 5) {
-          return LEVEL_COLORS[minDepth];
-        }
+        return null; // Use gradient instead
       }
       
-      // Same-level connection
-      const depth = Math.min(sourceDepth, targetDepth);
-      if (depth >= 1 && depth <= 5) {
-        return LEVEL_COLORS[depth].replace(')', ' / 0.6)');
+      // Same-level connection - use same color but subtle
+      if (sourceDepth >= 1 && sourceDepth <= 5) {
+        // Return the level color - opacity will be applied in render
+        return LEVEL_COLORS[sourceDepth];
       }
       
-      return 'hsl(var(--muted-foreground) / 0.15)';
+      return 'hsl(var(--muted-foreground))';
     },
     [selectedNode]
   );
@@ -560,24 +564,39 @@ const SocialGraph = () => {
     (edge: GraphEdge) => {
       if (!selectedNode) return 1;
       
-      // Edge connects to center - thickest
+      // Edge connects to center - slightly thicker but still subtle
       if (edge.source === selectedNode || edge.target === selectedNode) {
-        return 2.5;
+        return 1.5;
       }
       
-      const sourceDepth = edge.sourceDepth ?? 6;
-      const targetDepth = edge.targetDepth ?? 6;
-      
-      // Cross-level connections - more visible
-      if (sourceDepth !== targetDepth) {
-        return 2;
-      }
-      
-      // Same-level connections - thinner
+      // All other connections - thin and subtle
       return 1;
     },
     [selectedNode]
   );
+
+  // Generate gradient definitions for cross-level edges
+  const edgeGradients = useMemo(() => {
+    const gradients: { id: string; color1: string; color2: string }[] = [];
+    for (let i = 1; i <= 4; i++) {
+      for (let j = i + 1; j <= 5; j++) {
+        gradients.push({
+          id: `gradient-${i}-${j}`,
+          color1: LEVEL_COLORS[i],
+          color2: LEVEL_COLORS[j],
+        });
+      }
+    }
+    // Center to levels
+    for (let i = 1; i <= 5; i++) {
+      gradients.push({
+        id: `gradient-0-${i}`,
+        color1: LEVEL_COLORS[0],
+        color2: LEVEL_COLORS[i],
+      });
+    }
+    return gradients;
+  }, []);
 
   const getNodeSize = useCallback(
     (node: GraphNode) => {
@@ -719,7 +738,7 @@ const SocialGraph = () => {
           ) : (
             <div className="relative overflow-hidden rounded-lg bg-gradient-to-br from-background to-muted/20">
               <svg width="100%" height="600" viewBox="0 0 800 600">
-                {/* Background glow effect */}
+                {/* Background glow effect and edge gradients */}
                 <defs>
                   <radialGradient id="nodeGlow" cx="50%" cy="50%" r="50%">
                     <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0.5" />
@@ -736,6 +755,15 @@ const SocialGraph = () => {
                       <feMergeNode in="SourceGraphic" />
                     </feMerge>
                   </filter>
+                  {/* Dynamic gradients for cross-level edges */}
+                  {edgeGradients.map((grad) => (
+                    <linearGradient key={grad.id} id={grad.id} x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stopColor={grad.color1} stopOpacity="0.2" />
+                      <stop offset="50%" stopColor={grad.color1} stopOpacity="0.15" />
+                      <stop offset="50%" stopColor={grad.color2} stopOpacity="0.15" />
+                      <stop offset="100%" stopColor={grad.color2} stopOpacity="0.2" />
+                    </linearGradient>
+                  ))}
                 </defs>
 
                 {/* 5-level concentric circle guides */}
@@ -769,6 +797,10 @@ const SocialGraph = () => {
                         const targetNode = nodes.find((n) => n.id === edge.target);
                         if (!sourceNode || !targetNode) return null;
 
+                        const gradientId = getEdgeGradientId(edge);
+                        const edgeColor = getEdgeColor(edge);
+                        const isCrossLevel = (edge.sourceDepth ?? 6) !== (edge.targetDepth ?? 6);
+
                         return (
                           <motion.line
                             key={`${edge.source}-${edge.target}`}
@@ -781,9 +813,9 @@ const SocialGraph = () => {
                               y2: targetNode.y,
                             }}
                             transition={{ duration: 0.5, delay: index * 0.01 }}
-                            stroke={getEdgeColor(edge)}
+                            stroke={isCrossLevel && gradientId ? `url(#${gradientId})` : edgeColor || 'hsl(var(--muted-foreground))'}
                             strokeWidth={getEdgeWidth(edge)}
-                            strokeOpacity={0.8}
+                            strokeOpacity={isCrossLevel ? 1 : 0.2}
                           />
                         );
                       })}
