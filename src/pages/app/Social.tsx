@@ -20,6 +20,7 @@ import {
 import { UserPlus, Check, X, Users } from "@/icons";
 import { toast } from "sonner";
 import { InviteFriendDialog } from "@/components/InviteFriendDialog";
+import UserSocialGraph from "@/components/UserSocialGraph";
 
 export default function Social() {
   const { user } = useAuth();
@@ -190,6 +191,9 @@ export default function Social() {
             Invite Friends
           </Button>
         </div>
+
+        {/* User's Social Graph */}
+        <UserSocialGraph />
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="grid w-full grid-cols-3">
