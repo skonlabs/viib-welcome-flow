@@ -1631,6 +1631,7 @@ export type Database = {
           id: string
           interaction_type: Database["public"]["Enums"]["interaction_type"]
           rating_value: Database["public"]["Enums"]["rating_value"] | null
+          season_number: number | null
           title_id: string
           user_id: string
           watch_duration_percentage: number | null
@@ -1640,6 +1641,7 @@ export type Database = {
           id?: string
           interaction_type: Database["public"]["Enums"]["interaction_type"]
           rating_value?: Database["public"]["Enums"]["rating_value"] | null
+          season_number?: number | null
           title_id: string
           user_id: string
           watch_duration_percentage?: number | null
@@ -1649,6 +1651,7 @@ export type Database = {
           id?: string
           interaction_type?: Database["public"]["Enums"]["interaction_type"]
           rating_value?: Database["public"]["Enums"]["rating_value"] | null
+          season_number?: number | null
           title_id?: string
           user_id?: string
           watch_duration_percentage?: number | null

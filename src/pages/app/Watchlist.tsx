@@ -82,7 +82,7 @@ export default function Watchlist() {
       // Get all interactions for this user and status
       const { data: interactions, error } = await supabase
         .from('user_title_interactions')
-        .select('id, title_id, created_at')
+        .select('id, title_id, season_number, created_at')
         .eq('user_id', user.id)
         .eq('interaction_type', status === 'pending' ? 'wishlisted' : 'completed')
         .order('created_at', { ascending: false });
@@ -95,9 +95,9 @@ export default function Watchlist() {
         return;
       }
 
-      const titleIds = interactions.map(i => i.title_id);
+      const titleIds = [...new Set(interactions.map(i => i.title_id))];
 
-      // Try to match with titles table first
+      // Get all titles
       const { data: titlesData } = await supabase
         .from('titles')
         .select('id, name, title_type, poster_path, backdrop_path, trailer_url, runtime, release_date, first_air_date, tmdb_id')
@@ -105,52 +105,39 @@ export default function Watchlist() {
 
       const titlesMap = new Map((titlesData || []).map(t => [t.id, t]));
 
-      // For IDs not found in titles, check seasons table
-      const unmatchedIds = titleIds.filter(id => !titlesMap.has(id));
+      // Get seasons for entries that have season_number
+      const seasonEntries = interactions.filter(i => i.season_number !== null);
+      const seasonTitleIds = [...new Set(seasonEntries.map(i => i.title_id))];
       let seasonsMap = new Map<string, any>();
 
-      if (unmatchedIds.length > 0) {
+      if (seasonTitleIds.length > 0) {
         const { data: seasonsData } = await supabase
           .from('seasons')
-          .select(`
-            id,
-            season_number,
-            name,
-            poster_path,
-            overview,
-            air_date,
-            episode_count,
-            title_id,
-            titles:title_id (
-              name,
-              title_type,
-              trailer_url,
-              tmdb_id
-            )
-          `)
-          .in('id', unmatchedIds);
+          .select('id, season_number, name, poster_path, overview, air_date, episode_count, title_id')
+          .in('title_id', seasonTitleIds);
 
-        seasonsMap = new Map((seasonsData || []).map(s => [s.id, s]));
+        // Key by title_id + season_number
+        seasonsMap = new Map(
+          (seasonsData || []).map(s => [`${s.title_id}_${s.season_number}`, s])
+        );
       }
 
       const enrichedTitles: EnrichedTitle[] = interactions.map((item) => {
-        // Check if it's a title or a season
         const titleData = titlesMap.get(item.title_id);
-        const seasonData = seasonsMap.get(item.title_id);
 
-        if (seasonData) {
-          // It's a season
-          const parentTitle = seasonData.titles as any;
+        if (item.season_number !== null) {
+          // It's a season entry
+          const seasonData = seasonsMap.get(`${item.title_id}_${item.season_number}`);
           return {
             id: item.id,
             title_id: item.title_id,
-            title: `${parentTitle?.name || 'Unknown'} - ${seasonData.name || `Season ${seasonData.season_number}`}`,
+            title: `${titleData?.name || 'Unknown'} - ${seasonData?.name || `Season ${item.season_number}`}`,
             type: 'series' as const,
-            year: seasonData.air_date ? new Date(seasonData.air_date).getFullYear() : undefined,
-            poster_url: seasonData.poster_path 
+            year: seasonData?.air_date ? new Date(seasonData.air_date).getFullYear() : undefined,
+            poster_url: seasonData?.poster_path
               ? `https://image.tmdb.org/t/p/w500${seasonData.poster_path}` 
               : undefined,
-            trailer_url: parentTitle?.trailer_url,
+            trailer_url: titleData?.trailer_url,
             runtime_minutes: undefined,
             added_at: item.created_at,
           };
