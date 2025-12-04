@@ -29,6 +29,7 @@ interface EnrichedTitle {
   title_id: string;
   title: string;
   type: 'movie' | 'series';
+  tmdb_id?: number;
   year?: number;
   poster_url?: string;
   trailer_url?: string;
@@ -131,6 +132,7 @@ export default function Watchlist() {
           return {
             id: item.id,
             title_id: item.title_id,
+            tmdb_id: titleData?.tmdb_id ?? undefined,
             title: `${titleData?.name || 'Unknown'} - ${seasonData?.name || `Season ${item.season_number}`}`,
             type: 'series' as const,
             year: seasonData?.air_date ? new Date(seasonData.air_date).getFullYear() : undefined,
@@ -152,6 +154,7 @@ export default function Watchlist() {
           return {
             id: item.id,
             title_id: item.title_id,
+            tmdb_id: titleData.tmdb_id ?? undefined,
             title: titleData.name || 'Unknown Title',
             type: titleData.title_type === 'tv' ? 'series' : 'movie',
             year: releaseYear,
@@ -228,6 +231,7 @@ export default function Watchlist() {
           return {
             id: item.id,
             title_id: item.title_id,
+            tmdb_id: titleData.tmdb_id ?? undefined,
             title: titleData.name || 'Unknown Title',
             type: titleData.title_type === 'tv' ? 'series' : 'movie',
             year: releaseYear,
