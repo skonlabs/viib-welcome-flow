@@ -74,54 +74,61 @@ export default function Watchlist() {
     }
   }, [user]);
 
-  const enrichTitleData = async (titleId: string) => {
-    try {
-      const { data, error } = await supabase.functions.invoke('enrich-title-details', {
-        body: { tmdb_id: titleId, type: 'movie' }
-      });
-      
-      if (error) throw error;
-      return data;
-    } catch (error) {
-      console.error('Failed to enrich title:', error);
-      return null;
-    }
-  };
-
   const loadWatchlist = async (status: string) => {
     if (!user) return;
     setLoading(true);
 
     try {
+      // Join with titles table to get all title data directly
       const { data, error } = await supabase
         .from('user_title_interactions')
-        .select('*')
+        .select(`
+          id,
+          title_id,
+          created_at,
+          titles:title_id (
+            id,
+            name,
+            title_type,
+            poster_path,
+            backdrop_path,
+            trailer_url,
+            runtime,
+            vote_average,
+            release_date,
+            first_air_date,
+            overview,
+            tmdb_id
+          )
+        `)
         .eq('user_id', user.id)
         .eq('interaction_type', status === 'pending' ? 'wishlisted' : 'completed')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
 
-      const enrichedTitles: EnrichedTitle[] = await Promise.all(
-        (data || []).map(async (item) => {
-          const enrichedData = await enrichTitleData(item.title_id);
-          return {
-            id: item.id,
-            title_id: item.title_id,
-            title: enrichedData?.title || `Title ${item.title_id.substring(0, 8)}`,
-            type: enrichedData?.type || 'movie',
-            year: enrichedData?.year,
-            poster_url: enrichedData?.poster_url,
-            trailer_url: enrichedData?.trailer_url,
-            runtime_minutes: enrichedData?.runtime_minutes,
-            genres: enrichedData?.genres,
-            cast: enrichedData?.cast,
-            certification: enrichedData?.certification,
-            streaming_services: enrichedData?.streaming_services,
-            added_at: item.created_at,
-          };
-        })
-      );
+      const enrichedTitles: EnrichedTitle[] = (data || []).map((item) => {
+        const titleData = item.titles as any;
+        const releaseYear = titleData?.release_date 
+          ? new Date(titleData.release_date).getFullYear()
+          : titleData?.first_air_date 
+            ? new Date(titleData.first_air_date).getFullYear()
+            : undefined;
+
+        return {
+          id: item.id,
+          title_id: item.title_id,
+          title: titleData?.name || 'Unknown Title',
+          type: titleData?.title_type === 'tv' ? 'series' : 'movie',
+          year: releaseYear,
+          poster_url: titleData?.poster_path 
+            ? `https://image.tmdb.org/t/p/w500${titleData.poster_path}` 
+            : undefined,
+          trailer_url: titleData?.trailer_url,
+          runtime_minutes: titleData?.runtime,
+          added_at: item.created_at,
+        };
+      });
 
       if (status === 'pending') {
         setPendingTitles(enrichedTitles);
@@ -143,38 +150,56 @@ export default function Watchlist() {
       const { data, error } = await supabase
         .from('user_social_recommendations')
         .select(`
-          *,
-          sender:sender_user_id(full_name, username)
+          id,
+          title_id,
+          message,
+          created_at,
+          sender:sender_user_id(full_name, username),
+          titles:title_id (
+            id,
+            name,
+            title_type,
+            poster_path,
+            backdrop_path,
+            trailer_url,
+            runtime,
+            vote_average,
+            release_date,
+            first_air_date,
+            overview,
+            tmdb_id
+          )
         `)
         .eq('receiver_user_id', user.id)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
 
-      const enrichedTitles: EnrichedTitle[] = await Promise.all(
-        (data || []).map(async (item) => {
-          const enrichedData = await enrichTitleData(item.title_id);
-          const senderName = (item.sender as any)?.full_name || (item.sender as any)?.username || 'Someone';
-          
-          return {
-            id: item.id,
-            title_id: item.title_id,
-            title: enrichedData?.title || `Title ${item.title_id.substring(0, 8)}`,
-            type: enrichedData?.type || 'movie',
-            year: enrichedData?.year,
-            poster_url: enrichedData?.poster_url,
-            trailer_url: enrichedData?.trailer_url,
-            runtime_minutes: enrichedData?.runtime_minutes,
-            genres: enrichedData?.genres,
-            cast: enrichedData?.cast,
-            certification: enrichedData?.certification,
-            streaming_services: enrichedData?.streaming_services,
-            added_at: item.created_at,
-            recommended_by: senderName,
-            recommendation_note: item.message,
-          };
-        })
-      );
+      const enrichedTitles: EnrichedTitle[] = (data || []).map((item) => {
+        const titleData = item.titles as any;
+        const senderName = (item.sender as any)?.full_name || (item.sender as any)?.username || 'Someone';
+        const releaseYear = titleData?.release_date 
+          ? new Date(titleData.release_date).getFullYear()
+          : titleData?.first_air_date 
+            ? new Date(titleData.first_air_date).getFullYear()
+            : undefined;
+
+        return {
+          id: item.id,
+          title_id: item.title_id,
+          title: titleData?.name || 'Unknown Title',
+          type: titleData?.title_type === 'tv' ? 'series' : 'movie',
+          year: releaseYear,
+          poster_url: titleData?.poster_path 
+            ? `https://image.tmdb.org/t/p/w500${titleData.poster_path}` 
+            : undefined,
+          trailer_url: titleData?.trailer_url,
+          runtime_minutes: titleData?.runtime,
+          added_at: item.created_at,
+          recommended_by: senderName,
+          recommendation_note: item.message,
+        };
+      });
 
       setRecommendedTitles(enrichedTitles);
     } catch (error) {
