@@ -79,55 +79,112 @@ export default function Watchlist() {
     setLoading(true);
 
     try {
-      // Join with titles table to get all title data directly
-      const { data, error } = await supabase
+      // Get all interactions for this user and status
+      const { data: interactions, error } = await supabase
         .from('user_title_interactions')
-        .select(`
-          id,
-          title_id,
-          created_at,
-          titles:title_id (
-            id,
-            name,
-            title_type,
-            poster_path,
-            backdrop_path,
-            trailer_url,
-            runtime,
-            vote_average,
-            release_date,
-            first_air_date,
-            overview,
-            tmdb_id
-          )
-        `)
+        .select('id, title_id, created_at')
         .eq('user_id', user.id)
         .eq('interaction_type', status === 'pending' ? 'wishlisted' : 'completed')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
+      if (!interactions || interactions.length === 0) {
+        if (status === 'pending') setPendingTitles([]);
+        else setWatchedTitles([]);
+        setLoading(false);
+        return;
+      }
 
-      const enrichedTitles: EnrichedTitle[] = (data || []).map((item) => {
-        const titleData = item.titles as any;
-        const releaseYear = titleData?.release_date 
-          ? new Date(titleData.release_date).getFullYear()
-          : titleData?.first_air_date 
-            ? new Date(titleData.first_air_date).getFullYear()
-            : undefined;
+      const titleIds = interactions.map(i => i.title_id);
 
-        return {
-          id: item.id,
-          title_id: item.title_id,
-          title: titleData?.name || 'Unknown Title',
-          type: titleData?.title_type === 'tv' ? 'series' : 'movie',
-          year: releaseYear,
-          poster_url: titleData?.poster_path 
-            ? `https://image.tmdb.org/t/p/w500${titleData.poster_path}` 
-            : undefined,
-          trailer_url: titleData?.trailer_url,
-          runtime_minutes: titleData?.runtime,
-          added_at: item.created_at,
-        };
+      // Try to match with titles table first
+      const { data: titlesData } = await supabase
+        .from('titles')
+        .select('id, name, title_type, poster_path, backdrop_path, trailer_url, runtime, release_date, first_air_date, tmdb_id')
+        .in('id', titleIds);
+
+      const titlesMap = new Map((titlesData || []).map(t => [t.id, t]));
+
+      // For IDs not found in titles, check seasons table
+      const unmatchedIds = titleIds.filter(id => !titlesMap.has(id));
+      let seasonsMap = new Map<string, any>();
+
+      if (unmatchedIds.length > 0) {
+        const { data: seasonsData } = await supabase
+          .from('seasons')
+          .select(`
+            id,
+            season_number,
+            name,
+            poster_path,
+            overview,
+            air_date,
+            episode_count,
+            title_id,
+            titles:title_id (
+              name,
+              title_type,
+              trailer_url,
+              tmdb_id
+            )
+          `)
+          .in('id', unmatchedIds);
+
+        seasonsMap = new Map((seasonsData || []).map(s => [s.id, s]));
+      }
+
+      const enrichedTitles: EnrichedTitle[] = interactions.map((item) => {
+        // Check if it's a title or a season
+        const titleData = titlesMap.get(item.title_id);
+        const seasonData = seasonsMap.get(item.title_id);
+
+        if (seasonData) {
+          // It's a season
+          const parentTitle = seasonData.titles as any;
+          return {
+            id: item.id,
+            title_id: item.title_id,
+            title: `${parentTitle?.name || 'Unknown'} - ${seasonData.name || `Season ${seasonData.season_number}`}`,
+            type: 'series' as const,
+            year: seasonData.air_date ? new Date(seasonData.air_date).getFullYear() : undefined,
+            poster_url: seasonData.poster_path 
+              ? `https://image.tmdb.org/t/p/w500${seasonData.poster_path}` 
+              : undefined,
+            trailer_url: parentTitle?.trailer_url,
+            runtime_minutes: undefined,
+            added_at: item.created_at,
+          };
+        } else if (titleData) {
+          // It's a title (movie or full series)
+          const releaseYear = titleData.release_date 
+            ? new Date(titleData.release_date).getFullYear()
+            : titleData.first_air_date 
+              ? new Date(titleData.first_air_date).getFullYear()
+              : undefined;
+
+          return {
+            id: item.id,
+            title_id: item.title_id,
+            title: titleData.name || 'Unknown Title',
+            type: titleData.title_type === 'tv' ? 'series' : 'movie',
+            year: releaseYear,
+            poster_url: titleData.poster_path 
+              ? `https://image.tmdb.org/t/p/w500${titleData.poster_path}` 
+              : undefined,
+            trailer_url: titleData.trailer_url,
+            runtime_minutes: titleData.runtime,
+            added_at: item.created_at,
+          };
+        } else {
+          // Not found in either table
+          return {
+            id: item.id,
+            title_id: item.title_id,
+            title: 'Unknown Title',
+            type: 'movie' as const,
+            added_at: item.created_at,
+          };
+        }
       });
 
       if (status === 'pending') {
@@ -147,58 +204,104 @@ export default function Watchlist() {
     setLoading(true);
 
     try {
-      const { data, error } = await supabase
+      const { data: recommendations, error } = await supabase
         .from('user_social_recommendations')
-        .select(`
-          id,
-          title_id,
-          message,
-          created_at,
-          sender:sender_user_id(full_name, username),
-          titles:title_id (
-            id,
-            name,
-            title_type,
-            poster_path,
-            backdrop_path,
-            trailer_url,
-            runtime,
-            vote_average,
-            release_date,
-            first_air_date,
-            overview,
-            tmdb_id
-          )
-        `)
+        .select('id, title_id, message, created_at, sender:sender_user_id(full_name, username)')
         .eq('receiver_user_id', user.id)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
+      if (!recommendations || recommendations.length === 0) {
+        setRecommendedTitles([]);
+        setLoading(false);
+        return;
+      }
 
-      const enrichedTitles: EnrichedTitle[] = (data || []).map((item) => {
-        const titleData = item.titles as any;
+      const titleIds = recommendations.map(r => r.title_id);
+
+      // Try to match with titles table first
+      const { data: titlesData } = await supabase
+        .from('titles')
+        .select('id, name, title_type, poster_path, trailer_url, runtime, release_date, first_air_date, tmdb_id')
+        .in('id', titleIds);
+
+      const titlesMap = new Map((titlesData || []).map(t => [t.id, t]));
+
+      // For IDs not found in titles, check seasons table
+      const unmatchedIds = titleIds.filter(id => !titlesMap.has(id));
+      let seasonsMap = new Map<string, any>();
+
+      if (unmatchedIds.length > 0) {
+        const { data: seasonsData } = await supabase
+          .from('seasons')
+          .select(`
+            id,
+            season_number,
+            name,
+            poster_path,
+            air_date,
+            title_id,
+            titles:title_id (name, title_type, trailer_url, tmdb_id)
+          `)
+          .in('id', unmatchedIds);
+
+        seasonsMap = new Map((seasonsData || []).map(s => [s.id, s]));
+      }
+
+      const enrichedTitles: EnrichedTitle[] = recommendations.map((item) => {
         const senderName = (item.sender as any)?.full_name || (item.sender as any)?.username || 'Someone';
-        const releaseYear = titleData?.release_date 
-          ? new Date(titleData.release_date).getFullYear()
-          : titleData?.first_air_date 
-            ? new Date(titleData.first_air_date).getFullYear()
-            : undefined;
+        const titleData = titlesMap.get(item.title_id);
+        const seasonData = seasonsMap.get(item.title_id);
 
-        return {
-          id: item.id,
-          title_id: item.title_id,
-          title: titleData?.name || 'Unknown Title',
-          type: titleData?.title_type === 'tv' ? 'series' : 'movie',
-          year: releaseYear,
-          poster_url: titleData?.poster_path 
-            ? `https://image.tmdb.org/t/p/w500${titleData.poster_path}` 
-            : undefined,
-          trailer_url: titleData?.trailer_url,
-          runtime_minutes: titleData?.runtime,
-          added_at: item.created_at,
-          recommended_by: senderName,
-          recommendation_note: item.message,
-        };
+        if (seasonData) {
+          const parentTitle = seasonData.titles as any;
+          return {
+            id: item.id,
+            title_id: item.title_id,
+            title: `${parentTitle?.name || 'Unknown'} - ${seasonData.name || `Season ${seasonData.season_number}`}`,
+            type: 'series' as const,
+            year: seasonData.air_date ? new Date(seasonData.air_date).getFullYear() : undefined,
+            poster_url: seasonData.poster_path 
+              ? `https://image.tmdb.org/t/p/w500${seasonData.poster_path}` 
+              : undefined,
+            trailer_url: parentTitle?.trailer_url,
+            added_at: item.created_at,
+            recommended_by: senderName,
+            recommendation_note: item.message,
+          };
+        } else if (titleData) {
+          const releaseYear = titleData.release_date 
+            ? new Date(titleData.release_date).getFullYear()
+            : titleData.first_air_date 
+              ? new Date(titleData.first_air_date).getFullYear()
+              : undefined;
+
+          return {
+            id: item.id,
+            title_id: item.title_id,
+            title: titleData.name || 'Unknown Title',
+            type: titleData.title_type === 'tv' ? 'series' : 'movie',
+            year: releaseYear,
+            poster_url: titleData.poster_path 
+              ? `https://image.tmdb.org/t/p/w500${titleData.poster_path}` 
+              : undefined,
+            trailer_url: titleData.trailer_url,
+            runtime_minutes: titleData.runtime,
+            added_at: item.created_at,
+            recommended_by: senderName,
+            recommendation_note: item.message,
+          };
+        } else {
+          return {
+            id: item.id,
+            title_id: item.title_id,
+            title: 'Unknown Title',
+            type: 'movie' as const,
+            added_at: item.created_at,
+            recommended_by: senderName,
+            recommendation_note: item.message,
+          };
+        }
       });
 
       setRecommendedTitles(enrichedTitles);
