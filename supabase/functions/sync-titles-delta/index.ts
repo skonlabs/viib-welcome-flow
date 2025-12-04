@@ -469,9 +469,64 @@ serve(async (req) => {
               }
             }
 
-            // Store seasons
+            // Store seasons with trailers
             if (details?.seasons) {
               for (const season of details.seasons) {
+                // Fetch trailer for this season
+                let seasonTrailerUrl: string | null = null;
+                let seasonIsTmdbTrailer = true;
+
+                if (season.season_number > 0) {
+                  try {
+                    // Try TMDB first
+                    const seasonVideosRes = await fetch(`https://api.themoviedb.org/3/tv/${show.id}/season/${season.season_number}/videos?api_key=${TMDB_API_KEY}`);
+                    if (seasonVideosRes.ok) {
+                      const seasonVideosData = await seasonVideosRes.json();
+                      const seasonTrailer = seasonVideosData.results?.find((v: any) => v.type === 'Trailer' && v.site === 'YouTube');
+                      if (seasonTrailer) {
+                        seasonTrailerUrl = `https://www.youtube.com/watch?v=${seasonTrailer.key}`;
+                        seasonIsTmdbTrailer = true;
+                      }
+                    }
+
+                    // YouTube fallback if no TMDB trailer
+                    if (!seasonTrailerUrl && YOUTUBE_API_KEY) {
+                      const seasonSearchName = season.name || `Season ${season.season_number}`;
+                      const searchQuery = `${show.name} ${seasonSearchName} official trailer`;
+                      const relevantChannels = (officialChannels || []).filter(c => 
+                        c.language_code === (show.original_language || language.iso_639_1) || c.language_code === 'global' || c.language_code === 'en'
+                      ).map(c => c.channel_name.toLowerCase());
+
+                      const ytRes = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(searchQuery)}&type=video&maxResults=10&key=${YOUTUBE_API_KEY}`);
+                      if (ytRes.ok) {
+                        const ytData = await ytRes.json();
+                        const officialChannelTrailer = ytData.items?.find((item: any) => {
+                          const channelTitle = item.snippet.channelTitle?.toLowerCase() || '';
+                          return relevantChannels.some(officialName => channelTitle.includes(officialName.toLowerCase()));
+                        });
+                        if (officialChannelTrailer) {
+                          seasonTrailerUrl = `https://www.youtube.com/watch?v=${officialChannelTrailer.id.videoId}`;
+                          seasonIsTmdbTrailer = false;
+                        } else {
+                          const verifiedTrailer = ytData.items?.find((item: any) => {
+                            const channelTitle = item.snippet.channelTitle?.toLowerCase() || '';
+                            const videoTitle = item.snippet.title?.toLowerCase() || '';
+                            const hasOfficialInTitle = videoTitle.includes('official trailer');
+                            const isOfficialChannel = channelTitle.includes('pictures') || channelTitle.includes('studios') || channelTitle.includes('entertainment') || channelTitle.includes('netflix') || channelTitle.includes('disney');
+                            return hasOfficialInTitle && isOfficialChannel;
+                          });
+                          if (verifiedTrailer) {
+                            seasonTrailerUrl = `https://www.youtube.com/watch?v=${verifiedTrailer.id.videoId}`;
+                            seasonIsTmdbTrailer = false;
+                          }
+                        }
+                      }
+                    }
+                  } catch (e) {
+                    console.error(`Error fetching season ${season.season_number} trailer:`, e);
+                  }
+                }
+
                 await supabase.from('seasons').upsert({
                   title_id: insertedTitle.id,
                   season_number: season.season_number,
@@ -479,7 +534,9 @@ serve(async (req) => {
                   air_date: season.air_date || null,
                   name: season.name,
                   overview: season.overview,
-                  poster_path: season.poster_path
+                  poster_path: season.poster_path,
+                  trailer_url: seasonTrailerUrl,
+                  is_tmdb_trailer: seasonIsTmdbTrailer
                 }, { onConflict: 'title_id,season_number' });
               }
             }

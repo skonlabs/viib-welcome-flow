@@ -857,33 +857,39 @@ export type Database = {
           created_at: string
           episode_count: number | null
           id: string
+          is_tmdb_trailer: boolean | null
           name: string | null
           overview: string | null
           poster_path: string | null
           season_number: number
           title_id: string
+          trailer_url: string | null
         }
         Insert: {
           air_date?: string | null
           created_at?: string
           episode_count?: number | null
           id?: string
+          is_tmdb_trailer?: boolean | null
           name?: string | null
           overview?: string | null
           poster_path?: string | null
           season_number: number
           title_id: string
+          trailer_url?: string | null
         }
         Update: {
           air_date?: string | null
           created_at?: string
           episode_count?: number | null
           id?: string
+          is_tmdb_trailer?: boolean | null
           name?: string | null
           overview?: string | null
           poster_path?: string | null
           season_number?: number
           title_id?: string
+          trailer_url?: string | null
         }
         Relationships: [
           {
