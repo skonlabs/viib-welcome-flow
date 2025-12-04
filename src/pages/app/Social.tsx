@@ -192,18 +192,16 @@ export default function Social() {
           </Button>
         </div>
 
-        {/* User's Social Graph */}
-        <UserSocialGraph />
-
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="feed">Activity Feed</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="feed">Activity</TabsTrigger>
             <TabsTrigger value="connections">
               Friends ({connections.length})
             </TabsTrigger>
             <TabsTrigger value="requests">
               Requests ({pendingReceived.length})
             </TabsTrigger>
+            <TabsTrigger value="circle">Your Circle</TabsTrigger>
           </TabsList>
 
           <TabsContent value="feed" className="space-y-4">
@@ -351,6 +349,10 @@ export default function Social() {
                 ))}
               </div>
             )}
+          </TabsContent>
+
+          <TabsContent value="circle" className="space-y-4">
+            <UserSocialGraph />
           </TabsContent>
         </Tabs>
 
