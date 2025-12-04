@@ -2,10 +2,8 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   AlertDialog,
@@ -24,12 +22,9 @@ import UserSocialGraph from "@/components/UserSocialGraph";
 
 export default function Social() {
   const { user } = useAuth();
-  const [email, setEmail] = useState("");
   const [connections, setConnections] = useState<any[]>([]);
   const [pendingReceived, setPendingReceived] = useState<any[]>([]);
-  const [pendingSent, setPendingSent] = useState<any[]>([]);
   const [activityFeed, setActivityFeed] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("feed");
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
@@ -82,46 +77,6 @@ export default function Social() {
     } catch (error) {
       console.error('Failed to load activity feed:', error);
       toast.error("Failed to load activity");
-    }
-  };
-
-  const sendFriendRequest = async () => {
-    if (!email) {
-      toast.error("Please enter an email address");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const { data: friendUser } = await supabase
-        .from('users')
-        .select('id')
-        .eq('email', email)
-        .single();
-
-      if (!friendUser) {
-        toast.error("User not found");
-        return;
-      }
-
-      const { error } = await supabase
-        .from('friend_connections')
-        .insert({
-          user_id: user!.id,
-          friend_user_id: friendUser.id,
-          relationship_type: 'pending_invite'
-        });
-
-      if (error) throw error;
-
-      toast.success("Friend request sent!");
-      setEmail("");
-      loadConnections();
-    } catch (error: any) {
-      console.error('Error sending friend request:', error);
-      toast.error(error.message || "Failed to send friend request");
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -205,26 +160,6 @@ export default function Social() {
           </TabsList>
 
           <TabsContent value="feed" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Add Friend</CardTitle>
-                <CardDescription>Connect with friends by email address</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Friend's email address"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    type="email"
-                  />
-                  <Button onClick={sendFriendRequest} disabled={loading || !email}>
-                    Send Request
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
             {activityFeed.length === 0 ? (
               <Card className="p-12 text-center">
                 <Users className="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-50" />
