@@ -360,34 +360,21 @@ export default function Search() {
         return;
       }
 
-      let interactionId: string;
-
-      // If seasonNumber provided, look up the season's UUID and use that
-      if (seasonNumber) {
-        const { data: seasonData } = await supabase
-          .from('seasons')
-          .select('id')
-          .eq('title_id', existingTitle.id)
-          .eq('season_number', seasonNumber)
-          .maybeSingle();
-
-        if (!seasonData) {
-          toast.error("Season not found in our catalog.");
-          return;
-        }
-        interactionId = seasonData.id;
-      } else {
-        interactionId = existingTitle.id;
-      }
-
-      // Check if already in watchlist
-      const { data: existing } = await supabase
+      // Check if already in watchlist (with same season_number if applicable)
+      let existingQuery = supabase
         .from('user_title_interactions')
         .select('id')
         .eq('user_id', user.id)
-        .eq('title_id', interactionId)
-        .eq('interaction_type', 'wishlisted')
-        .maybeSingle();
+        .eq('title_id', existingTitle.id)
+        .eq('interaction_type', 'wishlisted');
+
+      if (seasonNumber) {
+        existingQuery = existingQuery.eq('season_number', seasonNumber);
+      } else {
+        existingQuery = existingQuery.is('season_number', null);
+      }
+
+      const { data: existing } = await existingQuery.maybeSingle();
 
       if (existing) {
         toast.info("Already in your watchlist");
@@ -398,8 +385,9 @@ export default function Search() {
         .from('user_title_interactions')
         .insert({
           user_id: user.id,
-          title_id: interactionId,
-          interaction_type: 'wishlisted'
+          title_id: existingTitle.id,
+          interaction_type: 'wishlisted',
+          season_number: seasonNumber || null
         });
 
       if (error) throw error;
