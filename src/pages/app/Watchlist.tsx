@@ -204,9 +204,9 @@ export default function Watchlist() {
         return;
       }
 
-      const titleIds = recommendations.map(r => r.title_id);
+      const titleIds = [...new Set(recommendations.map(r => r.title_id))];
 
-      // Try to match with titles table first
+      // Get all titles
       const { data: titlesData } = await supabase
         .from('titles')
         .select('id, name, title_type, poster_path, trailer_url, runtime, release_date, first_air_date, tmdb_id')
@@ -214,49 +214,11 @@ export default function Watchlist() {
 
       const titlesMap = new Map((titlesData || []).map(t => [t.id, t]));
 
-      // For IDs not found in titles, check seasons table
-      const unmatchedIds = titleIds.filter(id => !titlesMap.has(id));
-      let seasonsMap = new Map<string, any>();
-
-      if (unmatchedIds.length > 0) {
-        const { data: seasonsData } = await supabase
-          .from('seasons')
-          .select(`
-            id,
-            season_number,
-            name,
-            poster_path,
-            air_date,
-            title_id,
-            titles:title_id (name, title_type, trailer_url, tmdb_id)
-          `)
-          .in('id', unmatchedIds);
-
-        seasonsMap = new Map((seasonsData || []).map(s => [s.id, s]));
-      }
-
       const enrichedTitles: EnrichedTitle[] = recommendations.map((item) => {
         const senderName = (item.sender as any)?.full_name || (item.sender as any)?.username || 'Someone';
         const titleData = titlesMap.get(item.title_id);
-        const seasonData = seasonsMap.get(item.title_id);
 
-        if (seasonData) {
-          const parentTitle = seasonData.titles as any;
-          return {
-            id: item.id,
-            title_id: item.title_id,
-            title: `${parentTitle?.name || 'Unknown'} - ${seasonData.name || `Season ${seasonData.season_number}`}`,
-            type: 'series' as const,
-            year: seasonData.air_date ? new Date(seasonData.air_date).getFullYear() : undefined,
-            poster_url: seasonData.poster_path 
-              ? `https://image.tmdb.org/t/p/w500${seasonData.poster_path}` 
-              : undefined,
-            trailer_url: parentTitle?.trailer_url,
-            added_at: item.created_at,
-            recommended_by: senderName,
-            recommendation_note: item.message,
-          };
-        } else if (titleData) {
+        if (titleData) {
           const releaseYear = titleData.release_date 
             ? new Date(titleData.release_date).getFullYear()
             : titleData.first_air_date 
