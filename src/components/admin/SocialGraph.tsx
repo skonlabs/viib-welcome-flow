@@ -51,19 +51,60 @@ interface GraphEdge {
   trust: number;
 }
 
+// 5-level hierarchical sample users
 const SAMPLE_USERS = [
-  { full_name: 'Alex Rivera', email: 'alex@example.com', username: 'alexr' },
-  { full_name: 'Jordan Chen', email: 'jordan@example.com', username: 'jordanc' },
-  { full_name: 'Sam Williams', email: 'sam@example.com', username: 'samw' },
-  { full_name: 'Taylor Kim', email: 'taylor@example.com', username: 'taylork' },
-  { full_name: 'Morgan Lee', email: 'morgan@example.com', username: 'morganl' },
-  { full_name: 'Casey Brown', email: 'casey@example.com', username: 'caseyb' },
-  { full_name: 'Riley Garcia', email: 'riley@example.com', username: 'rileyg' },
-  { full_name: 'Avery Martinez', email: 'avery@example.com', username: 'averym' },
-  { full_name: 'Quinn Johnson', email: 'quinn@example.com', username: 'quinnj' },
-  { full_name: 'Drew Anderson', email: 'drew@example.com', username: 'drewa' },
-  { full_name: 'Reese Thomas', email: 'reese@example.com', username: 'reeset' },
-  { full_name: 'Skyler White', email: 'skyler@example.com', username: 'skylerw' },
+  // Level 0 - Center (1 user)
+  { full_name: 'Alex Rivera', email: 'alex@example.com', username: 'alexr', level: 0 },
+  // Level 1 - Direct friends (3 users)
+  { full_name: 'Jordan Chen', email: 'jordan@example.com', username: 'jordanc', level: 1 },
+  { full_name: 'Sam Williams', email: 'sam@example.com', username: 'samw', level: 1 },
+  { full_name: 'Taylor Kim', email: 'taylor@example.com', username: 'taylork', level: 1 },
+  // Level 2 - Friends of friends (6 users)
+  { full_name: 'Morgan Lee', email: 'morgan@example.com', username: 'morganl', level: 2 },
+  { full_name: 'Casey Brown', email: 'casey@example.com', username: 'caseyb', level: 2 },
+  { full_name: 'Riley Garcia', email: 'riley@example.com', username: 'rileyg', level: 2 },
+  { full_name: 'Avery Martinez', email: 'avery@example.com', username: 'averym', level: 2 },
+  { full_name: 'Quinn Johnson', email: 'quinn@example.com', username: 'quinnj', level: 2 },
+  { full_name: 'Drew Anderson', email: 'drew@example.com', username: 'drewa', level: 2 },
+  // Level 3 - 3rd degree (9 users)
+  { full_name: 'Reese Thomas', email: 'reese@example.com', username: 'reeset', level: 3 },
+  { full_name: 'Skyler White', email: 'skyler@example.com', username: 'skylerw', level: 3 },
+  { full_name: 'Dakota Jones', email: 'dakota@example.com', username: 'dakotaj', level: 3 },
+  { full_name: 'Phoenix Clark', email: 'phoenix@example.com', username: 'phoenixc', level: 3 },
+  { full_name: 'River Hall', email: 'river@example.com', username: 'riverh', level: 3 },
+  { full_name: 'Sage Wright', email: 'sage@example.com', username: 'sagew', level: 3 },
+  { full_name: 'Finley Scott', email: 'finley@example.com', username: 'finleys', level: 3 },
+  { full_name: 'Harper Young', email: 'harper@example.com', username: 'harpery', level: 3 },
+  { full_name: 'Emery King', email: 'emery@example.com', username: 'emeryk', level: 3 },
+  // Level 4 - 4th degree (12 users)
+  { full_name: 'Blake Adams', email: 'blake@example.com', username: 'blakea', level: 4 },
+  { full_name: 'Charlie Baker', email: 'charlie@example.com', username: 'charlieb', level: 4 },
+  { full_name: 'Devon Carter', email: 'devon@example.com', username: 'devonc', level: 4 },
+  { full_name: 'Ellis Davis', email: 'ellis@example.com', username: 'ellisd', level: 4 },
+  { full_name: 'Frankie Evans', email: 'frankie@example.com', username: 'frankiee', level: 4 },
+  { full_name: 'Gray Foster', email: 'gray@example.com', username: 'grayf', level: 4 },
+  { full_name: 'Hayden Green', email: 'hayden@example.com', username: 'haydeng', level: 4 },
+  { full_name: 'Indigo Hill', email: 'indigo@example.com', username: 'indigoh', level: 4 },
+  { full_name: 'Jamie Irving', email: 'jamie@example.com', username: 'jamiei', level: 4 },
+  { full_name: 'Kerry James', email: 'kerry@example.com', username: 'kerryj', level: 4 },
+  { full_name: 'Logan Kelly', email: 'logan@example.com', username: 'logank', level: 4 },
+  { full_name: 'Marley Lane', email: 'marley@example.com', username: 'marleyl', level: 4 },
+  // Level 5 - 5th degree (15 users)
+  { full_name: 'Nico Moore', email: 'nico@example.com', username: 'nicom', level: 5 },
+  { full_name: 'Oakley Nash', email: 'oakley@example.com', username: 'oakleyn', level: 5 },
+  { full_name: 'Parker Owen', email: 'parker@example.com', username: 'parkero', level: 5 },
+  { full_name: 'Remy Price', email: 'remy@example.com', username: 'remyp', level: 5 },
+  { full_name: 'Shiloh Quinn', email: 'shiloh@example.com', username: 'shilohq', level: 5 },
+  { full_name: 'Teagan Reid', email: 'teagan@example.com', username: 'teaganr', level: 5 },
+  { full_name: 'Unity Stone', email: 'unity@example.com', username: 'unitys', level: 5 },
+  { full_name: 'Vale Turner', email: 'vale@example.com', username: 'valet', level: 5 },
+  { full_name: 'Winter Vale', email: 'winter@example.com', username: 'winterv', level: 5 },
+  { full_name: 'Xen Walker', email: 'xen@example.com', username: 'xenw', level: 5 },
+  { full_name: 'Yuki West', email: 'yuki@example.com', username: 'yukiw', level: 5 },
+  { full_name: 'Zion York', email: 'zion@example.com', username: 'ziony', level: 5 },
+  { full_name: 'Ari Zane', email: 'ari@example.com', username: 'ariz', level: 5 },
+  { full_name: 'Bay Storm', email: 'bay@example.com', username: 'bays', level: 5 },
+  { full_name: 'Cypress Moon', email: 'cypress@example.com', username: 'cypressm', level: 5 },
 ];
 
 const RELATIONSHIP_TYPES = ['friend', 'family', 'colleague', 'acquaintance'];
@@ -108,49 +149,119 @@ const SocialGraph = () => {
         .from('users')
         .insert(
           SAMPLE_USERS.map((u) => ({
-            ...u,
+            full_name: u.full_name,
+            email: u.email,
+            username: u.username,
             is_age_over_18: true,
             is_active: true,
             onboarding_completed: true,
           }))
         )
-        .select('id');
+        .select('id, email');
 
       if (usersError) throw usersError;
 
       if (insertedUsers && insertedUsers.length > 0) {
-        // Create connections between users (random network)
+        // Map emails to IDs for building connections
+        const emailToId = new Map<string, string>();
+        insertedUsers.forEach((u) => {
+          if (u.email) emailToId.set(u.email, u.id);
+        });
+
+        // Build hierarchical connections based on levels
         const connectionsList: Omit<Connection, 'id'>[] = [];
-        const userIds = insertedUsers.map((u) => u.id);
 
-        // Create a connected network
-        for (let i = 0; i < userIds.length; i++) {
-          // Connect each user to 2-4 random others
-          const numConnections = Math.floor(Math.random() * 3) + 2;
-          const possibleTargets = userIds.filter((id) => id !== userIds[i]);
+        // Group users by level
+        const levels: string[][] = [[], [], [], [], [], []];
+        SAMPLE_USERS.forEach((u) => {
+          const id = emailToId.get(u.email);
+          if (id) levels[u.level].push(id);
+        });
 
-          for (let j = 0; j < numConnections && possibleTargets.length > 0; j++) {
-            const randomIndex = Math.floor(Math.random() * possibleTargets.length);
-            const targetId = possibleTargets.splice(randomIndex, 1)[0];
+        // Level 0 -> Level 1 (center connects to all direct friends)
+        levels[0].forEach((centerId) => {
+          levels[1].forEach((friendId) => {
+            connectionsList.push({
+              user_id: centerId,
+              friend_user_id: friendId,
+              relationship_type: 'friend',
+              trust_score: 0.9 + Math.random() * 0.1,
+              is_muted: false,
+            });
+          });
+        });
 
-            // Check if connection already exists (in either direction)
-            const exists = connectionsList.some(
-              (c) =>
-                (c.user_id === userIds[i] && c.friend_user_id === targetId) ||
-                (c.user_id === targetId && c.friend_user_id === userIds[i])
-            );
+        // Level 1 -> Level 2 (each L1 connects to 2 L2 users)
+        levels[1].forEach((l1Id, idx) => {
+          const l2Start = idx * 2;
+          for (let i = 0; i < 2 && l2Start + i < levels[2].length; i++) {
+            connectionsList.push({
+              user_id: l1Id,
+              friend_user_id: levels[2][l2Start + i],
+              relationship_type: RELATIONSHIP_TYPES[Math.floor(Math.random() * RELATIONSHIP_TYPES.length)],
+              trust_score: 0.7 + Math.random() * 0.2,
+              is_muted: false,
+            });
+          }
+        });
 
-            if (!exists) {
+        // Level 2 -> Level 3 (each L2 connects to 1-2 L3 users)
+        levels[2].forEach((l2Id, idx) => {
+          const l3Start = Math.floor(idx * 1.5);
+          for (let i = 0; i < 2 && l3Start + i < levels[3].length; i++) {
+            connectionsList.push({
+              user_id: l2Id,
+              friend_user_id: levels[3][l3Start + i],
+              relationship_type: RELATIONSHIP_TYPES[Math.floor(Math.random() * RELATIONSHIP_TYPES.length)],
+              trust_score: 0.6 + Math.random() * 0.2,
+              is_muted: false,
+            });
+          }
+        });
+
+        // Level 3 -> Level 4 (each L3 connects to 1-2 L4 users)
+        levels[3].forEach((l3Id, idx) => {
+          const l4Start = Math.floor(idx * 1.3);
+          for (let i = 0; i < 2 && l4Start + i < levels[4].length; i++) {
+            connectionsList.push({
+              user_id: l3Id,
+              friend_user_id: levels[4][l4Start + i],
+              relationship_type: RELATIONSHIP_TYPES[Math.floor(Math.random() * RELATIONSHIP_TYPES.length)],
+              trust_score: 0.5 + Math.random() * 0.2,
+              is_muted: false,
+            });
+          }
+        });
+
+        // Level 4 -> Level 5 (each L4 connects to 1-2 L5 users)
+        levels[4].forEach((l4Id, idx) => {
+          const l5Start = Math.floor(idx * 1.25);
+          for (let i = 0; i < 2 && l5Start + i < levels[5].length; i++) {
+            connectionsList.push({
+              user_id: l4Id,
+              friend_user_id: levels[5][l5Start + i],
+              relationship_type: RELATIONSHIP_TYPES[Math.floor(Math.random() * RELATIONSHIP_TYPES.length)],
+              trust_score: 0.4 + Math.random() * 0.2,
+              is_muted: false,
+            });
+          }
+        });
+
+        // Add some cross-connections within same levels for realism
+        [1, 2, 3, 4, 5].forEach((level) => {
+          const levelUsers = levels[level];
+          for (let i = 0; i < levelUsers.length - 1; i += 2) {
+            if (Math.random() > 0.5 && levelUsers[i + 1]) {
               connectionsList.push({
-                user_id: userIds[i],
-                friend_user_id: targetId,
-                relationship_type: RELATIONSHIP_TYPES[Math.floor(Math.random() * RELATIONSHIP_TYPES.length)],
-                trust_score: Math.random() * 0.5 + 0.5,
+                user_id: levelUsers[i],
+                friend_user_id: levelUsers[i + 1],
+                relationship_type: 'colleague',
+                trust_score: 0.5 + Math.random() * 0.3,
                 is_muted: false,
               });
             }
           }
-        }
+        });
 
         const { error: connectionsError } = await supabase
           .from('friend_connections')
@@ -159,7 +270,7 @@ const SocialGraph = () => {
         if (connectionsError) throw connectionsError;
       }
 
-      toast.success('Sample data generated successfully!');
+      toast.success('5-level sample data generated successfully!');
       await loadData();
     } catch (error) {
       console.error('Error generating sample data:', error);
@@ -204,124 +315,109 @@ const SocialGraph = () => {
     }
   };
 
-  // Build graph data with concentric circle layout
+  // Build graph data with 5-level concentric circle layout
   const { nodes, edges } = useMemo(() => {
     const nodeMap = new Map<string, GraphNode>();
     const edgeList: GraphEdge[] = [];
     const centerX = 400;
     const centerY = 300;
 
-    // First, calculate connection counts and depths
-    const directFriends = new Set<string>();
-    const friendsOfFriends = new Set<string>();
-
+    // Calculate depths using BFS from selected node
+    const depths = new Map<string, number>();
+    
     if (selectedNode) {
-      connections.forEach((conn) => {
-        if (conn.user_id === selectedNode) directFriends.add(conn.friend_user_id);
-        if (conn.friend_user_id === selectedNode) directFriends.add(conn.user_id);
-      });
+      // BFS to find depths up to 5 levels
+      const queue: { id: string; depth: number }[] = [{ id: selectedNode, depth: 0 }];
+      depths.set(selectedNode, 0);
 
-      connections.forEach((conn) => {
-        if (directFriends.has(conn.user_id) && conn.friend_user_id !== selectedNode && !directFriends.has(conn.friend_user_id)) {
-          friendsOfFriends.add(conn.friend_user_id);
-        }
-        if (directFriends.has(conn.friend_user_id) && conn.user_id !== selectedNode && !directFriends.has(conn.user_id)) {
-          friendsOfFriends.add(conn.user_id);
-        }
-      });
+      while (queue.length > 0) {
+        const current = queue.shift()!;
+        if (current.depth >= 5) continue;
+
+        connections.forEach((conn) => {
+          let neighborId: string | null = null;
+          if (conn.user_id === current.id) neighborId = conn.friend_user_id;
+          else if (conn.friend_user_id === current.id) neighborId = conn.user_id;
+
+          if (neighborId && !depths.has(neighborId)) {
+            depths.set(neighborId, current.depth + 1);
+            queue.push({ id: neighborId, depth: current.depth + 1 });
+          }
+        });
+      }
     }
 
-    // Group users by depth
-    const ring0: User[] = []; // Selected user (center)
-    const ring1: User[] = []; // Direct friends
-    const ring2: User[] = []; // Friends of friends
-    const ring3: User[] = []; // Others
+    // Group users by depth (0-5, where 6 means unconnected)
+    const rings: User[][] = [[], [], [], [], [], [], []];
 
     users.forEach((user) => {
       if (selectedNode) {
-        if (user.id === selectedNode) ring0.push(user);
-        else if (directFriends.has(user.id)) ring1.push(user);
-        else if (friendsOfFriends.has(user.id)) ring2.push(user);
-        else ring3.push(user);
+        const depth = depths.get(user.id) ?? 6;
+        rings[Math.min(depth, 6)].push(user);
       } else {
-        ring1.push(user); // When no selection, show all in one circle
+        rings[1].push(user); // When no selection, show all in one circle
       }
     });
 
+    // Ring radii for 5 levels
+    const ringRadii = [0, 80, 140, 200, 250, 290];
+
     // Position nodes in concentric circles
-    const ring1Radius = selectedNode ? 120 : 180;
-    const ring2Radius = 220;
-    const ring3Radius = 280;
-
-    // Center node (selected user)
-    ring0.forEach((user) => {
-      const connectionCount = connections.filter(
-        (c) => c.user_id === user.id || c.friend_user_id === user.id
-      ).length;
-      nodeMap.set(user.id, {
-        id: user.id,
-        name: user.full_name || user.username || user.email || 'Unknown',
-        x: centerX,
-        y: centerY,
-        vx: 0,
-        vy: 0,
-        connections: connectionCount,
-        depth: 0,
-      });
-    });
-
-    // Ring 1: Direct friends
-    ring1.forEach((user, index) => {
-      const angle = (2 * Math.PI * index) / ring1.length - Math.PI / 2;
-      const connectionCount = connections.filter(
-        (c) => c.user_id === user.id || c.friend_user_id === user.id
-      ).length;
-      nodeMap.set(user.id, {
-        id: user.id,
-        name: user.full_name || user.username || user.email || 'Unknown',
-        x: centerX + Math.cos(angle) * ring1Radius,
-        y: centerY + Math.sin(angle) * ring1Radius,
-        vx: 0,
-        vy: 0,
-        connections: connectionCount,
-        depth: selectedNode ? 1 : 0,
-      });
-    });
-
-    // Ring 2: Friends of friends
-    ring2.forEach((user, index) => {
-      const angle = (2 * Math.PI * index) / ring2.length - Math.PI / 2;
-      const connectionCount = connections.filter(
-        (c) => c.user_id === user.id || c.friend_user_id === user.id
-      ).length;
-      nodeMap.set(user.id, {
-        id: user.id,
-        name: user.full_name || user.username || user.email || 'Unknown',
-        x: centerX + Math.cos(angle) * ring2Radius,
-        y: centerY + Math.sin(angle) * ring2Radius,
-        vx: 0,
-        vy: 0,
-        connections: connectionCount,
-        depth: 2,
-      });
-    });
-
-    // Ring 3: Others (outer ring, dimmed)
-    ring3.forEach((user, index) => {
-      const angle = (2 * Math.PI * index) / ring3.length - Math.PI / 2;
-      const connectionCount = connections.filter(
-        (c) => c.user_id === user.id || c.friend_user_id === user.id
-      ).length;
-      nodeMap.set(user.id, {
-        id: user.id,
-        name: user.full_name || user.username || user.email || 'Unknown',
-        x: centerX + Math.cos(angle) * ring3Radius,
-        y: centerY + Math.sin(angle) * ring3Radius,
-        vx: 0,
-        vy: 0,
-        connections: connectionCount,
-        depth: 3,
-      });
+    rings.forEach((ringUsers, depth) => {
+      if (depth === 0) {
+        // Center node
+        ringUsers.forEach((user) => {
+          const connectionCount = connections.filter(
+            (c) => c.user_id === user.id || c.friend_user_id === user.id
+          ).length;
+          nodeMap.set(user.id, {
+            id: user.id,
+            name: user.full_name || user.username || user.email || 'Unknown',
+            x: centerX,
+            y: centerY,
+            vx: 0,
+            vy: 0,
+            connections: connectionCount,
+            depth: 0,
+          });
+        });
+      } else if (depth <= 5) {
+        const radius = selectedNode ? ringRadii[depth] : 180;
+        ringUsers.forEach((user, index) => {
+          const angle = (2 * Math.PI * index) / ringUsers.length - Math.PI / 2;
+          const connectionCount = connections.filter(
+            (c) => c.user_id === user.id || c.friend_user_id === user.id
+          ).length;
+          nodeMap.set(user.id, {
+            id: user.id,
+            name: user.full_name || user.username || user.email || 'Unknown',
+            x: centerX + Math.cos(angle) * radius,
+            y: centerY + Math.sin(angle) * radius,
+            vx: 0,
+            vy: 0,
+            connections: connectionCount,
+            depth: selectedNode ? depth : 0,
+          });
+        });
+      } else {
+        // Unconnected users - place in outer ring
+        ringUsers.forEach((user, index) => {
+          const angle = (2 * Math.PI * index) / ringUsers.length - Math.PI / 2;
+          const connectionCount = connections.filter(
+            (c) => c.user_id === user.id || c.friend_user_id === user.id
+          ).length;
+          nodeMap.set(user.id, {
+            id: user.id,
+            name: user.full_name || user.username || user.email || 'Unknown',
+            x: centerX + Math.cos(angle) * 320,
+            y: centerY + Math.sin(angle) * 320,
+            vx: 0,
+            vy: 0,
+            connections: connectionCount,
+            depth: 6,
+          });
+        });
+      }
     });
 
     // Create edges from connections
@@ -337,13 +433,22 @@ const SocialGraph = () => {
     return { nodes: Array.from(nodeMap.values()), edges: edgeList };
   }, [users, connections, selectedNode]);
 
+  // Level colors: 1=cyan, 2=gold, 3=rose, 4=violet, 5=emerald
+  const LEVEL_COLORS = [
+    'hsl(var(--primary))',      // 0: Center (primary)
+    'hsl(173, 80%, 50%)',       // 1: Cyan
+    'hsl(45, 90%, 60%)',        // 2: Gold
+    'hsl(350, 80%, 60%)',       // 3: Rose
+    'hsl(270, 70%, 60%)',       // 4: Violet
+    'hsl(160, 70%, 45%)',       // 5: Emerald
+  ];
+
   const getNodeColor = useCallback(
     (node: GraphNode) => {
       if (selectedNode === node.id) return 'hsl(var(--primary))';
       if (hoveredNode === node.id) return 'hsl(var(--primary) / 0.8)';
       if (selectedNode) {
-        if (node.depth === 1) return 'hsl(173, 80%, 50%)'; // Cyan for direct friends
-        if (node.depth === 2) return 'hsl(45, 90%, 60%)'; // Gold for friends of friends
+        if (node.depth >= 1 && node.depth <= 5) return LEVEL_COLORS[node.depth];
         return 'hsl(var(--muted-foreground) / 0.3)';
       }
       return 'hsl(var(--primary) / 0.7)';
@@ -355,12 +460,15 @@ const SocialGraph = () => {
     (edge: GraphEdge) => {
       if (!selectedNode) return 'hsl(var(--primary) / 0.3)';
       if (edge.source === selectedNode || edge.target === selectedNode) {
-        return 'hsl(173, 80%, 50%)';
+        return LEVEL_COLORS[1];
       }
       const sourceNode = nodes.find((n) => n.id === edge.source);
       const targetNode = nodes.find((n) => n.id === edge.target);
-      if (sourceNode?.depth === 1 || targetNode?.depth === 1) {
-        return 'hsl(45, 90%, 60% / 0.5)';
+      const minDepth = Math.min(sourceNode?.depth ?? 6, targetNode?.depth ?? 6);
+      if (minDepth >= 1 && minDepth <= 5) {
+        // Return color with reduced opacity
+        const baseColor = LEVEL_COLORS[minDepth];
+        return baseColor.replace(')', ' / 0.4)');
       }
       return 'hsl(var(--muted-foreground) / 0.1)';
     },
@@ -494,7 +602,7 @@ const SocialGraph = () => {
         <CardHeader>
           <CardTitle>Circle of Friends</CardTitle>
           <CardDescription>
-            Click on a user to see their social circle. Inner ring shows direct friends (cyan), outer ring shows friends of friends (gold).
+            Click on a user to see their 5-level social circle. Colors: Cyan (1°), Gold (2°), Rose (3°), Violet (4°), Emerald (5°)
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -526,14 +634,16 @@ const SocialGraph = () => {
                   </filter>
                 </defs>
 
-                {/* Concentric circle guides */}
+                {/* 5-level concentric circle guides */}
                 {selectedNode && (
                   <g>
-                    <circle cx="400" cy="300" r="120" fill="none" stroke="hsl(173, 80%, 50%)" strokeOpacity="0.15" strokeWidth="40" />
-                    <circle cx="400" cy="300" r="220" fill="none" stroke="hsl(45, 90%, 60%)" strokeOpacity="0.1" strokeWidth="40" />
-                    <circle cx="400" cy="300" r="280" fill="none" stroke="hsl(var(--muted-foreground))" strokeOpacity="0.05" strokeWidth="20" />
+                    <circle cx="400" cy="300" r="80" fill="none" stroke="hsl(173, 80%, 50%)" strokeOpacity="0.12" strokeWidth="25" />
+                    <circle cx="400" cy="300" r="140" fill="none" stroke="hsl(45, 90%, 60%)" strokeOpacity="0.1" strokeWidth="25" />
+                    <circle cx="400" cy="300" r="200" fill="none" stroke="hsl(350, 80%, 60%)" strokeOpacity="0.08" strokeWidth="25" />
+                    <circle cx="400" cy="300" r="250" fill="none" stroke="hsl(270, 70%, 60%)" strokeOpacity="0.06" strokeWidth="20" />
+                    <circle cx="400" cy="300" r="290" fill="none" stroke="hsl(160, 70%, 45%)" strokeOpacity="0.05" strokeWidth="15" />
                     {/* Center glow */}
-                    <circle cx="400" cy="300" r="60" fill="url(#centerGlow)" />
+                    <circle cx="400" cy="300" r="40" fill="url(#centerGlow)" />
                   </g>
                 )}
                 {!selectedNode && (
