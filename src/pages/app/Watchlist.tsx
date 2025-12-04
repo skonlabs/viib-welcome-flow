@@ -606,7 +606,7 @@ export default function Watchlist() {
         {selectedTitle && (
           <TitleDetailsModal
             title={{
-              tmdb_id: parseInt(selectedTitle.title_id),
+              tmdb_id: selectedTitle.tmdb_id,
               external_id: selectedTitle.title_id,
               title: selectedTitle.title,
               type: selectedTitle.type,
