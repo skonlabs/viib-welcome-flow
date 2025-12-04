@@ -97,6 +97,10 @@ serve(async (req) => {
 
     const { data: genres } = await supabase.from('genres').select('id, genre_name');
     const { data: languages } = await supabase.from('spoken_languages').select('iso_639_1, language_name');
+    
+    // Create a Set of valid language codes - ONLY use these, never add new ones
+    const validLanguageCodes = new Set((languages || []).map(l => l.iso_639_1));
+    console.log(`Valid language codes: ${validLanguageCodes.size}`);
 
     // Fetch supported streaming services
     const { data: streamingServices } = await supabase
@@ -354,11 +358,13 @@ serve(async (req) => {
               }
             }
 
-            // Store spoken languages
+            // Store spoken languages - ONLY if language exists in our table
             if (details?.spoken_languages) {
               for (const lang of details.spoken_languages) {
-                await supabase.from('spoken_languages').upsert({ iso_639_1: lang.iso_639_1, language_name: lang.english_name || lang.name }, { onConflict: 'iso_639_1' });
-                await supabase.from('title_spoken_languages').upsert({ title_id: insertedTitle.id, iso_639_1: lang.iso_639_1 }, { onConflict: 'title_id,iso_639_1' });
+                // Only link to existing languages, never add new ones
+                if (validLanguageCodes.has(lang.iso_639_1)) {
+                  await supabase.from('title_spoken_languages').upsert({ title_id: insertedTitle.id, iso_639_1: lang.iso_639_1 }, { onConflict: 'title_id,iso_639_1' });
+                }
               }
             }
           }
@@ -453,11 +459,13 @@ serve(async (req) => {
               }
             }
 
-            // Store spoken languages
+            // Store spoken languages - ONLY if language exists in our table
             if (details?.spoken_languages) {
               for (const lang of details.spoken_languages) {
-                await supabase.from('spoken_languages').upsert({ iso_639_1: lang.iso_639_1, language_name: lang.english_name || lang.name }, { onConflict: 'iso_639_1' });
-                await supabase.from('title_spoken_languages').upsert({ title_id: insertedTitle.id, iso_639_1: lang.iso_639_1 }, { onConflict: 'title_id,iso_639_1' });
+                // Only link to existing languages, never add new ones
+                if (validLanguageCodes.has(lang.iso_639_1)) {
+                  await supabase.from('title_spoken_languages').upsert({ title_id: insertedTitle.id, iso_639_1: lang.iso_639_1 }, { onConflict: 'title_id,iso_639_1' });
+                }
               }
             }
 
