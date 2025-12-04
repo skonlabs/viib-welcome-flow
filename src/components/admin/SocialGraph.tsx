@@ -1,10 +1,10 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { motion, AnimatePresence } from 'framer-motion';
-import { RefreshCw, Users, Link2, Trash2 } from 'lucide-react';
+import { RefreshCw, Users, Link2, Trash2, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   AlertDialog,
@@ -122,6 +122,17 @@ const SocialGraph = () => {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [hoveredNode, setHoveredNode] = useState<string | null>(null);
+  
+  // Zoom and pan state
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+  const [panStart, setPanStart] = useState({ x: 0, y: 0 });
+  const svgRef = useRef<SVGSVGElement>(null);
+  
+  // Hovered edge for connection details
+  const [hoveredEdge, setHoveredEdge] = useState<GraphEdge | null>(null);
+  const [edgeTooltipPos, setEdgeTooltipPos] = useState({ x: 0, y: 0 });
 
   const loadData = async () => {
     setLoading(true);
@@ -623,6 +634,65 @@ const SocialGraph = () => {
     return { totalConnections, avgConnections, relationshipTypes };
   }, [users, connections]);
 
+  // Zoom controls
+  const handleZoomIn = () => setZoom(prev => Math.min(prev + 0.25, 3));
+  const handleZoomOut = () => setZoom(prev => Math.max(prev - 0.25, 0.5));
+  const handleResetView = () => {
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+  };
+
+  // Pan handlers
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (e.button === 0) { // Left click
+      setIsPanning(true);
+      setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+    }
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (isPanning) {
+      setPan({ x: e.clientX - panStart.x, y: e.clientY - panStart.y });
+    }
+  };
+
+  const handleMouseUp = () => setIsPanning(false);
+
+  const handleWheel = (e: React.WheelEvent) => {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? -0.1 : 0.1;
+    setZoom(prev => Math.max(0.5, Math.min(3, prev + delta)));
+  };
+
+  // Edge hover handler with tooltip positioning
+  const handleEdgeHover = (edge: GraphEdge | null, e?: React.MouseEvent) => {
+    setHoveredEdge(edge);
+    if (edge && e && svgRef.current) {
+      const rect = svgRef.current.getBoundingClientRect();
+      setEdgeTooltipPos({ 
+        x: e.clientX - rect.left, 
+        y: e.clientY - rect.top - 40 
+      });
+    }
+  };
+
+  // Get connection details for tooltip
+  const getConnectionDetails = useCallback((edge: GraphEdge) => {
+    const connection = connections.find(
+      c => (c.user_id === edge.source && c.friend_user_id === edge.target) ||
+           (c.user_id === edge.target && c.friend_user_id === edge.source)
+    );
+    const sourceName = nodes.find(n => n.id === edge.source)?.name || 'Unknown';
+    const targetName = nodes.find(n => n.id === edge.target)?.name || 'Unknown';
+    return {
+      sourceName,
+      targetName,
+      type: connection?.relationship_type || 'unknown',
+      trust: connection?.trust_score || 0,
+      isMuted: connection?.is_muted || false
+    };
+  }, [connections, nodes]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -737,7 +807,55 @@ const SocialGraph = () => {
             </div>
           ) : (
             <div className="relative overflow-hidden rounded-lg bg-gradient-to-br from-background to-muted/20">
-              <svg width="100%" height="600" viewBox="0 0 800 600">
+              {/* Zoom controls */}
+              <div className="absolute top-4 right-4 z-10 flex flex-col gap-1 bg-background/90 backdrop-blur rounded-lg p-1">
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleZoomIn} title="Zoom In">
+                  <ZoomIn className="h-4 w-4" />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleZoomOut} title="Zoom Out">
+                  <ZoomOut className="h-4 w-4" />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleResetView} title="Reset View">
+                  <Maximize2 className="h-4 w-4" />
+                </Button>
+                <div className="text-xs text-center text-muted-foreground px-1">{Math.round(zoom * 100)}%</div>
+              </div>
+
+              {/* Edge tooltip */}
+              {hoveredEdge && (
+                <div 
+                  className="absolute z-20 bg-background/95 backdrop-blur border border-border rounded-lg p-3 shadow-lg text-sm pointer-events-none"
+                  style={{ left: edgeTooltipPos.x, top: edgeTooltipPos.y, transform: 'translateX(-50%)' }}
+                >
+                  {(() => {
+                    const details = getConnectionDetails(hoveredEdge);
+                    return (
+                      <div className="space-y-1.5">
+                        <div className="font-medium text-foreground">{details.sourceName} ↔ {details.targetName}</div>
+                        <div className="flex items-center gap-3 text-xs">
+                          <span className="capitalize text-muted-foreground">Type: <span className="text-foreground">{details.type}</span></span>
+                          <span className="text-muted-foreground">Trust: <span className="text-foreground">{(details.trust * 100).toFixed(0)}%</span></span>
+                          {details.isMuted && <Badge variant="secondary" className="text-xs py-0">Muted</Badge>}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+
+              <svg 
+                ref={svgRef}
+                width="100%" 
+                height="600" 
+                viewBox="0 0 800 600"
+                onMouseDown={handleMouseDown}
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleMouseUp}
+                onMouseLeave={() => { handleMouseUp(); setHoveredEdge(null); }}
+                onWheel={handleWheel}
+                style={{ cursor: isPanning ? 'grabbing' : 'grab' }}
+              >
+                <g transform={`translate(${pan.x}, ${pan.y}) scale(${zoom})`} style={{ transformOrigin: '400px 300px' }}>
                 {/* Background glow effect and edge gradients */}
                 <defs>
                   <radialGradient id="nodeGlow" cx="50%" cy="50%" r="50%">
@@ -814,8 +932,12 @@ const SocialGraph = () => {
                             }}
                             transition={{ duration: 0.5, delay: index * 0.01 }}
                             stroke={isCrossLevel && gradientId ? `url(#${gradientId})` : edgeColor || 'hsl(var(--muted-foreground))'}
-                            strokeWidth={getEdgeWidth(edge)}
-                            strokeOpacity={isCrossLevel ? 1 : 0.2}
+                            strokeWidth={hoveredEdge === edge ? getEdgeWidth(edge) * 2 : getEdgeWidth(edge)}
+                            strokeOpacity={hoveredEdge === edge ? 0.8 : (isCrossLevel ? 1 : 0.2)}
+                            onMouseEnter={(e) => handleEdgeHover(edge, e)}
+                            onMouseMove={(e) => handleEdgeHover(edge, e)}
+                            onMouseLeave={() => handleEdgeHover(null)}
+                            style={{ cursor: 'pointer' }}
                           />
                         );
                       })}
@@ -915,6 +1037,7 @@ const SocialGraph = () => {
                       );
                     })}
                   </AnimatePresence>
+                </g>
                 </g>
               </svg>
 
