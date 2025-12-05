@@ -182,6 +182,35 @@ serve(async (req) => {
         const batchPromises = [];
         const batchChunks: any[] = [];
         
+        // Track currently processing units
+        const currentlyProcessing: any[] = [];
+        for (let i = batchStart; i < batchEnd; i++) {
+          const chunk = remainingChunks[i];
+          currentlyProcessing.push({
+            languageCode: chunk.languageCode,
+            year: chunk.year,
+            genreId: chunk.genreId,
+            genreName: GENRE_MAP[chunk.genreId] || 'Unknown'
+          });
+        }
+        
+        // Update job config with currently processing
+        const { data: processingConfigData } = await supabase
+          .from('jobs')
+          .select('configuration')
+          .eq('id', jobId)
+          .single();
+        
+        await supabase
+          .from('jobs')
+          .update({
+            configuration: {
+              ...(processingConfigData?.configuration || {}),
+              currently_processing: currentlyProcessing
+            }
+          })
+          .eq('id', jobId);
+        
         for (let i = batchStart; i < batchEnd; i++) {
           const chunk = remainingChunks[i];
           batchChunks.push(chunk);
@@ -214,13 +243,18 @@ serve(async (req) => {
         for (const result of batchResults) {
           const genreName = GENRE_MAP[result.chunk.genreId] || 'Unknown';
           
-          if (result.success) {
+          if (result.success && 'result' in result) {
+            // Extract movie/series counts from response data
+            const responseData = (result as any).result?.data || {};
             newCompletedUnits.push({
               languageCode: result.chunk.languageCode,
               year: result.chunk.year,
               genreId: result.chunk.genreId,
               genreName,
-              completedAt: new Date().toISOString()
+              completedAt: new Date().toISOString(),
+              titlesProcessed: responseData.titlesProcessed || 0,
+              moviesProcessed: responseData.moviesProcessed || 0,
+              seriesProcessed: responseData.seriesProcessed || 0
             });
           } else {
             const errorMsg = 'error' in result ? (result.error?.message || 'Unknown error') : 'Unknown error';
@@ -254,6 +288,7 @@ serve(async (req) => {
               ...currentConfig,
               completed_work_units: updatedCompletedUnits,
               failed_work_units: updatedFailedUnits,
+              currently_processing: [], // Clear after batch completes
               thread_tracking: {
                 succeeded: updatedCompletedUnits.length,
                 failed: updatedFailedUnits.length

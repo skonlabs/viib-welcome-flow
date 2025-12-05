@@ -212,6 +212,8 @@ serve(async (req) => {
     console.log(`Processing: Language=${languageCode}, Year=${year}, Genre=${genreName} (ID: ${tmdbGenreId})`);
 
     let totalProcessed = 0;
+    let moviesProcessed = 0;
+    let seriesProcessed = 0;
     let skippedNoProvider = 0;
     const MAX_RUNTIME_MS = 90000;
 
@@ -416,6 +418,7 @@ serve(async (req) => {
 
         if (upsertedTitle) {
           totalProcessed++;
+          moviesProcessed++;
 
           for (const provider of providers) {
             await supabase.from('title_streaming_availability').upsert({
@@ -638,6 +641,7 @@ serve(async (req) => {
 
           if (upsertedTitle) {
             totalProcessed++;
+            seriesProcessed++;
 
             for (const provider of providers) {
               await supabase.from('title_streaming_availability').upsert({
@@ -942,6 +946,7 @@ serve(async (req) => {
                 
                 if (upsertedTitle) {
                   totalProcessed++;
+                  seriesProcessed++;
                   
                   for (const provider of providers) {
                     await supabase.from('title_streaming_availability').upsert({
@@ -1065,6 +1070,7 @@ serve(async (req) => {
                   
                   if (!titleError && upsertedTitle) {
                     totalProcessed++;
+                    seriesProcessed++;
                     
                     for (const provider of providers) {
                       await supabase.from('title_streaming_availability').upsert({
@@ -1149,6 +1155,8 @@ serve(async (req) => {
         genre: genreName,
         genreId: tmdbGenreId,
         titlesProcessed: totalProcessed,
+        moviesProcessed,
+        seriesProcessed,
         skippedNoProvider,
         durationMs
       }),

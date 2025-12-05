@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { CheckCircle2, XCircle, Clock, AlertCircle, Info } from '@/icons';
+import { CheckCircle2, XCircle, Clock, AlertCircle, Info, Film, Tv, Loader2 } from '@/icons';
 import { supabase } from '@/integrations/supabase/client';
 
 interface WorkUnit {
@@ -14,6 +14,8 @@ interface WorkUnit {
   genreName: string;
   completedAt?: string;
   titlesProcessed?: number;
+  moviesProcessed?: number;
+  seriesProcessed?: number;
   error?: string;
   attempts?: number;
   lastAttempt?: string;
@@ -23,11 +25,13 @@ interface ThreadMonitorProps {
   jobId: string;
   totalWorkUnits: number;
   isRunning: boolean;
+  titlesProcessed?: number;
 }
 
-export function ThreadMonitor({ jobId, totalWorkUnits, isRunning }: ThreadMonitorProps) {
+export function ThreadMonitor({ jobId, totalWorkUnits, isRunning, titlesProcessed = 0 }: ThreadMonitorProps) {
   const [completedUnits, setCompletedUnits] = useState<WorkUnit[]>([]);
   const [failedUnits, setFailedUnits] = useState<WorkUnit[]>([]);
+  const [currentlyProcessing, setCurrentlyProcessing] = useState<WorkUnit[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -48,6 +52,7 @@ export function ThreadMonitor({ jobId, totalWorkUnits, isRunning }: ThreadMonito
       const config = data?.configuration as any;
       setCompletedUnits(config?.completed_work_units || []);
       setFailedUnits(config?.failed_work_units || []);
+      setCurrentlyProcessing(config?.currently_processing || []);
       setLoading(false);
     };
 
@@ -62,149 +67,187 @@ export function ThreadMonitor({ jobId, totalWorkUnits, isRunning }: ThreadMonito
 
   const completedCount = completedUnits.length;
   const failedCount = failedUnits.length;
-  const remainingCount = totalWorkUnits - completedCount - failedCount;
-  const progressPercent = (completedCount / totalWorkUnits) * 100;
+  const remainingCount = Math.max(0, totalWorkUnits - completedCount - failedCount);
+  const progressPercent = totalWorkUnits > 0 ? (completedCount / totalWorkUnits) * 100 : 0;
 
   // Get recent completed units (last 10)
   const recentCompleted = [...completedUnits]
     .sort((a, b) => new Date(b.completedAt!).getTime() - new Date(a.completedAt!).getTime())
     .slice(0, 10);
 
-  if (loading) {
+  if (loading && isRunning) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Thread Monitor</CardTitle>
-          <CardDescription>Loading thread status...</CardDescription>
-        </CardHeader>
-      </Card>
+      <div className="p-4 bg-primary/10 border border-primary/20 rounded-lg">
+        <div className="flex items-center gap-2 text-primary">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <span>Loading thread status...</span>
+        </div>
+      </div>
     );
   }
 
+  if (!isRunning) {
+    return null;
+  }
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Thread Monitor</CardTitle>
-        <CardDescription>Real-time work unit processing status</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {/* Progress Overview */}
+    <div className="space-y-4 p-4 bg-primary/10 border border-primary/20 rounded-lg">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="font-semibold text-primary">Parallel Processing Active</div>
+        <Badge variant="outline" className="animate-pulse">Running</Badge>
+      </div>
+
+      {/* Progress Bar */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-muted-foreground">Overall Progress</span>
+          <span className="font-medium">{completedCount} / {totalWorkUnits} work units</span>
+        </div>
+        <Progress value={progressPercent} className="h-2" />
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <span>{progressPercent.toFixed(1)}% complete</span>
+          <span>{remainingCount} remaining</span>
+        </div>
+      </div>
+
+      {/* Status Boxes */}
+      <div className="grid grid-cols-4 gap-3">
+        <div className="text-center p-2 rounded-lg border border-green-500/20 bg-green-500/10">
+          <div className="text-xl font-bold text-green-500">{completedCount}</div>
+          <div className="text-xs text-muted-foreground">Succeeded</div>
+        </div>
+        <div className="text-center p-2 rounded-lg border border-red-500/20 bg-red-500/10">
+          <div className="text-xl font-bold text-red-500">{failedCount}</div>
+          <div className="text-xs text-muted-foreground">Failed</div>
+        </div>
+        <div className="text-center p-2 rounded-lg border border-muted bg-muted/50">
+          <div className="text-xl font-bold">{remainingCount}</div>
+          <div className="text-xs text-muted-foreground">Remaining</div>
+        </div>
+        <div className="text-center p-2 rounded-lg border border-blue-500/20 bg-blue-500/10">
+          <div className="text-xl font-bold text-blue-500">{titlesProcessed.toLocaleString()}</div>
+          <div className="text-xs text-muted-foreground">Titles</div>
+        </div>
+      </div>
+
+      {/* Currently Processing */}
+      {currentlyProcessing.length > 0 && (
         <div className="space-y-2">
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Overall Progress</span>
-            <span className="font-medium">{completedCount} / {totalWorkUnits} work units</span>
-          </div>
-          <Progress value={progressPercent} className="h-2" />
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>{progressPercent.toFixed(1)}% complete</span>
-            <span>{remainingCount} remaining</span>
-          </div>
-        </div>
-
-        {/* Status Counts */}
-        <div className="grid grid-cols-3 gap-4">
-          <div className="flex items-center gap-2 p-3 rounded-lg bg-success/10">
-            <CheckCircle2 className="h-5 w-5 text-success" />
-            <div>
-              <div className="text-xs text-muted-foreground">Completed</div>
-              <div className="text-2xl font-bold">{completedCount}</div>
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10">
-            <XCircle className="h-5 w-5 text-destructive" />
-            <div>
-              <div className="text-xs text-muted-foreground">Failed</div>
-              <div className="text-2xl font-bold">{failedCount}</div>
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-2 p-3 rounded-lg bg-muted">
-            <Clock className="h-5 w-5 text-muted-foreground" />
-            <div>
-              <div className="text-xs text-muted-foreground">Remaining</div>
-              <div className="text-2xl font-bold">{remainingCount}</div>
-            </div>
+          <h4 className="text-sm font-medium flex items-center gap-2">
+            <Loader2 className="h-4 w-4 animate-spin text-primary" />
+            Currently Processing ({currentlyProcessing.length})
+          </h4>
+          <div className="space-y-1">
+            {currentlyProcessing.slice(0, 5).map((unit, idx) => (
+              <div
+                key={`processing-${unit.languageCode}-${unit.year}-${unit.genreId}-${idx}`}
+                className="flex items-center justify-between p-2 rounded bg-primary/20 text-sm"
+              >
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="font-mono text-xs">
+                    {unit.languageCode.toUpperCase()}
+                  </Badge>
+                  <span className="font-medium">{unit.year}</span>
+                  <span className="text-muted-foreground">·</span>
+                  <span>{unit.genreName}</span>
+                </div>
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+              </div>
+            ))}
+            {currentlyProcessing.length > 5 && (
+              <div className="text-xs text-muted-foreground text-center">
+                +{currentlyProcessing.length - 5} more processing...
+              </div>
+            )}
           </div>
         </div>
+      )}
 
-        {/* Recent Completed Threads */}
-        {recentCompleted.length > 0 && (
-          <div className="space-y-2">
-            <h4 className="text-sm font-medium flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-success" />
-              Recently Completed
-            </h4>
-            <ScrollArea className="h-[200px] rounded-lg border p-2">
-              <div className="space-y-2">
-                {recentCompleted.map((unit, idx) => (
-                  <div
-                    key={`${unit.languageCode}-${unit.year}-${unit.genreId}-${idx}`}
-                    className="flex items-center justify-between p-2 rounded bg-muted/50 text-sm"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline" className="font-mono text-xs">
-                        {unit.languageCode.toUpperCase()}
-                      </Badge>
-                      <span className="font-medium">{unit.year}</span>
-                      <span className="text-muted-foreground">·</span>
-                      <span>{unit.genreName}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+      {/* Recently Completed */}
+      {recentCompleted.length > 0 && (
+        <div className="space-y-2">
+          <h4 className="text-sm font-medium flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4 text-success" />
+            Recently Completed
+          </h4>
+          <ScrollArea className="h-[180px] rounded-lg border p-2">
+            <div className="space-y-2">
+              {recentCompleted.map((unit, idx) => (
+                <div
+                  key={`${unit.languageCode}-${unit.year}-${unit.genreId}-${idx}`}
+                  className="flex items-center justify-between p-2 rounded bg-muted/50 text-sm"
+                >
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="font-mono text-xs">
+                      {unit.languageCode.toUpperCase()}
+                    </Badge>
+                    <span className="font-medium">{unit.year}</span>
+                    <span className="text-muted-foreground">·</span>
+                    <span>{unit.genreName}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    {(unit.moviesProcessed !== undefined || unit.seriesProcessed !== undefined) ? (
+                      <>
+                        {unit.moviesProcessed !== undefined && unit.moviesProcessed > 0 && (
+                          <span className="flex items-center gap-1">
+                            <Film className="h-3 w-3" />
+                            {unit.moviesProcessed}
+                          </span>
+                        )}
+                        {unit.seriesProcessed !== undefined && unit.seriesProcessed > 0 && (
+                          <span className="flex items-center gap-1">
+                            <Tv className="h-3 w-3" />
+                            {unit.seriesProcessed}
+                          </span>
+                        )}
+                      </>
+                    ) : (
                       <span>{unit.titlesProcessed || 0} titles</span>
-                      <CheckCircle2 className="h-4 w-4 text-success" />
-                    </div>
+                    )}
+                    <CheckCircle2 className="h-4 w-4 text-success" />
                   </div>
-                ))}
-              </div>
-            </ScrollArea>
-          </div>
-        )}
+                </div>
+              ))}
+            </div>
+          </ScrollArea>
+        </div>
+      )}
 
-        {/* Failed Threads */}
-        {failedUnits.length > 0 && (
-          <div className="space-y-2">
-            <h4 className="text-sm font-medium flex items-center gap-2">
-              <AlertCircle className="h-4 w-4 text-destructive" />
-              Failed Work Units ({failedUnits.length})
-            </h4>
-            <ScrollArea className="h-[200px] rounded-lg border border-destructive/20 p-2">
-              <div className="space-y-2">
-                {failedUnits.map((unit, idx) => (
-                  <div
-                    key={`${unit.languageCode}-${unit.year}-${unit.genreId}-${idx}`}
-                    className="flex items-center justify-between p-2 rounded bg-destructive/10 text-sm"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Badge variant="destructive" className="font-mono text-xs">
-                        {unit.languageCode.toUpperCase()}
-                      </Badge>
-                      <span className="font-medium">{unit.year}</span>
-                      <span className="text-muted-foreground">·</span>
-                      <span>{unit.genreName}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs">
-                      <Badge variant="outline" className="text-destructive">
-                        {unit.attempts || 1} attempt{(unit.attempts || 1) > 1 ? 's' : ''}
-                      </Badge>
-                      <XCircle className="h-4 w-4 text-destructive" />
-                    </div>
+      {/* Failed Work Units */}
+      {failedUnits.length > 0 && (
+        <div className="space-y-2">
+          <h4 className="text-sm font-medium flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 text-destructive" />
+            Failed Work Units ({failedUnits.length})
+          </h4>
+          <ScrollArea className="h-[150px] rounded-lg border border-destructive/20 p-2">
+            <div className="space-y-2">
+              {failedUnits.map((unit, idx) => (
+                <div
+                  key={`failed-${unit.languageCode}-${unit.year}-${unit.genreId}-${idx}`}
+                  className="flex items-center justify-between p-2 rounded bg-destructive/10 text-sm"
+                >
+                  <div className="flex items-center gap-2">
+                    <Badge variant="destructive" className="font-mono text-xs">
+                      {unit.languageCode.toUpperCase()}
+                    </Badge>
+                    <span className="font-medium">{unit.year}</span>
+                    <span className="text-muted-foreground">·</span>
+                    <span>{unit.genreName}</span>
                   </div>
-                ))}
-              </div>
-            </ScrollArea>
-          </div>
-        )}
-
-        {!isRunning && (
-          <Alert>
-            <Info className="h-4 w-4 text-icon-secondary" />
-            <AlertDescription>
-              Job is not currently running. Start the job to see real-time thread monitoring.
-            </AlertDescription>
-          </Alert>
-        )}
-      </CardContent>
-    </Card>
+                  <div className="flex items-center gap-2 text-xs">
+                    <Badge variant="outline" className="text-destructive">
+                      {unit.attempts || 1} attempt{(unit.attempts || 1) > 1 ? 's' : ''}
+                    </Badge>
+                    <XCircle className="h-4 w-4 text-destructive" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </ScrollArea>
+        </div>
+      )}
+    </div>
   );
 }
