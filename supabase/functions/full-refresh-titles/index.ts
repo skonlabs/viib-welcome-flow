@@ -217,28 +217,40 @@ serve(async (req) => {
     let skippedNoProvider = 0;
     const MAX_RUNTIME_MS = 90000;
 
-    // Helper function to fetch watch providers from TMDB
-    async function fetchWatchProviders(tmdbId: number, titleType: string): Promise<{ providers: Array<{ tmdbId: number; name: string; serviceId: string }> }> {
+    // Regions to check for streaming availability (major markets)
+    const REGIONS_TO_CHECK = ['US', 'IN', 'GB', 'CA', 'AU', 'DE', 'FR', 'JP', 'KR', 'BR', 'MX', 'IT', 'ES'];
+
+    // Helper function to fetch watch providers from TMDB (checks multiple regions)
+    async function fetchWatchProviders(tmdbId: number, titleType: string): Promise<{ providers: Array<{ tmdbId: number; name: string; serviceId: string; regionCode: string }> }> {
       try {
         const endpoint = titleType === 'movie' ? 'movie' : 'tv';
         const res = await fetch(`https://api.themoviedb.org/3/${endpoint}/${tmdbId}/watch/providers?api_key=${TMDB_API_KEY}`);
         if (!res.ok) return { providers: [] };
         
         const data = await res.json();
-        const usProviders = data.results?.US?.flatrate || [];
+        const matchedProviders: Array<{ tmdbId: number; name: string; serviceId: string; regionCode: string }> = [];
+        const addedProviderServices = new Set<string>(); // Track unique provider+service combinations
         
-        const matchedProviders: Array<{ tmdbId: number; name: string; serviceId: string }> = [];
-        
-        for (const provider of usProviders) {
-          const mappedName = TMDB_PROVIDER_MAP[provider.provider_id];
-          if (mappedName) {
-            const serviceId = serviceNameToId[mappedName.toLowerCase()];
-            if (serviceId) {
-              matchedProviders.push({
-                tmdbId: provider.provider_id,
-                name: mappedName,
-                serviceId
-              });
+        // Check all configured regions for streaming availability
+        for (const regionCode of REGIONS_TO_CHECK) {
+          const regionProviders = data.results?.[regionCode]?.flatrate || [];
+          
+          for (const provider of regionProviders) {
+            const mappedName = TMDB_PROVIDER_MAP[provider.provider_id];
+            if (mappedName) {
+              const serviceId = serviceNameToId[mappedName.toLowerCase()];
+              if (serviceId) {
+                const uniqueKey = `${serviceId}-${regionCode}`;
+                if (!addedProviderServices.has(uniqueKey)) {
+                  addedProviderServices.add(uniqueKey);
+                  matchedProviders.push({
+                    tmdbId: provider.provider_id,
+                    name: mappedName,
+                    serviceId,
+                    regionCode
+                  });
+                }
+              }
             }
           }
         }
@@ -424,7 +436,7 @@ serve(async (req) => {
             await supabase.from('title_streaming_availability').upsert({
               title_id: upsertedTitle.id,
               streaming_service_id: provider.serviceId,
-              region_code: 'US'
+              region_code: provider.regionCode
             }, { onConflict: 'title_id,streaming_service_id,region_code' });
           }
 
@@ -647,7 +659,7 @@ serve(async (req) => {
               await supabase.from('title_streaming_availability').upsert({
                 title_id: upsertedTitle.id,
                 streaming_service_id: provider.serviceId,
-                region_code: 'US'
+                region_code: provider.regionCode
               }, { onConflict: 'title_id,streaming_service_id,region_code' });
             }
 
@@ -952,7 +964,7 @@ serve(async (req) => {
                     await supabase.from('title_streaming_availability').upsert({
                       title_id: upsertedTitle.id,
                       streaming_service_id: provider.serviceId,
-                      region_code: 'US'
+                      region_code: provider.regionCode
                     }, { onConflict: 'title_id,streaming_service_id,region_code' });
                   }
                   
@@ -1076,7 +1088,7 @@ serve(async (req) => {
                       await supabase.from('title_streaming_availability').upsert({
                         title_id: upsertedTitle.id,
                         streaming_service_id: provider.serviceId,
-                        region_code: 'US'
+                        region_code: provider.regionCode
                       }, { onConflict: 'title_id,streaming_service_id,region_code' });
                     }
                     
