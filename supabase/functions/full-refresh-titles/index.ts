@@ -8,7 +8,7 @@ const corsHeaders = {
 
 // TMDB Genre ID to Name mapping (includes both Movie and TV genre IDs)
 const TMDB_GENRE_MAP: Record<number, string> = {
-  // Movie genres (19 total)
+  // Movie genres (18 total - used in orchestrator work units)
   28: 'Action',
   12: 'Adventure',
   16: 'Animation',
@@ -28,15 +28,44 @@ const TMDB_GENRE_MAP: Record<number, string> = {
   53: 'Thriller',
   10752: 'War',
   37: 'Western',
-  // TV-specific genres (16 total - some overlap with movie IDs)
-  10759: 'Action', // Action & Adventure (TV)
+  // TV-specific genres (8 total - different IDs from movies)
+  10759: 'Action & Adventure', // TV version of Action + Adventure
   10762: 'Kids',
   10763: 'News',
   10764: 'Reality',
-  10765: 'Science Fiction', // Sci-Fi & Fantasy (TV) - e.g., Stranger Things
+  10765: 'Sci-Fi & Fantasy', // TV version of Science Fiction + Fantasy - e.g., Stranger Things
   10766: 'Soap',
   10767: 'Talk',
-  10768: 'War', // War & Politics (TV)
+  10768: 'War & Politics', // TV version of War
+};
+
+// CRITICAL: Map movie genre IDs to their TV equivalents
+// TMDB uses DIFFERENT genre IDs for TV shows vs Movies!
+// Without this mapping, TV shows with TV-specific genres won't be found
+const MOVIE_TO_TV_GENRE_MAP: Record<number, number> = {
+  // These genres have DIFFERENT IDs for TV - MUST map to TV version
+  28: 10759,    // Action → Action & Adventure (TV)
+  12: 10759,    // Adventure → Action & Adventure (TV)
+  878: 10765,   // Science Fiction → Sci-Fi & Fantasy (TV)
+  14: 10765,    // Fantasy → Sci-Fi & Fantasy (TV)
+  10752: 10768, // War → War & Politics (TV)
+  // These have SAME ID for both movies and TV - no mapping needed
+  16: 16,       // Animation
+  35: 35,       // Comedy
+  80: 80,       // Crime
+  99: 99,       // Documentary
+  18: 18,       // Drama
+  10751: 10751, // Family
+  9648: 9648,   // Mystery
+  37: 37,       // Western
+  // These movie genres have no direct TV equivalent but TMDB will still
+  // return some TV results when queried with movie genre ID:
+  27: 27,       // Horror - some TV shows are tagged with movie horror genre
+  36: 36,       // History - some TV shows are tagged with movie history genre
+  10402: 10402, // Music
+  10749: 10749, // Romance
+  53: 53,       // Thriller
+  10770: 10770, // TV Movie (rarely used for TV shows)
 };
 
 // TMDB Provider ID to service name mapping (US region)
@@ -682,6 +711,18 @@ serve(async (req) => {
     // Track processed TMDB IDs to avoid duplicates between phases
     const processedTvIds = new Set<number>();
 
+    // CRITICAL: Convert movie genre ID to TV genre ID for TV show queries
+    // TMDB uses DIFFERENT genre IDs for TV shows vs Movies!
+    // Some genres map to different IDs (e.g., 878 Science Fiction → 10765 Sci-Fi & Fantasy)
+    // Some genres use the same ID for both movies and TV (e.g., 18 Drama)
+    const tvGenreId = MOVIE_TO_TV_GENRE_MAP[tmdbGenreId] || tmdbGenreId;
+    
+    if (tvGenreId !== tmdbGenreId) {
+      console.log(`Mapping movie genre ${genreName} (${tmdbGenreId}) → TV genre ID ${tvGenreId}`);
+    } else {
+      console.log(`Using same genre ID ${tmdbGenreId} for TV (${genreName})`);
+    }
+
     // PHASE 1: Year-based TV discovery (captures new/recent content)
     let tvPage = 1;
     let tvTotalPages = 1;
@@ -694,12 +735,13 @@ serve(async (req) => {
           severity: 'warning',
           operation: 'full-refresh-titles-timeout',
           error_message: `Thread approaching time limit at ${elapsed}ms for ${languageCode}/${year}/${genreName}`,
-          context: { languageCode, year, genre: genreName, genreId: tmdbGenreId, totalProcessed, elapsedMs: elapsed, phase: 'tv-year', page: tvPage }
+          context: { languageCode, year, genre: genreName, genreId: tmdbGenreId, tvGenreId, totalProcessed, elapsedMs: elapsed, phase: 'tv-year', page: tvPage }
         });
         break;
       }
 
-      const tvUrl = `https://api.themoviedb.org/3/discover/tv?api_key=${TMDB_API_KEY}&air_date.gte=${year}-01-01&air_date.lte=${year}-12-31&with_genres=${tmdbGenreId}&with_original_language=${languageCode}&vote_average.gte=${minRating}&sort_by=popularity.desc&page=${tvPage}`;
+      // Use TV genre ID (not movie genre ID) for TV show discovery
+      const tvUrl = `https://api.themoviedb.org/3/discover/tv?api_key=${TMDB_API_KEY}&air_date.gte=${year}-01-01&air_date.lte=${year}-12-31&with_genres=${tvGenreId}&with_original_language=${languageCode}&vote_average.gte=${minRating}&sort_by=popularity.desc&page=${tvPage}`;
       
       try {
         const tvResponse = await fetch(tvUrl);
@@ -739,7 +781,8 @@ serve(async (req) => {
         }
 
         // No year filter - get ALL popular shows for this language/genre
-        const popularUrl = `https://api.themoviedb.org/3/discover/tv?api_key=${TMDB_API_KEY}&with_genres=${tmdbGenreId}&with_original_language=${languageCode}&vote_average.gte=${minRating}&sort_by=popularity.desc&page=${popularPage}`;
+        // Use TV genre ID (not movie genre ID) for TV show discovery
+        const popularUrl = `https://api.themoviedb.org/3/discover/tv?api_key=${TMDB_API_KEY}&with_genres=${tvGenreId}&with_original_language=${languageCode}&vote_average.gte=${minRating}&sort_by=popularity.desc&page=${popularPage}`;
         
         try {
           const popularResponse = await fetch(popularUrl);
