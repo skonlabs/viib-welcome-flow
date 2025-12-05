@@ -8,7 +8,7 @@ const corsHeaders = {
 
 // TMDB Genre ID to Name mapping (includes both Movie and TV genre IDs)
 const TMDB_GENRE_MAP: Record<number, string> = {
-  // Movie genres (18 total - used in orchestrator work units)
+  // Movie genres
   28: 'Action',
   12: 'Adventure',
   16: 'Animation',
@@ -28,28 +28,50 @@ const TMDB_GENRE_MAP: Record<number, string> = {
   53: 'Thriller',
   10752: 'War',
   37: 'Western',
-  // TV-specific genres (8 total - different IDs from movies)
-  10759: 'Action & Adventure', // TV version of Action + Adventure
+  // TV-specific genres
+  10759: 'Action & Adventure',
   10762: 'Kids',
   10763: 'News',
   10764: 'Reality',
-  10765: 'Sci-Fi & Fantasy', // TV version of Science Fiction + Fantasy - e.g., Stranger Things
+  10765: 'Sci-Fi & Fantasy',
   10766: 'Soap',
   10767: 'Talk',
-  10768: 'War & Politics', // TV version of War
+  10768: 'War & Politics',
 };
 
 // CRITICAL: Map movie genre IDs to their TV equivalents
 // TMDB uses DIFFERENT genre IDs for TV shows vs Movies!
-// Without this mapping, TV shows with TV-specific genres won't be found
-const MOVIE_TO_TV_GENRE_MAP: Record<number, number> = {
-  // These genres have DIFFERENT IDs for TV - MUST map to TV version
+// These are the ONLY valid TV genres from TMDB API
+const VALID_TV_GENRES = new Set([
+  10759, // Action & Adventure
+  16,    // Animation
+  35,    // Comedy
+  80,    // Crime
+  99,    // Documentary
+  18,    // Drama
+  10751, // Family
+  10762, // Kids
+  10763, // News
+  10764, // Reality
+  10765, // Sci-Fi & Fantasy
+  10766, // Soap
+  10767, // Talk
+  10768, // War & Politics
+  37,    // Western
+  9648,  // Mystery
+]);
+
+// Map movie genre IDs to TV genre IDs
+// Returns null if genre has NO TV equivalent
+const MOVIE_TO_TV_GENRE_MAP: Record<number, number | null> = {
+  // These movie genres MAP to different TV genre IDs
   28: 10759,    // Action → Action & Adventure (TV)
   12: 10759,    // Adventure → Action & Adventure (TV)
   878: 10765,   // Science Fiction → Sci-Fi & Fantasy (TV)
   14: 10765,    // Fantasy → Sci-Fi & Fantasy (TV)
   10752: 10768, // War → War & Politics (TV)
-  // These have SAME ID for both movies and TV - no mapping needed
+  
+  // These genres use SAME ID for both movies and TV
   16: 16,       // Animation
   35: 35,       // Comedy
   80: 80,       // Crime
@@ -58,26 +80,28 @@ const MOVIE_TO_TV_GENRE_MAP: Record<number, number> = {
   10751: 10751, // Family
   9648: 9648,   // Mystery
   37: 37,       // Western
-  // These movie genres have no direct TV equivalent but TMDB will still
-  // return some TV results when queried with movie genre ID:
-  27: 27,       // Horror - some TV shows are tagged with movie horror genre
-  36: 36,       // History - some TV shows are tagged with movie history genre
-  10402: 10402, // Music
-  10749: 10749, // Romance
-  53: 53,       // Thriller
-  10770: 10770, // TV Movie (rarely used for TV shows)
+  
+  // CRITICAL: These movie genres have NO TV equivalent!
+  // TV shows in TMDB don't use these genre IDs
+  // Setting to null means we skip TV discovery for these genres
+  27: null,     // Horror - NO TV EQUIVALENT
+  36: null,     // History - NO TV EQUIVALENT
+  10402: null,  // Music - NO TV EQUIVALENT
+  10749: null,  // Romance - NO TV EQUIVALENT
+  53: null,     // Thriller - NO TV EQUIVALENT
+  10770: null,  // TV Movie - NO TV EQUIVALENT (doesn't make sense for TV)
 };
 
 // TMDB Provider ID to service name mapping (US region)
 const TMDB_PROVIDER_MAP: Record<number, string> = {
   8: 'Netflix',
   9: 'Prime Video',
-  119: 'Prime Video', // Amazon Video
+  119: 'Prime Video',
   15: 'Hulu',
   350: 'Apple TV',
-  2: 'Apple TV', // Apple iTunes
+  2: 'Apple TV',
   337: 'DisneyPlus',
-  390: 'DisneyPlus', // Disney+ variant
+  390: 'DisneyPlus',
 };
 
 serve(async (req) => {
@@ -99,19 +123,19 @@ serve(async (req) => {
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+  let requestBody: any = {};
   try {
-    let requestBody: any = {};
-    try {
-      const text = await req.text();
-      if (text) requestBody = JSON.parse(text);
-    } catch (e) {
-      // Ignore if no body or invalid JSON
-    }
+    const text = await req.text();
+    if (text) requestBody = JSON.parse(text);
+  } catch (e) {
+    // Ignore if no body or invalid JSON
+  }
+
+  try {
 
     console.log('Starting Full Refresh job...', requestBody);
 
     const startTime = Date.now();
-    const jobId = requestBody.jobId;
 
     const { data: jobData } = await supabase
       .from('jobs')
@@ -130,7 +154,7 @@ serve(async (req) => {
       throw new Error('Missing required parameters: languageCode, startYear, genreId');
     }
 
-    // Fetch all genres
+    // Fetch all genres from our DB
     const { data: genres } = await supabase.from('genres').select('id, genre_name, tmdb_genre_id');
 
     const genreNameToId: Record<string, string> = {};
@@ -165,7 +189,7 @@ serve(async (req) => {
 
     console.log(`Loaded ${officialChannels?.length || 0} official trailer channels`);
 
-    const genreName = TMDB_GENRE_MAP[tmdbGenreId];
+    const genreName = TMDB_GENRE_MAP[tmdbGenreId] || `Unknown(${tmdbGenreId})`;
     console.log(`Processing: Language=${languageCode}, Year=${year}, Genre=${genreName} (ID: ${tmdbGenreId})`);
 
     let totalProcessed = 0;
@@ -205,8 +229,7 @@ serve(async (req) => {
       }
     }
 
-    // Helper function to fetch trailer from TMDB or YouTube (official channels only)
-    // For TV series, fetches the latest season's trailer first
+    // Helper function to fetch trailer from TMDB or YouTube
     async function fetchTrailer(tmdbId: number, titleType: string, titleName: string, releaseYear: number | null, titleLang: string = 'en', latestSeasonNumber?: number, seasonName?: string): Promise<{ url: string | null, isTmdbTrailer: boolean }> {
       try {
         let trailerKey: string | null = null;
@@ -244,12 +267,10 @@ serve(async (req) => {
 
         // YouTube fallback - search official channels only
         if (YOUTUBE_API_KEY) {
-          // Get official channel names for this language + global channels
           const relevantChannels = (officialChannels || []).filter(c => 
             c.language_code === titleLang || c.language_code === 'global' || c.language_code === 'en'
           ).map(c => c.channel_name.toLowerCase());
 
-          // For TV series with season info, search for season-specific trailer (e.g., "Delhi Crime Season 3")
           const searchQuery = titleType === 'tv' && seasonName 
             ? `${titleName} ${seasonName} official trailer`
             : `${titleName} ${releaseYear || ''} official trailer`;
@@ -259,7 +280,6 @@ serve(async (req) => {
           if (youtubeRes.ok) {
             const searchData = await youtubeRes.json();
             
-            // First try to find a result from an official trailer channel (matched by name)
             const officialChannelTrailer = searchData.items?.find((item: any) => {
               const channelTitle = item.snippet.channelTitle?.toLowerCase() || '';
               return relevantChannels.some(officialName => channelTitle.includes(officialName.toLowerCase()));
@@ -269,7 +289,6 @@ serve(async (req) => {
               return { url: `https://www.youtube.com/watch?v=${officialChannelTrailer.id.videoId}`, isTmdbTrailer: false };
             }
             
-            // Fallback: find results with "official trailer" in title from verified-looking channels
             const verifiedTrailer = searchData.items?.find((item: any) => {
               const channelTitle = item.snippet.channelTitle?.toLowerCase() || '';
               const videoTitle = item.snippet.title?.toLowerCase() || '';
@@ -323,30 +342,25 @@ serve(async (req) => {
       return null;
     }
 
-    // Process movies - TWO PHASES:
-    // Phase 1: Year-based discovery (movies released in specified year)
-    // Phase 2: Popularity-based discovery (top popular movies regardless of year - catches classics)
-
+    // ==========================================
+    // MOVIES PROCESSING
+    // ==========================================
+    
     // Helper function to process a movie
     async function processMovie(movie: any, phase: string) {
       try {
-        // Check streaming availability first
         const { providers } = await fetchWatchProviders(movie.id, 'movie');
         
-        // Skip titles not available on any supported streaming service
         if (providers.length === 0) {
           skippedNoProvider++;
           return false;
         }
 
-        // Fetch full details for additional metadata
         const details = await fetchMovieDetails(movie.id);
         
-        // Fetch trailer
         const releaseYear = movie.release_date ? new Date(movie.release_date).getFullYear() : null;
         const { url: trailerUrl, isTmdbTrailer } = await fetchTrailer(movie.id, 'movie', movie.title, releaseYear, movie.original_language || languageCode);
 
-        // Upsert title (insert or update if exists)
         const { data: upsertedTitle, error: titleError } = await supabase
           .from('titles')
           .upsert({
@@ -384,7 +398,6 @@ serve(async (req) => {
         if (upsertedTitle) {
           totalProcessed++;
 
-          // Save streaming availability
           for (const provider of providers) {
             await supabase.from('title_streaming_availability').upsert({
               title_id: upsertedTitle.id,
@@ -393,7 +406,7 @@ serve(async (req) => {
             }, { onConflict: 'title_id,streaming_service_id,region_code' });
           }
 
-          // Map genres
+          // Map ALL genres from movie (not just the searched genre)
           const movieGenreIds = movie.genre_ids || [];
           for (const gId of movieGenreIds) {
             const gName = TMDB_GENRE_MAP[gId];
@@ -405,17 +418,14 @@ serve(async (req) => {
             }
           }
 
-          // Store spoken languages from details - ONLY if language exists in our table
           if (details?.spoken_languages) {
             for (const lang of details.spoken_languages) {
-              // Only link to existing languages, never add new ones
               if (validLanguageCodes.has(lang.iso_639_1)) {
                 await supabase.from('title_spoken_languages').upsert({ title_id: upsertedTitle.id, iso_639_1: lang.iso_639_1 }, { onConflict: 'title_id,iso_639_1' });
               }
             }
           }
 
-          // Store keywords if available
           if (details?.keywords?.keywords) {
             for (const kw of details.keywords.keywords.slice(0, 10)) {
               const { data: kwData } = await supabase.from('keywords').upsert({ tmdb_keyword_id: kw.id, name: kw.name }, { onConflict: 'tmdb_keyword_id' }).select('id').single();
@@ -433,10 +443,10 @@ serve(async (req) => {
       }
     }
 
-    // Track processed TMDB IDs to avoid duplicates between phases
     const processedMovieIds = new Set<number>();
 
-    // PHASE 1: Year-based movie discovery (movies released in specified year)
+    // MOVIE PHASE 1: Year-based discovery
+    // Using primary_release_year for EXACT year match
     let moviePage = 1;
     let movieTotalPages = 1;
     
@@ -453,7 +463,12 @@ serve(async (req) => {
         break;
       }
 
+      // CRITICAL: with_genres expects a single genre ID
+      // Movies that CONTAIN this genre will be returned (OR logic with multiple, AND if comma-separated)
+      // We use single genre, so any movie with this genre is returned
       const moviesUrl = `https://api.themoviedb.org/3/discover/movie?api_key=${TMDB_API_KEY}&primary_release_year=${year}&with_genres=${tmdbGenreId}&with_original_language=${languageCode}&vote_average.gte=${minRating}&sort_by=popularity.desc&page=${moviePage}`;
+      
+      console.log(`[Movie Phase 1] Fetching: year=${year}, genre=${tmdbGenreId}, lang=${languageCode}, page=${moviePage}`);
       
       try {
         const moviesResponse = await fetch(moviesUrl);
@@ -475,15 +490,14 @@ serve(async (req) => {
       }
     }
 
-    // PHASE 2: Popularity-based movie discovery (captures classic/popular movies regardless of year)
-    // Only run if we have time remaining
+    // MOVIE PHASE 2: Popularity-based discovery (captures classics regardless of year)
     const elapsedAfterMoviePhase1 = Date.now() - startTime;
-    if (elapsedAfterMoviePhase1 < MAX_RUNTIME_MS - 30000) { // Need at least 30s for phase 2
-      console.log(`Starting Phase 2: Popularity-based movie discovery for ${languageCode}/${genreName}`);
+    if (elapsedAfterMoviePhase1 < MAX_RUNTIME_MS - 30000) {
+      console.log(`Starting Movie Phase 2: Popularity-based discovery for ${languageCode}/${genreName}`);
       
       let popularMoviePage = 1;
       let popularMovieTotalPages = 1;
-      const MAX_POPULAR_MOVIE_PAGES = 10; // Limit to top 200 popular movies per language/genre combo
+      const MAX_POPULAR_MOVIE_PAGES = 15; // Increased to capture more classics
       
       while (popularMoviePage <= popularMovieTotalPages && popularMoviePage <= MAX_POPULAR_MOVIE_PAGES) {
         const elapsed = Date.now() - startTime;
@@ -492,7 +506,7 @@ serve(async (req) => {
           break;
         }
 
-        // No year filter - get ALL popular movies for this language/genre
+        // NO year filter - get ALL popular movies for this language/genre
         const popularMovieUrl = `https://api.themoviedb.org/3/discover/movie?api_key=${TMDB_API_KEY}&with_genres=${tmdbGenreId}&with_original_language=${languageCode}&vote_average.gte=${minRating}&sort_by=popularity.desc&page=${popularMoviePage}`;
         
         try {
@@ -503,7 +517,6 @@ serve(async (req) => {
           console.log(`[Popularity-based] Found ${movies.length} movies (page ${popularMoviePage}/${popularMovieTotalPages})`);
 
           for (const movie of movies) {
-            // Skip if already processed in Phase 1
             if (processedMovieIds.has(movie.id)) {
               continue;
             }
@@ -522,369 +535,332 @@ serve(async (req) => {
       console.log(`Skipping Movie Phase 2 due to time constraints (${elapsedAfterMoviePhase1}ms elapsed)`);
     }
 
-    // Process TV shows - TWO PHASES:
-    // Phase 1: Year-based discovery (new content from specified year)
-    // Phase 2: Popularity-based discovery (top popular shows regardless of year - catches classics)
+    // ==========================================
+    // TV SHOWS PROCESSING
+    // ==========================================
 
-    // Helper function to process a TV show
-    async function processTvShow(show: any, phase: string) {
-      try {
-        // Check streaming availability first
-        const { providers } = await fetchWatchProviders(show.id, 'tv');
-        
-        // Skip titles not available on any supported streaming service
-        if (providers.length === 0) {
-          skippedNoProvider++;
-          return false;
-        }
+    // CRITICAL: Check if this genre has a TV equivalent
+    // Movie-only genres (Horror, History, Music, Romance, Thriller, TV Movie) have NO TV equivalent
+    const tvGenreId = MOVIE_TO_TV_GENRE_MAP[tmdbGenreId];
+    
+    if (tvGenreId === null) {
+      console.log(`⚠️ Genre "${genreName}" (${tmdbGenreId}) is movie-only - NO TV equivalent exists. Skipping TV discovery.`);
+      // Skip TV discovery entirely for movie-only genres
+    } else {
+      // TV genre exists - proceed with TV discovery
+      if (tvGenreId !== tmdbGenreId) {
+        console.log(`Mapping movie genre "${genreName}" (${tmdbGenreId}) → TV genre ID ${tvGenreId}`);
+      } else {
+        console.log(`Using same genre ID ${tmdbGenreId} for TV (${genreName})`);
+      }
 
-        // Fetch full details
-        const details = await fetchTvDetails(show.id);
-        
-        // Fetch trailer - use latest season number for TV series
-        const releaseYear = show.first_air_date ? new Date(show.first_air_date).getFullYear() : null;
-        const seasons = details?.seasons?.filter((s: any) => s.season_number > 0) || [];
-        const latestSeasonNumber = seasons.length > 0 ? Math.max(...seasons.map((s: any) => s.season_number)) : undefined;
-        const latestSeason = seasons.find((s: any) => s.season_number === latestSeasonNumber);
-        const seasonName = latestSeason?.name || (latestSeasonNumber ? `Season ${latestSeasonNumber}` : undefined);
-        const { url: trailerUrl, isTmdbTrailer: isTmdbTrailerTv } = await fetchTrailer(show.id, 'tv', show.name, releaseYear, show.original_language || languageCode, latestSeasonNumber, seasonName);
-
-        // Upsert title (insert or update if exists)
-        const { data: upsertedTitle, error: titleError } = await supabase
-          .from('titles')
-          .upsert({
-            tmdb_id: show.id,
-            title_type: 'tv',
-            name: show.name,
-            original_name: show.original_name,
-            overview: show.overview,
-            release_date: null,
-            first_air_date: show.first_air_date || null,
-            last_air_date: details?.last_air_date || null,
-            status: details?.status || null,
-            runtime: null,
-            episode_run_time: details?.episode_run_time || null,
-            popularity: show.popularity,
-            vote_average: show.vote_average,
-            poster_path: show.poster_path,
-            backdrop_path: show.backdrop_path,
-            original_language: show.original_language,
-            is_adult: show.adult || false,
-            imdb_id: details?.external_ids?.imdb_id || null,
-            tagline: details?.tagline || null,
-            trailer_url: trailerUrl,
-            is_tmdb_trailer: isTmdbTrailerTv,
-            updated_at: new Date().toISOString()
-          }, { onConflict: 'tmdb_id,title_type' })
-          .select('id')
-          .single();
-
-        if (titleError) {
-          console.error(`Error upserting show ${show.name} (${phase}):`, titleError);
-          return false;
-        }
-
-        if (upsertedTitle) {
-          totalProcessed++;
-
-          // Save streaming availability
-          for (const provider of providers) {
-            await supabase.from('title_streaming_availability').upsert({
-              title_id: upsertedTitle.id,
-              streaming_service_id: provider.serviceId,
-              region_code: 'US'
-            }, { onConflict: 'title_id,streaming_service_id,region_code' });
+      // Helper function to process a TV show
+      async function processTvShow(show: any, phase: string) {
+        try {
+          const { providers } = await fetchWatchProviders(show.id, 'tv');
+          
+          if (providers.length === 0) {
+            skippedNoProvider++;
+            return false;
           }
 
-          // Map genres
-          const showGenreIds = show.genre_ids || [];
-          for (const gId of showGenreIds) {
-            const gName = TMDB_GENRE_MAP[gId];
-            if (gName) {
-              const ourGenreId = genreNameToId[gName.toLowerCase()];
-              if (ourGenreId) {
-                await supabase.from('title_genres').upsert({ title_id: upsertedTitle.id, genre_id: ourGenreId }, { onConflict: 'title_id,genre_id' });
+          const details = await fetchTvDetails(show.id);
+          
+          const releaseYear = show.first_air_date ? new Date(show.first_air_date).getFullYear() : null;
+          const seasons = details?.seasons?.filter((s: any) => s.season_number > 0) || [];
+          const latestSeasonNumber = seasons.length > 0 ? Math.max(...seasons.map((s: any) => s.season_number)) : undefined;
+          const latestSeason = seasons.find((s: any) => s.season_number === latestSeasonNumber);
+          const seasonName = latestSeason?.name || (latestSeasonNumber ? `Season ${latestSeasonNumber}` : undefined);
+          const { url: trailerUrl, isTmdbTrailer: isTmdbTrailerTv } = await fetchTrailer(show.id, 'tv', show.name, releaseYear, show.original_language || languageCode, latestSeasonNumber, seasonName);
+
+          const { data: upsertedTitle, error: titleError } = await supabase
+            .from('titles')
+            .upsert({
+              tmdb_id: show.id,
+              title_type: 'tv',
+              name: show.name,
+              original_name: show.original_name,
+              overview: show.overview,
+              release_date: null,
+              first_air_date: show.first_air_date || null,
+              last_air_date: details?.last_air_date || null,
+              status: details?.status || null,
+              runtime: null,
+              episode_run_time: details?.episode_run_time || null,
+              popularity: show.popularity,
+              vote_average: show.vote_average,
+              poster_path: show.poster_path,
+              backdrop_path: show.backdrop_path,
+              original_language: show.original_language,
+              is_adult: show.adult || false,
+              imdb_id: details?.external_ids?.imdb_id || null,
+              tagline: details?.tagline || null,
+              trailer_url: trailerUrl,
+              is_tmdb_trailer: isTmdbTrailerTv,
+              updated_at: new Date().toISOString()
+            }, { onConflict: 'tmdb_id,title_type' })
+            .select('id')
+            .single();
+
+          if (titleError) {
+            console.error(`Error upserting show ${show.name} (${phase}):`, titleError);
+            return false;
+          }
+
+          if (upsertedTitle) {
+            totalProcessed++;
+
+            for (const provider of providers) {
+              await supabase.from('title_streaming_availability').upsert({
+                title_id: upsertedTitle.id,
+                streaming_service_id: provider.serviceId,
+                region_code: 'US'
+              }, { onConflict: 'title_id,streaming_service_id,region_code' });
+            }
+
+            // Map ALL genres from show (not just searched genre)
+            const showGenreIds = show.genre_ids || [];
+            for (const gId of showGenreIds) {
+              const gName = TMDB_GENRE_MAP[gId];
+              if (gName) {
+                const ourGenreId = genreNameToId[gName.toLowerCase()];
+                if (ourGenreId) {
+                  await supabase.from('title_genres').upsert({ title_id: upsertedTitle.id, genre_id: ourGenreId }, { onConflict: 'title_id,genre_id' });
+                }
               }
             }
-          }
 
-          // Store spoken languages - ONLY if language exists in our table
-          if (details?.spoken_languages) {
-            for (const lang of details.spoken_languages) {
-              // Only link to existing languages, never add new ones
-              if (validLanguageCodes.has(lang.iso_639_1)) {
-                await supabase.from('title_spoken_languages').upsert({ title_id: upsertedTitle.id, iso_639_1: lang.iso_639_1 }, { onConflict: 'title_id,iso_639_1' });
+            if (details?.spoken_languages) {
+              for (const lang of details.spoken_languages) {
+                if (validLanguageCodes.has(lang.iso_639_1)) {
+                  await supabase.from('title_spoken_languages').upsert({ title_id: upsertedTitle.id, iso_639_1: lang.iso_639_1 }, { onConflict: 'title_id,iso_639_1' });
+                }
               }
             }
-          }
 
-          // Store seasons with trailers
-          if (details?.seasons) {
-            for (const season of details.seasons) {
-              // Fetch trailer for this season
-              let seasonTrailerUrl: string | null = null;
-              let seasonIsTmdbTrailer = true;
+            // Store seasons with trailers
+            if (details?.seasons) {
+              for (const season of details.seasons) {
+                let seasonTrailerUrl: string | null = null;
+                let seasonIsTmdbTrailer = true;
 
-              if (season.season_number > 0) {
-                try {
-                  // Try TMDB first
-                  const seasonVideosRes = await fetch(`https://api.themoviedb.org/3/tv/${show.id}/season/${season.season_number}/videos?api_key=${TMDB_API_KEY}`);
-                  if (seasonVideosRes.ok) {
-                    const seasonVideosData = await seasonVideosRes.json();
-                    const seasonTrailer = seasonVideosData.results?.find((v: any) => v.type === 'Trailer' && v.site === 'YouTube');
-                    if (seasonTrailer) {
-                      seasonTrailerUrl = `https://www.youtube.com/watch?v=${seasonTrailer.key}`;
-                      seasonIsTmdbTrailer = true;
+                if (season.season_number > 0) {
+                  try {
+                    const seasonVideosRes = await fetch(`https://api.themoviedb.org/3/tv/${show.id}/season/${season.season_number}/videos?api_key=${TMDB_API_KEY}`);
+                    if (seasonVideosRes.ok) {
+                      const seasonVideosData = await seasonVideosRes.json();
+                      const seasonTrailer = seasonVideosData.results?.find((v: any) => v.type === 'Trailer' && v.site === 'YouTube');
+                      if (seasonTrailer) {
+                        seasonTrailerUrl = `https://www.youtube.com/watch?v=${seasonTrailer.key}`;
+                        seasonIsTmdbTrailer = true;
+                      }
                     }
-                  }
 
-                  // YouTube fallback if no TMDB trailer
-                  if (!seasonTrailerUrl && YOUTUBE_API_KEY) {
-                    const seasonSearchName = season.name || `Season ${season.season_number}`;
-                    const searchQuery = `${show.name} ${seasonSearchName} official trailer`;
-                    const relevantChannels = (officialChannels || []).filter(c => 
-                      c.language_code === (show.original_language || languageCode) || c.language_code === 'global' || c.language_code === 'en'
-                    ).map(c => c.channel_name.toLowerCase());
+                    if (!seasonTrailerUrl && YOUTUBE_API_KEY) {
+                      const seasonSearchName = season.name || `Season ${season.season_number}`;
+                      const searchQuery = `${show.name} ${seasonSearchName} official trailer`;
+                      const relevantChannels = (officialChannels || []).filter(c => 
+                        c.language_code === (show.original_language || languageCode) || c.language_code === 'global' || c.language_code === 'en'
+                      ).map(c => c.channel_name.toLowerCase());
 
-                    const ytRes = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(searchQuery)}&type=video&maxResults=10&key=${YOUTUBE_API_KEY}`);
-                    if (ytRes.ok) {
-                      const ytData = await ytRes.json();
-                      const officialChannelTrailer = ytData.items?.find((item: any) => {
-                        const channelTitle = item.snippet.channelTitle?.toLowerCase() || '';
-                        return relevantChannels.some(officialName => channelTitle.includes(officialName.toLowerCase()));
-                      });
-                      if (officialChannelTrailer) {
-                        seasonTrailerUrl = `https://www.youtube.com/watch?v=${officialChannelTrailer.id.videoId}`;
-                        seasonIsTmdbTrailer = false;
-                      } else {
-                        const verifiedTrailer = ytData.items?.find((item: any) => {
+                      const ytRes = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(searchQuery)}&type=video&maxResults=10&key=${YOUTUBE_API_KEY}`);
+                      if (ytRes.ok) {
+                        const ytData = await ytRes.json();
+                        const officialChannelTrailer = ytData.items?.find((item: any) => {
                           const channelTitle = item.snippet.channelTitle?.toLowerCase() || '';
-                          const videoTitle = item.snippet.title?.toLowerCase() || '';
-                          const hasOfficialInTitle = videoTitle.includes('official trailer');
-                          const isOfficialChannel = channelTitle.includes('pictures') || channelTitle.includes('studios') || channelTitle.includes('entertainment') || channelTitle.includes('netflix') || channelTitle.includes('disney');
-                          return hasOfficialInTitle && isOfficialChannel;
+                          return relevantChannels.some(officialName => channelTitle.includes(officialName.toLowerCase()));
                         });
-                        if (verifiedTrailer) {
-                          seasonTrailerUrl = `https://www.youtube.com/watch?v=${verifiedTrailer.id.videoId}`;
+                        if (officialChannelTrailer) {
+                          seasonTrailerUrl = `https://www.youtube.com/watch?v=${officialChannelTrailer.id.videoId}`;
                           seasonIsTmdbTrailer = false;
+                        } else {
+                          const verifiedTrailer = ytData.items?.find((item: any) => {
+                            const channelTitle = item.snippet.channelTitle?.toLowerCase() || '';
+                            const videoTitle = item.snippet.title?.toLowerCase() || '';
+                            const hasOfficialInTitle = videoTitle.includes('official trailer');
+                            const isOfficialChannel = channelTitle.includes('pictures') || channelTitle.includes('studios') || channelTitle.includes('entertainment') || channelTitle.includes('netflix') || channelTitle.includes('disney');
+                            return hasOfficialInTitle && isOfficialChannel;
+                          });
+                          if (verifiedTrailer) {
+                            seasonTrailerUrl = `https://www.youtube.com/watch?v=${verifiedTrailer.id.videoId}`;
+                            seasonIsTmdbTrailer = false;
+                          }
                         }
                       }
                     }
+                  } catch (e) {
+                    console.error(`Error fetching season ${season.season_number} trailer:`, e);
                   }
-                } catch (e) {
-                  console.error(`Error fetching season ${season.season_number} trailer:`, e);
+                }
+
+                await supabase.from('seasons').upsert({
+                  title_id: upsertedTitle.id,
+                  season_number: season.season_number,
+                  episode_count: season.episode_count,
+                  air_date: season.air_date || null,
+                  name: season.name,
+                  overview: season.overview,
+                  poster_path: season.poster_path,
+                  trailer_url: seasonTrailerUrl,
+                  is_tmdb_trailer: seasonIsTmdbTrailer
+                }, { onConflict: 'title_id,season_number' });
+              }
+            }
+
+            if (details?.keywords?.results) {
+              for (const kw of details.keywords.results.slice(0, 10)) {
+                const { data: kwData } = await supabase.from('keywords').upsert({ tmdb_keyword_id: kw.id, name: kw.name }, { onConflict: 'tmdb_keyword_id' }).select('id').single();
+                if (kwData) {
+                  await supabase.from('title_keywords').upsert({ title_id: upsertedTitle.id, keyword_id: kwData.id }, { onConflict: 'title_id,keyword_id' });
                 }
               }
-
-              await supabase.from('seasons').upsert({
-                title_id: upsertedTitle.id,
-                season_number: season.season_number,
-                episode_count: season.episode_count,
-                air_date: season.air_date || null,
-                name: season.name,
-                overview: season.overview,
-                poster_path: season.poster_path,
-                trailer_url: seasonTrailerUrl,
-                is_tmdb_trailer: seasonIsTmdbTrailer
-              }, { onConflict: 'title_id,season_number' });
             }
+            return true;
           }
-
-          // Store keywords
-          if (details?.keywords?.results) {
-            for (const kw of details.keywords.results.slice(0, 10)) {
-              const { data: kwData } = await supabase.from('keywords').upsert({ tmdb_keyword_id: kw.id, name: kw.name }, { onConflict: 'tmdb_keyword_id' }).select('id').single();
-              if (kwData) {
-                await supabase.from('title_keywords').upsert({ title_id: upsertedTitle.id, keyword_id: kwData.id }, { onConflict: 'title_id,keyword_id' });
-              }
-            }
-          }
-          return true;
+          return false;
+        } catch (error) {
+          console.error(`Error processing show ${show.name} (${phase}):`, error);
+          return false;
         }
-        return false;
-      } catch (error) {
-        console.error(`Error processing show ${show.name} (${phase}):`, error);
-        return false;
-      }
-    }
-
-    // Track processed TMDB IDs to avoid duplicates between phases
-    const processedTvIds = new Set<number>();
-
-    // CRITICAL: Convert movie genre ID to TV genre ID for TV show queries
-    // TMDB uses DIFFERENT genre IDs for TV shows vs Movies!
-    // Some genres map to different IDs (e.g., 878 Science Fiction → 10765 Sci-Fi & Fantasy)
-    // Some genres use the same ID for both movies and TV (e.g., 18 Drama)
-    const tvGenreId = MOVIE_TO_TV_GENRE_MAP[tmdbGenreId] || tmdbGenreId;
-    
-    if (tvGenreId !== tmdbGenreId) {
-      console.log(`Mapping movie genre ${genreName} (${tmdbGenreId}) → TV genre ID ${tvGenreId}`);
-    } else {
-      console.log(`Using same genre ID ${tmdbGenreId} for TV (${genreName})`);
-    }
-
-    // PHASE 1: Year-based TV discovery (captures new/recent content)
-    let tvPage = 1;
-    let tvTotalPages = 1;
-    
-    while (tvPage <= tvTotalPages && tvPage <= 20) {
-      const elapsed = Date.now() - startTime;
-      if (elapsed > MAX_RUNTIME_MS) {
-        console.log(`Approaching time limit at ${elapsed}ms. Stopping gracefully.`);
-        await supabase.from('system_logs').insert({
-          severity: 'warning',
-          operation: 'full-refresh-titles-timeout',
-          error_message: `Thread approaching time limit at ${elapsed}ms for ${languageCode}/${year}/${genreName}`,
-          context: { languageCode, year, genre: genreName, genreId: tmdbGenreId, tvGenreId, totalProcessed, elapsedMs: elapsed, phase: 'tv-year', page: tvPage }
-        });
-        break;
       }
 
-      // Use TV genre ID (not movie genre ID) for TV show discovery
-      const tvUrl = `https://api.themoviedb.org/3/discover/tv?api_key=${TMDB_API_KEY}&air_date.gte=${year}-01-01&air_date.lte=${year}-12-31&with_genres=${tvGenreId}&with_original_language=${languageCode}&vote_average.gte=${minRating}&sort_by=popularity.desc&page=${tvPage}`;
-      
-      try {
-        const tvResponse = await fetch(tvUrl);
-        const tvData = await tvResponse.json();
-        const shows = tvData.results || [];
-        tvTotalPages = Math.min(tvData.total_pages || 1, 20);
-        console.log(`[Year-based] Found ${shows.length} TV shows (page ${tvPage}/${tvTotalPages})`);
+      const processedTvIds = new Set<number>();
 
-        for (const show of shows) {
-          processedTvIds.add(show.id);
-          await processTvShow(show, 'year-based');
-        }
-
-        tvPage++;
-        await new Promise(resolve => setTimeout(resolve, 250));
-      } catch (err) {
-        console.error('Error fetching TV shows page (year-based):', err);
-        break;
-      }
-    }
-
-    // PHASE 2: Popularity-based TV discovery (captures classic/popular shows regardless of year)
-    // Only run if we have time remaining
-    const elapsedAfterPhase1 = Date.now() - startTime;
-    if (elapsedAfterPhase1 < MAX_RUNTIME_MS - 30000) { // Need at least 30s for phase 2
-      console.log(`Starting Phase 2: Popularity-based TV discovery for ${languageCode}/${genreName}`);
+      // TV PHASE 1: Year-based discovery
+      // IMPORTANT: air_date filter in discover/tv refers to FIRST air date, not season air dates
+      // This means shows that premiered in this year will be found
+      let tvPage = 1;
+      let tvTotalPages = 1;
       
-      let popularPage = 1;
-      let popularTotalPages = 1;
-      const MAX_POPULAR_PAGES = 10; // Limit to top 200 popular shows per language/genre combo
-      
-      while (popularPage <= popularTotalPages && popularPage <= MAX_POPULAR_PAGES) {
+      while (tvPage <= tvTotalPages && tvPage <= 20) {
         const elapsed = Date.now() - startTime;
         if (elapsed > MAX_RUNTIME_MS) {
-          console.log(`Approaching time limit at ${elapsed}ms during Phase 2. Stopping gracefully.`);
+          console.log(`Approaching time limit at ${elapsed}ms. Stopping gracefully.`);
+          await supabase.from('system_logs').insert({
+            severity: 'warning',
+            operation: 'full-refresh-titles-timeout',
+            error_message: `Thread approaching time limit at ${elapsed}ms for ${languageCode}/${year}/${genreName}`,
+            context: { languageCode, year, genre: genreName, genreId: tmdbGenreId, tvGenreId, totalProcessed, elapsedMs: elapsed, phase: 'tv-year', page: tvPage }
+          });
           break;
         }
 
-        // No year filter - get ALL popular shows for this language/genre
-        // Use TV genre ID (not movie genre ID) for TV show discovery
-        const popularUrl = `https://api.themoviedb.org/3/discover/tv?api_key=${TMDB_API_KEY}&with_genres=${tvGenreId}&with_original_language=${languageCode}&vote_average.gte=${minRating}&sort_by=popularity.desc&page=${popularPage}`;
+        // Use CORRECT TV genre ID for TV show discovery
+        const tvUrl = `https://api.themoviedb.org/3/discover/tv?api_key=${TMDB_API_KEY}&air_date.gte=${year}-01-01&air_date.lte=${year}-12-31&with_genres=${tvGenreId}&with_original_language=${languageCode}&vote_average.gte=${minRating}&sort_by=popularity.desc&page=${tvPage}`;
+        
+        console.log(`[TV Phase 1] Fetching: year=${year}, tvGenreId=${tvGenreId}, lang=${languageCode}, page=${tvPage}`);
         
         try {
-          const popularResponse = await fetch(popularUrl);
-          const popularData = await popularResponse.json();
-          const shows = popularData.results || [];
-          popularTotalPages = Math.min(popularData.total_pages || 1, MAX_POPULAR_PAGES);
-          console.log(`[Popularity-based] Found ${shows.length} TV shows (page ${popularPage}/${popularTotalPages})`);
+          const tvResponse = await fetch(tvUrl);
+          const tvData = await tvResponse.json();
+          const shows = tvData.results || [];
+          tvTotalPages = Math.min(tvData.total_pages || 1, 20);
+          console.log(`[Year-based] Found ${shows.length} TV shows (page ${tvPage}/${tvTotalPages})`);
 
           for (const show of shows) {
-            // Skip if already processed in Phase 1
-            if (processedTvIds.has(show.id)) {
-              continue;
-            }
             processedTvIds.add(show.id);
-            await processTvShow(show, 'popularity-based');
+            await processTvShow(show, 'year-based');
           }
 
-          popularPage++;
+          tvPage++;
           await new Promise(resolve => setTimeout(resolve, 250));
         } catch (err) {
-          console.error('Error fetching TV shows page (popularity-based):', err);
+          console.error('Error fetching TV shows page (year-based):', err);
           break;
         }
       }
-    } else {
-      console.log(`Skipping Phase 2 due to time constraints (${elapsedAfterPhase1}ms elapsed)`);
-    }
 
-    const duration = Math.floor((Date.now() - startTime) / 1000);
+      // TV PHASE 2: Popularity-based discovery (captures classic/popular shows regardless of year)
+      // This is CRITICAL for catching shows like "Breaking Bad", "Friends", "The Office"
+      // that premiered years ago but are still highly popular
+      const elapsedAfterTvPhase1 = Date.now() - startTime;
+      if (elapsedAfterTvPhase1 < MAX_RUNTIME_MS - 30000) {
+        console.log(`Starting TV Phase 2: Popularity-based discovery for ${languageCode}/${genreName}`);
+        
+        let popularPage = 1;
+        let popularTotalPages = 1;
+        const MAX_POPULAR_PAGES = 15; // Increased to capture more classics
+        
+        while (popularPage <= popularTotalPages && popularPage <= MAX_POPULAR_PAGES) {
+          const elapsed = Date.now() - startTime;
+          if (elapsed > MAX_RUNTIME_MS) {
+            console.log(`Approaching time limit at ${elapsed}ms during TV Phase 2. Stopping gracefully.`);
+            break;
+          }
 
-    // Use atomic increment
-    await supabase.rpc('increment_job_titles', { p_job_type: 'full_refresh', p_increment: totalProcessed });
+          // NO year filter - get ALL popular shows for this language/genre
+          const popularUrl = `https://api.themoviedb.org/3/discover/tv?api_key=${TMDB_API_KEY}&with_genres=${tvGenreId}&with_original_language=${languageCode}&vote_average.gte=${minRating}&sort_by=popularity.desc&page=${popularPage}`;
+          
+          try {
+            const popularResponse = await fetch(popularUrl);
+            const popularData = await popularResponse.json();
+            const shows = popularData.results || [];
+            popularTotalPages = Math.min(popularData.total_pages || 1, MAX_POPULAR_PAGES);
+            console.log(`[Popularity-based] Found ${shows.length} TV shows (page ${popularPage}/${popularTotalPages})`);
 
-    // Update thread tracking
-    if (jobId) {
-      const { data: currentJob } = await supabase
-        .from('jobs')
-        .select('configuration, status')
-        .eq('id', jobId)
-        .single();
-      
-      if (currentJob?.status === 'failed' || currentJob?.status === 'idle') {
-        console.log('Job was stopped, skipping tracking update');
-        return new Response(
-          JSON.stringify({ success: true, totalProcessed, duration, message: 'Job was stopped' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+            for (const show of shows) {
+              if (processedTvIds.has(show.id)) {
+                continue;
+              }
+              processedTvIds.add(show.id);
+              await processTvShow(show, 'popularity-based');
+            }
+
+            popularPage++;
+            await new Promise(resolve => setTimeout(resolve, 250));
+          } catch (err) {
+            console.error('Error fetching TV shows page (popularity-based):', err);
+            break;
+          }
+        }
+      } else {
+        console.log(`Skipping TV Phase 2 due to time constraints (${elapsedAfterTvPhase1}ms elapsed)`);
       }
-      
-      const currentConfig = (currentJob?.configuration as any) || {};
-      const tracking = currentConfig.thread_tracking || { succeeded: 0, failed: 0 };
-      const completedUnits = currentConfig.completed_work_units || [];
-      const failedUnits = (currentConfig.failed_work_units || []).filter((u: any) =>
-        !(u.languageCode === languageCode && u.year === year && u.genreId === tmdbGenreId)
-      );
-      
-      completedUnits.push({
-        languageCode, year, genreId: tmdbGenreId, genreName,
-        completedAt: new Date().toISOString(),
-        titlesProcessed: totalProcessed
-      });
-      
-      await supabase
-        .from('jobs')
-        .update({
-          configuration: {
-            ...currentConfig,
-            thread_tracking: { succeeded: tracking.succeeded + 1, failed: tracking.failed },
-            completed_work_units: completedUnits,
-            failed_work_units: failedUnits
-          },
-          last_run_duration_seconds: duration
-        })
-        .eq('id', jobId)
-        .eq('status', 'running');
     }
 
-    console.log(`Full Refresh completed: ${totalProcessed} titles in ${duration}s for ${languageCode}/${year}/${genreName} (skipped ${skippedNoProvider} without streaming)`);
+    // Update job stats
+    try {
+      await supabase.rpc('increment_job_titles', {
+        p_job_type: 'full_refresh',
+        p_increment: totalProcessed
+      });
+    } catch (err) {
+      console.error('Error incrementing job titles:', err);
+    }
+
+    const endTime = Date.now();
+    const durationMs = endTime - startTime;
+
+    console.log(`Completed: ${languageCode}/${year}/${genreName}. Processed: ${totalProcessed}, Skipped (no provider): ${skippedNoProvider}, Duration: ${durationMs}ms`);
 
     return new Response(
-      JSON.stringify({ success: true, totalProcessed, skippedNoProvider, duration, language: languageCode, year, genre: genreName }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({
+        success: true,
+        language: languageCode,
+        year,
+        genre: genreName,
+        genreId: tmdbGenreId,
+        titlesProcessed: totalProcessed,
+        skippedNoProvider,
+        durationMs
+      }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error) {
-    console.error('Error in full-refresh-titles:', error);
-    const errorMessage = error instanceof Error ? error.message : String(error);
-
-    // Log error
-    try {
-      await supabase.from('system_logs').insert({
-        severity: 'error',
-        operation: 'full-refresh-titles-error',
-        error_message: errorMessage,
-        context: { error: errorMessage }
-      });
-    } catch (logError) {
-      console.error('Failed to log error:', logError);
-    }
-
+    console.error('Full refresh error:', error);
+    
+    // Log error to system_logs
+    await supabase.from('system_logs').insert({
+      severity: 'error',
+      operation: 'full-refresh-titles-error',
+      error_message: error instanceof Error ? error.message : 'Unknown error',
+      error_stack: error instanceof Error ? error.stack : null,
+      context: { requestBody: requestBody || {} }
+    });
+    
     return new Response(
-      JSON.stringify({ error: errorMessage }),
+      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
