@@ -55,11 +55,24 @@ serve(async (req) => {
     // Fetch job configuration to get completed work units
     const { data: jobData, error: jobError } = await supabase
       .from('jobs')
-      .select('configuration')
+      .select('configuration, status')
       .eq('id', jobId)
       .single();
 
     if (jobError) throw jobError;
+
+    // Check if job was stopped before we start
+    if (jobData.status === 'failed' || jobData.status === 'idle') {
+      console.log(`Job ${jobId} is not running (status: ${jobData.status}). Aborting orchestrator.`);
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          message: `Job is not running (status: ${jobData.status})`,
+          jobId
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     const config = jobData.configuration || {};
     const completedUnits = config.completed_work_units || [];
@@ -87,6 +100,8 @@ serve(async (req) => {
       const totalBatches = Math.ceil(totalThreads / BATCH_SIZE);
       
       console.log(`Starting batch dispatch: ${totalThreads} threads in ${totalBatches} batches of ${BATCH_SIZE}`);
+      
+      let wasStoppedByAdmin = false;
       
       for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
         const batchStart = batchIndex * BATCH_SIZE;
@@ -142,6 +157,7 @@ serve(async (req) => {
         
         if (jobStatus?.status === 'failed' || jobStatus?.status === 'idle') {
           console.error(`Job ${jobId} status changed to '${jobStatus.status}'. Error: ${jobStatus.error_message}. Halting orchestration at batch ${batchNumber}.`);
+          wasStoppedByAdmin = true;
           
           // Log job stoppage to system_logs
           await supabase.from('system_logs').insert({
@@ -162,11 +178,13 @@ serve(async (req) => {
           break;
         }
         
-        // Dispatch all threads in current batch simultaneously
+        // Dispatch all threads in current batch and collect results
         const batchPromises = [];
+        const batchChunks: any[] = [];
+        
         for (let i = batchStart; i < batchEnd; i++) {
           const chunk = remainingChunks[i];
-          const threadNum = completedUnits.length + i + 1;
+          batchChunks.push(chunk);
           
           const promise = supabase.functions.invoke('full-refresh-titles', {
             body: {
@@ -176,87 +194,75 @@ serve(async (req) => {
               genreId: chunk.genreId,
               jobId: jobId
             }
-          }).catch(async error => {
-            console.error(`Error dispatching thread ${threadNum}:`, error);
-            
-            // Map genreId to genre name for logging
-            const genreName = GENRE_MAP[chunk.genreId] || 'Unknown';
-            
-            // Fetch job configuration to get minRating for TMDB parameters
-            const { data: jobConfig } = await supabase
-              .from('jobs')
-              .select('configuration')
-              .eq('id', jobId)
-              .single();
-            
-            const minRating = jobConfig?.configuration?.min_rating || 6.0;
-            
-            // Store complete TMDB API parameters for retry
-            const tmdbParameters = {
-              movies: {
-                endpoint: 'https://api.themoviedb.org/3/discover/movie',
-                parameters: {
-                  api_key: '[REDACTED]',
-                  primary_release_year: chunk.year,
-                  with_genres: chunk.genreId,
-                  with_original_language: chunk.languageCode,
-                  'popularity.gte': 60,
-                  sort_by: 'popularity.desc'
-                }
-              },
-              tv: {
-                endpoint: 'https://api.themoviedb.org/3/discover/tv',
-                parameters: {
-                  api_key: '[REDACTED]',
-                  'air_date.gte': `${chunk.year}-01-01`,
-                  'air_date.lte': `${chunk.year}-12-31`,
-                  with_genres: chunk.genreId,
-                  with_original_language: chunk.languageCode,
-                  'popularity.gte': 60,
-                  sort_by: 'popularity.desc'
-                }
-              }
-            };
-            
-            // Log dispatch failure with complete retry parameters
-            await supabase.from('system_logs').insert({
-              severity: 'error',
-              operation: 'full-refresh-thread-dispatch-failed',
-              error_message: `Failed to dispatch thread ${threadNum} for ${chunk.languageCode}/${chunk.year}/${genreName}: ${error.message || String(error)}`,
-              error_stack: error.stack || null,
-              context: {
-                jobId,
-                threadNum,
-                batchNumber,
-                retry_parameters: {
-                  languageCode: chunk.languageCode,
-                  languageName: chunk.languageName,
-                  startYear: chunk.year,
-                  endYear: chunk.year,
-                  genreId: chunk.genreId,
-                  genreName: genreName,
-                  minRating: minRating
-                },
-                tmdb_api_parameters: tmdbParameters,
-                edge_function_body: {
-                  languageCode: chunk.languageCode,
-                  startYear: chunk.year,
-                  endYear: chunk.year,
-                  genreId: chunk.genreId,
-                  jobId: jobId
-                }
-              }
-            });
-            
-            return { error };
+          }).then(result => {
+            return { success: !result.error, chunk, result };
+          }).catch(error => {
+            console.error(`Error dispatching thread for ${chunk.languageCode}/${chunk.year}/${chunk.genreId}:`, error);
+            return { success: false, chunk, error };
           });
           
           batchPromises.push(promise);
         }
         
         // Wait for all threads in this batch to complete
-        await Promise.all(batchPromises);
-        console.log(`Batch ${batchNumber}/${totalBatches} completed (threads ${batchStart + 1}-${batchEnd})`);
+        const batchResults = await Promise.all(batchPromises);
+        
+        // Process results and update job configuration
+        const newCompletedUnits: any[] = [];
+        const newFailedUnits: any[] = [];
+        
+        for (const result of batchResults) {
+          const genreName = GENRE_MAP[result.chunk.genreId] || 'Unknown';
+          
+          if (result.success) {
+            newCompletedUnits.push({
+              languageCode: result.chunk.languageCode,
+              year: result.chunk.year,
+              genreId: result.chunk.genreId,
+              genreName,
+              completedAt: new Date().toISOString()
+            });
+          } else {
+            const errorMsg = 'error' in result ? (result.error?.message || 'Unknown error') : 'Unknown error';
+            newFailedUnits.push({
+              languageCode: result.chunk.languageCode,
+              year: result.chunk.year,
+              genreId: result.chunk.genreId,
+              genreName,
+              error: errorMsg,
+              attempts: 1,
+              failedAt: new Date().toISOString()
+            });
+          }
+        }
+        
+        // Update job configuration with new completed/failed units
+        const { data: currentJobData } = await supabase
+          .from('jobs')
+          .select('configuration')
+          .eq('id', jobId)
+          .single();
+        
+        const currentConfig = currentJobData?.configuration || {};
+        const updatedCompletedUnits = [...(currentConfig.completed_work_units || []), ...newCompletedUnits];
+        const updatedFailedUnits = [...(currentConfig.failed_work_units || []), ...newFailedUnits];
+        
+        await supabase
+          .from('jobs')
+          .update({
+            configuration: {
+              ...currentConfig,
+              completed_work_units: updatedCompletedUnits,
+              failed_work_units: updatedFailedUnits,
+              thread_tracking: {
+                succeeded: updatedCompletedUnits.length,
+                failed: updatedFailedUnits.length
+              }
+            }
+          })
+          .eq('id', jobId);
+        
+        console.log(`Batch ${batchNumber}/${totalBatches} completed. Success: ${newCompletedUnits.length}, Failed: ${newFailedUnits.length}`);
         
         // Add delay between batches to prevent overwhelming Supabase
         if (batchIndex < totalBatches - 1) {
@@ -265,35 +271,48 @@ serve(async (req) => {
         }
       }
       
+      // If job was stopped, don't proceed to retry phase
+      if (wasStoppedByAdmin) {
+        console.log(`Job was stopped by admin. Skipping retry phase.`);
+        return;
+      }
+      
       // RETRY FAILED THREADS
       // After all new threads complete, automatically retry any previously failed threads
       const { data: retryJobData } = await supabase
         .from('jobs')
-        .select('configuration')
+        .select('configuration, status')
         .eq('id', jobId)
         .single();
       
-      const retryConfig = retryJobData?.configuration || {};
-      const failedUnits = retryConfig.failed_work_units || [];
+      // Check again if job was stopped
+      if (retryJobData?.status === 'failed' || retryJobData?.status === 'idle') {
+        console.log(`Job stopped before retry phase. Aborting.`);
+        return;
+      }
       
-      if (failedUnits.length > 0) {
-        console.log(`Found ${failedUnits.length} failed threads to retry`);
+      const retryConfig = retryJobData?.configuration || {};
+      const failedUnitsToRetry = retryConfig.failed_work_units || [];
+      
+      if (failedUnitsToRetry.length > 0) {
+        console.log(`Found ${failedUnitsToRetry.length} failed threads to retry`);
         
         const retryBatchSize = 5;
-        const totalRetryBatches = Math.ceil(failedUnits.length / retryBatchSize);
-        const successfulRetries: any[] = [];
-        const stillFailedRetries: any[] = [];
+        const totalRetryBatches = Math.ceil(failedUnitsToRetry.length / retryBatchSize);
         
         for (let retryBatchIndex = 0; retryBatchIndex < totalRetryBatches; retryBatchIndex++) {
           const retryBatchStart = retryBatchIndex * retryBatchSize;
-          const retryBatchEnd = Math.min(retryBatchStart + retryBatchSize, failedUnits.length);
+          const retryBatchEnd = Math.min(retryBatchStart + retryBatchSize, failedUnitsToRetry.length);
           const retryBatchNum = retryBatchIndex + 1;
           
           console.log(`Starting retry batch ${retryBatchNum}/${totalRetryBatches}: retrying ${retryBatchStart + 1} to ${retryBatchEnd}`);
           
           const retryPromises = [];
+          const retryChunks: any[] = [];
+          
           for (let i = retryBatchStart; i < retryBatchEnd; i++) {
-            const failedUnit = failedUnits[i];
+            const failedUnit = failedUnitsToRetry[i];
+            retryChunks.push(failedUnit);
             
             const promise = supabase.functions.invoke('full-refresh-titles', {
               body: {
@@ -303,55 +322,122 @@ serve(async (req) => {
                 genreId: failedUnit.genreId,
                 jobId: jobId
               }
-            }).then(() => {
-              console.log(`Retry succeeded: ${failedUnit.languageCode}/${failedUnit.year}/${failedUnit.genreId}`);
-              successfulRetries.push(failedUnit);
-              return { success: true, unit: failedUnit };
+            }).then(result => {
+              return { success: !result.error, unit: failedUnit, result };
             }).catch(error => {
-              console.error(`Retry failed: ${failedUnit.languageCode}/${failedUnit.year}/${failedUnit.genreId}:`, error);
-              stillFailedRetries.push({ ...failedUnit, attempts: (failedUnit.attempts || 0) + 1 });
               return { success: false, unit: failedUnit, error };
             });
             
             retryPromises.push(promise);
           }
           
-          await Promise.all(retryPromises);
+          const retryResults = await Promise.all(retryPromises);
+          
+          // Update job configuration: move successful retries to completed, update remaining failures
+          const { data: retryUpdateData } = await supabase
+            .from('jobs')
+            .select('configuration')
+            .eq('id', jobId)
+            .single();
+          
+          const updateConfig = retryUpdateData?.configuration || {};
+          let currentCompletedUnits = updateConfig.completed_work_units || [];
+          let currentFailedUnits = updateConfig.failed_work_units || [];
+          
+          for (const result of retryResults) {
+            const genreName = GENRE_MAP[result.unit.genreId] || 'Unknown';
+            
+            if (result.success) {
+              console.log(`Retry succeeded: ${result.unit.languageCode}/${result.unit.year}/${genreName}`);
+              
+              // Add to completed
+              currentCompletedUnits.push({
+                languageCode: result.unit.languageCode,
+                year: result.unit.year,
+                genreId: result.unit.genreId,
+                genreName,
+                completedAt: new Date().toISOString(),
+                wasRetry: true
+              });
+              
+              // Remove from failed
+              currentFailedUnits = currentFailedUnits.filter((u: any) => 
+                !(u.languageCode === result.unit.languageCode && 
+                  u.year === result.unit.year && 
+                  u.genreId === result.unit.genreId)
+              );
+            } else {
+              console.error(`Retry failed: ${result.unit.languageCode}/${result.unit.year}/${genreName}`);
+              
+              // Update attempts count
+              currentFailedUnits = currentFailedUnits.map((u: any) => {
+                if (u.languageCode === result.unit.languageCode && 
+                    u.year === result.unit.year && 
+                    u.genreId === result.unit.genreId) {
+                  return { ...u, attempts: (u.attempts || 0) + 1, lastAttempt: new Date().toISOString() };
+                }
+                return u;
+              });
+            }
+          }
+          
+          await supabase
+            .from('jobs')
+            .update({
+              configuration: {
+                ...updateConfig,
+                completed_work_units: currentCompletedUnits,
+                failed_work_units: currentFailedUnits,
+                thread_tracking: {
+                  succeeded: currentCompletedUnits.length,
+                  failed: currentFailedUnits.length
+                }
+              }
+            })
+            .eq('id', jobId);
+          
           console.log(`Retry batch ${retryBatchNum}/${totalRetryBatches} completed`);
           
           if (retryBatchIndex < totalRetryBatches - 1) {
             await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
           }
         }
-        
-        // Update job configuration: remove successful retries, keep still-failed ones
-        if (successfulRetries.length > 0 || stillFailedRetries.length !== failedUnits.length) {
-          await supabase
-            .from('jobs')
-            .update({
-              configuration: {
-                ...retryConfig,
-                failed_work_units: stillFailedRetries
-              }
-            })
-            .eq('id', jobId);
-          
-          console.log(`Retry complete: ${successfulRetries.length} succeeded, ${stillFailedRetries.length} still failed`);
-        }
       }
       
-      // Verify all work units completed
+      // FINAL: Mark job as completed
       const { data: finalJobData } = await supabase
         .from('jobs')
-        .select('configuration')
+        .select('configuration, status')
         .eq('id', jobId)
         .single();
+      
+      // Don't mark complete if job was stopped
+      if (finalJobData?.status === 'failed' || finalJobData?.status === 'idle') {
+        console.log(`Job was stopped. Not marking as complete.`);
+        return;
+      }
       
       const finalConfig = finalJobData?.configuration || {};
       const finalCompleted = finalConfig.completed_work_units || [];
       const finalFailed = finalConfig.failed_work_units || [];
+      const startTime = finalConfig.start_time || Date.now();
+      const durationSeconds = Math.floor((Date.now() - startTime) / 1000);
       
       console.log(`Orchestrator completed: ${finalCompleted.length}/${chunks.length} threads completed, ${finalFailed.length} failed for job ${jobId}`);
+      
+      // Mark job as completed
+      await supabase
+        .from('jobs')
+        .update({
+          status: 'completed',
+          last_run_duration_seconds: durationSeconds,
+          error_message: finalFailed.length > 0 
+            ? `Completed with ${finalFailed.length} failed work unit(s)` 
+            : null
+        })
+        .eq('id', jobId);
+      
+      console.log(`Job ${jobId} marked as completed. Duration: ${durationSeconds}s`);
     };
 
     // Use waitUntil to ensure background task continues even if response is sent
