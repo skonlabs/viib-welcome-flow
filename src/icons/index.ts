@@ -126,6 +126,7 @@ export {
   FileText,
   Link as LinkIcon,
   Film,
+  Tv,
   MoreVertical,
   TrendingUp,
   ArrowUpDown,

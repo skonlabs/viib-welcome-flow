@@ -804,77 +804,14 @@ export const Jobs = () => {
                 </div>
               </div>
 
-              {/* Parallel Progress Display */}
-              {parallelProgress && parallelProgress.jobId === job.id && (
-                <div className="p-4 bg-primary/10 border border-primary/20 rounded-lg space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="font-semibold text-primary">
-                      Parallel Processing Active
-                    </div>
-                    <Badge variant="outline" className="animate-pulse">
-                      Running
-                    </Badge>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Threads Completed</span>
-                      <span className="font-mono font-medium">
-                        {parallelProgress.currentThread} / {parallelProgress.totalThreads}
-                      </span>
-                    </div>
-                    <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
-                      <div 
-                        className="h-full bg-primary transition-all duration-300"
-                        style={{ width: `${(parallelProgress.currentThread / parallelProgress.totalThreads) * 100}%` }}
-                      />
-                    </div>
-                    <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>{Math.round((parallelProgress.currentThread / parallelProgress.totalThreads) * 100)}% Complete</span>
-                      <span>{parallelProgress.totalThreads - parallelProgress.currentThread} Remaining</span>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-3 pt-2">
-                    <div className="text-center p-2 rounded-lg border border-green-500/20 bg-green-500/10">
-                      <div className="text-xl font-bold text-green-500">
-                        {parallelProgress.succeeded}
-                      </div>
-                      <div className="text-xs text-muted-foreground">Succeeded</div>
-                    </div>
-                    <div className="text-center p-2 rounded-lg border border-red-500/20 bg-red-500/10">
-                      <div className="text-xl font-bold text-red-500">
-                        {parallelProgress.failed}
-                      </div>
-                      <div className="text-xs text-muted-foreground">Failed</div>
-                    </div>
-                    <div className="text-center p-2 rounded-lg border border-blue-500/20 bg-blue-500/10">
-                      <div className="text-xl font-bold text-blue-500">
-                        {parallelProgress.titlesProcessed.toLocaleString()}
-                      </div>
-                      <div className="text-xs text-muted-foreground">Titles</div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Error Message */}
-              {job.error_message && (
-                <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-sm text-destructive">
-                  <div className="font-semibold mb-1">Last Error:</div>
-                  {job.error_message}
-                </div>
-              )}
-
-              {/* Thread Monitor for Full Refresh Jobs */}
+              {/* Combined Thread Monitor */}
               {job.job_type === 'full_refresh' && job.status === 'running' && (
-                <div className="mt-4">
-                  <ThreadMonitor
-                    jobId={job.id}
-                    totalWorkUnits={job.configuration?.total_work_units || 1836}
-                    isRunning={job.status === 'running'}
-                  />
-                </div>
+                <ThreadMonitor
+                  jobId={job.id}
+                  totalWorkUnits={job.configuration?.total_work_units || 1836}
+                  isRunning={job.status === 'running'}
+                  titlesProcessed={job.total_titles_processed || 0}
+                />
               )}
 
               {/* Actions */}
