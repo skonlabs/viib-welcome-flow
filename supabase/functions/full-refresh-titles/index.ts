@@ -463,6 +463,15 @@ serve(async (req) => {
     }
 
     const processedMovieIds = new Set<number>();
+    
+    // CRITICAL: Determine if we should skip vote_average filter for recent content
+    // New releases (within current year) may not have enough votes yet
+    const currentYear = new Date().getFullYear();
+    const isCurrentYear = year === currentYear;
+    
+    // Build vote_average filter - SKIP for current year to capture new releases
+    const voteAverageFilter = isCurrentYear ? '' : `&vote_average.gte=${minRating}`;
+    console.log(`Year ${year}: ${isCurrentYear ? 'SKIPPING vote_average filter (current year - new releases)' : `Using vote_average.gte=${minRating}`}`);
 
     // MOVIE PHASE 1: Year-based discovery
     // Using primary_release_year for EXACT year match
@@ -485,9 +494,10 @@ serve(async (req) => {
       // CRITICAL: with_genres expects a single genre ID
       // Movies that CONTAIN this genre will be returned (OR logic with multiple, AND if comma-separated)
       // We use single genre, so any movie with this genre is returned
-      const moviesUrl = `https://api.themoviedb.org/3/discover/movie?api_key=${TMDB_API_KEY}&primary_release_year=${year}&with_genres=${tmdbGenreId}&with_original_language=${languageCode}&vote_average.gte=${minRating}&sort_by=popularity.desc&page=${moviePage}`;
+      // NOTE: vote_average filter is SKIPPED for current year to capture new releases
+      const moviesUrl = `https://api.themoviedb.org/3/discover/movie?api_key=${TMDB_API_KEY}&primary_release_year=${year}&with_genres=${tmdbGenreId}&with_original_language=${languageCode}${voteAverageFilter}&sort_by=popularity.desc&page=${moviePage}`;
       
-      console.log(`[Movie Phase 1] Fetching: year=${year}, genre=${tmdbGenreId}, lang=${languageCode}, page=${moviePage}`);
+      console.log(`[Movie Phase 1] Fetching: year=${year}, genre=${tmdbGenreId}, lang=${languageCode}, page=${moviePage}${isCurrentYear ? ' (no vote filter)' : ''}`);
       
       try {
         const moviesResponse = await fetch(moviesUrl);
@@ -765,9 +775,10 @@ serve(async (req) => {
         }
 
         // Use CORRECT TV genre ID for TV show discovery
-        const tvUrl = `https://api.themoviedb.org/3/discover/tv?api_key=${TMDB_API_KEY}&air_date.gte=${year}-01-01&air_date.lte=${year}-12-31&with_genres=${tvGenreId}&with_original_language=${languageCode}&vote_average.gte=${minRating}&sort_by=popularity.desc&page=${tvPage}`;
+        // NOTE: vote_average filter is SKIPPED for current year to capture new releases
+        const tvUrl = `https://api.themoviedb.org/3/discover/tv?api_key=${TMDB_API_KEY}&air_date.gte=${year}-01-01&air_date.lte=${year}-12-31&with_genres=${tvGenreId}&with_original_language=${languageCode}${voteAverageFilter}&sort_by=popularity.desc&page=${tvPage}`;
         
-        console.log(`[TV Phase 1] Fetching: year=${year}, tvGenreId=${tvGenreId}, lang=${languageCode}, page=${tvPage}`);
+        console.log(`[TV Phase 1] Fetching: year=${year}, tvGenreId=${tvGenreId}, lang=${languageCode}, page=${tvPage}${isCurrentYear ? ' (no vote filter)' : ''}`);
         
         try {
           const tvResponse = await fetch(tvUrl);
@@ -866,7 +877,8 @@ serve(async (req) => {
               break;
             }
             
-            const tvOnlyUrl = `https://api.themoviedb.org/3/discover/tv?api_key=${TMDB_API_KEY}&air_date.gte=${year}-01-01&air_date.lte=${year}-12-31&with_genres=${tvOnlyGenreId}&with_original_language=${languageCode}&vote_average.gte=${minRating}&sort_by=popularity.desc&page=${tvOnlyPage}`;
+            // NOTE: vote_average filter is SKIPPED for current year to capture new releases
+            const tvOnlyUrl = `https://api.themoviedb.org/3/discover/tv?api_key=${TMDB_API_KEY}&air_date.gte=${year}-01-01&air_date.lte=${year}-12-31&with_genres=${tvOnlyGenreId}&with_original_language=${languageCode}${voteAverageFilter}&sort_by=popularity.desc&page=${tvOnlyPage}`;
             
             try {
               const tvOnlyResponse = await fetch(tvOnlyUrl);
