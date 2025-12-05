@@ -62,23 +62,25 @@ export const Jobs = () => {
       if (error) throw error;
       setJobs(data || []);
       
-      // Restore parallel progress UI if a job is running with thread tracking
+      // Restore parallel progress UI if a job is running with work unit tracking
       const runningJob = data?.find(job => job.status === 'running');
       if (runningJob) {
         const config = (runningJob.configuration as any) || {};
-        const tracking = config.thread_tracking;
+        const completedUnits = config.completed_work_units || [];
+        const failedUnits = config.failed_work_units || [];
+        const totalThreads = config.total_threads || config.total_work_units || 0;
         
-        if (tracking && config.total_threads) {
-          const threadsCompleted = (tracking.succeeded || 0) + (tracking.failed || 0);
+        if (totalThreads > 0) {
+          const threadsCompleted = completedUnits.length + failedUnits.length;
           
           // Only restore progress if we haven't completed all threads yet
-          if (threadsCompleted < config.total_threads) {
+          if (threadsCompleted < totalThreads) {
             setParallelProgress({
               jobId: runningJob.id,
               currentThread: threadsCompleted,
-              totalThreads: config.total_threads,
-              succeeded: tracking.succeeded || 0,
-              failed: tracking.failed || 0,
+              totalThreads: totalThreads,
+              succeeded: completedUnits.length,
+              failed: failedUnits.length,
               titlesProcessed: runningJob.total_titles_processed || 0
             });
           }
@@ -428,37 +430,21 @@ export const Jobs = () => {
 
         if (updatedJob) {
           const jobConfig = (updatedJob.configuration as any) || {};
-          const tracking = jobConfig.thread_tracking || { succeeded: 0, failed: 0 };
-          const threadsCompleted = tracking.succeeded + tracking.failed;
+          const completedUnits = jobConfig.completed_work_units || [];
+          const failedUnits = jobConfig.failed_work_units || [];
+          const tracking = jobConfig.thread_tracking || { succeeded: completedUnits.length, failed: failedUnits.length };
           
           setParallelProgress({
             jobId: job.id,
-            currentThread: threadsCompleted,
+            currentThread: completedUnits.length + failedUnits.length,
             totalThreads: chunks.length,
-            succeeded: tracking.succeeded,
-            failed: tracking.failed,
+            succeeded: completedUnits.length,
+            failed: failedUnits.length,
             titlesProcessed: updatedJob.total_titles_processed || 0
           });
 
-          // Check if all threads completed
-          if (threadsCompleted >= chunks.length) {
-            // Calculate total job duration
-            const jobStartTime = jobConfig.start_time || Date.now();
-            const jobEndTime = Date.now();
-            const durationSeconds = Math.floor((jobEndTime - jobStartTime) / 1000);
-            
-            // Mark job as completed
-            await supabase
-              .from('jobs')
-              .update({ 
-                status: 'completed',
-                last_run_duration_seconds: durationSeconds,
-                error_message: tracking.failed > 0 
-                  ? `Completed with ${tracking.failed} failed thread(s)` 
-                  : null
-              })
-              .eq('id', job.id);
-            
+          // Check if job status changed to completed or failed/idle (stopped)
+          if (updatedJob.status === 'completed' || updatedJob.status === 'failed' || updatedJob.status === 'idle') {
             clearInterval(pollInterval);
             setParallelProgress(null);
             await fetchJobs(); // Refresh job list
@@ -615,14 +601,15 @@ export const Jobs = () => {
           
           setParallelProgress({
             jobId: job.id,
-            currentThread: completed,
+            currentThread: completed + failed,
             totalThreads: allChunks.length,
             succeeded: completed,
             failed: failed,
             titlesProcessed: updatedJob.total_titles_processed || 0
           });
 
-          if (completed + failed >= allChunks.length || updatedJob.status === 'completed') {
+          // Check if job status changed to completed, failed, or idle (stopped)
+          if (updatedJob.status === 'completed' || updatedJob.status === 'failed' || updatedJob.status === 'idle') {
             clearInterval(pollInterval);
             setParallelProgress(null);
             await fetchJobs();
