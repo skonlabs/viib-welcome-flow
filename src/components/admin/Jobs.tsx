@@ -109,6 +109,16 @@ export const Jobs = () => {
     try {
       setRunningJobs(prev => new Set([...prev, job.id]));
       
+      // Reset job status before starting
+      await supabase
+        .from('jobs')
+        .update({
+          status: 'running',
+          error_message: null,
+          last_run_at: new Date().toISOString()
+        })
+        .eq('id', job.id);
+      
       let functionName: string;
       let functionBody: any = {};
       
@@ -118,16 +128,10 @@ export const Jobs = () => {
         functionName = 'sync-titles-delta';
       } else if (job.job_type === 'enrich_trailers') {
         functionName = 'enrich-title-trailers';
-        functionBody = {
-          batchSize: job.configuration?.batch_size || 50,
-          startOffset: job.configuration?.start_offset || 0,
-          jobId: job.id
-        };
+        functionBody = { jobId: job.id };
       } else if (job.job_type === 'transcribe_trailers') {
         functionName = 'transcribe-trailers';
-        functionBody = {
-          jobId: job.id
-        };
+        functionBody = { jobId: job.id };
       } else {
         throw new Error(`Unknown job type: ${job.job_type}`);
       }
