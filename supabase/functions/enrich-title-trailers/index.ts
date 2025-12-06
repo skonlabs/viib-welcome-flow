@@ -13,7 +13,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const MAX_RUNTIME_MS = 90000; // 90 seconds
+const MAX_RUNTIME_MS = 85000; // 85 seconds (leave buffer)
+const BATCH_SIZE = 20; // Process 20 records per batch
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -23,9 +24,9 @@ serve(async (req) => {
   const startTime = Date.now();
 
   try {
-    const { batchSize = 50, startOffset = 0, jobId } = await req.json();
+    const { jobId } = await req.json();
 
-    console.log(`Starting trailer enrichment: offset=${startOffset}, batch=${batchSize}, jobId=${jobId}`);
+    console.log(`Starting trailer enrichment job: ${jobId}`);
 
     if (!TMDB_API_KEY || !YOUTUBE_API_KEY) {
       throw new Error('API keys not configured');
@@ -42,10 +43,15 @@ serve(async (req) => {
 
     console.log(`Loaded ${officialChannels?.length || 0} official trailer channels`);
 
-    let processed = 0;
+    let totalProcessed = 0;
     let titlesEnriched = 0;
     let seasonsEnriched = 0;
     let failed = 0;
+
+    // Helper function to check if we should continue
+    function shouldContinue(): boolean {
+      return (Date.now() - startTime) < MAX_RUNTIME_MS;
+    }
 
     // Helper function to search YouTube for trailers
     async function searchYouTubeTrailer(
@@ -143,159 +149,77 @@ serve(async (req) => {
 
     // ==========================================
     // PHASE 1: Enrich TITLES with null trailer_url
+    // Keep fetching batches until no more records or time runs out
     // ==========================================
     console.log('=== PHASE 1: Enriching titles with missing trailers ===');
     
-    const { data: titlesWithoutTrailers, error: titlesError } = await supabase
-      .from('titles')
-      .select('id, tmdb_id, name, release_date, first_air_date, title_type, original_language')
-      .not('tmdb_id', 'is', null)
-      .is('trailer_url', null)
-      .range(startOffset, startOffset + Math.floor(batchSize / 2) - 1);
+    let titlesOffset = 0;
+    let hasMoreTitles = true;
+    
+    while (hasMoreTitles && shouldContinue()) {
+      const { data: titlesWithoutTrailers, error: titlesError } = await supabase
+        .from('titles')
+        .select('id, tmdb_id, name, release_date, first_air_date, title_type, original_language')
+        .not('tmdb_id', 'is', null)
+        .is('trailer_url', null)
+        .range(titlesOffset, titlesOffset + BATCH_SIZE - 1);
 
-    if (titlesError) {
-      console.error('Error fetching titles:', titlesError);
-    }
-
-    console.log(`Found ${titlesWithoutTrailers?.length || 0} titles without trailers`);
-
-    for (const title of (titlesWithoutTrailers || [])) {
-      if (Date.now() - startTime > MAX_RUNTIME_MS) {
-        console.log('Approaching time limit, stopping gracefully');
+      if (titlesError) {
+        console.error('Error fetching titles:', titlesError);
         break;
       }
 
-      try {
-        const titleLang = title.original_language || 'en';
-        const dateStr = title.title_type === 'movie' ? title.release_date : title.first_air_date;
-        const releaseYear = dateStr ? new Date(dateStr).getFullYear() : null;
-
-        let trailerUrl: string | null = null;
-        let isTmdbTrailer = true;
-
-        if (title.title_type === 'movie') {
-          // Try TMDB for movies
-          trailerUrl = await fetchTmdbTrailer(title.tmdb_id, 'movie');
-        } else {
-          // For TV, try to get latest season trailer first, then series-level
-          // First get series details to find latest season
-          try {
-            const tvRes = await fetch(`${TMDB_BASE_URL}/tv/${title.tmdb_id}?api_key=${TMDB_API_KEY}`);
-            if (tvRes.ok) {
-              const tvData = await tvRes.json();
-              const seasons = tvData.seasons?.filter((s: any) => s.season_number > 0) || [];
-              const latestSeasonNumber = seasons.length > 0 ? Math.max(...seasons.map((s: any) => s.season_number)) : null;
-              
-              if (latestSeasonNumber) {
-                trailerUrl = await fetchTmdbTrailer(title.tmdb_id, 'tv', latestSeasonNumber);
-              }
-            }
-          } catch (e) {
-            console.error(`Error fetching TV details for ${title.tmdb_id}:`, e);
-          }
-          
-          // Fallback to series-level TMDB trailer
-          if (!trailerUrl) {
-            trailerUrl = await fetchTmdbTrailer(title.tmdb_id, 'tv');
-          }
-        }
-
-        // Fallback to YouTube if no TMDB trailer
-        if (!trailerUrl) {
-          const ytResult = await searchYouTubeTrailer(title.name, titleLang, releaseYear);
-          if (ytResult) {
-            trailerUrl = ytResult.url;
-            isTmdbTrailer = false;
-          }
-        }
-
-        if (trailerUrl) {
-          const { error: updateError } = await supabase
-            .from('titles')
-            .update({ trailer_url: trailerUrl, is_tmdb_trailer: isTmdbTrailer })
-            .eq('id', title.id);
-
-          if (updateError) {
-            console.error(`Failed to update title ${title.id}:`, updateError);
-            failed++;
-          } else {
-            titlesEnriched++;
-            console.log(`✓ Title: ${title.name} (${title.title_type}) - ${isTmdbTrailer ? 'TMDB' : 'YouTube'}`);
-          }
-        } else {
-          console.log(`✗ No trailer found for: ${title.name}`);
-        }
-
-        processed++;
-      } catch (titleError) {
-        console.error(`Error processing title ${title.id}:`, titleError);
-        failed++;
-        processed++;
-      }
-    }
-
-    // ==========================================
-    // PHASE 2: Enrich SEASONS with null trailer_url
-    // ==========================================
-    if (Date.now() - startTime < MAX_RUNTIME_MS - 10000) {
-      console.log('=== PHASE 2: Enriching seasons with missing trailers ===');
-      
-      // Get seasons without trailers, joining with titles to get tmdb_id and name
-      const { data: seasonsWithoutTrailers, error: seasonsError } = await supabase
-        .from('seasons')
-        .select(`
-          id,
-          title_id,
-          season_number,
-          name,
-          titles!inner (
-            tmdb_id,
-            name,
-            original_language
-          )
-        `)
-        .is('trailer_url', null)
-        .gt('season_number', 0)
-        .range(0, Math.floor(batchSize / 2) - 1);
-
-      if (seasonsError) {
-        console.error('Error fetching seasons:', seasonsError);
+      if (!titlesWithoutTrailers || titlesWithoutTrailers.length === 0) {
+        console.log('No more titles to process');
+        hasMoreTitles = false;
+        break;
       }
 
-      console.log(`Found ${seasonsWithoutTrailers?.length || 0} seasons without trailers`);
+      console.log(`Processing batch of ${titlesWithoutTrailers.length} titles (offset: ${titlesOffset})`);
 
-      for (const season of (seasonsWithoutTrailers || [])) {
-        if (Date.now() - startTime > MAX_RUNTIME_MS) {
-          console.log('Approaching time limit, stopping gracefully');
+      for (const title of titlesWithoutTrailers) {
+        if (!shouldContinue()) {
+          console.log('Time limit approaching, stopping title processing');
           break;
         }
 
         try {
-          const titleInfo = season.titles as any;
-          const tmdbId = titleInfo?.tmdb_id;
-          const titleName = titleInfo?.name;
-          const titleLang = titleInfo?.original_language || 'en';
-
-          if (!tmdbId || !titleName) {
-            console.log(`Skipping season ${season.id} - missing title info`);
-            continue;
-          }
+          const titleLang = title.original_language || 'en';
+          const dateStr = title.title_type === 'movie' ? title.release_date : title.first_air_date;
+          const releaseYear = dateStr ? new Date(dateStr).getFullYear() : null;
 
           let trailerUrl: string | null = null;
           let isTmdbTrailer = true;
 
-          // Try TMDB season-specific trailer
-          trailerUrl = await fetchTmdbTrailer(tmdbId, 'tv', season.season_number);
-
-          // Fallback to series-level TMDB trailer
-          if (!trailerUrl) {
-            trailerUrl = await fetchTmdbTrailer(tmdbId, 'tv');
+          if (title.title_type === 'movie') {
+            // Try TMDB for movies
+            trailerUrl = await fetchTmdbTrailer(title.tmdb_id, 'movie');
+          } else {
+            // For TV, try to get latest season trailer first, then series-level
+            try {
+              const tvRes = await fetch(`${TMDB_BASE_URL}/tv/${title.tmdb_id}?api_key=${TMDB_API_KEY}`);
+              if (tvRes.ok) {
+                const tvData = await tvRes.json();
+                const seasons = tvData.seasons?.filter((s: any) => s.season_number > 0) || [];
+                const latestSeasonNumber = seasons.length > 0 ? Math.max(...seasons.map((s: any) => s.season_number)) : null;
+                
+                if (latestSeasonNumber) {
+                  trailerUrl = await fetchTmdbTrailer(title.tmdb_id, 'tv', latestSeasonNumber);
+                }
+              }
+            } catch (e) {
+              console.error(`Error fetching TV details for ${title.tmdb_id}:`, e);
+            }
+            
+            // Fallback to series-level TMDB trailer
+            if (!trailerUrl) {
+              trailerUrl = await fetchTmdbTrailer(title.tmdb_id, 'tv');
+            }
           }
 
-          // Fallback to YouTube with season-specific search
+          // Fallback to YouTube if no TMDB trailer
           if (!trailerUrl) {
-            const seasonName = season.name || `Season ${season.season_number}`;
-            const ytResult = await searchYouTubeTrailer(titleName, titleLang, null, seasonName);
+            const ytResult = await searchYouTubeTrailer(title.name, titleLang, releaseYear);
             if (ytResult) {
               trailerUrl = ytResult.url;
               isTmdbTrailer = false;
@@ -304,82 +228,229 @@ serve(async (req) => {
 
           if (trailerUrl) {
             const { error: updateError } = await supabase
-              .from('seasons')
+              .from('titles')
               .update({ trailer_url: trailerUrl, is_tmdb_trailer: isTmdbTrailer })
-              .eq('id', season.id);
+              .eq('id', title.id);
 
             if (updateError) {
-              console.error(`Failed to update season ${season.id}:`, updateError);
+              console.error(`Failed to update title ${title.id}:`, updateError);
               failed++;
             } else {
-              seasonsEnriched++;
-              console.log(`✓ Season: ${titleName} S${season.season_number} - ${isTmdbTrailer ? 'TMDB' : 'YouTube'}`);
+              titlesEnriched++;
+              console.log(`✓ Title: ${title.name} (${title.title_type}) - ${isTmdbTrailer ? 'TMDB' : 'YouTube'}`);
             }
           } else {
-            console.log(`✗ No trailer found for: ${titleName} S${season.season_number}`);
+            console.log(`✗ No trailer: ${title.name}`);
           }
 
-          processed++;
-        } catch (seasonError) {
-          console.error(`Error processing season ${season.id}:`, seasonError);
+          totalProcessed++;
+        } catch (titleError) {
+          console.error(`Error processing title ${title.id}:`, titleError);
           failed++;
-          processed++;
+          totalProcessed++;
+        }
+      }
+
+      // Move to next batch - but since we're updating records, 
+      // the next query at offset 0 will return NEW records without trailers
+      // So we DON'T increment offset, we just keep fetching from start
+      // Only increment if we didn't update any (to avoid infinite loop)
+      if (titlesEnriched === 0 && titlesWithoutTrailers.length === BATCH_SIZE) {
+        titlesOffset += BATCH_SIZE;
+      }
+      // Otherwise, keep offset at 0 since updated records are now excluded by the query
+    }
+
+    // ==========================================
+    // PHASE 2: Enrich SEASONS with null trailer_url
+    // ==========================================
+    if (shouldContinue()) {
+      console.log('=== PHASE 2: Enriching seasons with missing trailers ===');
+      
+      let hasMoreSeasons = true;
+      
+      while (hasMoreSeasons && shouldContinue()) {
+        // Get seasons without trailers, joining with titles to get tmdb_id and name
+        const { data: seasonsWithoutTrailers, error: seasonsError } = await supabase
+          .from('seasons')
+          .select(`
+            id,
+            title_id,
+            season_number,
+            name,
+            titles!inner (
+              tmdb_id,
+              name,
+              original_language
+            )
+          `)
+          .is('trailer_url', null)
+          .gt('season_number', 0)
+          .limit(BATCH_SIZE);
+
+        if (seasonsError) {
+          console.error('Error fetching seasons:', seasonsError);
+          break;
+        }
+
+        if (!seasonsWithoutTrailers || seasonsWithoutTrailers.length === 0) {
+          console.log('No more seasons to process');
+          hasMoreSeasons = false;
+          break;
+        }
+
+        console.log(`Processing batch of ${seasonsWithoutTrailers.length} seasons`);
+
+        for (const season of seasonsWithoutTrailers) {
+          if (!shouldContinue()) {
+            console.log('Time limit approaching, stopping season processing');
+            break;
+          }
+
+          try {
+            const titleInfo = season.titles as any;
+            const tmdbId = titleInfo?.tmdb_id;
+            const titleName = titleInfo?.name;
+            const titleLang = titleInfo?.original_language || 'en';
+
+            if (!tmdbId || !titleName) {
+              console.log(`Skipping season ${season.id} - missing title info`);
+              continue;
+            }
+
+            let trailerUrl: string | null = null;
+            let isTmdbTrailer = true;
+
+            // Try TMDB season-specific trailer
+            trailerUrl = await fetchTmdbTrailer(tmdbId, 'tv', season.season_number);
+
+            // Fallback to series-level TMDB trailer
+            if (!trailerUrl) {
+              trailerUrl = await fetchTmdbTrailer(tmdbId, 'tv');
+            }
+
+            // Fallback to YouTube with season-specific search
+            if (!trailerUrl) {
+              const seasonName = season.name || `Season ${season.season_number}`;
+              const ytResult = await searchYouTubeTrailer(titleName, titleLang, null, seasonName);
+              if (ytResult) {
+                trailerUrl = ytResult.url;
+                isTmdbTrailer = false;
+              }
+            }
+
+            if (trailerUrl) {
+              const { error: updateError } = await supabase
+                .from('seasons')
+                .update({ trailer_url: trailerUrl, is_tmdb_trailer: isTmdbTrailer })
+                .eq('id', season.id);
+
+              if (updateError) {
+                console.error(`Failed to update season ${season.id}:`, updateError);
+                failed++;
+              } else {
+                seasonsEnriched++;
+                console.log(`✓ Season: ${titleName} S${season.season_number} - ${isTmdbTrailer ? 'TMDB' : 'YouTube'}`);
+              }
+            } else {
+              console.log(`✗ No trailer: ${titleName} S${season.season_number}`);
+            }
+
+            totalProcessed++;
+          } catch (seasonError) {
+            console.error(`Error processing season ${season.id}:`, seasonError);
+            failed++;
+            totalProcessed++;
+          }
         }
       }
     }
 
-    // Increment job counter
-    if (jobId && processed > 0) {
+    // Update job counter
+    if (jobId && totalProcessed > 0) {
       await supabase.rpc('increment_job_titles', {
         p_job_type: 'enrich_trailers',
-        p_increment: processed
+        p_increment: totalProcessed
       });
     }
 
     const duration = Math.floor((Date.now() - startTime) / 1000);
     
-    // Update thread tracking
+    // Check remaining work
+    const { data: remainingCounts } = await supabase.rpc('get_trailer_enrichment_remaining');
+    
+    // Fallback if RPC doesn't exist
+    let remainingTitles = 0;
+    let remainingSeasons = 0;
+    
+    const { count: titleCount } = await supabase
+      .from('titles')
+      .select('*', { count: 'exact', head: true })
+      .not('tmdb_id', 'is', null)
+      .is('trailer_url', null);
+    
+    const { count: seasonCount } = await supabase
+      .from('seasons')
+      .select('*', { count: 'exact', head: true })
+      .is('trailer_url', null)
+      .gt('season_number', 0);
+    
+    remainingTitles = titleCount || 0;
+    remainingSeasons = seasonCount || 0;
+    
+    const isComplete = remainingTitles === 0 && remainingSeasons === 0;
+    
+    console.log(`Trailer enrichment batch completed: ${titlesEnriched} titles, ${seasonsEnriched} seasons enriched, ${failed} failed in ${duration}s`);
+    console.log(`Remaining: ${remainingTitles} titles, ${remainingSeasons} seasons`);
+
+    // Update job status
     if (jobId) {
-      const { data: currentJob } = await supabase
-        .from('jobs')
-        .select('configuration, status')
-        .eq('id', jobId)
-        .single();
-      
-      if (currentJob?.status === 'failed' || currentJob?.status === 'idle') {
-        console.log('Job was stopped, skipping tracking update');
-        return new Response(
-          JSON.stringify({ success: true, totalProcessed: processed, message: 'Job was stopped' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-      
-      const currentConfig = (currentJob?.configuration as any) || {};
-      const tracking = currentConfig.thread_tracking || { succeeded: 0, failed: 0 };
-      
+      const newStatus = isComplete ? 'completed' : 'running';
       await supabase
         .from('jobs')
         .update({
-          configuration: {
-            ...currentConfig,
-            thread_tracking: { succeeded: tracking.succeeded + 1, failed: tracking.failed }
-          }
+          status: newStatus,
+          last_run_at: new Date().toISOString(),
+          last_run_duration_seconds: duration,
+          ...(isComplete ? { error_message: null } : {})
         })
-        .eq('id', jobId)
-        .eq('status', 'running');
+        .eq('id', jobId);
+      
+      // If not complete, schedule next batch by invoking self
+      if (!isComplete) {
+        console.log('More work remaining, scheduling next batch...');
+        // Use setTimeout to trigger next batch after response
+        setTimeout(async () => {
+          try {
+            await fetch(`${SUPABASE_URL}/functions/v1/enrich-title-trailers`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`
+              },
+              body: JSON.stringify({ jobId })
+            });
+          } catch (err) {
+            console.error('Failed to schedule next batch:', err);
+          }
+        }, 1000);
+      }
     }
-    
-    console.log(`Trailer enrichment completed: ${titlesEnriched} titles, ${seasonsEnriched} seasons enriched, ${failed} failed in ${duration}s`);
 
     return new Response(
       JSON.stringify({
         success: true,
-        totalProcessed: processed,
+        totalProcessed,
         titlesEnriched,
         seasonsEnriched,
         failed,
         duration,
-        message: `Enriched ${titlesEnriched} titles and ${seasonsEnriched} seasons`
+        remainingTitles,
+        remainingSeasons,
+        isComplete,
+        message: isComplete 
+          ? `Enrichment complete! ${titlesEnriched} titles and ${seasonsEnriched} seasons enriched`
+          : `Batch done: ${titlesEnriched} titles, ${seasonsEnriched} seasons. ${remainingTitles + remainingSeasons} remaining...`
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
@@ -387,39 +458,6 @@ serve(async (req) => {
   } catch (error) {
     console.error('Trailer enrichment error:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    
-    // Track failed thread
-    try {
-      const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-      const requestBody = await req.clone().json();
-      const jobId = requestBody.jobId;
-      
-      if (jobId) {
-        const { data: currentJob } = await supabase
-          .from('jobs')
-          .select('configuration, status')
-          .eq('id', jobId)
-          .single();
-        
-        if (currentJob?.status !== 'failed' && currentJob?.status !== 'idle') {
-          const currentConfig = (currentJob?.configuration as any) || {};
-          const tracking = currentConfig.thread_tracking || { succeeded: 0, failed: 0 };
-          
-          await supabase
-            .from('jobs')
-            .update({
-              configuration: {
-                ...currentConfig,
-                thread_tracking: { succeeded: tracking.succeeded, failed: tracking.failed + 1 }
-              }
-            })
-            .eq('id', jobId)
-            .eq('status', 'running');
-        }
-      }
-    } catch (trackError) {
-      console.error('Error tracking failure:', trackError);
-    }
     
     return new Response(
       JSON.stringify({ error: errorMessage, success: false }),
