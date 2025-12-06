@@ -863,6 +863,7 @@ export type Database = {
           poster_path: string | null
           season_number: number
           title_id: string
+          trailer_transcript: string | null
           trailer_url: string | null
         }
         Insert: {
@@ -876,6 +877,7 @@ export type Database = {
           poster_path?: string | null
           season_number: number
           title_id: string
+          trailer_transcript?: string | null
           trailer_url?: string | null
         }
         Update: {
@@ -889,6 +891,7 @@ export type Database = {
           poster_path?: string | null
           season_number?: number
           title_id?: string
+          trailer_transcript?: string | null
           trailer_url?: string | null
         }
         Relationships: [
@@ -1287,6 +1290,7 @@ export type Database = {
           tagline: string | null
           title_type: string | null
           tmdb_id: number | null
+          trailer_transcript: string | null
           trailer_url: string | null
           updated_at: string | null
           vote_average: number | null
@@ -1313,6 +1317,7 @@ export type Database = {
           tagline?: string | null
           title_type?: string | null
           tmdb_id?: number | null
+          trailer_transcript?: string | null
           trailer_url?: string | null
           updated_at?: string | null
           vote_average?: number | null
@@ -1339,6 +1344,7 @@ export type Database = {
           tagline?: string | null
           title_type?: string | null
           tmdb_id?: number | null
+          trailer_transcript?: string | null
           trailer_url?: string | null
           updated_at?: string | null
           vote_average?: number | null
