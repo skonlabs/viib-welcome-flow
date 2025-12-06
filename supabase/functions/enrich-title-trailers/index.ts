@@ -417,33 +417,39 @@ serve(async (req) => {
         })
         .eq('id', jobId);
       
-      // If not complete, invoke next batch SYNCHRONOUSLY before returning response
-      // This ensures the next batch is triggered reliably
+      // If not complete, use EdgeRuntime.waitUntil for reliable background continuation
       if (!isComplete) {
-        console.log('More work remaining, invoking next batch synchronously...');
+        console.log('More work remaining, scheduling next batch via EdgeRuntime.waitUntil...');
         
-        try {
-          // Fire-and-forget: don't await the response, just ensure the request is sent
-          fetch(`${SUPABASE_URL}/functions/v1/enrich-title-trailers`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`
-            },
-            body: JSON.stringify({ jobId })
-          }).then(res => {
-            if (!res.ok) {
-              console.error(`Next batch invocation returned status ${res.status}`);
+        const invokeNextBatch = async () => {
+          try {
+            const response = await fetch(`${SUPABASE_URL}/functions/v1/enrich-title-trailers`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`
+              },
+              body: JSON.stringify({ jobId })
+            });
+            
+            if (!response.ok) {
+              console.error(`Next batch invocation returned status ${response.status}`);
             } else {
-              console.log('Next batch invocation acknowledged');
+              console.log('Next batch invocation succeeded');
             }
-          }).catch(err => {
+          } catch (err) {
             console.error('Next batch invocation error:', err);
-          });
-          
-          console.log('Next batch request dispatched');
-        } catch (err) {
-          console.error('Failed to dispatch next batch:', err);
+          }
+        };
+        
+        // Use EdgeRuntime.waitUntil for reliable background execution
+        if (typeof EdgeRuntime !== 'undefined' && EdgeRuntime.waitUntil) {
+          EdgeRuntime.waitUntil(invokeNextBatch());
+          console.log('Next batch scheduled via EdgeRuntime.waitUntil');
+        } else {
+          // Fallback: still try the fetch but don't wait
+          invokeNextBatch();
+          console.log('Next batch dispatched (no EdgeRuntime available)');
         }
       }
     }
