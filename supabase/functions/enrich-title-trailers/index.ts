@@ -42,31 +42,13 @@ serve(async (req) => {
 
     console.log(`Loaded ${officialChannels?.length || 0} official trailer channels`);
 
-    // Fetch titles that need trailer enrichment - using new column names
+    // Fetch titles that need trailer enrichment (movies without trailers OR tv shows that need season trailers)
     const { data: titles, error: fetchError } = await supabase
       .from('titles')
       .select('id, tmdb_id, name, release_date, first_air_date, title_type, original_language')
       .not('tmdb_id', 'is', null)
       .is('trailer_url', null)
       .range(startOffset, startOffset + batchSize - 1);
-
-    // Helper function to get latest season number for TV shows
-    async function getLatestSeasonNumber(tmdbId: number): Promise<number | null> {
-      try {
-        const res = await fetch(`${TMDB_BASE_URL}/tv/${tmdbId}?api_key=${TMDB_API_KEY}`);
-        if (res.ok) {
-          const data = await res.json();
-          // Get the highest season number that's not season 0 (specials)
-          const seasons = data.seasons?.filter((s: any) => s.season_number > 0) || [];
-          if (seasons.length > 0) {
-            return Math.max(...seasons.map((s: any) => s.season_number));
-          }
-        }
-      } catch (e) {
-        console.error(`Error fetching TV details for ${tmdbId}:`, e);
-      }
-      return null;
-    }
 
     if (fetchError) {
       console.error('Error fetching titles:', fetchError);
@@ -85,6 +67,112 @@ serve(async (req) => {
     let processed = 0;
     let enriched = 0;
     let failed = 0;
+    let seasonsEnriched = 0;
+
+    // Helper function to search YouTube for trailers
+    async function searchYouTubeTrailer(
+      titleName: string,
+      titleLang: string,
+      releaseYear: number | null,
+      seasonName?: string
+    ): Promise<{ url: string | null; isTmdbTrailer: false } | null> {
+      const relevantChannels = (officialChannels || []).filter(c => 
+        c.language_code === titleLang || c.language_code === 'global' || c.language_code === 'en'
+      ).map(c => c.channel_name.toLowerCase());
+
+      const searchQuery = seasonName 
+        ? `${titleName} ${seasonName} official trailer`
+        : `${titleName} ${releaseYear || ''} official trailer`;
+
+      try {
+        const youtubeSearchRes = await fetch(
+          `${YOUTUBE_SEARCH_URL}?part=snippet&q=${encodeURIComponent(searchQuery)}&type=video&maxResults=10&key=${YOUTUBE_API_KEY}`
+        );
+
+        if (!youtubeSearchRes.ok) return null;
+
+        const searchData = await youtubeSearchRes.json();
+        
+        // First try to find a result from an official trailer channel
+        const officialChannelTrailer = searchData.items?.find((item: any) => {
+          const channelTitle = item.snippet.channelTitle?.toLowerCase() || '';
+          return relevantChannels.some(officialName => channelTitle.includes(officialName.toLowerCase()));
+        });
+
+        if (officialChannelTrailer) {
+          return { 
+            url: `https://www.youtube.com/watch?v=${officialChannelTrailer.id.videoId}`, 
+            isTmdbTrailer: false 
+          };
+        }
+
+        // Fallback: find results with "official trailer" in title from verified-looking channels
+        const verifiedTrailer = searchData.items?.find((item: any) => {
+          const channelTitle = item.snippet.channelTitle?.toLowerCase() || '';
+          const videoTitle = item.snippet.title?.toLowerCase() || '';
+          
+          const hasOfficialInTitle = videoTitle.includes('official trailer');
+          const isOfficialChannel = 
+            channelTitle.includes('pictures') ||
+            channelTitle.includes('studios') ||
+            channelTitle.includes('entertainment') ||
+            channelTitle.includes('trailers') ||
+            channelTitle.includes('movies') ||
+            channelTitle.includes('films') ||
+            channelTitle.includes('productions') ||
+            channelTitle.includes('netflix') ||
+            channelTitle.includes('disney') ||
+            channelTitle.includes('prime video');
+          
+          return hasOfficialInTitle && isOfficialChannel;
+        });
+
+        if (verifiedTrailer) {
+          return { 
+            url: `https://www.youtube.com/watch?v=${verifiedTrailer.id.videoId}`, 
+            isTmdbTrailer: false 
+          };
+        }
+      } catch (e) {
+        console.error(`YouTube search error for ${titleName}:`, e);
+      }
+
+      return null;
+    }
+
+    // Helper function to fetch trailer from TMDB videos endpoint
+    async function fetchTmdbTrailer(tmdbId: number, endpoint: string, seasonNumber?: number): Promise<string | null> {
+      try {
+        let url: string;
+        if (seasonNumber !== undefined) {
+          url = `${TMDB_BASE_URL}/tv/${tmdbId}/season/${seasonNumber}/videos?api_key=${TMDB_API_KEY}`;
+        } else {
+          url = `${TMDB_BASE_URL}/${endpoint}/${tmdbId}/videos?api_key=${TMDB_API_KEY}`;
+        }
+
+        const res = await fetch(url);
+        if (!res.ok) return null;
+
+        const data = await res.json();
+        const trailer = data.results?.find((v: any) => v.type === 'Trailer' && v.site === 'YouTube');
+        
+        return trailer ? `https://www.youtube.com/watch?v=${trailer.key}` : null;
+      } catch (e) {
+        console.error(`TMDB trailer fetch error for ${tmdbId}:`, e);
+        return null;
+      }
+    }
+
+    // Helper function to fetch TV show details (for seasons)
+    async function fetchTvDetails(tmdbId: number) {
+      try {
+        const res = await fetch(`${TMDB_BASE_URL}/tv/${tmdbId}?api_key=${TMDB_API_KEY}`);
+        if (res.ok) return await res.json();
+      } catch (e) {
+        console.error(`Error fetching TV details for ${tmdbId}:`, e);
+      }
+      return null;
+    }
 
     for (const title of titles) {
       if (Date.now() - startTime > MAX_RUNTIME_MS) {
@@ -93,149 +181,137 @@ serve(async (req) => {
       }
 
       try {
-        const endpoint = title.title_type === 'movie' ? 'movie' : 'tv';
-        let trailerUrl: string | null = null;
-        let isTmdbTrailer: boolean = true;
-
-        // Get release year from the appropriate date field
+        const titleLang = title.original_language || 'en';
         const dateStr = title.title_type === 'movie' ? title.release_date : title.first_air_date;
         const releaseYear = dateStr ? new Date(dateStr).getFullYear() : null;
 
-        // For TV series, try to get the latest season's trailer first
-        let latestSeasonNumber: number | null = null;
-        let seasonName: string | undefined;
-        if (title.title_type === 'tv') {
-          latestSeasonNumber = await getLatestSeasonNumber(title.tmdb_id);
-          if (latestSeasonNumber && latestSeasonNumber > 0) {
-            // Get season name for YouTube search
-            try {
-              const seasonRes = await fetch(`${TMDB_BASE_URL}/tv/${title.tmdb_id}/season/${latestSeasonNumber}?api_key=${TMDB_API_KEY}`);
-              if (seasonRes.ok) {
-                const seasonData = await seasonRes.json();
-                seasonName = seasonData.name || `Season ${latestSeasonNumber}`;
-              }
-            } catch (e) {
-              seasonName = `Season ${latestSeasonNumber}`;
-            }
-            
-            console.log(`Fetching season ${latestSeasonNumber} trailer for ${title.name} (${title.tmdb_id})`);
-            const seasonVideosRes = await fetch(
-              `${TMDB_BASE_URL}/tv/${title.tmdb_id}/season/${latestSeasonNumber}/videos?api_key=${TMDB_API_KEY}`
-            );
-            if (seasonVideosRes.ok) {
-              const seasonVideosData = await seasonVideosRes.json();
-              const seasonTrailer = seasonVideosData.results?.find((v: any) => v.type === 'Trailer' && v.site === 'YouTube');
-              if (seasonTrailer) {
-                trailerUrl = `https://www.youtube.com/watch?v=${seasonTrailer.key}`;
-                isTmdbTrailer = true;
-                console.log(`Found season ${latestSeasonNumber} trailer: ${trailerUrl}`);
-              }
-            }
-          }
-        }
+        if (title.title_type === 'movie') {
+          // ==========================================
+          // MOVIE TRAILER ENRICHMENT
+          // ==========================================
+          let trailerUrl: string | null = null;
+          let isTmdbTrailer = true;
 
-        // Fallback: Try series/movie level TMDB trailer
-        if (!trailerUrl) {
-          console.log(`Fetching ${title.title_type} level TMDB trailer for ${title.name} (${title.tmdb_id})`);
-          const tmdbVideosRes = await fetch(
-            `${TMDB_BASE_URL}/${endpoint}/${title.tmdb_id}/videos?api_key=${TMDB_API_KEY}`
-          );
+          // Try TMDB first
+          trailerUrl = await fetchTmdbTrailer(title.tmdb_id, 'movie');
 
-          if (tmdbVideosRes.ok) {
-            const videosData = await tmdbVideosRes.json();
-            const trailer = videosData.results?.find((v: any) => 
-              v.type === 'Trailer' && v.site === 'YouTube'
-            );
-
-            if (trailer) {
-              trailerUrl = `https://www.youtube.com/watch?v=${trailer.key}`;
-              isTmdbTrailer = true;
-              console.log(`Found TMDB trailer: ${trailerUrl}`);
-            }
-          }
-        }
-
-        // Fallback to YouTube search if no TMDB trailer - search official channels only
-        if (!trailerUrl) {
-          const titleLang = title.original_language || 'en';
-          console.log(`No TMDB trailer, searching YouTube official channels for: ${title.name} (lang: ${titleLang})`);
-          
-          // Get official channel names for this language + global channels
-          const relevantChannels = (officialChannels || []).filter(c => 
-            c.language_code === titleLang || c.language_code === 'global' || c.language_code === 'en'
-          ).map(c => c.channel_name.toLowerCase());
-          
-          // For TV series with season info, search for season-specific trailer (e.g., "Delhi Crime Season 3")
-          const searchQuery = title.title_type === 'tv' && seasonName 
-            ? `${title.name} ${seasonName} official trailer`
-            : `${title.name} ${releaseYear || ''} official trailer`;
-          const youtubeSearchRes = await fetch(
-            `${YOUTUBE_SEARCH_URL}?part=snippet&q=${encodeURIComponent(searchQuery)}&type=video&maxResults=10&key=${YOUTUBE_API_KEY}`
-          );
-
-          if (youtubeSearchRes.ok) {
-            const searchData = await youtubeSearchRes.json();
-            
-            // First try to find a result from an official trailer channel (matched by name)
-            const officialChannelTrailer = searchData.items?.find((item: any) => {
-              const channelTitle = item.snippet.channelTitle?.toLowerCase() || '';
-              return relevantChannels.some(officialName => channelTitle.includes(officialName.toLowerCase()));
-            });
-
-            if (officialChannelTrailer) {
-              trailerUrl = `https://www.youtube.com/watch?v=${officialChannelTrailer.id.videoId}`;
+          // Fallback to YouTube if no TMDB trailer
+          if (!trailerUrl) {
+            const ytResult = await searchYouTubeTrailer(title.name, titleLang, releaseYear);
+            if (ytResult) {
+              trailerUrl = ytResult.url;
               isTmdbTrailer = false;
-              console.log(`Found official channel trailer: ${trailerUrl} from ${officialChannelTrailer.snippet.channelTitle}`);
-            } else {
-              // Fallback: find results with "official trailer" in title from verified-looking channels
-              const verifiedTrailer = searchData.items?.find((item: any) => {
-                const channelTitle = item.snippet.channelTitle?.toLowerCase() || '';
-                const videoTitle = item.snippet.title?.toLowerCase() || '';
-                
-                // Must have "official trailer" in video title
-                const hasOfficialInTitle = videoTitle.includes('official trailer');
-                
-                // Channel should look official (studio name, "trailers", "movies", etc.)
-                const isOfficialChannel = 
-                  channelTitle.includes('pictures') ||
-                  channelTitle.includes('studios') ||
-                  channelTitle.includes('entertainment') ||
-                  channelTitle.includes('trailers') ||
-                  channelTitle.includes('movies') ||
-                  channelTitle.includes('films') ||
-                  channelTitle.includes('productions') ||
-                  channelTitle.includes('netflix') ||
-                  channelTitle.includes('disney') ||
-                  channelTitle.includes('prime video');
-                
-                return hasOfficialInTitle && isOfficialChannel;
-              });
+            }
+          }
 
-              if (verifiedTrailer) {
-                trailerUrl = `https://www.youtube.com/watch?v=${verifiedTrailer.id.videoId}`;
-                isTmdbTrailer = false;
-                console.log(`Found verified channel trailer: ${trailerUrl} from ${verifiedTrailer.snippet.channelTitle}`);
+          if (trailerUrl) {
+            const { error: updateError } = await supabase
+              .from('titles')
+              .update({ trailer_url: trailerUrl, is_tmdb_trailer: isTmdbTrailer })
+              .eq('id', title.id);
+
+            if (updateError) {
+              console.error(`Failed to update movie ${title.id}:`, updateError);
+              failed++;
+            } else {
+              enriched++;
+              console.log(`✓ Movie: ${title.name} - ${isTmdbTrailer ? 'TMDB' : 'YouTube'} trailer`);
+            }
+          } else {
+            console.log(`No trailer found for movie: ${title.name}`);
+          }
+
+        } else if (title.title_type === 'tv') {
+          // ==========================================
+          // TV SERIES TRAILER ENRICHMENT (Per Season)
+          // ==========================================
+          const details = await fetchTvDetails(title.tmdb_id);
+          
+          if (!details?.seasons) {
+            console.log(`No seasons found for TV show: ${title.name}`);
+            processed++;
+            continue;
+          }
+
+          const seasons = details.seasons.filter((s: any) => s.season_number > 0);
+          let seriesTrailerUrl: string | null = null;
+          let seriesIsTmdbTrailer = true;
+
+          // Process each season
+          for (const season of seasons) {
+            let seasonTrailerUrl: string | null = null;
+            let seasonIsTmdbTrailer = true;
+
+            // Try TMDB season-level trailer
+            seasonTrailerUrl = await fetchTmdbTrailer(title.tmdb_id, 'tv', season.season_number);
+
+            // If no season trailer, try series-level TMDB
+            if (!seasonTrailerUrl) {
+              const seriesTrailer = await fetchTmdbTrailer(title.tmdb_id, 'tv');
+              if (seriesTrailer) {
+                seasonTrailerUrl = seriesTrailer;
+                seasonIsTmdbTrailer = true;
+              }
+            }
+
+            // Fallback to YouTube for season-specific search
+            if (!seasonTrailerUrl) {
+              const seasonName = season.name || `Season ${season.season_number}`;
+              const ytResult = await searchYouTubeTrailer(title.name, titleLang, releaseYear, seasonName);
+              if (ytResult) {
+                seasonTrailerUrl = ytResult.url;
+                seasonIsTmdbTrailer = false;
+              }
+            }
+
+            // Update or insert season with trailer
+            if (seasonTrailerUrl) {
+              const { error: seasonError } = await supabase
+                .from('seasons')
+                .upsert({
+                  title_id: title.id,
+                  season_number: season.season_number,
+                  episode_count: season.episode_count,
+                  air_date: season.air_date || null,
+                  name: season.name,
+                  overview: season.overview,
+                  poster_path: season.poster_path,
+                  trailer_url: seasonTrailerUrl,
+                  is_tmdb_trailer: seasonIsTmdbTrailer
+                }, { onConflict: 'title_id,season_number' });
+
+              if (seasonError) {
+                console.error(`Failed to update season ${season.season_number} for ${title.name}:`, seasonError);
+              } else {
+                seasonsEnriched++;
+                console.log(`✓ TV Season: ${title.name} S${season.season_number} - ${seasonIsTmdbTrailer ? 'TMDB' : 'YouTube'} trailer`);
+              }
+
+              // Use latest season's trailer for the series-level trailer
+              if (season.season_number === Math.max(...seasons.map((s: any) => s.season_number))) {
+                seriesTrailerUrl = seasonTrailerUrl;
+                seriesIsTmdbTrailer = seasonIsTmdbTrailer;
               }
             }
           }
-        }
 
-        // Update title with trailer info
-        if (trailerUrl) {
-          const { error: updateError } = await supabase
-            .from('titles')
-            .update({ trailer_url: trailerUrl, is_tmdb_trailer: isTmdbTrailer })
-            .eq('id', title.id);
+          // Update the titles table with the latest season's trailer (or series-level fallback)
+          if (seriesTrailerUrl) {
+            const { error: updateError } = await supabase
+              .from('titles')
+              .update({ trailer_url: seriesTrailerUrl, is_tmdb_trailer: seriesIsTmdbTrailer })
+              .eq('id', title.id);
 
-          if (updateError) {
-            console.error(`Failed to update title ${title.id}:`, updateError);
-            failed++;
+            if (updateError) {
+              console.error(`Failed to update TV series ${title.id}:`, updateError);
+              failed++;
+            } else {
+              enriched++;
+              console.log(`✓ TV Series: ${title.name} - latest season trailer applied`);
+            }
           } else {
-            enriched++;
-            console.log(`✓ Updated ${title.name} with trailer`);
+            console.log(`No trailer found for TV series: ${title.name}`);
           }
-        } else {
-          console.log(`No trailer found for ${title.name}`);
         }
 
         processed++;
@@ -296,16 +372,17 @@ serve(async (req) => {
         .eq('status', 'running');
     }
     
-    console.log(`Trailer enrichment completed: ${enriched} enriched, ${failed} failed, ${processed} processed in ${duration}s`);
+    console.log(`Trailer enrichment completed: ${enriched} titles enriched, ${seasonsEnriched} seasons enriched, ${failed} failed, ${processed} processed in ${duration}s`);
 
     return new Response(
       JSON.stringify({
         success: true,
         totalProcessed: processed,
         enriched,
+        seasonsEnriched,
         failed,
         duration,
-        message: `Trailer enrichment completed: ${enriched} titles enriched, ${failed} failed`
+        message: `Trailer enrichment completed: ${enriched} titles, ${seasonsEnriched} seasons enriched, ${failed} failed`
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
