@@ -123,6 +123,11 @@ export const Jobs = () => {
           startOffset: job.configuration?.start_offset || 0,
           jobId: job.id
         };
+      } else if (job.job_type === 'transcribe_trailers') {
+        functionName = 'transcribe-trailers';
+        functionBody = {
+          jobId: job.id
+        };
       } else {
         throw new Error(`Unknown job type: ${job.job_type}`);
       }
@@ -857,9 +862,13 @@ export const Jobs = () => {
               <div className="flex items-start justify-between">
                 <div className="space-y-1">
                   <CardTitle className="text-xl">{job.job_name}</CardTitle>
-                  <CardDescription>
+                <CardDescription>
                     {job.job_type === 'full_refresh' 
                       ? 'Manual full refresh of title catalog' 
+                      : job.job_type === 'enrich_trailers'
+                      ? 'Enrich titles with trailer URLs'
+                      : job.job_type === 'transcribe_trailers'
+                      ? 'Transcribe trailer videos to text'
                       : 'Automated nightly sync for new titles'}
                   </CardDescription>
                 </div>
