@@ -39,6 +39,27 @@ serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+    // Check if job is still running (respect stop commands)
+    if (jobId) {
+      const { data: jobData } = await supabase
+        .from('jobs')
+        .select('status')
+        .eq('id', jobId)
+        .single();
+      
+      if (jobData?.status !== 'running') {
+        console.log(`Job ${jobId} status is "${jobData?.status}", not running. Exiting.`);
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            message: `Job stopped (status: ${jobData?.status})`,
+            skipped: true 
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
     // Fetch official trailer channels from database
     const { data: officialChannels } = await supabase
       .from('official_trailer_channels')
