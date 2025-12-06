@@ -929,7 +929,7 @@ export const Jobs = () => {
                   </Button>
                 ) : (
                   <>
-                    {/* Show Resume button if job has progress to resume */}
+                    {/* Show Resume button for full_refresh with progress */}
                     {job.job_type === 'full_refresh' && 
                      job.configuration?.completed_work_units?.length > 0 && 
                      job.status !== 'completed' ? (
@@ -977,6 +977,16 @@ export const Jobs = () => {
                       >
                         <Layers className="w-4 h-4 mr-2" />
                         {job.configuration?.completed_work_units?.length > 0 ? 'Restart' : 'Parallel'}
+                      </Button>
+                    )}
+                    {job.job_type === 'enrich_trailers' && job.status !== 'completed' && (
+                      <Button
+                        onClick={() => handleRunParallel(job)}
+                        disabled={runningJobs.has(job.id)}
+                        variant="secondary"
+                      >
+                        <Layers className="w-4 h-4 mr-2" />
+                        Parallel
                       </Button>
                     )}
                   </>
