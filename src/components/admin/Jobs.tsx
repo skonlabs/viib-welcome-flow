@@ -509,6 +509,95 @@ export const Jobs = () => {
     try {
       const config = job.configuration || {};
       const completedWorkUnits = config.completed_work_units || [];
+      const failedWorkUnits = config.failed_work_units || [];
+      
+      // If there are failed work units, retry those specifically
+      if (failedWorkUnits.length > 0) {
+        const chunksToRetry = failedWorkUnits.map((wu: any) => ({
+          languageCode: wu.languageCode,
+          year: wu.year,
+          genreId: wu.genreId
+        }));
+
+        // Clear failed_work_units and update job status
+        const { error: updateError } = await supabase
+          .from('jobs')
+          .update({ 
+            status: 'running',
+            error_message: null,
+            configuration: {
+              ...config,
+              failed_work_units: [] // Clear failed units before retry
+            },
+            last_run_at: new Date().toISOString()
+          })
+          .eq('id', job.id);
+
+        if (updateError) throw updateError;
+
+        setParallelProgress({
+          jobId: job.id,
+          currentThread: completedWorkUnits.length,
+          totalThreads: completedWorkUnits.length + chunksToRetry.length,
+          succeeded: completedWorkUnits.length,
+          failed: 0,
+          titlesProcessed: job.total_titles_processed || 0
+        });
+
+        toast({
+          title: "Retrying Failed Units",
+          description: `Retrying ${chunksToRetry.length} failed work units.`,
+        });
+
+        // Invoke orchestrator with failed chunks
+        const { error: orchestratorError } = await supabase.functions.invoke('full-refresh-orchestrator', {
+          body: {
+            jobId: job.id,
+            chunks: chunksToRetry,
+            startIndex: 0
+          }
+        });
+
+        if (orchestratorError) throw orchestratorError;
+
+        // Poll for progress
+        const totalChunks = completedWorkUnits.length + chunksToRetry.length;
+        const pollInterval = setInterval(async () => {
+          const { data: updatedJob } = await supabase
+            .from('jobs')
+            .select('total_titles_processed, status, configuration')
+            .eq('id', job.id)
+            .single();
+
+          if (updatedJob) {
+            const jobConfig = (updatedJob.configuration as any) || {};
+            const completed = jobConfig.completed_work_units?.length || 0;
+            const failed = jobConfig.failed_work_units?.length || 0;
+            
+            setParallelProgress({
+              jobId: job.id,
+              currentThread: completed + failed,
+              totalThreads: totalChunks,
+              succeeded: completed,
+              failed: failed,
+              titlesProcessed: updatedJob.total_titles_processed || 0
+            });
+
+            if (updatedJob.status === 'completed' || updatedJob.status === 'failed' || updatedJob.status === 'idle') {
+              clearInterval(pollInterval);
+              setParallelProgress(null);
+              await fetchJobs();
+            }
+          }
+        }, 10000);
+
+        setTimeout(() => {
+          clearInterval(pollInterval);
+          setParallelProgress(null);
+        }, 7200000);
+        
+        return;
+      }
       
       // Build the complete set of work units
       const startYear = config.start_year || 2020;
@@ -544,7 +633,7 @@ export const Jobs = () => {
       if (remainingChunks.length === 0) {
         toast({
           title: "Job Already Complete",
-          description: "All work units have been processed.",
+          description: "All work units have been processed successfully.",
         });
         return;
       }
