@@ -425,21 +425,43 @@ serve(async (req) => {
     console.log(`Trailer enrichment batch completed: ${titlesEnriched} titles, ${seasonsEnriched} seasons enriched, ${failed} failed in ${duration}s`);
     console.log(`Remaining: ${remainingTitles} titles, ${remainingSeasons} seasons`);
 
-    // Update job status
+    // Update job - but respect stop commands (don't override status if stopped)
     if (jobId) {
-      const newStatus = isComplete ? 'completed' : 'running';
-      await supabase
+      // Check current status before updating
+      const { data: currentJob } = await supabase
         .from('jobs')
-        .update({
-          status: newStatus,
-          last_run_at: new Date().toISOString(),
-          last_run_duration_seconds: duration,
-          ...(isComplete ? { error_message: null } : {})
-        })
-        .eq('id', jobId);
+        .select('status')
+        .eq('id', jobId)
+        .single();
       
-      // If not complete, use EdgeRuntime.waitUntil for reliable background continuation
-      if (!isComplete) {
+      const wasStoppedByUser = currentJob?.status !== 'running';
+      
+      if (wasStoppedByUser) {
+        console.log(`Job was stopped by user (status: ${currentJob?.status}). Not restarting.`);
+        // Only update stats, don't change status
+        await supabase
+          .from('jobs')
+          .update({
+            last_run_at: new Date().toISOString(),
+            last_run_duration_seconds: duration
+          })
+          .eq('id', jobId);
+      } else {
+        // Job is still running, update normally
+        const newStatus = isComplete ? 'completed' : 'running';
+        await supabase
+          .from('jobs')
+          .update({
+            status: newStatus,
+            last_run_at: new Date().toISOString(),
+            last_run_duration_seconds: duration,
+            ...(isComplete ? { error_message: null } : {})
+          })
+          .eq('id', jobId);
+      }
+      
+      // Only schedule next batch if job is still running and not complete
+      if (!isComplete && !wasStoppedByUser) {
         console.log('More work remaining, scheduling next batch via EdgeRuntime.waitUntil...');
         
         const invokeNextBatch = async () => {
@@ -472,6 +494,8 @@ serve(async (req) => {
           invokeNextBatch();
           console.log('Next batch dispatched (no EdgeRuntime available)');
         }
+      } else if (wasStoppedByUser) {
+        console.log('Job was stopped by user, not scheduling next batch');
       }
     }
 
