@@ -417,34 +417,34 @@ serve(async (req) => {
         })
         .eq('id', jobId);
       
-      // If not complete, schedule next batch using EdgeRuntime.waitUntil for reliable execution
+      // If not complete, invoke next batch SYNCHRONOUSLY before returning response
+      // This ensures the next batch is triggered reliably
       if (!isComplete) {
-        console.log('More work remaining, scheduling next batch...');
+        console.log('More work remaining, invoking next batch synchronously...');
         
-        // Use EdgeRuntime.waitUntil to ensure the self-invocation happens after response
-        EdgeRuntime.waitUntil((async () => {
-          // Small delay to prevent overwhelming
-          await new Promise(resolve => setTimeout(resolve, 2000));
-          
-          try {
-            const response = await fetch(`${SUPABASE_URL}/functions/v1/enrich-title-trailers`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`
-              },
-              body: JSON.stringify({ jobId })
-            });
-            
-            if (!response.ok) {
-              console.error(`Next batch invocation failed with status ${response.status}`);
+        try {
+          // Fire-and-forget: don't await the response, just ensure the request is sent
+          fetch(`${SUPABASE_URL}/functions/v1/enrich-title-trailers`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`
+            },
+            body: JSON.stringify({ jobId })
+          }).then(res => {
+            if (!res.ok) {
+              console.error(`Next batch invocation returned status ${res.status}`);
             } else {
-              console.log('Successfully triggered next batch');
+              console.log('Next batch invocation acknowledged');
             }
-          } catch (err) {
-            console.error('Failed to schedule next batch:', err);
-          }
-        })());
+          }).catch(err => {
+            console.error('Next batch invocation error:', err);
+          });
+          
+          console.log('Next batch request dispatched');
+        } catch (err) {
+          console.error('Failed to dispatch next batch:', err);
+        }
       }
     }
 
