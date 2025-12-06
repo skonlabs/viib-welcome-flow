@@ -1,6 +1,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.84.0";
 
+// Declare EdgeRuntime for background tasks
+declare const EdgeRuntime: {
+  waitUntil: (promise: Promise<unknown>) => void;
+};
+
 const TMDB_API_KEY = Deno.env.get('TMDB_API_KEY');
 const YOUTUBE_API_KEY = Deno.env.get('YOUTUBE_API_KEY');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
@@ -412,13 +417,17 @@ serve(async (req) => {
         })
         .eq('id', jobId);
       
-      // If not complete, schedule next batch by invoking self
+      // If not complete, schedule next batch using EdgeRuntime.waitUntil for reliable execution
       if (!isComplete) {
         console.log('More work remaining, scheduling next batch...');
-        // Use setTimeout to trigger next batch after response
-        setTimeout(async () => {
+        
+        // Use EdgeRuntime.waitUntil to ensure the self-invocation happens after response
+        EdgeRuntime.waitUntil((async () => {
+          // Small delay to prevent overwhelming
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          
           try {
-            await fetch(`${SUPABASE_URL}/functions/v1/enrich-title-trailers`, {
+            const response = await fetch(`${SUPABASE_URL}/functions/v1/enrich-title-trailers`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -426,10 +435,16 @@ serve(async (req) => {
               },
               body: JSON.stringify({ jobId })
             });
+            
+            if (!response.ok) {
+              console.error(`Next batch invocation failed with status ${response.status}`);
+            } else {
+              console.log('Successfully triggered next batch');
+            }
           } catch (err) {
             console.error('Failed to schedule next batch:', err);
           }
-        }, 1000);
+        })());
       }
     }
 
