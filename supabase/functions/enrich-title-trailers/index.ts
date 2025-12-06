@@ -153,7 +153,6 @@ serve(async (req) => {
     // ==========================================
     console.log('=== PHASE 1: Enriching titles with missing trailers ===');
     
-    let titlesOffset = 0;
     let hasMoreTitles = true;
     
     while (hasMoreTitles && shouldContinue()) {
@@ -162,7 +161,7 @@ serve(async (req) => {
         .select('id, tmdb_id, name, release_date, first_air_date, title_type, original_language')
         .not('tmdb_id', 'is', null)
         .is('trailer_url', null)
-        .range(titlesOffset, titlesOffset + BATCH_SIZE - 1);
+        .limit(BATCH_SIZE);
 
       if (titlesError) {
         console.error('Error fetching titles:', titlesError);
@@ -175,7 +174,7 @@ serve(async (req) => {
         break;
       }
 
-      console.log(`Processing batch of ${titlesWithoutTrailers.length} titles (offset: ${titlesOffset})`);
+      console.log(`Processing batch of ${titlesWithoutTrailers.length} titles`);
 
       for (const title of titlesWithoutTrailers) {
         if (!shouldContinue()) {
@@ -226,21 +225,23 @@ serve(async (req) => {
             }
           }
 
-          if (trailerUrl) {
-            const { error: updateError } = await supabase
-              .from('titles')
-              .update({ trailer_url: trailerUrl, is_tmdb_trailer: isTmdbTrailer })
-              .eq('id', title.id);
+          // Always update the title - either with trailer URL or empty string to mark as "checked"
+          const { error: updateError } = await supabase
+            .from('titles')
+            .update({ 
+              trailer_url: trailerUrl || '', // Empty string means "checked, no trailer found"
+              is_tmdb_trailer: trailerUrl ? isTmdbTrailer : false 
+            })
+            .eq('id', title.id);
 
-            if (updateError) {
-              console.error(`Failed to update title ${title.id}:`, updateError);
-              failed++;
-            } else {
-              titlesEnriched++;
-              console.log(`✓ Title: ${title.name} (${title.title_type}) - ${isTmdbTrailer ? 'TMDB' : 'YouTube'}`);
-            }
+          if (updateError) {
+            console.error(`Failed to update title ${title.id}:`, updateError);
+            failed++;
+          } else if (trailerUrl) {
+            titlesEnriched++;
+            console.log(`✓ Title: ${title.name} (${title.title_type}) - ${isTmdbTrailer ? 'TMDB' : 'YouTube'}`);
           } else {
-            console.log(`✗ No trailer: ${title.name}`);
+            console.log(`○ No trailer found: ${title.name} (marked as checked)`);
           }
 
           totalProcessed++;
@@ -250,15 +251,8 @@ serve(async (req) => {
           totalProcessed++;
         }
       }
-
-      // Move to next batch - but since we're updating records, 
-      // the next query at offset 0 will return NEW records without trailers
-      // So we DON'T increment offset, we just keep fetching from start
-      // Only increment if we didn't update any (to avoid infinite loop)
-      if (titlesEnriched === 0 && titlesWithoutTrailers.length === BATCH_SIZE) {
-        titlesOffset += BATCH_SIZE;
-      }
-      // Otherwise, keep offset at 0 since updated records are now excluded by the query
+      // All processed titles are now updated (either with URL or empty string)
+      // so next query will fetch fresh titles with null trailer_url
     }
 
     // ==========================================
@@ -339,21 +333,23 @@ serve(async (req) => {
               }
             }
 
-            if (trailerUrl) {
-              const { error: updateError } = await supabase
-                .from('seasons')
-                .update({ trailer_url: trailerUrl, is_tmdb_trailer: isTmdbTrailer })
-                .eq('id', season.id);
+            // Always update the season - either with trailer URL or empty string to mark as "checked"
+            const { error: updateError } = await supabase
+              .from('seasons')
+              .update({ 
+                trailer_url: trailerUrl || '', // Empty string means "checked, no trailer found"
+                is_tmdb_trailer: trailerUrl ? isTmdbTrailer : false 
+              })
+              .eq('id', season.id);
 
-              if (updateError) {
-                console.error(`Failed to update season ${season.id}:`, updateError);
-                failed++;
-              } else {
-                seasonsEnriched++;
-                console.log(`✓ Season: ${titleName} S${season.season_number} - ${isTmdbTrailer ? 'TMDB' : 'YouTube'}`);
-              }
+            if (updateError) {
+              console.error(`Failed to update season ${season.id}:`, updateError);
+              failed++;
+            } else if (trailerUrl) {
+              seasonsEnriched++;
+              console.log(`✓ Season: ${titleName} S${season.season_number} - ${isTmdbTrailer ? 'TMDB' : 'YouTube'}`);
             } else {
-              console.log(`✗ No trailer: ${titleName} S${season.season_number}`);
+              console.log(`○ No trailer found: ${titleName} S${season.season_number} (marked as checked)`);
             }
 
             totalProcessed++;
