@@ -19,7 +19,7 @@ const corsHeaders = {
 };
 
 const MAX_RUNTIME_MS = 85000; // 85 seconds (leave buffer)
-const BATCH_SIZE = 20; // Process 20 records per batch
+const BATCH_SIZE = 50; // Process 50 records per batch (limit per YouTube/TMDB request)
 
 // Comprehensive list of official studio and distributor channels (multi-language)
 const OFFICIAL_CHANNELS = [
