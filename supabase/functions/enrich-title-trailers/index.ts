@@ -21,9 +21,9 @@ const corsHeaders = {
 const MAX_RUNTIME_MS = 85000; // 85 seconds (leave buffer)
 const BATCH_SIZE = 20; // Process 20 records per batch
 
-// Comprehensive list of official studio and distributor channels
+// Comprehensive list of official studio and distributor channels (multi-language)
 const OFFICIAL_CHANNELS = [
-  // Major Studios
+  // Major Hollywood Studios
   'Universal Pictures', 'Warner Bros. Pictures', 'Warner Bros.', 'WB Pictures',
   'Sony Pictures Entertainment', 'Sony Pictures', 'Columbia Pictures',
   'Paramount Pictures', 'Paramount', '20th Century Studios', '20th Century Fox',
@@ -40,11 +40,12 @@ const OFFICIAL_CHANNELS = [
   // Streaming Services (Official Channels)
   'Netflix', 'Netflix Film', 'Amazon Prime Video', 'Prime Video',
   'Apple TV', 'Apple TV+', 'HBO', 'HBO Max', 'Max', 'Hulu',
-  'Peacock', 'Peacock TV', 'Disney+', 'Disney Plus',
+  'Peacock', 'Peacock TV', 'Disney+', 'Disney Plus', 'DisneyPlus Hotstar',
   
-  // International Studios
-  'Studio Ghibli', 'Toho', 'StudioCanal', 'Pathé', 'Gaumont',
-  'Constantin Film', 'Film4', 'Working Title', 'Legendary Entertainment',
+  // Additional Studios
+  'DreamWorks', 'Amblin', 'New Line Cinema', 'Miramax', 'Relativity Media',
+  'Screen Gems', 'TriStar Pictures', 'Summit Entertainment',
+  'FilmNation', 'Plan B', 'Participant', 'Lucasfilm', 'Pixar',
   
   // Horror/Genre Specialists
   'Blumhouse', 'A24 Films', 'Shudder', 'Scream Factory',
@@ -52,26 +53,67 @@ const OFFICIAL_CHANNELS = [
   // Documentary Distributors
   'National Geographic', 'PBS', 'Sundance', 'HBO Documentary Films',
   
-  // Additional Studios
-  'DreamWorks', 'Amblin', 'New Line Cinema', 'Miramax', 'Relativity Media',
-  'Screen Gems', 'TriStar Pictures', 'Summit Entertainment', 'The Weinstein Company',
-  'FilmNation', 'Plan B', 'Participant', 'Lucasfilm', 'Pixar',
+  // ===== INDIAN (Hindi/Bollywood) =====
+  'T-Series', 'TSeries', 'Dharma Productions', 'Red Chillies Entertainment', 
+  'Yash Raj Films', 'YRF', 'Zee Studios', 'Eros Now', 'Tips Official', 
+  'Sony Music India', 'Pen Movies', 'Zee Music Company', 'Goldmines',
+  'Saregama', 'Speed Records', 'Venus', 'Ultra Bollywood', 'Shemaroo',
   
-  // Indian Studios/Distributors
-  'T-Series', 'Dharma Productions', 'Red Chillies Entertainment', 'Yash Raj Films',
-  'Zee Studios', 'Eros Now', 'Tips Official', 'Sony Music India',
-  'Pen Movies', 'Zee Music Company', 'TSeries', 'Goldmines',
-  
-  // South Indian Studios
+  // ===== SOUTH INDIAN (Tamil/Telugu/Kannada/Malayalam) =====
   'Sun Pictures', 'Lyca Productions', 'Hombale Films', 'Geetha Arts',
   'Mythri Movie Makers', 'Sri Venkateswara Creations', 'Aditya Music',
+  'Red Giant Movies', 'Lahari Music', 'Think Music India', 'Sony Music South',
+  'Mango Music', 'Saregama Tamil', 'Saregama Telugu', 'Star Maa',
+  'Mammootty Kampany', 'Prithviraj Productions', 'Wayfarer Films',
   
-  // Korean Studios
+  // ===== KOREAN =====
   'CJ ENM', 'Showbox', 'NEW', 'Lotte Entertainment', 'KOFIC',
+  'CJ Entertainment', 'Megabox Plus M', 'Next Entertainment World',
+  '1theK', 'Stone Music Entertainment', 'Kakao Entertainment',
   
-  // Japanese Studios
+  // ===== JAPANESE =====
+  'Toho Movie Channel', 'Warner Bros Japan', 'Sony Pictures Japan',
   'Toei Animation', 'Aniplex', 'KADOKAWA', 'Shochiku', 'MAPPA',
-  'Crunchyroll', 'Funimation'
+  'Crunchyroll', 'Funimation', 'Studio Ghibli', 'Toho', 'Nikkatsu',
+  'Toei Company', 'Bandai Namco', 'Sunrise', 'A-1 Pictures',
+  
+  // ===== CHINESE =====
+  'Tencent Video', 'iQIYI', 'Youku', 'Huace Film', 'China Movie Channel',
+  'Mango TV', 'Bilibili', 'Alibaba Pictures', 'Bona Film', 'Huanxi Media',
+  'Wanda Pictures', 'China Film', 'Enlight Media',
+  
+  // ===== SPANISH (Latin America & Spain) =====
+  'Cinepolis', 'Sony Pictures Latinoamérica', 'Warner Bros. Latinoamérica',
+  'Universal Pictures Latinoamérica', 'Netflix Latinoamérica', 'Sensacine',
+  'eOne Spain', 'A Contracorriente Films', 'Filmax', 'DeAPlaneta',
+  
+  // ===== FRENCH =====
+  'Allociné', 'Universal Pictures France', 'Sony Pictures France',
+  'Warner Bros. France', 'Pathé', 'Gaumont', 'StudioCanal',
+  'Metropolitan Filmexport', 'UGC Distribution', 'Wild Bunch',
+  
+  // ===== GERMAN =====
+  'KinoCheck', 'Constantin Film', 'Sony Pictures DE', 'Warner Bros. DE',
+  'Universal Pictures Germany', 'Tobis Film', 'Wild Bunch Germany',
+  
+  // ===== ITALIAN =====
+  'FilmIsNow Trailer', '01 Distribution', 'Vision Distribution',
+  'Netflix Italia', 'Warner Bros. Italia', 'Universal Pictures Italia',
+  'Medusa Film', 'Lucky Red', 'Eagle Pictures',
+  
+  // ===== PORTUGUESE/BRAZILIAN =====
+  'Telecine', 'Netflix Brasil', 'Sony Pictures Brasil', 'Warner Bros. Brasil',
+  'Globo Filmes', 'Paris Filmes', 'Diamond Films Brasil',
+  
+  // ===== TURKISH =====
+  'Netflix Türkiye', 'BluTV', 'Exxen', 'BKM', 'TRT',
+  
+  // ===== RUSSIAN =====
+  'Kinopoisk', 'Central Partnership', 'Mosfilm', 'Sony Pictures Russia',
+  
+  // ===== OTHER INTERNATIONAL =====
+  'Film4', 'Working Title', 'Legendary Entertainment', 'Constantin Film',
+  'Nordisk Film', 'SF Studios', 'Svensk Filmindustri'
 ];
 
 // Keywords that indicate official status
