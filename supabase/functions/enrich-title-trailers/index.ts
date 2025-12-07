@@ -21,6 +21,62 @@ const corsHeaders = {
 const MAX_RUNTIME_MS = 85000; // 85 seconds (leave buffer)
 const BATCH_SIZE = 20; // Process 20 records per batch
 
+// Comprehensive list of official studio and distributor channels
+const OFFICIAL_CHANNELS = [
+  // Major Studios
+  'Universal Pictures', 'Warner Bros. Pictures', 'Warner Bros.', 'WB Pictures',
+  'Sony Pictures Entertainment', 'Sony Pictures', 'Columbia Pictures',
+  'Paramount Pictures', 'Paramount', '20th Century Studios', '20th Century Fox',
+  'Walt Disney Studios', 'Disney', 'Marvel Entertainment', 'Marvel Studios',
+  'DC', 'Lionsgate Movies', 'Lionsgate', 'MGM', 'Metro-Goldwyn-Mayer',
+  
+  // Indie/Specialty Distributors
+  'A24', 'Searchlight Pictures', 'Fox Searchlight', 'Focus Features',
+  'Sony Pictures Classics', 'NEON', 'Magnolia Pictures', 'IFC Films',
+  'STXfilms', 'STX Entertainment', 'Entertainment One', 'eOne Films',
+  'Bleecker Street', 'Annapurna Pictures', 'Roadside Attractions',
+  'FilmDistrict', 'Open Road Films', 'LD Entertainment', 'Vertical Entertainment',
+  
+  // Streaming Services (Official Channels)
+  'Netflix', 'Netflix Film', 'Amazon Prime Video', 'Prime Video',
+  'Apple TV', 'Apple TV+', 'HBO', 'HBO Max', 'Max', 'Hulu',
+  'Peacock', 'Peacock TV', 'Disney+', 'Disney Plus',
+  
+  // International Studios
+  'Studio Ghibli', 'Toho', 'StudioCanal', 'Pathé', 'Gaumont',
+  'Constantin Film', 'Film4', 'Working Title', 'Legendary Entertainment',
+  
+  // Horror/Genre Specialists
+  'Blumhouse', 'A24 Films', 'Shudder', 'Scream Factory',
+  
+  // Documentary Distributors
+  'National Geographic', 'PBS', 'Sundance', 'HBO Documentary Films',
+  
+  // Additional Studios
+  'DreamWorks', 'Amblin', 'New Line Cinema', 'Miramax', 'Relativity Media',
+  'Screen Gems', 'TriStar Pictures', 'Summit Entertainment', 'The Weinstein Company',
+  'FilmNation', 'Plan B', 'Participant', 'Lucasfilm', 'Pixar',
+  
+  // Indian Studios/Distributors
+  'T-Series', 'Dharma Productions', 'Red Chillies Entertainment', 'Yash Raj Films',
+  'Zee Studios', 'Eros Now', 'Tips Official', 'Sony Music India',
+  'Pen Movies', 'Zee Music Company', 'TSeries', 'Goldmines',
+  
+  // South Indian Studios
+  'Sun Pictures', 'Lyca Productions', 'Hombale Films', 'Geetha Arts',
+  'Mythri Movie Makers', 'Sri Venkateswara Creations', 'Aditya Music',
+  
+  // Korean Studios
+  'CJ ENM', 'Showbox', 'NEW', 'Lotte Entertainment', 'KOFIC',
+  
+  // Japanese Studios
+  'Toei Animation', 'Aniplex', 'KADOKAWA', 'Shochiku', 'MAPPA',
+  'Crunchyroll', 'Funimation'
+];
+
+// Keywords that indicate official status
+const OFFICIAL_KEYWORDS = ['official', 'trailer', 'studios', 'pictures', 'entertainment', 'films', 'productions'];
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -60,15 +116,6 @@ serve(async (req) => {
       }
     }
 
-    // Fetch official trailer channels from database
-    const { data: officialChannels } = await supabase
-      .from('official_trailer_channels')
-      .select('channel_name, language_code, priority')
-      .eq('is_active', true)
-      .order('priority', { ascending: false });
-
-    console.log(`Loaded ${officialChannels?.length || 0} official trailer channels`);
-
     let totalProcessed = 0;
     let titlesEnriched = 0;
     let seasonsEnriched = 0;
@@ -79,75 +126,103 @@ serve(async (req) => {
       return (Date.now() - startTime) < MAX_RUNTIME_MS;
     }
 
-    // Helper function to search YouTube for trailers
+    // Helper function to search YouTube for trailers with comprehensive channel matching
     async function searchYouTubeTrailer(
       titleName: string,
-      titleLang: string,
+      contentType: 'movie' | 'tv',
       releaseYear: number | null,
       seasonName?: string
     ): Promise<{ url: string; isTmdbTrailer: false } | null> {
-      const relevantChannels = (officialChannels || []).filter(c => 
-        c.language_code === titleLang || c.language_code === 'global' || c.language_code === 'en'
-      ).map(c => c.channel_name.toLowerCase());
+      
+      // Build search query
+      let searchQuery: string;
+      if (seasonName) {
+        searchQuery = `${titleName} ${seasonName} official trailer`;
+      } else {
+        const typeLabel = contentType === 'movie' ? 'movie' : 'tv series';
+        searchQuery = releaseYear 
+          ? `${titleName} ${typeLabel} official trailer ${releaseYear}`
+          : `${titleName} ${typeLabel} official trailer`;
+      }
 
-      const searchQuery = seasonName 
-        ? `${titleName} ${seasonName} official trailer`
-        : `${titleName} ${releaseYear || ''} official trailer`;
+      console.log(`Searching YouTube for: ${searchQuery}`);
 
       try {
-        const youtubeSearchRes = await fetch(
-          `${YOUTUBE_SEARCH_URL}?part=snippet&q=${encodeURIComponent(searchQuery)}&type=video&maxResults=10&key=${YOUTUBE_API_KEY}`
+        const youtubeResponse = await fetch(
+          `${YOUTUBE_SEARCH_URL}?` +
+          `part=snippet&q=${encodeURIComponent(searchQuery)}&` +
+          `type=video&videoDefinition=high&` +
+          `order=relevance&maxResults=10&key=${YOUTUBE_API_KEY}`
         );
 
-        if (!youtubeSearchRes.ok) return null;
-
-        const searchData = await youtubeSearchRes.json();
-        
-        // First try to find a result from an official trailer channel
-        const officialChannelTrailer = searchData.items?.find((item: any) => {
-          const channelTitle = item.snippet.channelTitle?.toLowerCase() || '';
-          return relevantChannels.some(officialName => channelTitle.includes(officialName.toLowerCase()));
-        });
-
-        if (officialChannelTrailer) {
-          return { 
-            url: `https://www.youtube.com/watch?v=${officialChannelTrailer.id.videoId}`, 
-            isTmdbTrailer: false 
-          };
+        if (!youtubeResponse.ok) {
+          const errorText = await youtubeResponse.text();
+          console.error(`YouTube API error for "${titleName}":`, errorText);
+          
+          // Check if quota exceeded
+          if (youtubeResponse.status === 403 && errorText.includes('quotaExceeded')) {
+            console.error('YouTube API quota exceeded');
+            throw new Error('QUOTA_EXCEEDED');
+          }
+          return null;
         }
 
-        // Fallback: find results with "official trailer" in title from verified-looking channels
-        const verifiedTrailer = searchData.items?.find((item: any) => {
+        const youtubeData = await youtubeResponse.json();
+
+        if (!youtubeData.items || youtubeData.items.length === 0) {
+          console.log(`No YouTube results for "${titleName}"`);
+          return null;
+        }
+
+        // Find first video from an official channel
+        let selectedVideo = null;
+        
+        for (const item of youtubeData.items) {
           const channelTitle = item.snippet.channelTitle?.toLowerCase() || '';
           const videoTitle = item.snippet.title?.toLowerCase() || '';
           
-          const hasOfficialInTitle = videoTitle.includes('official trailer');
-          const isOfficialChannel = 
-            channelTitle.includes('pictures') ||
-            channelTitle.includes('studios') ||
-            channelTitle.includes('entertainment') ||
-            channelTitle.includes('trailers') ||
-            channelTitle.includes('movies') ||
-            channelTitle.includes('films') ||
-            channelTitle.includes('productions') ||
-            channelTitle.includes('netflix') ||
-            channelTitle.includes('disney') ||
-            channelTitle.includes('prime video');
+          // Check if channel name matches any official channel
+          const isOfficialChannel = OFFICIAL_CHANNELS.some(official => 
+            channelTitle.includes(official.toLowerCase()) ||
+            official.toLowerCase().includes(channelTitle)
+          );
           
-          return hasOfficialInTitle && isOfficialChannel;
-        });
-
-        if (verifiedTrailer) {
-          return { 
-            url: `https://www.youtube.com/watch?v=${verifiedTrailer.id.videoId}`, 
-            isTmdbTrailer: false 
-          };
+          // Check if video title contains "official trailer" or "official teaser"
+          const isOfficialVideo = videoTitle.includes('official trailer') || 
+                                 videoTitle.includes('official teaser') ||
+                                 videoTitle.includes('official clip');
+          
+          // Check if channel has official keywords
+          const hasOfficialKeywords = OFFICIAL_KEYWORDS.some(keyword => 
+            channelTitle.includes(keyword)
+          );
+          
+          if (isOfficialChannel || (isOfficialVideo && hasOfficialKeywords)) {
+            selectedVideo = item;
+            console.log(`✓ Found official trailer from channel: "${item.snippet.channelTitle}" for "${titleName}"`);
+            break;
+          }
         }
-      } catch (e) {
-        console.error(`YouTube search error for ${titleName}:`, e);
-      }
 
-      return null;
+        // If no official channel found, skip this title
+        if (!selectedVideo) {
+          console.log(`✗ No official trailer found for "${titleName}", skipping...`);
+          console.log(`  Available channels were:`, youtubeData.items.map((i: any) => i.snippet.channelTitle).join(', '));
+          return null;
+        }
+
+        const videoId = selectedVideo.id.videoId;
+        return { 
+          url: `https://www.youtube.com/watch?v=${videoId}`, 
+          isTmdbTrailer: false 
+        };
+      } catch (e) {
+        if (e instanceof Error && e.message === 'QUOTA_EXCEEDED') {
+          throw e; // Re-throw quota errors to stop processing
+        }
+        console.error(`YouTube search error for ${titleName}:`, e);
+        return null;
+      }
     }
 
     // Helper function to fetch trailer from TMDB videos endpoint
@@ -175,7 +250,6 @@ serve(async (req) => {
 
     // ==========================================
     // PHASE 1: Enrich TITLES with null trailer_url
-    // Keep fetching batches until no more records or time runs out
     // ==========================================
     console.log('=== PHASE 1: Enriching titles with missing trailers ===');
     
@@ -209,9 +283,14 @@ serve(async (req) => {
         }
 
         try {
-          const titleLang = title.original_language || 'en';
+          // Add delay to respect YouTube API rate limits
+          if (totalProcessed > 0) {
+            await new Promise(resolve => setTimeout(resolve, 500)); // 500ms delay
+          }
+
           const dateStr = title.title_type === 'movie' ? title.release_date : title.first_air_date;
           const releaseYear = dateStr ? new Date(dateStr).getFullYear() : null;
+          const contentType = title.title_type === 'movie' ? 'movie' : 'tv';
 
           let trailerUrl: string | null = null;
           let isTmdbTrailer = true;
@@ -244,7 +323,7 @@ serve(async (req) => {
 
           // Fallback to YouTube if no TMDB trailer
           if (!trailerUrl) {
-            const ytResult = await searchYouTubeTrailer(title.name, titleLang, releaseYear);
+            const ytResult = await searchYouTubeTrailer(title.name, contentType, releaseYear);
             if (ytResult) {
               trailerUrl = ytResult.url;
               isTmdbTrailer = false;
@@ -272,13 +351,15 @@ serve(async (req) => {
 
           totalProcessed++;
         } catch (titleError) {
+          if (titleError instanceof Error && titleError.message === 'QUOTA_EXCEEDED') {
+            console.error('YouTube quota exceeded, stopping processing');
+            break;
+          }
           console.error(`Error processing title ${title.id}:`, titleError);
           failed++;
           totalProcessed++;
         }
       }
-      // All processed titles are now updated (either with URL or empty string)
-      // so next query will fetch fresh titles with null trailer_url
     }
 
     // ==========================================
@@ -328,10 +409,14 @@ serve(async (req) => {
           }
 
           try {
+            // Add delay to respect YouTube API rate limits
+            if (totalProcessed > 0) {
+              await new Promise(resolve => setTimeout(resolve, 500)); // 500ms delay
+            }
+
             const titleInfo = season.titles as any;
             const tmdbId = titleInfo?.tmdb_id;
             const titleName = titleInfo?.name;
-            const titleLang = titleInfo?.original_language || 'en';
 
             if (!tmdbId || !titleName) {
               console.log(`Skipping season ${season.id} - missing title info`);
@@ -352,7 +437,7 @@ serve(async (req) => {
             // Fallback to YouTube with season-specific search
             if (!trailerUrl) {
               const seasonName = season.name || `Season ${season.season_number}`;
-              const ytResult = await searchYouTubeTrailer(titleName, titleLang, null, seasonName);
+              const ytResult = await searchYouTubeTrailer(titleName, 'tv', null, seasonName);
               if (ytResult) {
                 trailerUrl = ytResult.url;
                 isTmdbTrailer = false;
@@ -380,6 +465,10 @@ serve(async (req) => {
 
             totalProcessed++;
           } catch (seasonError) {
+            if (seasonError instanceof Error && seasonError.message === 'QUOTA_EXCEEDED') {
+              console.error('YouTube quota exceeded, stopping processing');
+              break;
+            }
             console.error(`Error processing season ${season.id}:`, seasonError);
             failed++;
             totalProcessed++;
@@ -399,12 +488,6 @@ serve(async (req) => {
     const duration = Math.floor((Date.now() - startTime) / 1000);
     
     // Check remaining work
-    const { data: remainingCounts } = await supabase.rpc('get_trailer_enrichment_remaining');
-    
-    // Fallback if RPC doesn't exist
-    let remainingTitles = 0;
-    let remainingSeasons = 0;
-    
     const { count: titleCount } = await supabase
       .from('titles')
       .select('*', { count: 'exact', head: true })
@@ -417,8 +500,8 @@ serve(async (req) => {
       .is('trailer_url', null)
       .gt('season_number', 0);
     
-    remainingTitles = titleCount || 0;
-    remainingSeasons = seasonCount || 0;
+    const remainingTitles = titleCount || 0;
+    const remainingSeasons = seasonCount || 0;
     
     const isComplete = remainingTitles === 0 && remainingSeasons === 0;
     
@@ -476,21 +559,21 @@ serve(async (req) => {
             });
             
             if (!response.ok) {
-              console.error(`Next batch invocation returned status ${response.status}`);
+              console.error('Failed to invoke next batch:', await response.text());
             } else {
-              console.log('Next batch invocation succeeded');
+              console.log('Next batch invoked successfully');
             }
-          } catch (err) {
-            console.error('Next batch invocation error:', err);
+          } catch (e) {
+            console.error('Error invoking next batch:', e);
           }
         };
-        
-        // Use EdgeRuntime.waitUntil for reliable background execution
+
+        // Use EdgeRuntime.waitUntil for reliable background continuation
         if (typeof EdgeRuntime !== 'undefined' && EdgeRuntime.waitUntil) {
           EdgeRuntime.waitUntil(invokeNextBatch());
           console.log('Next batch scheduled via EdgeRuntime.waitUntil');
         } else {
-          // Fallback: still try the fetch but don't wait
+          // Fallback - fire and forget
           invokeNextBatch();
           console.log('Next batch dispatched (no EdgeRuntime available)');
         }
@@ -502,28 +585,26 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
-        totalProcessed,
+        message: isComplete ? 'All trailers enriched' : 'Batch completed, more work remaining',
         titlesEnriched,
         seasonsEnriched,
         failed,
-        duration,
+        totalProcessed,
         remainingTitles,
         remainingSeasons,
-        isComplete,
-        message: isComplete 
-          ? `Enrichment complete! ${titlesEnriched} titles and ${seasonsEnriched} seasons enriched`
-          : `Batch done: ${titlesEnriched} titles, ${seasonsEnriched} seasons. ${remainingTitles + remainingSeasons} remaining...`
+        duration
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error) {
-    console.error('Trailer enrichment error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    
+    console.error('Fatal error in enrich-title-trailers:', error);
     return new Response(
-      JSON.stringify({ error: errorMessage, success: false }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+      JSON.stringify({ 
+        error: error instanceof Error ? error.message : String(error),
+        success: false 
+      }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
