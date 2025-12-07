@@ -162,10 +162,11 @@ serve(async (req) => {
     let titlesEnriched = 0;
     let seasonsEnriched = 0;
     let failed = 0;
+    let quotaExceeded = false; // Track if YouTube quota is exceeded
 
     // Helper function to check if we should continue
     function shouldContinue(): boolean {
-      return (Date.now() - startTime) < MAX_RUNTIME_MS;
+      return (Date.now() - startTime) < MAX_RUNTIME_MS && !quotaExceeded;
     }
 
     // Helper function to search YouTube for trailers with comprehensive channel matching
@@ -395,6 +396,7 @@ serve(async (req) => {
         } catch (titleError) {
           if (titleError instanceof Error && titleError.message === 'QUOTA_EXCEEDED') {
             console.error('YouTube quota exceeded, stopping processing');
+            quotaExceeded = true;
             break;
           }
           console.error(`Error processing title ${title.id}:`, titleError);
@@ -509,6 +511,7 @@ serve(async (req) => {
           } catch (seasonError) {
             if (seasonError instanceof Error && seasonError.message === 'QUOTA_EXCEEDED') {
               console.error('YouTube quota exceeded, stopping processing');
+              quotaExceeded = true;
               break;
             }
             console.error(`Error processing season ${season.id}:`, seasonError);
@@ -549,6 +552,9 @@ serve(async (req) => {
     
     console.log(`Trailer enrichment batch completed: ${titlesEnriched} titles, ${seasonsEnriched} seasons enriched, ${failed} failed in ${duration}s`);
     console.log(`Remaining: ${remainingTitles} titles, ${remainingSeasons} seasons`);
+    if (quotaExceeded) {
+      console.log('YouTube quota exceeded - job will be stopped');
+    }
 
     // Update job - but respect stop commands (don't override status if stopped)
     if (jobId) {
@@ -571,6 +577,18 @@ serve(async (req) => {
             last_run_duration_seconds: duration
           })
           .eq('id', jobId);
+      } else if (quotaExceeded) {
+        // Quota exceeded - stop the job with error message
+        console.log('Stopping job due to YouTube quota exceeded');
+        await supabase
+          .from('jobs')
+          .update({
+            status: 'stopped',
+            error_message: 'YouTube API quota exceeded. Job will resume when quota resets (midnight Pacific time).',
+            last_run_at: new Date().toISOString(),
+            last_run_duration_seconds: duration
+          })
+          .eq('id', jobId);
       } else {
         // Job is still running, update normally
         const newStatus = isComplete ? 'completed' : 'running';
@@ -585,8 +603,8 @@ serve(async (req) => {
           .eq('id', jobId);
       }
       
-      // Only schedule next batch if job is still running and not complete
-      if (!isComplete && !wasStoppedByUser) {
+      // Only schedule next batch if job is still running, not complete, and quota not exceeded
+      if (!isComplete && !wasStoppedByUser && !quotaExceeded) {
         console.log('More work remaining, scheduling next batch via EdgeRuntime.waitUntil...');
         
         const invokeNextBatch = async () => {
@@ -621,20 +639,25 @@ serve(async (req) => {
         }
       } else if (wasStoppedByUser) {
         console.log('Job was stopped by user, not scheduling next batch');
+      } else if (quotaExceeded) {
+        console.log('Job stopped due to YouTube quota exceeded, not scheduling next batch');
       }
     }
 
     return new Response(
       JSON.stringify({
-        success: true,
-        message: isComplete ? 'All trailers enriched' : 'Batch completed, more work remaining',
+        success: !quotaExceeded,
+        message: quotaExceeded 
+          ? 'YouTube API quota exceeded - job stopped' 
+          : (isComplete ? 'All trailers enriched' : 'Batch completed, more work remaining'),
         titlesEnriched,
         seasonsEnriched,
         failed,
         totalProcessed,
         remainingTitles,
         remainingSeasons,
-        duration
+        duration,
+        quotaExceeded
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
