@@ -109,12 +109,13 @@ export const Jobs = () => {
     try {
       setRunningJobs(prev => new Set([...prev, job.id]));
       
-      // Reset job status before starting
+      // Reset job status and counter before starting
       await supabase
         .from('jobs')
         .update({
           status: 'running',
           error_message: null,
+          total_titles_processed: 0,
           last_run_at: new Date().toISOString()
         })
         .eq('id', job.id);
