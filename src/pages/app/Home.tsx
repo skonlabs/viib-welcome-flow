@@ -27,34 +27,100 @@ const Home = () => {
     fetchRecommendations();
   }, []);
 
-  const fetchSimpleRecommendations = async (userId: string) => {
-    // Fallback: simple query based on user's streaming services and language preferences
-    // Get user's streaming services
-    const { data: userSubs } = await supabase
-      .from('user_streaming_subscriptions')
-      .select('streaming_service_id')
-      .eq('user_id', userId)
-      .eq('is_active', true);
-
-    // Get user's language preferences
-    const { data: userLangs } = await supabase
-      .from('user_language_preferences')
-      .select('language_code')
-      .eq('user_id', userId);
-
-    // Get titles user hasn't interacted with
-    const { data: interactedTitles } = await supabase
-      .from('user_title_interactions')
-      .select('title_id')
-      .eq('user_id', userId)
-      .in('interaction_type', ['completed', 'disliked']);
+  const fetchSmartRecommendations = async (userId: string) => {
+    // Enhanced fallback: uses intent data, user preferences, and social signals
+    
+    // Parallel fetch user preferences and data
+    const [
+      { data: userSubs },
+      { data: userLangs },
+      { data: interactedTitles },
+      { data: userEmotionState },
+      { data: socialRecs },
+      { data: friendInteractions }
+    ] = await Promise.all([
+      supabase
+        .from('user_streaming_subscriptions')
+        .select('streaming_service_id')
+        .eq('user_id', userId)
+        .eq('is_active', true),
+      supabase
+        .from('user_language_preferences')
+        .select('language_code')
+        .eq('user_id', userId),
+      supabase
+        .from('user_title_interactions')
+        .select('title_id')
+        .eq('user_id', userId)
+        .in('interaction_type', ['completed', 'disliked']),
+      supabase
+        .from('user_emotion_states')
+        .select('emotion_id, intensity')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(1),
+      supabase
+        .from('user_social_recommendations')
+        .select('title_id')
+        .eq('receiver_user_id', userId),
+      supabase
+        .from('friend_connections')
+        .select('friend_user_id')
+        .eq('user_id', userId)
+        .eq('is_blocked', false)
+    ]);
 
     const excludeIds = interactedTitles?.map(t => t.title_id) || [];
     const langCodes = userLangs?.map(l => l.language_code) || ['en'];
     const serviceIds = userSubs?.map(s => s.streaming_service_id) || [];
+    const socialRecIds = new Set(socialRecs?.map(r => r.title_id) || []);
+    const friendIds = friendInteractions?.map(f => f.friend_user_id) || [];
+    const currentEmotionId = userEmotionState?.[0]?.emotion_id;
+
+    // Fetch intent-classified titles matching user's emotional state
+    let intentTitles: string[] = [];
+    if (currentEmotionId) {
+      // Get emotion-to-intent mapping
+      const { data: intentMap } = await supabase
+        .from('emotion_to_intent_map')
+        .select('intent_type, weight')
+        .eq('emotion_id', currentEmotionId)
+        .order('weight', { ascending: false })
+        .limit(3);
+
+      if (intentMap && intentMap.length > 0) {
+        const intentTypes = intentMap.map(i => i.intent_type);
+        const { data: matchedTitles } = await supabase
+          .from('viib_intent_classified_titles')
+          .select('title_id')
+          .in('intent_type', intentTypes)
+          .gte('confidence_score', 0.6)
+          .limit(50);
+        intentTitles = matchedTitles?.map(t => t.title_id) || [];
+      }
+    }
+
+    // Get friend-liked titles
+    let friendLikedTitles: string[] = [];
+    if (friendIds.length > 0) {
+      const { data: friendLikes } = await supabase
+        .from('user_title_interactions')
+        .select('title_id')
+        .in('user_id', friendIds)
+        .in('interaction_type', ['completed', 'liked'])
+        .limit(30);
+      friendLikedTitles = friendLikes?.map(t => t.title_id) || [];
+    }
+
+    // Combine title sources with priority
+    const priorityTitles = new Set([
+      ...socialRecIds, // Highest priority: direct recommendations
+      ...intentTitles.slice(0, 20), // Intent-matched titles
+      ...friendLikedTitles.slice(0, 15), // Friend-liked titles
+    ]);
 
     // Build query for titles
-    let query = supabase
+    const { data: allTitles, error } = await supabase
       .from('titles')
       .select(`
         id,
@@ -71,33 +137,58 @@ const Home = () => {
       .in('original_language', langCodes)
       .gte('vote_average', 6)
       .order('popularity', { ascending: false })
-      .limit(20);
+      .limit(100);
 
-    if (excludeIds.length > 0) {
-      query = query.not('id', 'in', `(${excludeIds.join(',')})`);
-    }
-
-    const { data: titles, error } = await query;
-
-    if (error || !titles || titles.length === 0) {
+    if (error || !allTitles || allTitles.length === 0) {
       return [];
     }
 
-    // If user has streaming subs, filter to available titles
-    let filteredTitles = titles;
+    // Filter out already interacted
+    let candidateTitles = allTitles.filter(t => !excludeIds.includes(t.id));
+
+    // Score and rank titles
+    const scoredTitles = candidateTitles.map(title => {
+      let score = 0;
+      
+      // Base score from TMDB rating
+      score += ((title.vote_average || 6) / 10) * 0.3;
+      
+      // Popularity bonus
+      score += Math.min((title.popularity || 0) / 1000, 0.2);
+      
+      // Social recommendation bonus (highest weight)
+      if (socialRecIds.has(title.id)) score += 0.35;
+      
+      // Intent match bonus
+      if (intentTitles.includes(title.id)) score += 0.25;
+      
+      // Friend-liked bonus
+      if (friendLikedTitles.includes(title.id)) score += 0.15;
+      
+      return { ...title, calculatedScore: Math.min(score, 1) };
+    });
+
+    // Sort by score descending
+    scoredTitles.sort((a, b) => b.calculatedScore - a.calculatedScore);
+
+    // If user has streaming subs, prioritize available titles
+    let filteredTitles = scoredTitles;
     if (serviceIds.length > 0) {
       const { data: availableTitles } = await supabase
         .from('title_streaming_availability')
         .select('title_id')
-        .in('title_id', titles.map(t => t.id))
+        .in('title_id', scoredTitles.slice(0, 50).map(t => t.id))
         .in('streaming_service_id', serviceIds);
 
       const availableIds = new Set(availableTitles?.map(t => t.title_id) || []);
-      filteredTitles = titles.filter(t => availableIds.has(t.id));
+      const available = scoredTitles.filter(t => availableIds.has(t.id));
+      const notAvailable = scoredTitles.filter(t => !availableIds.has(t.id));
+      
+      // Prefer available but include some non-available if needed
+      filteredTitles = [...available.slice(0, 10), ...notAvailable.slice(0, 5)].slice(0, 10);
+    } else {
+      filteredTitles = scoredTitles.slice(0, 10);
     }
-
-    // Take top 10
-    filteredTitles = filteredTitles.slice(0, 10);
 
     // Fetch genres
     const { data: titleGenres } = await supabase
@@ -127,10 +218,10 @@ const Home = () => {
         trailer_url: title.trailer_url,
         runtime: title.runtime,
         genres: genresMap[title.id] || [],
-        final_score: (title.vote_average || 7) / 10,
-        base_viib_score: 0.7,
-        intent_alignment_score: 0.7,
-        social_priority_score: 0,
+        final_score: title.calculatedScore,
+        base_viib_score: ((title.vote_average || 6) / 10),
+        intent_alignment_score: intentTitles.includes(title.id) ? 0.8 : 0.5,
+        social_priority_score: socialRecIds.has(title.id) ? 1 : friendLikedTitles.includes(title.id) ? 0.5 : 0,
       };
     });
   };
@@ -149,17 +240,17 @@ const Home = () => {
         { p_user_id: userId, p_limit: 10 }
       );
 
-      // If error or timeout, use simple fallback
+      // If error or timeout, use smart fallback
       if (recError) {
-        console.error('Recommendation function error, using fallback:', recError);
-        const fallbackRecs = await fetchSimpleRecommendations(userId);
+        console.error('Recommendation function error, using smart fallback:', recError);
+        const fallbackRecs = await fetchSmartRecommendations(userId);
         setRecommendations(fallbackRecs);
         return;
       }
 
       if (!recData || recData.length === 0) {
         // Try fallback if no results
-        const fallbackRecs = await fetchSimpleRecommendations(userId);
+        const fallbackRecs = await fetchSmartRecommendations(userId);
         setRecommendations(fallbackRecs);
         return;
       }
