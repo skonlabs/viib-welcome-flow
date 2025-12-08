@@ -462,19 +462,31 @@ serve(async (req) => {
           .eq('id', jobId);
         console.log('Job completed - all transcripts processed');
       } else {
-        // More work remains - self-invoke to continue
+        // More work remains - self-invoke to continue using EdgeRuntime.waitUntil
         console.log(`Time limit reached. Remaining: ${remainingTitles} titles, ${remainingSeasons} seasons. Self-invoking...`);
         
-        // Use setTimeout to trigger next batch asynchronously
-        setTimeout(async () => {
+        const selfInvoke = async () => {
+          await new Promise(resolve => setTimeout(resolve, 2000));
           try {
-            await supabase.functions.invoke('transcribe-trailers', {
-              body: { jobId }
-            });
+            const response = await fetch(
+              `${supabaseUrl}/functions/v1/transcribe-trailers`,
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${supabaseKey}`,
+                },
+                body: JSON.stringify({ jobId }),
+              }
+            );
+            console.log(`Self-invocation response: ${response.status}`);
           } catch (error) {
             console.error('Self-invoke failed:', error);
           }
-        }, 1000);
+        };
+        
+        // @ts-ignore - EdgeRuntime is available in Supabase Edge Functions
+        EdgeRuntime.waitUntil(selfInvoke());
       }
     }
 
