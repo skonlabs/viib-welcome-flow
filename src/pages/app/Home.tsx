@@ -27,6 +27,114 @@ const Home = () => {
     fetchRecommendations();
   }, []);
 
+  const fetchSimpleRecommendations = async (userId: string) => {
+    // Fallback: simple query based on user's streaming services and language preferences
+    // Get user's streaming services
+    const { data: userSubs } = await supabase
+      .from('user_streaming_subscriptions')
+      .select('streaming_service_id')
+      .eq('user_id', userId)
+      .eq('is_active', true);
+
+    // Get user's language preferences
+    const { data: userLangs } = await supabase
+      .from('user_language_preferences')
+      .select('language_code')
+      .eq('user_id', userId);
+
+    // Get titles user hasn't interacted with
+    const { data: interactedTitles } = await supabase
+      .from('user_title_interactions')
+      .select('title_id')
+      .eq('user_id', userId)
+      .in('interaction_type', ['completed', 'disliked']);
+
+    const excludeIds = interactedTitles?.map(t => t.title_id) || [];
+    const langCodes = userLangs?.map(l => l.language_code) || ['en'];
+    const serviceIds = userSubs?.map(s => s.streaming_service_id) || [];
+
+    // Build query for titles
+    let query = supabase
+      .from('titles')
+      .select(`
+        id,
+        name,
+        title_type,
+        release_date,
+        first_air_date,
+        poster_path,
+        trailer_url,
+        runtime,
+        popularity,
+        vote_average
+      `)
+      .in('original_language', langCodes)
+      .gte('vote_average', 6)
+      .order('popularity', { ascending: false })
+      .limit(20);
+
+    if (excludeIds.length > 0) {
+      query = query.not('id', 'in', `(${excludeIds.join(',')})`);
+    }
+
+    const { data: titles, error } = await query;
+
+    if (error || !titles || titles.length === 0) {
+      return [];
+    }
+
+    // If user has streaming subs, filter to available titles
+    let filteredTitles = titles;
+    if (serviceIds.length > 0) {
+      const { data: availableTitles } = await supabase
+        .from('title_streaming_availability')
+        .select('title_id')
+        .in('title_id', titles.map(t => t.id))
+        .in('streaming_service_id', serviceIds);
+
+      const availableIds = new Set(availableTitles?.map(t => t.title_id) || []);
+      filteredTitles = titles.filter(t => availableIds.has(t.id));
+    }
+
+    // Take top 10
+    filteredTitles = filteredTitles.slice(0, 10);
+
+    // Fetch genres
+    const { data: titleGenres } = await supabase
+      .from('title_genres')
+      .select('title_id, genres(genre_name)')
+      .in('title_id', filteredTitles.map(t => t.id));
+
+    const genresMap: Record<string, string[]> = {};
+    titleGenres?.forEach((tg: any) => {
+      if (!genresMap[tg.title_id]) genresMap[tg.title_id] = [];
+      if (tg.genres?.genre_name) genresMap[tg.title_id].push(tg.genres.genre_name);
+    });
+
+    return filteredTitles.map(title => {
+      const releaseYear = title.release_date 
+        ? new Date(title.release_date).getFullYear()
+        : title.first_air_date 
+          ? new Date(title.first_air_date).getFullYear()
+          : undefined;
+
+      return {
+        id: title.id,
+        title: title.name || 'Unknown Title',
+        type: (title.title_type === 'tv' ? 'series' : 'movie') as 'movie' | 'series',
+        year: releaseYear,
+        poster_path: title.poster_path,
+        trailer_url: title.trailer_url,
+        runtime: title.runtime,
+        genres: genresMap[title.id] || [],
+        final_score: (title.vote_average || 7) / 10,
+        base_viib_score: 0.7,
+        intent_alignment_score: 0.7,
+        social_priority_score: 0,
+      };
+    });
+  };
+
   const fetchRecommendations = async () => {
     try {
       const userId = localStorage.getItem('viib_user_id');
@@ -35,25 +143,25 @@ const Home = () => {
         return;
       }
 
-      // Call the recommendation function with smaller limit to avoid timeout
+      // Try the full recommendation function first
       const { data: recData, error: recError } = await supabase.rpc(
         'get_top_recommendations_with_intent',
         { p_user_id: userId, p_limit: 10 }
       );
 
+      // If timeout or error, use simple fallback
       if (recError) {
-        console.error('Error fetching recommendations:', recError);
-        // Check if it's a timeout or ambiguity error - show specific message
-        if (recError.message?.includes('timeout') || recError.code === '57014') {
-          toast.error('Recommendations are taking too long. Please try again.');
-        } else {
-          toast.error('Failed to load recommendations');
-        }
+        console.error('Recommendation function error, using fallback:', recError);
+        const fallbackRecs = await fetchSimpleRecommendations(userId);
+        setRecommendations(fallbackRecs);
         setLoading(false);
         return;
       }
 
       if (!recData || recData.length === 0) {
+        // Try fallback if no results
+        const fallbackRecs = await fetchSimpleRecommendations(userId);
+        setRecommendations(fallbackRecs);
         setLoading(false);
         return;
       }
