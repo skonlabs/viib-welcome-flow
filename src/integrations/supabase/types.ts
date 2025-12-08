@@ -1937,7 +1937,12 @@ export type Database = {
           emotion_label: string
         }[]
       }
-      viib_autotune_weights: { Args: { p_days?: number }; Returns: string }
+      viib_autotune_weights:
+        | {
+            Args: { p_days?: number; p_min_samples?: number }
+            Returns: undefined
+          }
+        | { Args: { p_days?: number }; Returns: string }
       viib_intent_alignment_score: {
         Args: { p_title_id: string; p_user_id: string }
         Returns: number
@@ -1947,6 +1952,16 @@ export type Database = {
         Returns: number
       }
       viib_score_components: {
+        Args: { p_title_id: string; p_user_id: string }
+        Returns: {
+          context_component: number
+          emotional_component: number
+          historical_component: number
+          novelty_component: number
+          social_component: number
+        }[]
+      }
+      viib_score_components_old: {
         Args: { p_title_id: string; p_user_id: string }
         Returns: Record<string, unknown>
       }

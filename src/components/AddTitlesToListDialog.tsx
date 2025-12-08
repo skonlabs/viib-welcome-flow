@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { errorLogger } from "@/lib/services/ErrorLoggerService";
+import { getPosterUrl } from "@/lib/services/TitleCatalogService";
 
 interface AddTitlesToListDialogProps {
   open: boolean;
@@ -124,9 +125,9 @@ export function AddTitlesToListDialog({ open, onOpenChange, listId, onTitlesAdde
                 key={title.external_id}
                 className="flex items-center gap-3 p-3 border rounded-lg hover:bg-accent transition-colors"
               >
-                {title.poster_url && (
+                {(title.poster_path || title.poster_url) && (
                   <img
-                    src={title.poster_url}
+                    src={getPosterUrl(title.poster_path || title.poster_url)}
                     alt={title.title}
                     className="w-12 h-18 object-cover rounded"
                   />

@@ -2,32 +2,34 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { TitleWithAvailability } from "@/lib/services/TitleCatalogService";
+import { getPosterUrl } from "@/lib/services/TitleCatalogService";
 import { Play, Share2, Check, Plus, X, Trash2 } from "lucide-react";
 import { TrailerDialog } from "./TrailerDialog";
 
-// Flexible title type to handle both TitleWithAvailability and TMDB format
+// Flexible title type to handle both database and TMDB API formats
 type FlexibleTitle = {
   id?: string;
   external_id?: string;
   title: string;
   type: 'movie' | 'series';
   year?: number | null;
-  poster_url?: string | null;
+  poster_path?: string | null;  // TMDB path format
+  poster_url?: string | null;   // Full URL format (legacy/search results)
   trailer_url?: string | null;
   runtime_minutes?: number | null;
+  runtime?: number | null;
   avg_episode_minutes?: number | null;
   genres?: string[];
   mood_tags?: string[];
-  cast?: string[];  // Cast member names
-  certification?: string;  // Content rating (PG, PG-13, R, TV-MA, etc.)
-  number_of_seasons?: number;  // For TV series
-  streaming_services?: Array<{  // From TMDB
+  cast?: string[];
+  certification?: string;
+  number_of_seasons?: number;
+  streaming_services?: Array<{
     service_code: string;
     service_name: string;
     logo_url?: string | null;
   }>;
-  availability?: Array<{  // From local cache
+  availability?: Array<{
     service_name: string;
     service_code: string;
     watch_url: string;
@@ -78,7 +80,7 @@ export function TitleCard({
     >
       <div className="relative aspect-[2/3] overflow-hidden">
         <img
-          src={title.poster_url || 'https://images.unsplash.com/photo-1478720568477-152d9b164e26?w=400&h=600&fit=crop'}
+          src={getPosterUrl(title.poster_path || title.poster_url)}
           alt={title.title}
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
         />
@@ -218,7 +220,7 @@ export function TitleCard({
             </>
           )}
           <span>•</span>
-          <span>{title.type === 'movie' ? `${title.runtime_minutes || '120'}min` : `${title.avg_episode_minutes || '45'}min/ep`}</span>
+          <span>{title.type === 'movie' ? `${title.runtime_minutes || title.runtime || '120'}min` : `${title.avg_episode_minutes || '45'}min/ep`}</span>
           {title.type === 'series' && title.number_of_seasons && (
             <>
               <span>•</span>
