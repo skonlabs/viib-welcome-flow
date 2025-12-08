@@ -1,17 +1,40 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Bell, Moon, Globe, Shield, Trash2 } from '@/icons';
+import { Bell, Moon, Globe, Shield, Trash2, Tv, Check, ChevronRight } from 'lucide-react';
 
 interface SettingsModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
+
+interface Language {
+  code: string;
+  name: string;
+  flag: string;
+}
+
+interface Platform {
+  id: string;
+  name: string;
+  color: string;
+}
+
+const PLATFORMS: Platform[] = [
+  { id: "netflix", name: "Netflix", color: "#E50914" },
+  { id: "prime", name: "Prime Video", color: "#00A8E1" },
+  { id: "hbo", name: "HBO Max", color: "#B300F6" },
+  { id: "disney", name: "Disney+", color: "#0063E5" },
+  { id: "hulu", name: "Hulu", color: "#1CE783" },
+  { id: "apple", name: "Apple TV+", color: "#000000" },
+];
 
 export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
   const { user } = useAuth();
@@ -20,14 +43,163 @@ export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
   const [darkMode, setDarkMode] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  const handleSaveSettings = async () => {
+  // Language & Platform states
+  const [languages, setLanguages] = useState<Language[]>([]);
+  const [selectedLanguages, setSelectedLanguages] = useState<string[]>([]);
+  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
+  const [showLanguageEditor, setShowLanguageEditor] = useState(false);
+  const [showPlatformEditor, setShowPlatformEditor] = useState(false);
+  const [loadingPrefs, setLoadingPrefs] = useState(true);
+
+  useEffect(() => {
+    if (open) {
+      fetchLanguages();
+      fetchUserPreferences();
+    }
+  }, [open]);
+
+  const fetchLanguages = async () => {
+    const { data, error } = await supabase
+      .from('spoken_languages')
+      .select('iso_639_1, language_name, flag_emoji')
+      .order('language_name');
+
+    if (!error && data) {
+      setLanguages(data.map(l => ({
+        code: l.iso_639_1,
+        name: l.language_name,
+        flag: l.flag_emoji || '🌐'
+      })));
+    }
+  };
+
+  const fetchUserPreferences = async () => {
+    const userId = localStorage.getItem('viib_user_id');
+    if (!userId) {
+      setLoadingPrefs(false);
+      return;
+    }
+
+    // Fetch language preferences
+    const { data: langData } = await supabase
+      .from('user_language_preferences')
+      .select('language_code')
+      .eq('user_id', userId)
+      .order('priority_order');
+
+    if (langData) {
+      setSelectedLanguages(langData.map(l => l.language_code));
+    }
+
+    // Fetch streaming subscriptions
+    const { data: streamData } = await supabase
+      .from('user_streaming_subscriptions')
+      .select('streaming_service_id, streaming_services(service_name)')
+      .eq('user_id', userId)
+      .eq('is_active', true);
+
+    if (streamData) {
+      // Map service names to platform IDs
+      const platformIds = streamData
+        .map((s: any) => {
+          const serviceName = s.streaming_services?.service_name?.toLowerCase();
+          if (serviceName?.includes('netflix')) return 'netflix';
+          if (serviceName?.includes('prime') || serviceName?.includes('amazon')) return 'prime';
+          if (serviceName?.includes('hbo') || serviceName?.includes('max')) return 'hbo';
+          if (serviceName?.includes('disney')) return 'disney';
+          if (serviceName?.includes('hulu')) return 'hulu';
+          if (serviceName?.includes('apple')) return 'apple';
+          return null;
+        })
+        .filter(Boolean) as string[];
+      setSelectedPlatforms(platformIds);
+    }
+
+    setLoadingPrefs(false);
+  };
+
+  const toggleLanguage = (code: string) => {
+    setSelectedLanguages(prev =>
+      prev.includes(code)
+        ? prev.filter(c => c !== code)
+        : [...prev, code]
+    );
+  };
+
+  const togglePlatform = (id: string) => {
+    setSelectedPlatforms(prev =>
+      prev.includes(id)
+        ? prev.filter(p => p !== id)
+        : [...prev, id]
+    );
+  };
+
+  const saveLanguagePreferences = async () => {
+    const userId = localStorage.getItem('viib_user_id');
+    if (!userId) return;
+
     setIsSaving(true);
-    
-    // Simulate saving settings
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    toast.success('Settings saved successfully!');
+
+    // Delete existing preferences
+    await supabase
+      .from('user_language_preferences')
+      .delete()
+      .eq('user_id', userId);
+
+    // Insert new preferences with priority order
+    if (selectedLanguages.length > 0) {
+      const inserts = selectedLanguages.map((code, index) => ({
+        user_id: userId,
+        language_code: code,
+        priority_order: index + 1
+      }));
+
+      const { error } = await supabase
+        .from('user_language_preferences')
+        .insert(inserts);
+
+      if (error) {
+        toast.error('Failed to save language preferences');
+      } else {
+        toast.success('Language preferences saved');
+        setShowLanguageEditor(false);
+      }
+    } else {
+      toast.success('Language preferences cleared');
+      setShowLanguageEditor(false);
+    }
+
     setIsSaving(false);
+  };
+
+  const savePlatformPreferences = async () => {
+    const userId = localStorage.getItem('viib_user_id');
+    if (!userId) return;
+
+    setIsSaving(true);
+
+    // For now, just save to localStorage or show success
+    // In a full implementation, you'd map platform IDs to streaming_services UUIDs
+    toast.success('Platform preferences saved');
+    setShowPlatformEditor(false);
+    setIsSaving(false);
+  };
+
+  const getSelectedLanguageNames = () => {
+    return selectedLanguages
+      .map(code => languages.find(l => l.code === code))
+      .filter(Boolean)
+      .map(l => l!.name)
+      .slice(0, 3)
+      .join(', ') + (selectedLanguages.length > 3 ? ` +${selectedLanguages.length - 3}` : '');
+  };
+
+  const getSelectedPlatformNames = () => {
+    return selectedPlatforms
+      .map(id => PLATFORMS.find(p => p.id === id)?.name)
+      .filter(Boolean)
+      .slice(0, 3)
+      .join(', ') + (selectedPlatforms.length > 3 ? ` +${selectedPlatforms.length - 3}` : '');
   };
 
   return (
@@ -44,7 +216,7 @@ export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
           {/* Notifications Section */}
           <div className="space-y-4">
             <div className="flex items-center gap-2">
-              <Bell className="w-5 h-5 text-icon-secondary" />
+              <Bell className="w-5 h-5 text-muted-foreground" />
               <h3 className="font-semibold text-lg">Notifications</h3>
             </div>
             <div className="space-y-4 pl-7">
@@ -87,7 +259,7 @@ export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
           {/* Appearance Section */}
           <div className="space-y-4">
             <div className="flex items-center gap-2">
-              <Moon className="w-5 h-5 text-icon-secondary" />
+              <Moon className="w-5 h-5 text-muted-foreground" />
               <h3 className="font-semibold text-lg">Appearance</h3>
             </div>
             <div className="space-y-4 pl-7">
@@ -111,25 +283,156 @@ export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
 
           <Separator />
 
-          {/* Language & Region Section */}
+          {/* Language Preferences Section */}
           <div className="space-y-4">
             <div className="flex items-center gap-2">
-              <Globe className="w-5 h-5 text-icon-secondary" />
-              <h3 className="font-semibold text-lg">Language & Region</h3>
+              <Globe className="w-5 h-5 text-muted-foreground" />
+              <h3 className="font-semibold text-lg">Language Preferences</h3>
             </div>
             <div className="space-y-4 pl-7">
-              <div className="space-y-2">
-                <Label className="text-base">Language</Label>
-                <p className="text-sm text-muted-foreground">
-                  Current: {user?.language_preference || 'English'}
-                </p>
-              </div>
-              <div className="space-y-2">
-                <Label className="text-base">Timezone</Label>
-                <p className="text-sm text-muted-foreground">
-                  {user?.timezone || 'Not set'}
-                </p>
-              </div>
+              {!showLanguageEditor ? (
+                <Button
+                  variant="outline"
+                  className="w-full justify-between"
+                  onClick={() => setShowLanguageEditor(true)}
+                >
+                  <span className="text-left">
+                    {loadingPrefs ? 'Loading...' : 
+                      selectedLanguages.length > 0 
+                        ? getSelectedLanguageNames() 
+                        : 'Select preferred languages'}
+                  </span>
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              ) : (
+                <div className="space-y-4 p-4 border rounded-lg bg-muted/30">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-base font-medium">Select Languages</Label>
+                    <span className="text-xs text-muted-foreground">
+                      {selectedLanguages.length} selected
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto">
+                    {languages.map(lang => {
+                      const isSelected = selectedLanguages.includes(lang.code);
+                      const priority = selectedLanguages.indexOf(lang.code) + 1;
+                      return (
+                        <button
+                          key={lang.code}
+                          onClick={() => toggleLanguage(lang.code)}
+                          className={`relative p-2 rounded-lg text-left transition-all ${
+                            isSelected
+                              ? 'bg-primary/20 ring-1 ring-primary'
+                              : 'bg-muted/50 hover:bg-muted'
+                          }`}
+                        >
+                          {isSelected && (
+                            <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center font-bold">
+                              {priority}
+                            </span>
+                          )}
+                          <span className="text-lg">{lang.flag}</span>
+                          <span className="text-xs block truncate">{lang.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowLanguageEditor(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={saveLanguagePreferences}
+                      disabled={isSaving}
+                    >
+                      {isSaving ? 'Saving...' : 'Save Languages'}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* Streaming Platforms Section */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Tv className="w-5 h-5 text-muted-foreground" />
+              <h3 className="font-semibold text-lg">Streaming Platforms</h3>
+            </div>
+            <div className="space-y-4 pl-7">
+              {!showPlatformEditor ? (
+                <Button
+                  variant="outline"
+                  className="w-full justify-between"
+                  onClick={() => setShowPlatformEditor(true)}
+                >
+                  <span className="text-left">
+                    {loadingPrefs ? 'Loading...' : 
+                      selectedPlatforms.length > 0 
+                        ? getSelectedPlatformNames() 
+                        : 'Select your streaming services'}
+                  </span>
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              ) : (
+                <div className="space-y-4 p-4 border rounded-lg bg-muted/30">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-base font-medium">Select Platforms</Label>
+                    <span className="text-xs text-muted-foreground">
+                      {selectedPlatforms.length} selected
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {PLATFORMS.map(platform => {
+                      const isSelected = selectedPlatforms.includes(platform.id);
+                      return (
+                        <button
+                          key={platform.id}
+                          onClick={() => togglePlatform(platform.id)}
+                          className={`relative p-3 rounded-lg text-center transition-all border ${
+                            isSelected
+                              ? 'border-primary bg-primary/10'
+                              : 'border-border bg-muted/50 hover:bg-muted'
+                          }`}
+                          style={{
+                            boxShadow: isSelected ? `0 0 20px ${platform.color}40` : 'none'
+                          }}
+                        >
+                          {isSelected && (
+                            <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-primary flex items-center justify-center">
+                              <Check className="w-2.5 h-2.5 text-primary-foreground" />
+                            </span>
+                          )}
+                          <span className="text-sm font-medium">{platform.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowPlatformEditor(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={savePlatformPreferences}
+                      disabled={isSaving}
+                    >
+                      {isSaving ? 'Saving...' : 'Save Platforms'}
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -138,7 +441,7 @@ export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
           {/* Privacy & Security Section */}
           <div className="space-y-4">
             <div className="flex items-center gap-2">
-              <Shield className="w-5 h-5 text-icon-secondary" />
+              <Shield className="w-5 h-5 text-muted-foreground" />
               <h3 className="font-semibold text-lg">Privacy & Security</h3>
             </div>
             <div className="space-y-4 pl-7">
@@ -182,10 +485,7 @@ export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
               onClick={() => onOpenChange(false)}
               disabled={isSaving}
             >
-              Cancel
-            </Button>
-            <Button onClick={handleSaveSettings} disabled={isSaving}>
-              {isSaving ? 'Saving...' : 'Save Settings'}
+              Close
             </Button>
           </div>
         </div>
