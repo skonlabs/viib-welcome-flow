@@ -35,15 +35,20 @@ const Home = () => {
         return;
       }
 
-      // Call the recommendation function
+      // Call the recommendation function with smaller limit to avoid timeout
       const { data: recData, error: recError } = await supabase.rpc(
         'get_top_recommendations_with_intent',
-        { p_user_id: userId, p_limit: 20 }
+        { p_user_id: userId, p_limit: 10 }
       );
 
       if (recError) {
         console.error('Error fetching recommendations:', recError);
-        toast.error('Failed to load recommendations');
+        // Check if it's a timeout or ambiguity error - show specific message
+        if (recError.message?.includes('timeout') || recError.code === '57014') {
+          toast.error('Recommendations are taking too long. Please try again.');
+        } else {
+          toast.error('Failed to load recommendations');
+        }
         setLoading(false);
         return;
       }
