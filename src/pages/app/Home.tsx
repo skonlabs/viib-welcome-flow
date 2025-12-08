@@ -35,7 +35,27 @@ const Home = () => {
         return;
       }
 
-      // Fetch popular titles directly - simpler approach that avoids RPC timeout
+      // Call the ViiB recommendation engine
+      const { data: recData, error: recError } = await supabase.rpc(
+        'get_top_recommendations_with_intent',
+        { p_user_id: userId, p_limit: 10 }
+      );
+
+      if (recError) {
+        console.error('Recommendation function error:', recError);
+        toast.error('Failed to load recommendations');
+        setLoading(false);
+        return;
+      }
+
+      if (!recData || recData.length === 0) {
+        setRecommendations([]);
+        setLoading(false);
+        return;
+      }
+
+      // Fetch title details for recommended titles
+      const titleIds = recData.map((r: any) => r.title_id);
       const { data: titles, error: titlesError } = await supabase
         .from('titles')
         .select(`
@@ -46,29 +66,17 @@ const Home = () => {
           first_air_date,
           poster_path,
           trailer_url,
-          runtime,
-          popularity,
-          vote_average
+          runtime
         `)
-        .not('poster_path', 'is', null)
-        .order('popularity', { ascending: false })
-        .limit(20);
+        .in('id', titleIds);
 
       if (titlesError) {
-        console.error('Error fetching titles:', titlesError);
-        toast.error('Failed to load recommendations');
-        setLoading(false);
-        return;
-      }
-
-      if (!titles || titles.length === 0) {
-        setRecommendations([]);
+        console.error('Error fetching title details:', titlesError);
         setLoading(false);
         return;
       }
 
       // Fetch genres for titles
-      const titleIds = titles.map((t) => t.id);
       const { data: titleGenres } = await supabase
         .from('title_genres')
         .select('title_id, genres(genre_name)')
@@ -81,29 +89,34 @@ const Home = () => {
         if (tg.genres?.genre_name) genresMap[tg.title_id].push(tg.genres.genre_name);
       });
 
-      // Create recommendations from popular titles
-      const enrichedRecs: RecommendedTitle[] = titles.map((title) => {
-        const releaseYear = title.release_date 
-          ? new Date(title.release_date).getFullYear()
-          : title.first_air_date 
-            ? new Date(title.first_air_date).getFullYear()
-            : undefined;
+      // Combine recommendation scores with title details
+      const enrichedRecs: RecommendedTitle[] = recData
+        .map((rec: any) => {
+          const title = titles?.find((t) => t.id === rec.title_id);
+          if (!title) return null;
 
-        return {
-          id: title.id,
-          title: title.name || 'Unknown Title',
-          type: title.title_type === 'tv' ? 'series' : 'movie',
-          year: releaseYear,
-          poster_path: title.poster_path,
-          trailer_url: title.trailer_url,
-          runtime: title.runtime,
-          genres: genresMap[title.id] || [],
-          final_score: (title.vote_average || 0) / 10,
-          base_viib_score: (title.vote_average || 0) / 10,
-          intent_alignment_score: 0.7,
-          social_priority_score: 0,
-        };
-      });
+          const releaseYear = title.release_date 
+            ? new Date(title.release_date).getFullYear()
+            : title.first_air_date 
+              ? new Date(title.first_air_date).getFullYear()
+              : undefined;
+
+          return {
+            id: title.id,
+            title: title.name || 'Unknown Title',
+            type: title.title_type === 'tv' ? 'series' : 'movie',
+            year: releaseYear,
+            poster_path: title.poster_path,
+            trailer_url: title.trailer_url,
+            runtime: title.runtime,
+            genres: genresMap[title.id] || [],
+            final_score: rec.final_score,
+            base_viib_score: rec.base_viib_score,
+            intent_alignment_score: rec.intent_alignment_score,
+            social_priority_score: rec.social_priority_score,
+          };
+        })
+        .filter(Boolean) as RecommendedTitle[];
 
       setRecommendations(enrichedRecs);
     } catch (error) {
