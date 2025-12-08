@@ -212,6 +212,7 @@ export type Database = {
         Row: {
           arousal: number | null
           category: string
+          created_at: string | null
           description: string | null
           dominance: number | null
           emotion_label: string
@@ -222,6 +223,7 @@ export type Database = {
         Insert: {
           arousal?: number | null
           category: string
+          created_at?: string | null
           description?: string | null
           dominance?: number | null
           emotion_label: string
@@ -232,6 +234,7 @@ export type Database = {
         Update: {
           arousal?: number | null
           category?: string
+          created_at?: string | null
           description?: string | null
           dominance?: number | null
           emotion_label?: string
@@ -277,6 +280,7 @@ export type Database = {
         Row: {
           from_emotion_id: string
           id: string
+          priority_rank: number | null
           strength: number
           to_emotion_id: string
           transformation_type: string
@@ -284,6 +288,7 @@ export type Database = {
         Insert: {
           from_emotion_id: string
           id?: string
+          priority_rank?: number | null
           strength: number
           to_emotion_id: string
           transformation_type: string
@@ -291,6 +296,7 @@ export type Database = {
         Update: {
           from_emotion_id?: string
           id?: string
+          priority_rank?: number | null
           strength?: number
           to_emotion_id?: string
           transformation_type?: string
@@ -2296,7 +2302,14 @@ export type Database = {
         | "other"
       time_of_day: "morning" | "afternoon" | "evening" | "night" | "late_night"
       title_type_enum: "movie" | "tv"
-      transformation_type: "soothe" | "stabilize" | "validate" | "amplify"
+      transformation_type:
+        | "soothe"
+        | "stabilize"
+        | "validate"
+        | "amplify"
+        | "complementary"
+        | "reinforcing"
+        | "neutral_balancing"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2505,7 +2518,15 @@ export const Constants = {
       ],
       time_of_day: ["morning", "afternoon", "evening", "night", "late_night"],
       title_type_enum: ["movie", "tv"],
-      transformation_type: ["soothe", "stabilize", "validate", "amplify"],
+      transformation_type: [
+        "soothe",
+        "stabilize",
+        "validate",
+        "amplify",
+        "complementary",
+        "reinforcing",
+        "neutral_balancing",
+      ],
     },
   },
 } as const
