@@ -147,7 +147,7 @@ export default function ViiBList() {
   const loadPublicLists = async () => {
     const { data: listsData } = await supabase
       .from('vibe_lists')
-      .select('*, profiles(name)')
+      .select('*, users:user_id(full_name)')
       .eq('visibility', 'public')
       .neq('user_id', user?.id || '')
       .order('created_at', { ascending: false })
@@ -204,7 +204,7 @@ export default function ViiBList() {
 
     const { data: listsData } = await supabase
       .from('vibe_lists')
-      .select('*, profiles(name)')
+      .select('*, users:user_id(full_name)')
       .in('id', listIds)
       .order('created_at', { ascending: false });
 
@@ -571,7 +571,7 @@ export default function ViiBList() {
                               {list.itemCount} {list.itemCount === 1 ? 'title' : 'titles'}
                             </Badge>
                           </div>
-                          <p className="text-xs text-muted-foreground mt-1">by {list.profiles?.name}</p>
+                          <p className="text-xs text-muted-foreground mt-1">by {list.users?.full_name || 'Unknown'}</p>
                           {(list.visibility === 'public' || list.visibility === 'link_share') && (
                             <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
                               <span>👁️ {list.viewCount || 0}</span>
@@ -660,7 +660,7 @@ export default function ViiBList() {
                     <div className="space-y-3">
                       <div>
                         <h4 className="font-semibold">{list.name}</h4>
-                        <p className="text-sm text-muted-foreground">by {list.profiles?.name}</p>
+                        <p className="text-sm text-muted-foreground">by {list.users?.full_name || 'Unknown'}</p>
                         <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
                           <span>📺 {list.itemCount} titles</span>
                           <span>👁️ {list.viewCount} views</span>
