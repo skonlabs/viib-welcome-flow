@@ -641,27 +641,6 @@ export type Database = {
         }
         Relationships: []
       }
-      providers: {
-        Row: {
-          id: string
-          logo_path: string | null
-          provider_name: string
-          tmdb_provider_id: number | null
-        }
-        Insert: {
-          id?: string
-          logo_path?: string | null
-          provider_name: string
-          tmdb_provider_id?: number | null
-        }
-        Update: {
-          id?: string
-          logo_path?: string | null
-          provider_name?: string
-          tmdb_provider_id?: number | null
-        }
-        Relationships: []
-      }
       rate_limit_config: {
         Row: {
           created_at: string | null
@@ -990,42 +969,6 @@ export type Database = {
           },
           {
             foreignKeyName: "title_keywords_title_id_fkey"
-            columns: ["title_id"]
-            isOneToOne: false
-            referencedRelation: "titles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      title_providers: {
-        Row: {
-          provider_id: string
-          provider_type: string
-          region: string
-          title_id: string
-        }
-        Insert: {
-          provider_id: string
-          provider_type: string
-          region: string
-          title_id: string
-        }
-        Update: {
-          provider_id?: string
-          provider_type?: string
-          region?: string
-          title_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "title_providers_provider_id_fkey"
-            columns: ["provider_id"]
-            isOneToOne: false
-            referencedRelation: "providers"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "title_providers_title_id_fkey"
             columns: ["title_id"]
             isOneToOne: false
             referencedRelation: "titles"

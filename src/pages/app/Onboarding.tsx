@@ -92,10 +92,10 @@ export default function Onboarding() {
           .maybeSingle();
         
         if (userData) {
-          // Fetch platforms
+          // Fetch platforms - use service IDs directly
           const { data: platformsData } = await supabase
             .from('user_streaming_subscriptions')
-            .select('streaming_service_id, streaming_services(service_name)')
+            .select('streaming_service_id')
             .eq('user_id', userId)
             .eq('is_active', true);
           
@@ -105,22 +105,11 @@ export default function Onboarding() {
             .select('language_code')
             .eq('user_id', userId)
             .order('priority_order');
-          
-          // Map service names to platform IDs for the UI
-          const platformNameToId: Record<string, string> = {
-            'Netflix': 'netflix',
-            'Prime Video': 'prime',
-            'HBO Max': 'hbo',
-            'Disney+': 'disney',
-            'Hulu': 'hulu',
-            'Apple TV+': 'apple'
-          };
 
           // Map emotion back to energy/positivity values
           let moodData = { energy: 50, positivity: 50 }; // Default
           if (emotionData) {
             const emotionLabel = (emotionData.emotion_master as any)?.emotion_label;
-            const intensity = emotionData.intensity;
             
             // Reverse the mapping from handleMood
             switch (emotionLabel) {
@@ -150,10 +139,7 @@ export default function Onboarding() {
             vibe: vibeData?.vibe_type || '',
             phone: userData.phone_number || '',
             email: userData.email || '',
-            platforms: platformsData?.map(p => {
-              const serviceName = (p.streaming_services as any)?.service_name;
-              return platformNameToId[serviceName] || serviceName;
-            }).filter(Boolean) || [],
+            platforms: platformsData?.map(p => p.streaming_service_id) || [],
             languages: languagesData?.map(l => l.language_code) || [],
             mood: moodData,
           }));
@@ -454,45 +440,25 @@ export default function Onboarding() {
   const handlePlatforms = async (platforms: string[]) => {
     setOnboardingData((prev) => ({ ...prev, platforms }));
     
-    // Save platforms to database
+    // Save platforms to database - platforms are now service IDs directly
     const userId = localStorage.getItem('viib_user_id');
     if (userId && platforms.length > 0) {
-      // Map platform IDs to service names
-      const platformIdToName: Record<string, string> = {
-        'netflix': 'Netflix',
-        'prime': 'Prime Video',
-        'hbo': 'HBO Max',
-        'disney': 'Disney+',
-        'hulu': 'Hulu',
-        'apple': 'Apple TV+'
-      };
-
-      const serviceNames = platforms.map(id => platformIdToName[id]).filter(Boolean);
-
-      // First, get streaming service IDs based on platform names
-      const { data: services } = await supabase
-        .from('streaming_services')
-        .select('id, service_name')
-        .in('service_name', serviceNames);
+      // Delete existing subscriptions
+      await supabase
+        .from('user_streaming_subscriptions')
+        .delete()
+        .eq('user_id', userId);
       
-      if (services && services.length > 0) {
-        // Delete existing subscriptions
-        await supabase
-          .from('user_streaming_subscriptions')
-          .delete()
-          .eq('user_id', userId);
-        
-        // Insert new subscriptions
-        const subscriptions = services.map(service => ({
-          user_id: userId,
-          streaming_service_id: service.id,
-          is_active: true
-        }));
-        
-        await supabase
-          .from('user_streaming_subscriptions')
-          .insert(subscriptions);
-      }
+      // Insert new subscriptions - platforms are already streaming_service UUIDs
+      const subscriptions = platforms.map(serviceId => ({
+        user_id: userId,
+        streaming_service_id: serviceId,
+        is_active: true
+      }));
+      
+      await supabase
+        .from('user_streaming_subscriptions')
+        .insert(subscriptions);
     }
     
     navigateToStep("languages");
