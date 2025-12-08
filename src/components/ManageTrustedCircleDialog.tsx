@@ -31,7 +31,7 @@ export function ManageTrustedCircleDialog({ open, onOpenChange, listId }: Manage
     try {
       const { data, error } = await supabase
         .from('vibe_list_shared_with')
-        .select('*, profiles(name)')
+        .select('*, users:shared_with_user_id(full_name)')
         .eq('vibe_list_id', listId);
 
       if (error) throw error;
@@ -91,7 +91,7 @@ export function ManageTrustedCircleDialog({ open, onOpenChange, listId }: Manage
                   key={item.id}
                   className="flex items-center justify-between p-3 border rounded-lg"
                 >
-                  <span className="font-medium">{item.profiles?.name || 'Unknown'}</span>
+                  <span className="font-medium">{item.users?.full_name || 'Unknown'}</span>
                   <Button
                     size="sm"
                     variant="ghost"
