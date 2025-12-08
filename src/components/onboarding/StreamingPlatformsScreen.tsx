@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Check, ArrowRight } from "@/icons";
 import { BackButton } from "./BackButton";
 import { FloatingParticles } from "./FloatingParticles";
+import { supabase } from "@/integrations/supabase/client";
 
 interface StreamingPlatformsScreenProps {
   onContinue: (platforms: string[]) => void;
@@ -11,22 +12,52 @@ interface StreamingPlatformsScreenProps {
   initialPlatforms?: string[];
 }
 
+interface StreamingService {
+  id: string;
+  service_name: string;
+  logo_url: string | null;
+  color: string;
+}
+
+// Default colors for known services
+const SERVICE_COLORS: Record<string, string> = {
+  'Netflix': '#E50914',
+  'Prime Video': '#00A8E1',
+  'HBO Max': '#B300F6',
+  'Disney+': '#0063E5',
+  'Hulu': '#1CE783',
+  'Apple TV+': '#000000',
+};
+
 export const StreamingPlatformsScreen = ({ onContinue, onBack, initialPlatforms = [] }: StreamingPlatformsScreenProps) => {
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(initialPlatforms);
+  const [platforms, setPlatforms] = useState<StreamingService[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchStreamingServices();
+  }, []);
 
   // Update state when props change (when navigating back)
   useEffect(() => {
     setSelectedPlatforms(initialPlatforms);
   }, [initialPlatforms]);
 
-  const platforms = [
-    { id: "netflix", name: "Netflix", color: "#E50914" },
-    { id: "prime", name: "Prime Video", color: "#00A8E1" },
-    { id: "hbo", name: "HBO Max", color: "#B300F6" },
-    { id: "disney", name: "Disney+", color: "#0063E5" },
-    { id: "hulu", name: "Hulu", color: "#1CE783" },
-    { id: "apple", name: "Apple TV+", color: "#000000" },
-  ];
+  const fetchStreamingServices = async () => {
+    const { data, error } = await supabase
+      .from('streaming_services')
+      .select('id, service_name, logo_url')
+      .eq('is_active', true)
+      .order('service_name');
+
+    if (!error && data) {
+      setPlatforms(data.map(s => ({
+        ...s,
+        color: SERVICE_COLORS[s.service_name] || '#6B7280'
+      })));
+    }
+    setLoading(false);
+  };
 
   const togglePlatform = (platformId: string) => {
     setSelectedPlatforms((prev) =>
@@ -124,146 +155,150 @@ export const StreamingPlatformsScreen = ({ onContinue, onBack, initialPlatforms 
             animate={{ opacity: 1 }}
             transition={{ delay: 0.6 }}
           >
-            {platforms.map((platform, index) => {
-              const isSelected = selectedPlatforms.includes(platform.id);
-              
-              return (
-                <motion.button
-                  key={platform.id}
-                  onClick={() => togglePlatform(platform.id)}
-                  initial={{ opacity: 0, scale: 0.5, y: 50, rotateX: -30 }}
-                  animate={{ opacity: 1, scale: 1, y: 0, rotateX: 0 }}
-                  transition={{ 
-                    delay: 0.7 + (0.1 * index),
-                    type: "spring",
-                    stiffness: 120,
-                    damping: 12
-                  }}
-                  whileHover={{ 
-                    scale: 1.08, 
-                    y: -12,
-                    rotateY: 5,
-                    transition: { type: "spring", stiffness: 300, damping: 20 }
-                  }}
-                  whileTap={{ scale: 0.92 }}
-                  className="relative overflow-hidden rounded-3xl group perspective-1000"
-                  style={{ transformStyle: 'preserve-3d' }}
-                >
-                  {/* Multi-layer glow effect */}
-                  <div
-                    className="absolute -inset-2 rounded-3xl blur-2xl transition-opacity duration-500"
-                    style={{ 
-                      background: `radial-gradient(circle at center, ${platform.color}66, transparent 60%)`,
-                      opacity: isSelected ? 0.7 : 0
+            {loading ? (
+              <div className="col-span-full text-center text-muted-foreground">Loading platforms...</div>
+            ) : (
+              platforms.map((platform, index) => {
+                const isSelected = selectedPlatforms.includes(platform.id);
+                
+                return (
+                  <motion.button
+                    key={platform.id}
+                    onClick={() => togglePlatform(platform.id)}
+                    initial={{ opacity: 0, scale: 0.5, y: 50, rotateX: -30 }}
+                    animate={{ opacity: 1, scale: 1, y: 0, rotateX: 0 }}
+                    transition={{ 
+                      delay: 0.7 + (0.1 * index),
+                      type: "spring",
+                      stiffness: 120,
+                      damping: 12
                     }}
-                  />
-
-                  {/* Outer glow ring */}
-                  <div
-                    className="absolute -inset-1 rounded-3xl transition-opacity duration-500"
-                    style={{ 
-                      background: `conic-gradient(from 0deg, ${platform.color}66, transparent, ${platform.color}66)`,
-                      opacity: isSelected ? 0.6 : 0
+                    whileHover={{ 
+                      scale: 1.08, 
+                      y: -12,
+                      rotateY: 5,
+                      transition: { type: "spring", stiffness: 300, damping: 20 }
                     }}
-                  />
-
-                  {/* Card container */}
-                  <div className={`relative aspect-video overflow-hidden rounded-3xl border transition-all duration-500 ${
-                    isSelected
-                      ? "border-white/50 shadow-2xl"
-                      : "border-white/10 shadow-lg hover:border-white/30"
-                  }`}>
-                    {/* Background gradient */}
-                    <div 
-                      className="absolute inset-0"
-                      style={{
-                        background: isSelected 
-                          ? `linear-gradient(135deg, ${platform.color}40, ${platform.color}20)`
-                          : "rgba(255, 255, 255, 0.03)"
+                    whileTap={{ scale: 0.92 }}
+                    className="relative overflow-hidden rounded-3xl group perspective-1000"
+                    style={{ transformStyle: 'preserve-3d' }}
+                  >
+                    {/* Multi-layer glow effect */}
+                    <div
+                      className="absolute -inset-2 rounded-3xl blur-2xl transition-opacity duration-500"
+                      style={{ 
+                        background: `radial-gradient(circle at center, ${platform.color}66, transparent 60%)`,
+                        opacity: isSelected ? 0.7 : 0
                       }}
                     />
-                    
-                    {/* Enhanced glass effect */}
-                    <div className="absolute inset-0 bg-black/30 backdrop-blur-2xl" />
-                    <div className="absolute inset-0 bg-white/[0.02]" />
 
-                    {/* Selection wave effect */}
-                    <AnimatePresence>
+                    {/* Outer glow ring */}
+                    <div
+                      className="absolute -inset-1 rounded-3xl transition-opacity duration-500"
+                      style={{ 
+                        background: `conic-gradient(from 0deg, ${platform.color}66, transparent, ${platform.color}66)`,
+                        opacity: isSelected ? 0.6 : 0
+                      }}
+                    />
+
+                    {/* Card container */}
+                    <div className={`relative aspect-video overflow-hidden rounded-3xl border transition-all duration-500 ${
+                      isSelected
+                        ? "border-white/50 shadow-2xl"
+                        : "border-white/10 shadow-lg hover:border-white/30"
+                    }`}>
+                      {/* Background gradient */}
+                      <div 
+                        className="absolute inset-0"
+                        style={{
+                          background: isSelected 
+                            ? `linear-gradient(135deg, ${platform.color}40, ${platform.color}20)`
+                            : "rgba(255, 255, 255, 0.03)"
+                        }}
+                      />
+                      
+                      {/* Enhanced glass effect */}
+                      <div className="absolute inset-0 bg-black/30 backdrop-blur-2xl" />
+                      <div className="absolute inset-0 bg-white/[0.02]" />
+
+                      {/* Selection wave effect */}
+                      <AnimatePresence>
+                        {isSelected && (
+                          <>
+                            <motion.div
+                              className="absolute inset-0 bg-gradient-to-br from-white/30 via-white/10 to-transparent"
+                              initial={{ scale: 0, opacity: 1 }}
+                              animate={{ scale: 2, opacity: 0 }}
+                              exit={{ opacity: 0 }}
+                              transition={{ duration: 1, ease: "easeOut" }}
+                            />
+                            <motion.div
+                              className="absolute inset-0 bg-gradient-to-tl from-white/20 via-white/5 to-transparent"
+                              initial={{ scale: 0, opacity: 0.8 }}
+                              animate={{ scale: 2, opacity: 0 }}
+                              exit={{ opacity: 0 }}
+                              transition={{ duration: 1.2, ease: "easeOut", delay: 0.1 }}
+                            />
+                          </>
+                        )}
+                      </AnimatePresence>
+
+                      {/* Orbiting particles on selection */}
                       {isSelected && (
                         <>
-                          <motion.div
-                            className="absolute inset-0 bg-gradient-to-br from-white/30 via-white/10 to-transparent"
-                            initial={{ scale: 0, opacity: 1 }}
-                            animate={{ scale: 2, opacity: 0 }}
-                            exit={{ opacity: 0 }}
-                            transition={{ duration: 1, ease: "easeOut" }}
-                          />
-                          <motion.div
-                            className="absolute inset-0 bg-gradient-to-tl from-white/20 via-white/5 to-transparent"
-                            initial={{ scale: 0, opacity: 0.8 }}
-                            animate={{ scale: 2, opacity: 0 }}
-                            exit={{ opacity: 0 }}
-                            transition={{ duration: 1.2, ease: "easeOut", delay: 0.1 }}
-                          />
+                          {[...Array(8)].map((_, i) => (
+                            <motion.div
+                              key={i}
+                              className="absolute w-1.5 h-1.5 rounded-full"
+                              style={{ 
+                                backgroundColor: platform.color,
+                                left: '50%',
+                                top: '50%',
+                                boxShadow: `0 0 10px ${platform.color}`
+                              }}
+                              animate={{
+                                x: [0, Math.cos(i * 45 * Math.PI / 180) * 60],
+                                y: [0, Math.sin(i * 45 * Math.PI / 180) * 60],
+                                scale: [0, 1.5, 0],
+                                opacity: [0, 1, 0],
+                              }}
+                              transition={{
+                                duration: 2,
+                                repeat: Infinity,
+                                delay: i * 0.1,
+                                ease: "easeOut"
+                              }}
+                            />
+                          ))}
                         </>
                       )}
-                    </AnimatePresence>
+                      
+                      {/* Content */}
+                      <div className="relative z-10 h-full flex items-center justify-center p-4">
+                        <span className="text-white font-bold text-lg sm:text-xl text-center drop-shadow-lg">
+                          {platform.service_name}
+                        </span>
+                      </div>
 
-                    {/* Orbiting particles on selection */}
-                    {isSelected && (
-                      <>
-                        {[...Array(8)].map((_, i) => (
+                      {/* Selection checkmark */}
+                      <AnimatePresence>
+                        {isSelected && (
                           <motion.div
-                            key={i}
-                            className="absolute w-1.5 h-1.5 rounded-full"
-                            style={{ 
-                              backgroundColor: platform.color,
-                              left: '50%',
-                              top: '50%',
-                              boxShadow: `0 0 10px ${platform.color}`
-                            }}
-                            animate={{
-                              x: [0, Math.cos(i * 45 * Math.PI / 180) * 60],
-                              y: [0, Math.sin(i * 45 * Math.PI / 180) * 60],
-                              scale: [0, 1.5, 0],
-                              opacity: [0, 1, 0],
-                            }}
-                            transition={{
-                              duration: 2,
-                              repeat: Infinity,
-                              delay: i * 0.1,
-                              ease: "easeOut"
-                            }}
-                          />
-                        ))}
-                      </>
-                    )}
-                    
-                    {/* Content */}
-                    <div className="relative z-10 h-full flex items-center justify-center p-4">
-                      <span className="text-white font-bold text-lg sm:text-xl text-center drop-shadow-lg">
-                        {platform.name}
-                      </span>
+                            className="absolute top-2 right-2 w-6 h-6 rounded-full bg-white/90 backdrop-blur-xl flex items-center justify-center shadow-lg"
+                            initial={{ scale: 0, rotate: -180 }}
+                            animate={{ scale: 1, rotate: 0 }}
+                            exit={{ scale: 0, rotate: 180 }}
+                            transition={{ type: "spring", stiffness: 300, damping: 15 }}
+                          >
+                            <Check className="w-3.5 h-3.5 text-primary" strokeWidth={3} />
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
-
-                    {/* Selection checkmark */}
-                    <AnimatePresence>
-                      {isSelected && (
-                        <motion.div
-                          className="absolute top-2 right-2 w-6 h-6 rounded-full bg-white/90 backdrop-blur-xl flex items-center justify-center shadow-lg"
-                          initial={{ scale: 0, rotate: -180 }}
-                          animate={{ scale: 1, rotate: 0 }}
-                          exit={{ scale: 0, rotate: 180 }}
-                          transition={{ type: "spring", stiffness: 300, damping: 15 }}
-                        >
-                          <Check className="w-3.5 h-3.5 text-primary" strokeWidth={3} />
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
-                </motion.button>
-              );
-            })}
+                  </motion.button>
+                );
+              })
+            )}
           </motion.div>
 
           {/* Continue Button */}

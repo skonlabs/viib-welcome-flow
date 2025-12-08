@@ -27,14 +27,15 @@ interface Platform {
   color: string;
 }
 
-const PLATFORMS: Platform[] = [
-  { id: "netflix", name: "Netflix", color: "#E50914" },
-  { id: "prime", name: "Prime Video", color: "#00A8E1" },
-  { id: "hbo", name: "HBO Max", color: "#B300F6" },
-  { id: "disney", name: "Disney+", color: "#0063E5" },
-  { id: "hulu", name: "Hulu", color: "#1CE783" },
-  { id: "apple", name: "Apple TV+", color: "#000000" },
-];
+// Default colors for known services
+const SERVICE_COLORS: Record<string, string> = {
+  'Netflix': '#E50914',
+  'Prime Video': '#00A8E1',
+  'HBO Max': '#B300F6',
+  'Disney+': '#0063E5',
+  'Hulu': '#1CE783',
+  'Apple TV+': '#000000',
+};
 
 export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
   const { user } = useAuth();
@@ -45,6 +46,7 @@ export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
 
   // Language & Platform states
   const [languages, setLanguages] = useState<Language[]>([]);
+  const [platforms, setPlatforms] = useState<Platform[]>([]);
   const [selectedLanguages, setSelectedLanguages] = useState<string[]>([]);
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
   const [showLanguageEditor, setShowLanguageEditor] = useState(false);
@@ -54,9 +56,26 @@ export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
   useEffect(() => {
     if (open) {
       fetchLanguages();
+      fetchStreamingServices();
       fetchUserPreferences();
     }
   }, [open]);
+
+  const fetchStreamingServices = async () => {
+    const { data, error } = await supabase
+      .from('streaming_services')
+      .select('id, service_name, logo_url')
+      .eq('is_active', true)
+      .order('service_name');
+
+    if (!error && data) {
+      setPlatforms(data.map(s => ({
+        id: s.id,
+        name: s.service_name,
+        color: SERVICE_COLORS[s.service_name] || '#6B7280'
+      })));
+    }
+  };
 
   const fetchLanguages = async () => {
     const { data, error } = await supabase
@@ -91,28 +110,15 @@ export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
       setSelectedLanguages(langData.map(l => l.language_code));
     }
 
-    // Fetch streaming subscriptions
+    // Fetch streaming subscriptions - use service IDs directly
     const { data: streamData } = await supabase
       .from('user_streaming_subscriptions')
-      .select('streaming_service_id, streaming_services(service_name)')
+      .select('streaming_service_id')
       .eq('user_id', userId)
       .eq('is_active', true);
 
     if (streamData) {
-      // Map service names to platform IDs
-      const platformIds = streamData
-        .map((s: any) => {
-          const serviceName = s.streaming_services?.service_name?.toLowerCase();
-          if (serviceName?.includes('netflix')) return 'netflix';
-          if (serviceName?.includes('prime') || serviceName?.includes('amazon')) return 'prime';
-          if (serviceName?.includes('hbo') || serviceName?.includes('max')) return 'hbo';
-          if (serviceName?.includes('disney')) return 'disney';
-          if (serviceName?.includes('hulu')) return 'hulu';
-          if (serviceName?.includes('apple')) return 'apple';
-          return null;
-        })
-        .filter(Boolean) as string[];
-      setSelectedPlatforms(platformIds);
+      setSelectedPlatforms(streamData.map(s => s.streaming_service_id));
     }
 
     setLoadingPrefs(false);
@@ -178,10 +184,35 @@ export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
 
     setIsSaving(true);
 
-    // For now, just save to localStorage or show success
-    // In a full implementation, you'd map platform IDs to streaming_services UUIDs
-    toast.success('Platform preferences saved');
-    setShowPlatformEditor(false);
+    // Delete existing subscriptions
+    await supabase
+      .from('user_streaming_subscriptions')
+      .delete()
+      .eq('user_id', userId);
+
+    // Insert new subscriptions
+    if (selectedPlatforms.length > 0) {
+      const subscriptions = selectedPlatforms.map(serviceId => ({
+        user_id: userId,
+        streaming_service_id: serviceId,
+        is_active: true
+      }));
+
+      const { error } = await supabase
+        .from('user_streaming_subscriptions')
+        .insert(subscriptions);
+
+      if (error) {
+        toast.error('Failed to save platform preferences');
+      } else {
+        toast.success('Platform preferences saved');
+        setShowPlatformEditor(false);
+      }
+    } else {
+      toast.success('Platform preferences cleared');
+      setShowPlatformEditor(false);
+    }
+
     setIsSaving(false);
   };
 
@@ -196,7 +227,7 @@ export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
 
   const getSelectedPlatformNames = () => {
     return selectedPlatforms
-      .map(id => PLATFORMS.find(p => p.id === id)?.name)
+      .map(id => platforms.find(p => p.id === id)?.name)
       .filter(Boolean)
       .slice(0, 3)
       .join(', ') + (selectedPlatforms.length > 3 ? ` +${selectedPlatforms.length - 3}` : '');
@@ -390,7 +421,7 @@ export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
                     </span>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    {PLATFORMS.map(platform => {
+                    {platforms.map(platform => {
                       const isSelected = selectedPlatforms.includes(platform.id);
                       return (
                         <button
