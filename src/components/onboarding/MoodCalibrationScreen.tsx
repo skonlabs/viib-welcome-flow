@@ -55,9 +55,7 @@ export const MoodCalibrationScreen = ({
           emotion_label, 
           valence, 
           arousal,
-          emotion_energy_profile (
-            intensity_multiplier
-          )
+          intensity_multiplier
         `).eq('category', 'user_state').order('valence', {
         ascending: true
       });
@@ -73,7 +71,7 @@ export const MoodCalibrationScreen = ({
           value: Math.round(index / (data.length - 1) * 100),
           valence: emotion.valence || 0,
           arousal: emotion.arousal || 0,
-          intensityMultiplier: (emotion.emotion_energy_profile as any)?.[0]?.intensity_multiplier || 1.0
+          intensityMultiplier: emotion.intensity_multiplier || 1.0
         }));
         setEmotionStates(mapped);
       }
@@ -90,7 +88,7 @@ export const MoodCalibrationScreen = ({
       try {
         const { data: savedEmotion, error } = await supabase
           .from('user_emotion_states')
-          .select('intensity, emotion_id, emotion_master(emotion_label, valence, emotion_energy_profile(intensity_multiplier))')
+          .select('intensity, emotion_id, emotion_master(emotion_label, valence, intensity_multiplier)')
           .eq('user_id', userId)
           .order('created_at', { ascending: false })
           .limit(1)
@@ -121,7 +119,7 @@ export const MoodCalibrationScreen = ({
 
         // Reverse-calculate original energy from stored intensity
         // intensity = energy * multiplier, so energy = intensity / multiplier
-        const multiplier = (savedEmotion.emotion_master as any)?.emotion_energy_profile?.intensity_multiplier || 1.0;
+        const multiplier = (savedEmotion.emotion_master as any)?.intensity_multiplier || 1.0;
         const originalEnergy = savedEmotion.intensity / multiplier;
         const restoredEnergy = Math.min(Math.max(originalEnergy, 0.1), 1.0);
         setEnergy([restoredEnergy]);

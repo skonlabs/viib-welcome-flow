@@ -208,35 +208,6 @@ export type Database = {
           },
         ]
       }
-      emotion_energy_profile: {
-        Row: {
-          created_at: string
-          emotion_id: string
-          id: string
-          intensity_multiplier: number
-        }
-        Insert: {
-          created_at?: string
-          emotion_id: string
-          id?: string
-          intensity_multiplier: number
-        }
-        Update: {
-          created_at?: string
-          emotion_id?: string
-          id?: string
-          intensity_multiplier?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "emotion_energy_profile_emotion_id_fkey"
-            columns: ["emotion_id"]
-            isOneToOne: true
-            referencedRelation: "emotion_master"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       emotion_master: {
         Row: {
           arousal: number | null
@@ -245,6 +216,7 @@ export type Database = {
           dominance: number | null
           emotion_label: string
           id: string
+          intensity_multiplier: number | null
           valence: number | null
         }
         Insert: {
@@ -254,6 +226,7 @@ export type Database = {
           dominance?: number | null
           emotion_label: string
           id?: string
+          intensity_multiplier?: number | null
           valence?: number | null
         }
         Update: {
@@ -263,6 +236,7 @@ export type Database = {
           dominance?: number | null
           emotion_label?: string
           id?: string
+          intensity_multiplier?: number | null
           valence?: number | null
         }
         Relationships: []
@@ -2139,12 +2113,6 @@ export type Database = {
           social_priority_score: number | null
           title_id: string | null
           user_id: string | null
-        }
-        Relationships: []
-      }
-      vw_missing_emotion_energy_profiles: {
-        Row: {
-          emotion_label: string | null
         }
         Relationships: []
       }
