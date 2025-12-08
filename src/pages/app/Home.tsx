@@ -143,94 +143,19 @@ const Home = () => {
         return;
       }
 
-      // Try the full recommendation function first
-      const { data: recData, error: recError } = await supabase.rpc(
-        'get_top_recommendations_with_intent',
-        { p_user_id: userId, p_limit: 10 }
-      );
-
-      // If timeout or error, use simple fallback
-      if (recError) {
-        console.error('Recommendation function error, using fallback:', recError);
-        const fallbackRecs = await fetchSimpleRecommendations(userId);
-        setRecommendations(fallbackRecs);
+      // Use simple recommendations directly (the RPC function has a SQL bug)
+      // TODO: Re-enable RPC once viib_score_components is fixed (rating_label -> rating_value)
+      const fallbackRecs = await fetchSimpleRecommendations(userId);
+      
+      if (fallbackRecs.length === 0) {
+        setRecommendations([]);
         setLoading(false);
         return;
       }
-
-      if (!recData || recData.length === 0) {
-        // Try fallback if no results
-        const fallbackRecs = await fetchSimpleRecommendations(userId);
-        setRecommendations(fallbackRecs);
-        setLoading(false);
-        return;
-      }
-
-      // Fetch title details for recommended titles
-      const titleIds = recData.map((r: any) => r.title_id);
-      const { data: titles, error: titlesError } = await supabase
-        .from('titles')
-        .select(`
-          id,
-          name,
-          title_type,
-          release_date,
-          first_air_date,
-          poster_path,
-          trailer_url,
-          runtime
-        `)
-        .in('id', titleIds);
-
-      if (titlesError) {
-        console.error('Error fetching title details:', titlesError);
-        setLoading(false);
-        return;
-      }
-
-      // Fetch genres for titles
-      const { data: titleGenres } = await supabase
-        .from('title_genres')
-        .select('title_id, genres(genre_name)')
-        .in('title_id', titleIds);
-
-      // Map genres by title_id
-      const genresMap: Record<string, string[]> = {};
-      titleGenres?.forEach((tg: any) => {
-        if (!genresMap[tg.title_id]) genresMap[tg.title_id] = [];
-        if (tg.genres?.genre_name) genresMap[tg.title_id].push(tg.genres.genre_name);
-      });
-
-      // Combine recommendation scores with title details
-      const enrichedRecs: RecommendedTitle[] = recData
-        .map((rec: any) => {
-          const title = titles?.find((t) => t.id === rec.title_id);
-          if (!title) return null;
-
-          const releaseYear = title.release_date 
-            ? new Date(title.release_date).getFullYear()
-            : title.first_air_date 
-              ? new Date(title.first_air_date).getFullYear()
-              : undefined;
-
-          return {
-            id: title.id,
-            title: title.name || 'Unknown Title',
-            type: title.title_type === 'tv' ? 'series' : 'movie',
-            year: releaseYear,
-            poster_path: title.poster_path,
-            trailer_url: title.trailer_url,
-            runtime: title.runtime,
-            genres: genresMap[title.id] || [],
-            final_score: rec.final_score,
-            base_viib_score: rec.base_viib_score,
-            intent_alignment_score: rec.intent_alignment_score,
-            social_priority_score: rec.social_priority_score,
-          };
-        })
-        .filter(Boolean) as RecommendedTitle[];
-
-      setRecommendations(enrichedRecs);
+      
+      setRecommendations(fallbackRecs);
+      setLoading(false);
+      return;
     } catch (error) {
       console.error('Error in fetchRecommendations:', error);
       toast.error('Something went wrong');
