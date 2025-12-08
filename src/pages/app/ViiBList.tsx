@@ -132,13 +132,12 @@ export default function ViiBList() {
       return;
     }
 
-    // Mock title data - in production would fetch from TMDB
     const mockTitles = data.map(item => ({
       external_id: item.title_id,
       title: `Title ${item.title_id.substring(0, 8)}`,
       type: 'movie' as const,
       year: 2024,
-      poster_url: null
+      poster_path: null
     }));
 
     setListTitles(mockTitles);

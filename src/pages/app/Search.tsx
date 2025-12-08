@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Search as SearchIcon, X, SlidersHorizontal } from "@/icons";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { TitleWithAvailability } from "@/lib/services/TitleCatalogService";
+import { TitleWithAvailability, getPosterUrl } from "@/lib/services/TitleCatalogService";
 import { TitleDetailsModal } from "@/components/TitleDetailsModal";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { toast } from "sonner";
@@ -504,9 +504,9 @@ export default function Search() {
                         onClick={() => handleSuggestionClick(title)}
                         className="w-full px-4 py-3 flex items-center gap-3 hover:bg-accent transition-colors text-left border-b border-border last:border-0"
                       >
-                        {title.poster_url ? (
+                        {(title as any).poster_path || (title as any).poster_url ? (
                           <img
-                            src={title.poster_url}
+                            src={getPosterUrl((title as any).poster_path || (title as any).poster_url)}
                             alt={title.title}
                             className="w-12 h-18 object-cover rounded shadow-sm flex-shrink-0"
                           />

@@ -5,6 +5,7 @@ import { Play, Plus } from "lucide-react";
 import { useState, useEffect } from "react";
 import { TrailerDialog } from "./TrailerDialog";
 import { supabase } from "@/integrations/supabase/client";
+import { getPosterUrl, getBackdropUrl } from "@/lib/services/TitleCatalogService";
 
 interface TitleDetailsModalProps {
   title: {
@@ -13,7 +14,9 @@ interface TitleDetailsModalProps {
     title: string;
     type: 'movie' | 'series';
     year?: number | null;
-    poster_url?: string | null;
+    poster_path?: string | null;  // TMDB path format
+    poster_url?: string | null;   // Full URL format (legacy)
+    backdrop_path?: string | null;
     backdrop_url?: string | null;
     trailer_url?: string | null;
     runtime_minutes?: number | null;
@@ -97,8 +100,8 @@ export function TitleDetailsModal({ title, open, onOpenChange, onAddToWatchlist 
 
   if (!title) return null;
 
-  const displayPoster = title.poster_url;
-  const displayBackdrop = title.backdrop_url;
+  const displayPoster = getPosterUrl(title.poster_path || title.poster_url);
+  const displayBackdrop = getBackdropUrl(title.backdrop_path || title.backdrop_url);
   const displayTrailer = enrichedData?.trailer_url || title.trailer_url;
   const displayGenres = enrichedData?.genres || title.genres || [];
   const displayCast = enrichedData?.cast || title.cast || [];
@@ -138,7 +141,7 @@ export function TitleDetailsModal({ title, open, onOpenChange, onAddToWatchlist 
             {/* Poster */}
             <div className="relative">
               <img
-                src={displayPoster || 'https://images.unsplash.com/photo-1478720568477-152d9b164e26?w=400&h=600'}
+                src={displayPoster}
                 alt={title.title}
                 className="w-full rounded-lg shadow-lg"
               />
