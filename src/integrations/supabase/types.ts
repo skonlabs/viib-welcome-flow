@@ -59,13 +59,6 @@ export type Database = {
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "activation_codes_used_by_fkey"
-            columns: ["used_by"]
-            isOneToOne: false
-            referencedRelation: "viib_recommendation_debug"
-            referencedColumns: ["user_id"]
-          },
         ]
       }
       email_config: {
@@ -404,13 +397,6 @@ export type Database = {
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "feedback_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "viib_recommendation_debug"
-            referencedColumns: ["user_id"]
-          },
         ]
       }
       friend_connections: {
@@ -450,25 +436,11 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "friend_connections_friend_user_id_fkey"
-            columns: ["friend_user_id"]
-            isOneToOne: false
-            referencedRelation: "viib_recommendation_debug"
-            referencedColumns: ["user_id"]
-          },
-          {
             foreignKeyName: "friend_connections_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "friend_connections_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "viib_recommendation_debug"
-            referencedColumns: ["user_id"]
           },
         ]
       }
@@ -640,13 +612,6 @@ export type Database = {
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "personality_profiles_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "viib_recommendation_debug"
-            referencedColumns: ["user_id"]
-          },
         ]
       }
       phone_verifications: {
@@ -675,45 +640,6 @@ export type Database = {
           verified?: boolean
         }
         Relationships: []
-      }
-      profiles: {
-        Row: {
-          created_at: string
-          id: string
-          name: string | null
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          name?: string | null
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          name?: string | null
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "profiles_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: true
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "profiles_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: true
-            referencedRelation: "viib_recommendation_debug"
-            referencedColumns: ["user_id"]
-          },
-        ]
       }
       providers: {
         Row: {
@@ -809,25 +735,11 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "recommendation_outcomes_title_id_fkey"
-            columns: ["title_id"]
-            isOneToOne: false
-            referencedRelation: "viib_recommendation_debug"
-            referencedColumns: ["title_id"]
-          },
-          {
             foreignKeyName: "recommendation_outcomes_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "recommendation_outcomes_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "viib_recommendation_debug"
-            referencedColumns: ["user_id"]
           },
         ]
       }
@@ -881,13 +793,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "titles"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "seasons_title_id_fkey"
-            columns: ["title_id"]
-            isOneToOne: false
-            referencedRelation: "viib_recommendation_debug"
-            referencedColumns: ["title_id"]
           },
         ]
       }
@@ -988,25 +893,11 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "system_logs_resolved_by_fkey"
-            columns: ["resolved_by"]
-            isOneToOne: false
-            referencedRelation: "viib_recommendation_debug"
-            referencedColumns: ["user_id"]
-          },
-          {
             foreignKeyName: "system_logs_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "system_logs_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "viib_recommendation_debug"
-            referencedColumns: ["user_id"]
           },
         ]
       }
@@ -1044,13 +935,6 @@ export type Database = {
             referencedRelation: "titles"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "title_emotional_signatures_title_id_fkey"
-            columns: ["title_id"]
-            isOneToOne: false
-            referencedRelation: "viib_recommendation_debug"
-            referencedColumns: ["title_id"]
-          },
         ]
       }
       title_genres: {
@@ -1081,13 +965,6 @@ export type Database = {
             referencedRelation: "titles"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "title_genres_title_id_fkey"
-            columns: ["title_id"]
-            isOneToOne: false
-            referencedRelation: "viib_recommendation_debug"
-            referencedColumns: ["title_id"]
-          },
         ]
       }
       title_keywords: {
@@ -1117,13 +994,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "titles"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "title_keywords_title_id_fkey"
-            columns: ["title_id"]
-            isOneToOne: false
-            referencedRelation: "viib_recommendation_debug"
-            referencedColumns: ["title_id"]
           },
         ]
       }
@@ -1161,13 +1031,6 @@ export type Database = {
             referencedRelation: "titles"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "title_providers_title_id_fkey"
-            columns: ["title_id"]
-            isOneToOne: false
-            referencedRelation: "viib_recommendation_debug"
-            referencedColumns: ["title_id"]
-          },
         ]
       }
       title_spoken_languages: {
@@ -1197,13 +1060,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "titles"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "title_spoken_languages_title_id_fkey"
-            columns: ["title_id"]
-            isOneToOne: false
-            referencedRelation: "viib_recommendation_debug"
-            referencedColumns: ["title_id"]
           },
         ]
       }
@@ -1237,13 +1093,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "titles"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "title_streaming_availability_title_id_fkey"
-            columns: ["title_id"]
-            isOneToOne: false
-            referencedRelation: "viib_recommendation_debug"
-            referencedColumns: ["title_id"]
           },
         ]
       }
@@ -1367,13 +1216,6 @@ export type Database = {
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "user_context_logs_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "viib_recommendation_debug"
-            referencedColumns: ["user_id"]
-          },
         ]
       }
       user_emotion_states: {
@@ -1422,13 +1264,6 @@ export type Database = {
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "user_emotion_states_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "viib_recommendation_debug"
-            referencedColumns: ["user_id"]
-          },
         ]
       }
       user_language_preferences: {
@@ -1462,13 +1297,6 @@ export type Database = {
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "user_language_preferences_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "viib_recommendation_debug"
-            referencedColumns: ["user_id"]
-          },
         ]
       }
       user_roles: {
@@ -1497,13 +1325,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "user_roles_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "viib_recommendation_debug"
-            referencedColumns: ["user_id"]
           },
         ]
       }
@@ -1541,13 +1362,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "user_social_recommendations_receiver_user_id_fkey"
-            columns: ["receiver_user_id"]
-            isOneToOne: false
-            referencedRelation: "viib_recommendation_debug"
-            referencedColumns: ["user_id"]
-          },
-          {
             foreignKeyName: "user_social_recommendations_sender_user_id_fkey"
             columns: ["sender_user_id"]
             isOneToOne: false
@@ -1555,25 +1369,11 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "user_social_recommendations_sender_user_id_fkey"
-            columns: ["sender_user_id"]
-            isOneToOne: false
-            referencedRelation: "viib_recommendation_debug"
-            referencedColumns: ["user_id"]
-          },
-          {
             foreignKeyName: "user_social_recommendations_title_id_fkey"
             columns: ["title_id"]
             isOneToOne: false
             referencedRelation: "titles"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "user_social_recommendations_title_id_fkey"
-            columns: ["title_id"]
-            isOneToOne: false
-            referencedRelation: "viib_recommendation_debug"
-            referencedColumns: ["title_id"]
           },
         ]
       }
@@ -1607,13 +1407,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "user_streaming_subscriptions_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "viib_recommendation_debug"
-            referencedColumns: ["user_id"]
           },
         ]
       }
@@ -1657,25 +1450,11 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "user_title_interactions_title_id_fkey"
-            columns: ["title_id"]
-            isOneToOne: false
-            referencedRelation: "viib_recommendation_debug"
-            referencedColumns: ["title_id"]
-          },
-          {
             foreignKeyName: "user_title_interactions_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "user_title_interactions_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "viib_recommendation_debug"
-            referencedColumns: ["user_id"]
           },
         ]
       }
@@ -1708,13 +1487,6 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "users"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "user_vibe_preferences_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: true
-            referencedRelation: "viib_recommendation_debug"
-            referencedColumns: ["user_id"]
           },
         ]
       }
@@ -1812,13 +1584,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "vibe_list_followers_follower_user_id_fkey"
-            columns: ["follower_user_id"]
-            isOneToOne: false
-            referencedRelation: "viib_recommendation_debug"
-            referencedColumns: ["user_id"]
-          },
-          {
             foreignKeyName: "vibe_list_followers_vibe_list_id_fkey"
             columns: ["vibe_list_id"]
             isOneToOne: false
@@ -1884,13 +1649,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "vibe_list_shared_with_shared_with_user_id_fkey"
-            columns: ["shared_with_user_id"]
-            isOneToOne: false
-            referencedRelation: "viib_recommendation_debug"
-            referencedColumns: ["user_id"]
-          },
-          {
             foreignKeyName: "vibe_list_shared_with_vibe_list_id_fkey"
             columns: ["vibe_list_id"]
             isOneToOne: false
@@ -1933,13 +1691,6 @@ export type Database = {
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "vibe_list_views_viewer_user_id_fkey"
-            columns: ["viewer_user_id"]
-            isOneToOne: false
-            referencedRelation: "viib_recommendation_debug"
-            referencedColumns: ["user_id"]
-          },
         ]
       }
       vibe_lists: {
@@ -1981,13 +1732,6 @@ export type Database = {
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "vibe_lists_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "viib_recommendation_debug"
-            referencedColumns: ["user_id"]
-          },
         ]
       }
       viib_intent_classified_titles: {
@@ -2026,13 +1770,6 @@ export type Database = {
             referencedRelation: "titles"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "viib_intent_classified_titles_title_id_fkey"
-            columns: ["title_id"]
-            isOneToOne: false
-            referencedRelation: "viib_recommendation_debug"
-            referencedColumns: ["title_id"]
-          },
         ]
       }
       viib_title_intent_stats: {
@@ -2064,13 +1801,6 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "titles"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "viib_title_intent_stats_title_id_fkey"
-            columns: ["title_id"]
-            isOneToOne: true
-            referencedRelation: "viib_recommendation_debug"
-            referencedColumns: ["title_id"]
           },
         ]
       }
