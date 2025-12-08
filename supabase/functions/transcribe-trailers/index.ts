@@ -11,6 +11,25 @@ function isYouTubeUrl(url: string): boolean {
   return /(?:youtube\.com\/|youtu\.be\/)/.test(url);
 }
 
+// Function to check if URL is valid and not empty
+function isValidUrl(url: string | null | undefined): boolean {
+  if (!url || typeof url !== 'string') return false;
+  const trimmed = url.trim();
+  if (trimmed.length === 0) return false;
+  
+  // Must start with http:// or https://
+  if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) return false;
+  
+  return true;
+}
+
+// Function to check if URL is a direct video file we can download
+function isDownloadableVideoUrl(url: string): boolean {
+  // Only YouTube URLs are currently supported for transcription
+  // TMDB video links and other streaming URLs cannot be downloaded directly
+  return isYouTubeUrl(url);
+}
+
 // Function to detect if text is in English
 async function isEnglish(text: string): Promise<boolean> {
   if (typeof text !== 'string' || !text || text.trim().length === 0) {
@@ -129,8 +148,17 @@ async function ensureEnglishTranscript(transcript: string): Promise<string> {
   return await translateToEnglish(transcript);
 }
 
+// Track if we hit API limit to stop processing
+let supadataLimitExceeded = false;
+
 // Function to get transcript for a YouTube URL
 async function getYouTubeTranscript(videoUrl: string): Promise<string | null> {
+  // If we already hit the limit, don't make more requests
+  if (supadataLimitExceeded) {
+    console.log('Supadata API limit already exceeded, skipping');
+    return null;
+  }
+
   const SUPADATA_API_KEY = Deno.env.get('SUPADATA_API_KEY');
   if (!SUPADATA_API_KEY) {
     console.error('Supadata API key not configured');
@@ -150,6 +178,13 @@ async function getYouTubeTranscript(videoUrl: string): Promise<string | null> {
     if (!supadataResponse.ok) {
       const errorText = await supadataResponse.text();
       console.error(`Supadata API error: ${errorText}`);
+      
+      // Check if it's a rate limit or quota error
+      if (errorText.includes('limit-exceeded') || errorText.includes('Limit Exceeded') || errorText.includes('quota')) {
+        console.error('⚠ Supadata API limit exceeded - stopping YouTube transcriptions');
+        supadataLimitExceeded = true;
+      }
+      
       return null;
     }
 
@@ -177,78 +212,22 @@ async function getYouTubeTranscript(videoUrl: string): Promise<string | null> {
   }
 }
 
-// Function to get transcript using OpenAI Whisper for non-YouTube videos
-async function getWhisperTranscript(videoUrl: string): Promise<string | null> {
-  const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
-  if (!OPENAI_API_KEY) {
-    console.error('OpenAI API key not configured');
-    return null;
-  }
-
-  try {
-    // Download video
-    const videoResponse = await fetch(videoUrl);
-    if (!videoResponse.ok) {
-      console.error(`Failed to download video: ${videoResponse.status}`);
-      return null;
-    }
-
-    const videoBlob = await videoResponse.blob();
-    const fileSizeMB = videoBlob.size / (1024 * 1024);
-    console.log(`Downloaded video, size: ${videoBlob.size} bytes (${fileSizeMB.toFixed(2)} MB)`);
-
-    // Whisper API has a 25MB file size limit - truncate if larger
-    const maxSize = 25 * 1024 * 1024;
-    let processedBlob = videoBlob;
-    
-    if (videoBlob.size > maxSize) {
-      console.warn(`Video exceeds 25MB limit (${fileSizeMB.toFixed(2)} MB). Processing first 25MB only.`);
-      const arrayBuffer = await videoBlob.arrayBuffer();
-      const truncatedBuffer = arrayBuffer.slice(0, maxSize);
-      processedBlob = new Blob([truncatedBuffer], { type: videoBlob.type });
-    }
-
-    const formData = new FormData();
-    formData.append('file', processedBlob, 'video.mp4');
-    formData.append('model', 'whisper-1');
-    formData.append('response_format', 'text');
-
-    console.log("Sending video to Whisper API...");
-    
-    const whisperResponse = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
-      },
-      body: formData,
-    });
-
-    if (!whisperResponse.ok) {
-      const errorText = await whisperResponse.text();
-      console.error(`Whisper API error: ${errorText}`);
-      return null;
-    }
-
-    let transcript = await whisperResponse.text();
-    console.log(`Whisper transcription completed, length: ${transcript.length} characters`);
-    
-    // Ensure transcript is in English
-    transcript = await ensureEnglishTranscript(transcript);
-    return transcript;
-  } catch (error) {
-    console.error(`Whisper error: ${error instanceof Error ? error.message : String(error)}`);
-    return null;
-  }
-}
-
-// Main transcription function
+// Main transcription function - only supports YouTube URLs
 async function transcribeVideo(videoUrl: string): Promise<string | null> {
+  // Validate URL first
+  if (!isValidUrl(videoUrl)) {
+    console.log(`⚠ Invalid or empty URL, skipping`);
+    return null;
+  }
+
+  // Only YouTube URLs are supported for transcription
   if (isYouTubeUrl(videoUrl)) {
     console.log(`YouTube URL detected, using Supadata.ai API`);
     return await getYouTubeTranscript(videoUrl);
   } else {
-    console.log(`Non-YouTube video detected, using OpenAI Whisper`);
-    return await getWhisperTranscript(videoUrl);
+    // Non-YouTube URLs (like TMDB direct links) cannot be transcribed
+    console.log(`⚠ Non-YouTube URL detected (${videoUrl.substring(0, 50)}...), skipping - only YouTube supported`);
+    return null;
   }
 }
 
@@ -260,6 +239,9 @@ serve(async (req) => {
   const startTime = Date.now();
   const MAX_RUNTIME_MS = 85000; // 85 seconds safety margin
   const BATCH_SIZE = 10;
+
+  // Reset limit flag at start of each invocation
+  supadataLimitExceeded = false;
 
   try {
     const body = await req.json();
@@ -291,7 +273,7 @@ serve(async (req) => {
     let hasMoreWork = true;
 
     // Continuous batch processing loop
-    while (hasMoreWork && (Date.now() - startTime) < MAX_RUNTIME_MS) {
+    while (hasMoreWork && (Date.now() - startTime) < MAX_RUNTIME_MS && !supadataLimitExceeded) {
       // Check job status periodically
       if (jobId && totalTitlesProcessed % 20 === 0 && totalTitlesProcessed > 0) {
         const { data: job } = await supabase
@@ -307,11 +289,14 @@ serve(async (req) => {
       }
 
       // ========== PHASE 1: Process titles (movies + series) ==========
+      // Filter for YouTube URLs only (contains 'youtube.com' or 'youtu.be')
       const { data: titles, error: titlesError } = await supabase
         .from('titles')
         .select('id, name, trailer_url, title_type')
         .not('trailer_url', 'is', null)
+        .neq('trailer_url', '') // Exclude empty strings
         .is('trailer_transcript', null)
+        .or('trailer_url.ilike.%youtube.com%,trailer_url.ilike.%youtu.be%') // Only YouTube URLs
         .limit(BATCH_SIZE);
 
       if (titlesError) {
@@ -322,6 +307,17 @@ serve(async (req) => {
       if (titles && titles.length > 0) {
         for (const title of titles) {
           if ((Date.now() - startTime) >= MAX_RUNTIME_MS) break;
+          if (supadataLimitExceeded) break;
+
+          // Double-check URL validity
+          if (!isValidUrl(title.trailer_url)) {
+            console.log(`⚠ Skipping title ${title.name} - invalid URL`);
+            await supabase
+              .from('titles')
+              .update({ trailer_transcript: '' })
+              .eq('id', title.id);
+            continue;
+          }
 
           console.log(`Processing title: ${title.name} (${title.title_type})`);
           
@@ -350,12 +346,20 @@ serve(async (req) => {
         }
       }
 
+      // Stop if Supadata limit was hit
+      if (supadataLimitExceeded) {
+        console.log('Stopping due to Supadata API limit');
+        break;
+      }
+
       // ========== PHASE 2: Process seasons ==========
       const { data: seasons, error: seasonsError } = await supabase
         .from('seasons')
         .select('id, name, season_number, trailer_url, title_id')
         .not('trailer_url', 'is', null)
+        .neq('trailer_url', '') // Exclude empty strings
         .is('trailer_transcript', null)
+        .or('trailer_url.ilike.%youtube.com%,trailer_url.ilike.%youtu.be%') // Only YouTube URLs
         .limit(BATCH_SIZE);
 
       if (seasonsError) {
@@ -375,6 +379,17 @@ serve(async (req) => {
 
         for (const season of seasons) {
           if ((Date.now() - startTime) >= MAX_RUNTIME_MS) break;
+          if (supadataLimitExceeded) break;
+
+          // Double-check URL validity
+          if (!isValidUrl(season.trailer_url)) {
+            console.log(`⚠ Skipping season - invalid URL`);
+            await supabase
+              .from('seasons')
+              .update({ trailer_transcript: '' })
+              .eq('id', season.id);
+            continue;
+          }
 
           const titleName = titleNameMap.get(season.title_id) || 'Unknown';
           console.log(`Processing season: ${titleName} - ${season.name || `Season ${season.season_number}`}`);
@@ -404,23 +419,27 @@ serve(async (req) => {
         }
       }
 
-      // Check if there's more work
+      // Check if there's more YouTube work to do
       const { count: remainingTitles } = await supabase
         .from('titles')
         .select('*', { count: 'exact', head: true })
         .not('trailer_url', 'is', null)
-        .is('trailer_transcript', null);
+        .neq('trailer_url', '')
+        .is('trailer_transcript', null)
+        .or('trailer_url.ilike.%youtube.com%,trailer_url.ilike.%youtu.be%');
 
       const { count: remainingSeasons } = await supabase
         .from('seasons')
         .select('*', { count: 'exact', head: true })
         .not('trailer_url', 'is', null)
-        .is('trailer_transcript', null);
+        .neq('trailer_url', '')
+        .is('trailer_transcript', null)
+        .or('trailer_url.ilike.%youtube.com%,trailer_url.ilike.%youtu.be%');
 
       hasMoreWork = (remainingTitles || 0) > 0 || (remainingSeasons || 0) > 0;
 
       if (!hasMoreWork) {
-        console.log('No more items to transcribe');
+        console.log('No more YouTube items to transcribe');
         break;
       }
 
@@ -433,23 +452,60 @@ serve(async (req) => {
       }
     }
 
+    // Mark non-YouTube URLs as processed (set to empty string so they're skipped)
+    console.log('Marking non-YouTube trailer URLs as processed...');
+    
+    // Mark non-YouTube title trailers
+    await supabase
+      .from('titles')
+      .update({ trailer_transcript: '' })
+      .not('trailer_url', 'is', null)
+      .neq('trailer_url', '')
+      .is('trailer_transcript', null)
+      .not('trailer_url', 'ilike', '%youtube.com%')
+      .not('trailer_url', 'ilike', '%youtu.be%');
+
+    // Mark non-YouTube season trailers
+    await supabase
+      .from('seasons')
+      .update({ trailer_transcript: '' })
+      .not('trailer_url', 'is', null)
+      .neq('trailer_url', '')
+      .is('trailer_transcript', null)
+      .not('trailer_url', 'ilike', '%youtube.com%')
+      .not('trailer_url', 'ilike', '%youtu.be%');
+
     // Final job update
     if (jobId) {
       const { count: remainingTitles } = await supabase
         .from('titles')
         .select('*', { count: 'exact', head: true })
         .not('trailer_url', 'is', null)
-        .is('trailer_transcript', null);
+        .neq('trailer_url', '')
+        .is('trailer_transcript', null)
+        .or('trailer_url.ilike.%youtube.com%,trailer_url.ilike.%youtu.be%');
 
       const { count: remainingSeasons } = await supabase
         .from('seasons')
         .select('*', { count: 'exact', head: true })
         .not('trailer_url', 'is', null)
-        .is('trailer_transcript', null);
+        .neq('trailer_url', '')
+        .is('trailer_transcript', null)
+        .or('trailer_url.ilike.%youtube.com%,trailer_url.ilike.%youtu.be%');
 
       const hasMoreWork = (remainingTitles || 0) > 0 || (remainingSeasons || 0) > 0;
 
-      if (!hasMoreWork) {
+      if (supadataLimitExceeded) {
+        // API limit hit - stop job with message
+        await supabase
+          .from('jobs')
+          .update({ 
+            status: 'stopped',
+            error_message: 'Supadata API limit exceeded. Job paused until quota resets.'
+          })
+          .eq('id', jobId);
+        console.log('Job stopped - Supadata API limit exceeded');
+      } else if (!hasMoreWork) {
         // All done - mark job as completed
         const durationSeconds = Math.floor((Date.now() - startTime) / 1000);
         await supabase
@@ -495,14 +551,15 @@ serve(async (req) => {
       JSON.stringify({ 
         message: `Processed ${totalProcessed} items (${totalTitlesProcessed} titles, ${totalSeasonsProcessed} seasons)`,
         titlesProcessed: totalTitlesProcessed,
-        seasonsProcessed: totalSeasonsProcessed
+        seasonsProcessed: totalSeasonsProcessed,
+        supadataLimitExceeded
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
-    console.error('Transcription job error:', error);
+    console.error('Edge function error:', error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
+      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
