@@ -404,6 +404,7 @@ export type Database = {
           created_at: string
           friend_user_id: string
           id: string
+          is_blocked: boolean | null
           is_muted: boolean
           relationship_type: string | null
           trust_score: number
@@ -413,6 +414,7 @@ export type Database = {
           created_at?: string
           friend_user_id: string
           id?: string
+          is_blocked?: boolean | null
           is_muted?: boolean
           relationship_type?: string | null
           trust_score?: number
@@ -422,6 +424,7 @@ export type Database = {
           created_at?: string
           friend_user_id?: string
           id?: string
+          is_blocked?: boolean | null
           is_muted?: boolean
           relationship_type?: string | null
           trust_score?: number
