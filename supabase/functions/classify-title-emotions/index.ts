@@ -254,21 +254,23 @@ serve(async (req: Request) => {
 
     console.log(`Loaded ${emotionLabels.length} emotion labels`);
 
-    // 2. Load candidate titles (movies + series) that haven't been classified yet
-    const { data: titles, error: titlesError } = await supabase
-      .from("titles")
-      .select("id, title_type, name, original_name, overview, trailer_transcript, original_language")
-      .not('title_emotional_signatures', 'is', null) // This won't work - need different approach
-      .order("created_at", { ascending: false })
-      .limit(batchSize * 3);
+    // 2. Get titles that already have emotional signatures (to exclude)
+    const { data: existingSignatures } = await supabase
+      .from("title_emotional_signatures")
+      .select("title_id");
 
-    // Actually, let's get all titles and filter by those not in title_emotional_signatures
+    const classifiedIds = new Set(existingSignatures?.map((s) => s.title_id) ?? []);
+    console.log(`Found ${classifiedIds.size} already classified titles`);
+
+    // 3. Load candidate titles with trailer transcripts that haven't been classified
+    // Use a smaller limit and filter in the query itself for efficiency
     const { data: allTitles, error: allTitlesError } = await supabase
       .from("titles")
       .select("id, title_type, name, original_name, overview, trailer_transcript, original_language")
       .not('trailer_transcript', 'is', null)
+      .neq('trailer_transcript', '')
       .order("created_at", { ascending: false })
-      .limit(batchSize * 3);
+      .limit(batchSize * 5);
 
     if (allTitlesError) {
       console.error('Error loading titles:', allTitlesError);
@@ -282,15 +284,7 @@ serve(async (req: Request) => {
       );
     }
 
-    // 3. Check which titles already have emotional signatures
-    const titleIds = allTitles.map((t) => t.id);
-
-    const { data: existingSignatures } = await supabase
-      .from("title_emotional_signatures")
-      .select("title_id")
-      .in("title_id", titleIds);
-
-    const classifiedIds = new Set(existingSignatures?.map((s) => s.title_id) ?? []);
+    // Filter out already classified titles
     const candidates = allTitles.filter((t) => !classifiedIds.has(t.id)).slice(0, batchSize);
 
     console.log(`Found ${candidates.length} unclassified titles with transcripts`);
