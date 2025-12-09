@@ -290,6 +290,14 @@ serve(async (req: Request) => {
     console.log(`Found ${candidates.length} unclassified titles with transcripts`);
 
     if (candidates.length === 0) {
+      // Mark job as completed since there's no more work
+      if (jobId) {
+        await supabase
+          .from('jobs')
+          .update({ status: 'completed', error_message: null })
+          .eq('id', jobId);
+      }
+      
       return new Response(
         JSON.stringify({ message: "All titles with transcripts are already classified", processed: 0 }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
