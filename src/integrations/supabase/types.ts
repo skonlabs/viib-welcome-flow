@@ -271,26 +271,26 @@ export type Database = {
       }
       emotion_transformation_map: {
         Row: {
+          confidence_score: number
           from_emotion_id: string
           id: string
           priority_rank: number | null
-          strength: number
           to_emotion_id: string
           transformation_type: string
         }
         Insert: {
+          confidence_score: number
           from_emotion_id: string
           id?: string
           priority_rank?: number | null
-          strength: number
           to_emotion_id: string
           transformation_type: string
         }
         Update: {
+          confidence_score?: number
           from_emotion_id?: string
           id?: string
           priority_rank?: number | null
-          strength?: number
           to_emotion_id?: string
           transformation_type?: string
         }
