@@ -295,74 +295,50 @@ serve(async (req: Request) => {
     const emotionLabels = Array.from(emotionMap.keys());
     console.log(`Loaded ${emotionLabels.length} content_state emotions.`);
 
-    // 2) Count total unclassified titles
-    const { count: totalUnclassified } = await supabase
-      .from("titles")
-      .select("id", { count: 'exact', head: true })
-      .not("id", "in", `(SELECT title_id FROM title_emotional_signatures)`);
+    // 2) Get IDs of titles that already have signatures
+    const { data: existingSignatures, error: sigErr } = await supabase
+      .from("title_emotional_signatures")
+      .select("title_id");
 
-    // 3) Load candidate titles (movies + series) that don't have signatures yet
-    const { data: titles, error: titleErr } = await supabase
+    if (sigErr) {
+      console.error("Failed to load existing signatures:", sigErr);
+      return new Response(JSON.stringify({ error: "Failed to load existing signatures" }), { status: 500, headers: corsHeaders });
+    }
+
+    const classifiedIds = new Set((existingSignatures ?? []).map((s: any) => s.title_id));
+    console.log(`${classifiedIds.size} titles already classified.`);
+
+    // 3) Load candidate titles that DON'T have signatures yet
+    const { data: allTitles, error: titleErr } = await supabase
       .from("titles")
       .select(
-        "id, title_type, name, original_name, overview, trailer_transcript, original_language, created_at",
+        "id, title_type, name, original_name, overview, trailer_transcript, original_language",
       )
-      .order("created_at", { ascending: false })
-      .limit(batchSize * 3);
+      .limit(batchSize * 10); // Fetch more to find unclassified ones
 
     if (titleErr) {
       console.error("Failed to load titles:", titleErr);
       return new Response(JSON.stringify({ error: "Failed to load titles" }), { status: 500, headers: corsHeaders });
     }
 
-    if (!titles || titles.length === 0) {
+    if (!allTitles || allTitles.length === 0) {
       console.log("No titles found in database.");
       await supabase.from("jobs").update({ status: 'completed' }).eq("job_type", "classify_emotions");
       return new Response(JSON.stringify({ message: "No titles to process" }), { status: 200, headers: corsHeaders });
     }
 
-    const ids = titles.map((t: any) => t.id);
+    // Filter to only unclassified titles
+    const candidates: TitleRow[] = (allTitles as TitleRow[])
+      .filter((t) => !classifiedIds.has(t.id))
+      .slice(0, batchSize);
 
-    // 4) Skip titles that already have rows
-    const { data: staged, error: stagedErr } = await supabase
-      .from("title_emotional_signatures")
-      .select("title_id")
-      .in("title_id", ids);
+    console.log(`Found ${candidates.length} unclassified titles to process.`);
 
-    if (stagedErr) {
-      console.error("Failed to load existing signatures:", stagedErr);
-      return new Response(JSON.stringify({ error: "Failed to load existing signatures" }), { status: 500, headers: corsHeaders });
-    }
-
-    const stagedIds = new Set((staged ?? []).map((s: any) => s.title_id));
-    const candidates: TitleRow[] = (titles as TitleRow[]).filter((t) => !stagedIds.has(t.id)).slice(0, batchSize);
-
-    console.log(`Found ${candidates.length} new titles to classify (movies + series).`);
-
-    // If no candidates, check if there are more unprocessed titles
+    // If no candidates left, job is complete
     if (candidates.length === 0) {
-      console.log("No unclassified titles in this batch. Checking for more...");
-      
-      // Check if there are any titles without signatures
-      const { count } = await supabase
-        .from("titles")
-        .select("id", { count: 'exact', head: true });
-      
-      const { count: classifiedCount } = await supabase
-        .from("title_emotional_signatures")
-        .select("title_id", { count: 'exact', head: true });
-      
-      const remaining = (count ?? 0) - (classifiedCount ?? 0);
-      
-      if (remaining > 0) {
-        console.log(`${remaining} titles still need classification. Invoking next batch...`);
-        EdgeRuntime.waitUntil(invokeNextBatch(batchSize));
-      } else {
-        console.log("All titles classified. Marking job complete.");
-        await supabase.from("jobs").update({ status: 'completed' }).eq("job_type", "classify_emotions");
-      }
-      
-      return new Response(JSON.stringify({ message: "Batch complete, checking for more" }), { status: 200, headers: corsHeaders });
+      console.log("All titles classified. Marking job complete.");
+      await supabase.from("jobs").update({ status: 'completed' }).eq("job_type", "classify_emotions");
+      return new Response(JSON.stringify({ message: "All titles classified" }), { status: 200, headers: corsHeaders });
     }
 
     let processed = 0;
