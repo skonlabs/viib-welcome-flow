@@ -15,8 +15,8 @@
 // - OPENAI_API_KEY
 // ========================================================================
 
-import { serve } from "https://deno.land/x/sift@0.6.0/mod.ts";
-import OpenAI from "https://deno.land/x/openai@v4.16.0/mod.ts";
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.6";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -24,7 +24,6 @@ const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const openaiKey = Deno.env.get("OPENAI_API_KEY")!;
 
 const supabase = createClient(supabaseUrl, serviceRoleKey);
-const openai = new OpenAI({ apiKey: openaiKey });
 
 // ---------------------------------------------------------------------
 // Types
@@ -32,14 +31,12 @@ const openai = new OpenAI({ apiKey: openaiKey });
 
 interface TitleRow {
   id: string;
-  type: "movie" | "series";
+  title_type: "movie" | "series";
   name: string | null;
-  original_title: string | null;
+  original_name: string | null;
   overview: string | null;
   trailer_transcript: string | null;
   original_language: string | null;
-  season_count?: number | null;
-  episode_count?: number | null;
 }
 
 interface EmotionRow {
@@ -109,7 +106,7 @@ function buildUserPrompt(t: TitleRow): string {
     ? t.trailer_transcript!.slice(0, 5000) // safety cap
     : "(no trailer transcript available)";
 
-  const typeLabel = t.type === "series" ? "TV SERIES (series-level tone)" : "MOVIE";
+  const typeLabel = t.title_type === "series" ? "TV SERIES (series-level tone)" : "MOVIE";
 
   const transcriptInstruction = hasTranscript
     ? `A trailer transcript IS provided below. Treat it as the PRIMARY emotional signal (~80% weight).`
@@ -118,7 +115,7 @@ function buildUserPrompt(t: TitleRow): string {
   return `
 Title Type: ${typeLabel}
 Title: ${t.name ?? "(unknown)"}
-Original Title: ${t.original_title ?? "(unknown)"}
+Original Title: ${t.original_name ?? "(unknown)"}
 Original Language: ${t.original_language ?? "(unknown)"}
 
 Instructions about transcript:
@@ -147,17 +144,24 @@ Return ONLY a JSON object in this shape:
 
 async function classifyWithAI(title: TitleRow, emotionLabels: string[]): Promise<ModelResponse | null> {
   try {
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4.1", // or any compatible model you prefer
-      temperature: 0.3,
-      messages: [
-        { role: "system", content: buildSystemPrompt(emotionLabels) },
-        { role: "user", content: buildUserPrompt(title) },
-      ],
-      response_format: { type: "json_object" },
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openaiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4.1-2025-04-14',
+        messages: [
+          { role: 'system', content: buildSystemPrompt(emotionLabels) },
+          { role: 'user', content: buildUserPrompt(title) },
+        ],
+        response_format: { type: 'json_object' },
+      }),
     });
 
-    const raw = completion.choices[0]?.message?.content;
+    const data = await response.json();
+    const raw = data.choices?.[0]?.message?.content;
     if (!raw) {
       console.error("No content in AI response for title:", title.id);
       return null;
@@ -182,7 +186,7 @@ async function insertStagingRows(titleId: string, rows: ModelEmotion[]) {
     source: "ai",
   }));
 
-  const { error } = await supabase.from("title_emotional_signatures_staging").insert(payload);
+  const { error } = await supabase.from("title_emotional_signatures").insert(payload);
 
   if (error) {
     console.error("Error inserting staging rows for title:", titleId, error);
@@ -190,61 +194,65 @@ async function insertStagingRows(titleId: string, rows: ModelEmotion[]) {
   }
 }
 
-// ---------------------------------------------------------------------
-// MAIN EDGE HANDLER
-// ---------------------------------------------------------------------
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
 
-serve({
-  "/": async (req: Request) => {
-    if (req.method !== "POST") {
-      return new Response("Method Not Allowed", { status: 405 });
-    }
+serve(async (req: Request) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
 
+  if (req.method !== "POST") {
+    return new Response("Method Not Allowed", { status: 405, headers: corsHeaders });
+  }
+
+  try {
     const body = await req.json().catch(() => ({}));
     const batchSize: number = body.batchSize ?? 10;
 
     console.log(`▶ classify-title-emotions: batchSize=${batchSize}`);
 
-    // 1) Load emotion_master (content_state only)
+    // 1) Load emotion_master (content_tone only)
     const { data: emotions, error: emoErr } = await supabase
       .from("emotion_master")
-      .select("label")
-      .eq("category", "content_state");
+      .select("emotion_label")
+      .eq("category", "content_tone");
 
     if (emoErr || !emotions || emotions.length === 0) {
       console.error("Failed to load emotion_master:", emoErr);
-      return new Response(JSON.stringify({ error: "Failed to load emotion_master" }), { status: 500 });
+      return new Response(JSON.stringify({ error: "Failed to load emotion_master" }), { status: 500, headers: corsHeaders });
     }
 
-    const emotionLabels = (emotions as EmotionRow[]).map((e) => e.label);
-    console.log(`Loaded ${emotionLabels.length} content_state emotions.`);
+    const emotionLabels = emotions.map((e: any) => e.emotion_label);
+    console.log(`Loaded ${emotionLabels.length} content_tone emotions.`);
 
     // 2) Load candidate titles (movies + series)
     const { data: titles, error: titleErr } = await supabase
       .from("titles")
       .select(
-        "id, type, name, original_title, overview, trailer_transcript, original_language, season_count, episode_count, created_at",
+        "id, title_type, name, original_name, overview, trailer_transcript, original_language, created_at",
       )
       .order("created_at", { ascending: false })
       .limit(batchSize * 3);
 
     if (titleErr || !titles || titles.length === 0) {
       console.error("Failed to load titles or none found:", titleErr);
-      return new Response(JSON.stringify({ error: "Failed to load titles or none found" }), { status: 500 });
+      return new Response(JSON.stringify({ error: "Failed to load titles or none found" }), { status: 500, headers: corsHeaders });
     }
 
-    const ids = titles.map((t) => t.id);
+    const ids = titles.map((t: any) => t.id);
 
-    // 3) Skip titles that already have AI staging rows
+    // 3) Skip titles that already have rows
     const { data: staged, error: stagedErr } = await supabase
-      .from("title_emotional_signatures_staging")
+      .from("title_emotional_signatures")
       .select("title_id")
-      .in("title_id", ids)
-      .eq("source", "ai");
+      .in("title_id", ids);
 
     if (stagedErr) {
-      console.error("Failed to load staging info:", stagedErr);
-      return new Response(JSON.stringify({ error: "Failed to load staging info" }), { status: 500 });
+      console.error("Failed to load existing signatures:", stagedErr);
+      return new Response(JSON.stringify({ error: "Failed to load existing signatures" }), { status: 500, headers: corsHeaders });
     }
 
     const stagedIds = new Set((staged ?? []).map((s: any) => s.title_id));
@@ -259,7 +267,7 @@ serve({
     for (const title of candidates) {
       try {
         console.log(
-          `→ Classifying [${title.type}] ${title.name ?? title.id} — transcript: ${
+          `→ Classifying [${title.title_type}] ${title.name ?? title.id} — transcript: ${
             title.trailer_transcript ? "YES" : "NO"
           }`,
         );
@@ -294,19 +302,15 @@ serve({
 
     // 6) Return summary
     return new Response(
-      JSON.stringify(
-        {
-          message: "Batch emotional classification complete",
-          processed,
-          errors,
-        },
-        null,
-        2,
-      ),
-      {
-        headers: { "Content-Type": "application/json" },
-        status: 200,
-      },
+      JSON.stringify({
+        message: "Batch emotional classification complete",
+        processed,
+        errors,
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 },
     );
-  },
+  } catch (err: any) {
+    console.error("Unexpected error:", err);
+    return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: corsHeaders });
+  }
 });
