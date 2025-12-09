@@ -239,6 +239,10 @@ export const Jobs = () => {
       } else if (job.job_type === 'transcribe_trailers') {
         functionName = 'transcribe-trailers';
         functionBody = { jobId: job.id };
+      } else if (job.job_type === 'classify_emotions') {
+        functionName = 'classify-title-emotions';
+        const config = job.configuration || {};
+        functionBody = { jobId: job.id, batchSize: config.batch_size || 10 };
       } else {
         throw new Error(`Unknown job type: ${job.job_type}`);
       }
