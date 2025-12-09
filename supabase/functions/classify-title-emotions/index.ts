@@ -178,18 +178,24 @@ async function classifyWithAI(title: TitleRow, emotionLabels: string[]): Promise
 // Insert rows into staging
 // ---------------------------------------------------------------------
 
-async function insertStagingRows(titleId: string, rows: ModelEmotion[]) {
-  const payload = rows.map((e) => ({
-    title_id: titleId,
-    emotion_label: e.emotion_label,
-    intensity_level: e.intensity_level,
-    source: "ai",
-  }));
+async function insertStagingRows(titleId: string, rows: ModelEmotion[], emotionMap: Map<string, string>) {
+  const payload = rows
+    .filter((e) => emotionMap.has(e.emotion_label))
+    .map((e) => ({
+      title_id: titleId,
+      emotion_id: emotionMap.get(e.emotion_label),
+      intensity_level: e.intensity_level,
+    }));
+
+  if (payload.length === 0) {
+    console.log("No valid emotions to insert for title:", titleId);
+    return;
+  }
 
   const { error } = await supabase.from("title_emotional_signatures").insert(payload);
 
   if (error) {
-    console.error("Error inserting staging rows for title:", titleId, error);
+    console.error("Error inserting rows for title:", titleId, error);
     throw error;
   }
 }
@@ -217,7 +223,7 @@ serve(async (req: Request) => {
     // 1) Load emotion_master (content_state only)
     const { data: emotions, error: emoErr } = await supabase
       .from("emotion_master")
-      .select("emotion_label")
+      .select("id, emotion_label")
       .eq("category", "content_state");
 
     if (emoErr || !emotions || emotions.length === 0) {
@@ -225,7 +231,10 @@ serve(async (req: Request) => {
       return new Response(JSON.stringify({ error: "Failed to load emotion_master" }), { status: 500, headers: corsHeaders });
     }
 
-    const emotionLabels = emotions.map((e: any) => e.emotion_label);
+    // Create a map from emotion_label to emotion_id
+    const emotionMap = new Map<string, string>();
+    emotions.forEach((e: any) => emotionMap.set(e.emotion_label, e.id));
+    const emotionLabels = Array.from(emotionMap.keys());
     console.log(`Loaded ${emotionLabels.length} content_state emotions.`);
 
     // 2) Load candidate titles (movies + series)
@@ -291,7 +300,7 @@ serve(async (req: Request) => {
           continue;
         }
 
-        await insertStagingRows(title.id, cleaned);
+        await insertStagingRows(title.id, cleaned, emotionMap);
         processed++;
         console.log(`✓ Saved ${cleaned.length} emotion rows for title_id=${title.id}`);
       } catch (err: any) {
