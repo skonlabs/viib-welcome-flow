@@ -1948,6 +1948,17 @@ export type Database = {
         Args: { p_title_id: string; p_user_id: string }
         Returns: Json
       }
+      get_cron_jobs: {
+        Args: never
+        Returns: {
+          active: boolean
+          command: string
+          database: string
+          jobid: number
+          jobname: string
+          schedule: string
+        }[]
+      }
       get_display_emotion_phrase: {
         Args: { p_user_id: string }
         Returns: string
@@ -2005,12 +2016,17 @@ export type Database = {
         Args: { p_title_id: string }
         Returns: undefined
       }
+      run_cron_job_now: { Args: { p_command: string }; Returns: undefined }
       store_user_emotion_vector: {
         Args: {
           p_emotion_label: string
           p_energy_percentage: number
           p_user_id: string
         }
+        Returns: undefined
+      }
+      toggle_cron_job: {
+        Args: { p_active: boolean; p_jobid: number }
         Returns: undefined
       }
       translate_mood_to_emotion: {
@@ -2023,6 +2039,10 @@ export type Database = {
           emotion_id: string
           emotion_label: string
         }[]
+      }
+      update_cron_schedule: {
+        Args: { p_jobid: number; p_schedule: string }
+        Returns: undefined
       }
       viib_autotune_weights:
         | {

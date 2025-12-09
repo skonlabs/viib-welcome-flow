@@ -112,7 +112,9 @@ export const Jobs = () => {
   const fetchCronJobs = async () => {
     try {
       setCronLoading(true);
-      const { data, error } = await supabase.rpc('get_cron_jobs');
+      // Use raw SQL query via rpc since get_cron_jobs is a custom function
+      const { data, error } = await supabase
+        .rpc('get_cron_jobs' as any);
       
       if (error) throw error;
       setCronJobs(data || []);
@@ -124,6 +126,81 @@ export const Jobs = () => {
       setCronLoading(false);
     }
   };
+
+  const handleToggleCronJob = async (cronJob: CronJob) => {
+    try {
+      const { error } = await supabase
+        .rpc('toggle_cron_job' as any, { p_jobid: cronJob.jobid, p_active: !cronJob.active });
+      
+      if (error) throw error;
+      
+      toast({
+        title: cronJob.active ? "Cron Job Paused" : "Cron Job Activated",
+        description: `${cronJob.jobname} has been ${cronJob.active ? 'paused' : 'activated'}.`,
+      });
+      
+      await fetchCronJobs();
+    } catch (error) {
+      await errorLogger.log(error, { operation: 'toggle_cron_job', jobId: cronJob.jobid });
+      toast({
+        title: "Error",
+        description: "Failed to toggle cron job. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleRunCronJobNow = async (cronJob: CronJob) => {
+    try {
+      const { error } = await supabase
+        .rpc('run_cron_job_now' as any, { p_command: cronJob.command });
+      
+      if (error) throw error;
+      
+      toast({
+        title: "Cron Job Executed",
+        description: `${cronJob.jobname} has been executed manually.`,
+      });
+    } catch (error) {
+      await errorLogger.log(error, { operation: 'run_cron_job_now', jobId: cronJob.jobid });
+      toast({
+        title: "Error",
+        description: "Failed to run cron job. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleUpdateCronSchedule = async (cronJob: CronJob, newSchedule: string) => {
+    try {
+      const { error } = await supabase
+        .rpc('update_cron_schedule' as any, { p_jobid: cronJob.jobid, p_schedule: newSchedule });
+      
+      if (error) throw error;
+      
+      toast({
+        title: "Schedule Updated",
+        description: `${cronJob.jobname} schedule updated to "${newSchedule}".`,
+      });
+      
+      await fetchCronJobs();
+    } catch (error) {
+      await errorLogger.log(error, { operation: 'update_cron_schedule', jobId: cronJob.jobid });
+      toast({
+        title: "Error",
+        description: "Failed to update schedule. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  useEffect(() => {
+    fetchJobs();
+    fetchCronJobs();
+    // Refresh every 10 seconds
+    const interval = setInterval(fetchJobs, 10000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleRunJob = async (job: Job) => {
     try {
@@ -1034,6 +1111,103 @@ export const Jobs = () => {
           </Card>
         ))}
       </div>
+
+      {/* Cron Jobs Section */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-2xl font-bold tracking-tight">Cron Jobs</h3>
+            <p className="text-muted-foreground">
+              Scheduled database functions that run automatically
+            </p>
+          </div>
+          <Button onClick={fetchCronJobs} variant="outline" size="sm">
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Refresh
+          </Button>
+        </div>
+
+        {cronLoading ? (
+          <div className="grid gap-4 md:grid-cols-2">
+            {[1, 2].map(i => (
+              <Card key={i} className="animate-pulse">
+                <CardHeader className="space-y-2">
+                  <div className="h-6 w-3/4 bg-muted rounded" />
+                  <div className="h-4 w-1/2 bg-muted rounded" />
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="h-12 bg-muted rounded" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : cronJobs.length === 0 ? (
+          <Card>
+            <CardContent className="py-8 text-center text-muted-foreground">
+              No cron jobs found. Make sure pg_cron extension is enabled.
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2">
+            {cronJobs.map((cronJob) => (
+              <Card key={cronJob.jobid}>
+                <CardHeader>
+                  <div className="flex items-start justify-between">
+                    <div className="space-y-1">
+                      <CardTitle className="text-lg">{cronJob.jobname}</CardTitle>
+                      <CardDescription className="font-mono text-xs">
+                        {cronJob.schedule}
+                      </CardDescription>
+                    </div>
+                    <Badge variant={cronJob.active ? "default" : "secondary"}>
+                      {cronJob.active ? "Active" : "Paused"}
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="text-sm">
+                    <div className="text-muted-foreground mb-1">Command</div>
+                    <code className="block text-xs bg-muted p-2 rounded overflow-x-auto">
+                      {cronJob.command}
+                    </code>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={() => handleRunCronJobNow(cronJob)}
+                      size="sm"
+                      className="flex-1"
+                    >
+                      <Play className="w-4 h-4 mr-2" />
+                      Run Now
+                    </Button>
+                    <Button
+                      onClick={() => handleToggleCronJob(cronJob)}
+                      variant={cronJob.active ? "destructive" : "default"}
+                      size="sm"
+                    >
+                      {cronJob.active ? (
+                        <>
+                          <Pause className="w-4 h-4 mr-2" />
+                          Pause
+                        </>
+                      ) : (
+                        <>
+                          <Play className="w-4 h-4 mr-2" />
+                          Activate
+                        </>
+                      )}
+                    </Button>
+                    <CronConfigDialog 
+                      cronJob={cronJob} 
+                      onUpdate={handleUpdateCronSchedule} 
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 };
@@ -1279,6 +1453,123 @@ const JobConfigDialog = ({ job, onUpdate }: JobConfigDialogProps) => {
           </Button>
           <Button onClick={handleSave}>
             Save Configuration
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+interface CronConfigDialogProps {
+  cronJob: CronJob;
+  onUpdate: (cronJob: CronJob, newSchedule: string) => Promise<void>;
+}
+
+const CronConfigDialog = ({ cronJob, onUpdate }: CronConfigDialogProps) => {
+  const [schedule, setSchedule] = useState(cronJob.schedule);
+  const [open, setOpen] = useState(false);
+
+  const handleSave = async () => {
+    await onUpdate(cronJob, schedule);
+    setOpen(false);
+  };
+
+  // Parse cron schedule to human-readable format
+  const getCronDescription = (cronSchedule: string) => {
+    const parts = cronSchedule.split(' ');
+    if (parts.length < 5) return 'Invalid schedule';
+    
+    const [minute, hour, dayMonth, month, dayWeek] = parts;
+    
+    if (hour.includes('*/')) {
+      const interval = hour.replace('*/', '');
+      return `Every ${interval} hours at minute ${minute}`;
+    }
+    if (minute === '0' && hour === '*') {
+      return 'Every hour at the start of the hour';
+    }
+    if (dayMonth === '*' && month === '*' && dayWeek === '*') {
+      if (hour === '*') return `Every hour at minute ${minute}`;
+      return `Daily at ${hour}:${minute.padStart(2, '0')}`;
+    }
+    return cronSchedule;
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm">
+          <Settings className="w-4 h-4" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Configure {cronJob.jobname}</DialogTitle>
+          <DialogDescription>
+            Update the cron schedule for this job
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <Label>Cron Schedule</Label>
+            <Input
+              value={schedule}
+              onChange={(e) => setSchedule(e.target.value)}
+              placeholder="* * * * *"
+              className="font-mono"
+            />
+            <p className="text-xs text-muted-foreground">
+              Format: minute hour day-of-month month day-of-week
+            </p>
+          </div>
+          
+          <div className="p-3 bg-muted rounded-lg">
+            <div className="text-sm font-medium mb-1">Schedule Preview</div>
+            <div className="text-sm text-muted-foreground">
+              {getCronDescription(schedule)}
+            </div>
+          </div>
+          
+          <div className="space-y-2">
+            <Label className="text-sm">Common Schedules</Label>
+            <div className="grid grid-cols-2 gap-2">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => setSchedule('0 * * * *')}
+              >
+                Every hour
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => setSchedule('0 */6 * * *')}
+              >
+                Every 6 hours
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => setSchedule('0 0 * * *')}
+              >
+                Daily at midnight
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => setSchedule('0 2 * * *')}
+              >
+                Daily at 2 AM
+              </Button>
+            </div>
+          </div>
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => setOpen(false)}>
+            Cancel
+          </Button>
+          <Button onClick={handleSave}>
+            Save Schedule
           </Button>
         </div>
       </DialogContent>
