@@ -2048,11 +2048,11 @@ export type Database = {
         Returns: undefined
       }
       viib_autotune_weights:
+        | { Args: { p_days?: number }; Returns: string }
         | {
             Args: { p_days?: number; p_min_samples?: number }
             Returns: undefined
           }
-        | { Args: { p_days?: number }; Returns: string }
       viib_intent_alignment_score: {
         Args: { p_title_id: string; p_user_id: string }
         Returns: number
