@@ -229,11 +229,11 @@ serve(async (req: Request) => {
       );
     }
 
-    // 1. Load content_state emotions from emotion_master
+    // 1. Load content_tone emotions from emotion_master
     const { data: emotions, error: emotionsError } = await supabase
       .from("emotion_master")
       .select("id, emotion_label")
-      .eq("category", "content_state");
+      .eq("category", "content_tone");
 
     if (emotionsError) {
       console.error('Error loading emotions:', emotionsError);
@@ -247,7 +247,7 @@ serve(async (req: Request) => {
 
     if (emotionLabels.length === 0) {
       return new Response(
-        JSON.stringify({ message: "No content_state emotions found in emotion_master", processed: 0 }),
+        JSON.stringify({ message: "No content_tone emotions found in emotion_master", processed: 0 }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
