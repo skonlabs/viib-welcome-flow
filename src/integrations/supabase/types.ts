@@ -2093,7 +2093,7 @@ export type Database = {
         | "external_link"
         | "notification"
         | "other"
-      emotion_category: "user_state" | "content_tone"
+      emotion_category: "user_state" | "content_state" | "content_tone"
       engagement_action:
         | "click"
         | "preview"
@@ -2301,7 +2301,7 @@ export const Constants = {
         "notification",
         "other",
       ],
-      emotion_category: ["user_state", "content_tone"],
+      emotion_category: ["user_state", "content_state", "content_tone"],
       engagement_action: [
         "click",
         "preview",
