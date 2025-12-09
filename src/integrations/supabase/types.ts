@@ -272,39 +272,39 @@ export type Database = {
       emotion_transformation_map: {
         Row: {
           confidence_score: number
-          from_emotion_id: string
+          content_emotion_id: string
           id: string
           priority_rank: number | null
-          to_emotion_id: string
           transformation_type: string
+          user_emotion_id: string
         }
         Insert: {
           confidence_score: number
-          from_emotion_id: string
+          content_emotion_id: string
           id?: string
           priority_rank?: number | null
-          to_emotion_id: string
           transformation_type: string
+          user_emotion_id: string
         }
         Update: {
           confidence_score?: number
-          from_emotion_id?: string
+          content_emotion_id?: string
           id?: string
           priority_rank?: number | null
-          to_emotion_id?: string
           transformation_type?: string
+          user_emotion_id?: string
         }
         Relationships: [
           {
             foreignKeyName: "emotion_transformation_map_from_emotion_id_fkey"
-            columns: ["from_emotion_id"]
+            columns: ["user_emotion_id"]
             isOneToOne: false
             referencedRelation: "emotion_master"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "emotion_transformation_map_to_emotion_id_fkey"
-            columns: ["to_emotion_id"]
+            columns: ["content_emotion_id"]
             isOneToOne: false
             referencedRelation: "emotion_master"
             referencedColumns: ["id"]
@@ -883,6 +883,41 @@ export type Database = {
           },
         ]
       }
+      title_emotion_vectors: {
+        Row: {
+          arousal: number
+          dominance: number
+          emotion_strength: number
+          title_id: string
+          updated_at: string | null
+          valence: number
+        }
+        Insert: {
+          arousal: number
+          dominance: number
+          emotion_strength: number
+          title_id: string
+          updated_at?: string | null
+          valence: number
+        }
+        Update: {
+          arousal?: number
+          dominance?: number
+          emotion_strength?: number
+          title_id?: string
+          updated_at?: string | null
+          valence?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "title_emotion_vectors_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: true
+            referencedRelation: "titles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       title_emotional_signatures: {
         Row: {
           emotion_id: string
@@ -949,6 +984,42 @@ export type Database = {
           },
         ]
       }
+      title_intent_alignment_scores: {
+        Row: {
+          alignment_score: number
+          title_id: string
+          updated_at: string | null
+          user_emotion_id: string
+        }
+        Insert: {
+          alignment_score: number
+          title_id: string
+          updated_at?: string | null
+          user_emotion_id: string
+        }
+        Update: {
+          alignment_score?: number
+          title_id?: string
+          updated_at?: string | null
+          user_emotion_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "title_intent_alignment_scores_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: false
+            referencedRelation: "titles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "title_intent_alignment_scores_user_emotion_id_fkey"
+            columns: ["user_emotion_id"]
+            isOneToOne: false
+            referencedRelation: "emotion_master"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       title_keywords: {
         Row: {
           keyword_id: string
@@ -974,6 +1045,35 @@ export type Database = {
             foreignKeyName: "title_keywords_title_id_fkey"
             columns: ["title_id"]
             isOneToOne: false
+            referencedRelation: "titles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      title_social_summary: {
+        Row: {
+          social_mean_rating: number | null
+          social_rec_power: number | null
+          title_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          social_mean_rating?: number | null
+          social_rec_power?: number | null
+          title_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          social_mean_rating?: number | null
+          social_rec_power?: number | null
+          title_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "title_social_summary_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: true
             referencedRelation: "titles"
             referencedColumns: ["id"]
           },
@@ -1038,6 +1138,42 @@ export type Database = {
             columns: ["title_id"]
             isOneToOne: false
             referencedRelation: "titles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      title_transformation_scores: {
+        Row: {
+          title_id: string
+          transformation_score: number
+          updated_at: string | null
+          user_emotion_id: string
+        }
+        Insert: {
+          title_id: string
+          transformation_score: number
+          updated_at?: string | null
+          user_emotion_id: string
+        }
+        Update: {
+          title_id?: string
+          transformation_score?: number
+          updated_at?: string | null
+          user_emotion_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "title_transformation_scores_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: false
+            referencedRelation: "titles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "title_transformation_scores_user_emotion_id_fkey"
+            columns: ["user_emotion_id"]
+            isOneToOne: false
+            referencedRelation: "emotion_master"
             referencedColumns: ["id"]
           },
         ]
@@ -1860,6 +1996,11 @@ export type Database = {
         }
         Returns: undefined
       }
+      refresh_title_emotion_vectors: { Args: never; Returns: undefined }
+      refresh_title_intent_alignment_scores: { Args: never; Returns: undefined }
+      refresh_title_social_summary: { Args: never; Returns: undefined }
+      refresh_title_transformation_scores: { Args: never; Returns: undefined }
+      refresh_viib_reco_materializations: { Args: never; Returns: undefined }
       refresh_viib_title_intent_stats: {
         Args: { p_title_id: string }
         Returns: undefined

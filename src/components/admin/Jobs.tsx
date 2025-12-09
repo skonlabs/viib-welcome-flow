@@ -36,6 +36,15 @@ interface Job {
   configuration: any;
 }
 
+interface CronJob {
+  jobid: number;
+  jobname: string;
+  schedule: string;
+  command: string;
+  database: string;
+  active: boolean;
+}
+
 interface ParallelProgress {
   jobId: string;
   currentThread: number;
@@ -47,7 +56,9 @@ interface ParallelProgress {
 
 export const Jobs = () => {
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [cronJobs, setCronJobs] = useState<CronJob[]>([]);
   const [loading, setLoading] = useState(true);
+  const [cronLoading, setCronLoading] = useState(true);
   const [runningJobs, setRunningJobs] = useState<Set<string>>(new Set());
   const [parallelProgress, setParallelProgress] = useState<ParallelProgress | null>(null);
   const { toast } = useToast();
@@ -98,12 +109,21 @@ export const Jobs = () => {
     }
   };
 
-  useEffect(() => {
-    fetchJobs();
-    // Refresh every 10 seconds
-    const interval = setInterval(fetchJobs, 10000);
-    return () => clearInterval(interval);
-  }, []);
+  const fetchCronJobs = async () => {
+    try {
+      setCronLoading(true);
+      const { data, error } = await supabase.rpc('get_cron_jobs');
+      
+      if (error) throw error;
+      setCronJobs(data || []);
+    } catch (error) {
+      // Cron jobs might not be accessible, just log silently
+      console.log('Could not fetch cron jobs:', error);
+      setCronJobs([]);
+    } finally {
+      setCronLoading(false);
+    }
+  };
 
   const handleRunJob = async (job: Job) => {
     try {
