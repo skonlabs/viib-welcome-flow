@@ -193,15 +193,24 @@ async function insertStagingRows(titleId: string, rows: ModelEmotion[], emotionM
 
   if (payload.length === 0) {
     console.log("No valid emotions to insert for title:", titleId);
-    return;
+    return 0;
   }
 
-  const { error } = await supabase.from("title_emotional_signatures").insert(payload);
+  // Use upsert with onConflict to handle partial re-processing gracefully
+  const { data, error } = await supabase
+    .from("title_emotional_signatures")
+    .upsert(payload, { 
+      onConflict: 'title_id,emotion_id',
+      ignoreDuplicates: true 
+    })
+    .select();
 
   if (error) {
     console.error("Error inserting rows for title:", titleId, error);
     throw error;
   }
+  
+  return data?.length ?? payload.length;
 }
 
 const corsHeaders = {
@@ -295,17 +304,21 @@ serve(async (req: Request) => {
     const emotionLabels = Array.from(emotionMap.keys());
     console.log(`Loaded ${emotionLabels.length} content_state emotions.`);
 
-    // 2) Get IDs of titles that already have signatures
+    // 2) Get DISTINCT IDs of titles that already have at least one signature
     const { data: existingSignatures, error: sigErr } = await supabase
-      .from("title_emotional_signatures")
-      .select("title_id");
+      .rpc('get_classified_title_ids');
 
+    // Fallback if RPC doesn't exist - use regular query
+    let classifiedIds: Set<string>;
     if (sigErr) {
-      console.error("Failed to load existing signatures:", sigErr);
-      return new Response(JSON.stringify({ error: "Failed to load existing signatures" }), { status: 500, headers: corsHeaders });
+      console.log("RPC not available, using fallback query");
+      const { data: fallbackSigs } = await supabase
+        .from("title_emotional_signatures")
+        .select("title_id");
+      classifiedIds = new Set((fallbackSigs ?? []).map((s: any) => s.title_id));
+    } else {
+      classifiedIds = new Set((existingSignatures ?? []).map((s: any) => s.title_id));
     }
-
-    const classifiedIds = new Set((existingSignatures ?? []).map((s: any) => s.title_id));
     console.log(`${classifiedIds.size} titles already classified.`);
 
     // 3) Load candidate titles that DON'T have signatures yet
@@ -381,9 +394,9 @@ serve(async (req: Request) => {
           continue;
         }
 
-        await insertStagingRows(title.id, cleaned, emotionMap);
+        const savedCount = await insertStagingRows(title.id, cleaned, emotionMap);
         processed++;
-        console.log(`✓ Saved ${cleaned.length} emotion rows for title_id=${title.id}`);
+        console.log(`✓ Saved/updated ${savedCount} emotion rows for title_id=${title.id}`);
 
         // Update job progress
         await supabase.rpc('increment_job_titles', { p_job_type: 'classify_emotions', p_increment: 1 });
