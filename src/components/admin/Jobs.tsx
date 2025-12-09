@@ -109,6 +109,17 @@ export const Jobs = () => {
     try {
       setRunningJobs(prev => new Set([...prev, job.id]));
       
+      // Full refresh requires orchestrator - redirect to parallel execution
+      if (job.job_type === 'full_refresh') {
+        setRunningJobs(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(job.id);
+          return newSet;
+        });
+        await handleRunParallel(job);
+        return;
+      }
+      
       // Reset job status and counter before starting
       await supabase
         .from('jobs')
@@ -123,9 +134,7 @@ export const Jobs = () => {
       let functionName: string;
       let functionBody: any = {};
       
-      if (job.job_type === 'full_refresh') {
-        functionName = 'full-refresh-titles';
-      } else if (job.job_type === 'sync_delta') {
+      if (job.job_type === 'sync_delta') {
         functionName = 'sync-titles-delta';
       } else if (job.job_type === 'enrich_trailers') {
         functionName = 'enrich-title-trailers';
