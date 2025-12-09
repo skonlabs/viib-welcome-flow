@@ -19,6 +19,10 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.6";
 
+declare const EdgeRuntime: {
+  waitUntil: (promise: Promise<any>) => void;
+};
+
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const openaiKey = Deno.env.get("OPENAI_API_KEY")!;
@@ -205,6 +209,36 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Self-invoke to continue processing
+async function invokeNextBatch(batchSize: number) {
+  try {
+    const response = await fetch(
+      `${supabaseUrl}/functions/v1/classify-title-emotions`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${serviceRoleKey}`,
+        },
+        body: JSON.stringify({ batchSize }),
+      }
+    );
+    console.log("Self-invoked next batch, status:", response.status);
+  } catch (err) {
+    console.error("Failed to self-invoke:", err);
+  }
+}
+
+// Check if job is still running
+async function isJobRunning(): Promise<boolean> {
+  const { data } = await supabase
+    .from("jobs")
+    .select("status")
+    .eq("job_type", "classify_emotions")
+    .single();
+  return data?.status === 'running';
+}
+
 serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -219,6 +253,13 @@ serve(async (req: Request) => {
     const batchSize: number = body.batchSize ?? 10;
 
     console.log(`▶ classify-title-emotions: batchSize=${batchSize}`);
+
+    // Check if job is still running
+    const running = await isJobRunning();
+    if (!running) {
+      console.log("Job not running, aborting.");
+      return new Response(JSON.stringify({ message: "Job stopped" }), { status: 200, headers: corsHeaders });
+    }
 
     // 1) Load emotion_master (content_state only)
     const { data: emotions, error: emoErr } = await supabase
@@ -237,7 +278,13 @@ serve(async (req: Request) => {
     const emotionLabels = Array.from(emotionMap.keys());
     console.log(`Loaded ${emotionLabels.length} content_state emotions.`);
 
-    // 2) Load candidate titles (movies + series)
+    // 2) Count total unclassified titles
+    const { count: totalUnclassified } = await supabase
+      .from("titles")
+      .select("id", { count: 'exact', head: true })
+      .not("id", "in", `(SELECT title_id FROM title_emotional_signatures)`);
+
+    // 3) Load candidate titles (movies + series) that don't have signatures yet
     const { data: titles, error: titleErr } = await supabase
       .from("titles")
       .select(
@@ -246,14 +293,20 @@ serve(async (req: Request) => {
       .order("created_at", { ascending: false })
       .limit(batchSize * 3);
 
-    if (titleErr || !titles || titles.length === 0) {
-      console.error("Failed to load titles or none found:", titleErr);
-      return new Response(JSON.stringify({ error: "Failed to load titles or none found" }), { status: 500, headers: corsHeaders });
+    if (titleErr) {
+      console.error("Failed to load titles:", titleErr);
+      return new Response(JSON.stringify({ error: "Failed to load titles" }), { status: 500, headers: corsHeaders });
+    }
+
+    if (!titles || titles.length === 0) {
+      console.log("No titles found in database.");
+      await supabase.from("jobs").update({ status: 'completed' }).eq("job_type", "classify_emotions");
+      return new Response(JSON.stringify({ message: "No titles to process" }), { status: 200, headers: corsHeaders });
     }
 
     const ids = titles.map((t: any) => t.id);
 
-    // 3) Skip titles that already have rows
+    // 4) Skip titles that already have rows
     const { data: staged, error: stagedErr } = await supabase
       .from("title_emotional_signatures")
       .select("title_id")
@@ -269,11 +322,46 @@ serve(async (req: Request) => {
 
     console.log(`Found ${candidates.length} new titles to classify (movies + series).`);
 
+    // If no candidates, check if there are more unprocessed titles
+    if (candidates.length === 0) {
+      console.log("No unclassified titles in this batch. Checking for more...");
+      
+      // Check if there are any titles without signatures
+      const { count } = await supabase
+        .from("titles")
+        .select("id", { count: 'exact', head: true });
+      
+      const { count: classifiedCount } = await supabase
+        .from("title_emotional_signatures")
+        .select("title_id", { count: 'exact', head: true });
+      
+      const remaining = (count ?? 0) - (classifiedCount ?? 0);
+      
+      if (remaining > 0) {
+        console.log(`${remaining} titles still need classification. Invoking next batch...`);
+        EdgeRuntime.waitUntil(invokeNextBatch(batchSize));
+      } else {
+        console.log("All titles classified. Marking job complete.");
+        await supabase.from("jobs").update({ status: 'completed' }).eq("job_type", "classify_emotions");
+      }
+      
+      return new Response(JSON.stringify({ message: "Batch complete, checking for more" }), { status: 200, headers: corsHeaders });
+    }
+
     let processed = 0;
     const errors: Record<string, string> = {};
 
-    // 4) Sequentially classify each candidate title
+    // 5) Sequentially classify each candidate title
     for (const title of candidates) {
+      // Check job status periodically
+      if (processed > 0 && processed % 5 === 0) {
+        const stillRunning = await isJobRunning();
+        if (!stillRunning) {
+          console.log("Job stopped mid-batch, aborting.");
+          break;
+        }
+      }
+
       try {
         console.log(
           `→ Classifying [${title.title_type}] ${title.name ?? title.id} — transcript: ${
@@ -287,7 +375,7 @@ serve(async (req: Request) => {
           continue;
         }
 
-        // 5) Clean and validate model output
+        // 6) Clean and validate model output
         const cleaned: ModelEmotion[] = result.emotions
           .filter((e) => emotionLabels.includes(e.emotion_label))
           .map((e) => ({
@@ -303,18 +391,28 @@ serve(async (req: Request) => {
         await insertStagingRows(title.id, cleaned, emotionMap);
         processed++;
         console.log(`✓ Saved ${cleaned.length} emotion rows for title_id=${title.id}`);
+
+        // Update job progress
+        await supabase.rpc('increment_job_titles', { p_job_type: 'classify_emotions', p_increment: 1 });
       } catch (err: any) {
         console.error("Error processing title:", title.id, err);
         errors[title.id] = err?.message ?? "Unknown error";
       }
     }
 
-    // 6) Return summary
+    // 7) Check if more work remains and self-invoke
+    const stillRunning = await isJobRunning();
+    if (stillRunning && processed > 0) {
+      console.log(`Processed ${processed} titles. Scheduling next batch...`);
+      EdgeRuntime.waitUntil(invokeNextBatch(batchSize));
+    }
+
     return new Response(
       JSON.stringify({
-        message: "Batch emotional classification complete",
+        message: "Batch complete",
         processed,
         errors,
+        hasMore: stillRunning,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 },
     );
