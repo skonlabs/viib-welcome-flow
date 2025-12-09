@@ -356,25 +356,32 @@ serve(async (req: Request) => {
     if (hasMoreWork && jobId && (await checkJobStatus(jobId))) {
       console.log('More work available, scheduling next batch...');
       
-      // Self-invoke for next batch
-      EdgeRuntime.waitUntil(
-        (async () => {
-          await new Promise(resolve => setTimeout(resolve, 2000)); // 2 second delay
-          
-          try {
-            await fetch(`${supabaseUrl}/functions/v1/classify-title-emotions`, {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${serviceRoleKey}`,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({ batchSize, jobId }),
-            });
-          } catch (error) {
-            console.error('Failed to self-invoke:', error);
-          }
-        })()
-      );
+      // Self-invoke for next batch using waitUntil
+      const selfInvoke = async () => {
+        await new Promise(resolve => setTimeout(resolve, 2000)); // 2 second delay
+        
+        try {
+          await fetch(`${supabaseUrl}/functions/v1/classify-title-emotions`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${serviceRoleKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ batchSize, jobId }),
+          });
+        } catch (error) {
+          console.error('Failed to self-invoke:', error);
+        }
+      };
+      
+      // @ts-ignore - EdgeRuntime is available in Supabase Edge Functions
+      if (typeof EdgeRuntime !== 'undefined') {
+        // @ts-ignore
+        EdgeRuntime.waitUntil(selfInvoke());
+      } else {
+        // Fallback for environments without EdgeRuntime
+        selfInvoke();
+      }
     } else if (!hasMoreWork && jobId) {
       // Mark job as completed
       await supabase
