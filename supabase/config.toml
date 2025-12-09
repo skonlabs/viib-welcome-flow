@@ -26,3 +26,6 @@ verify_jwt = false
 
 [functions.transcribe-trailers]
 verify_jwt = false
+
+[functions.classify-title-emotions]
+verify_jwt = false
