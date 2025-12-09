@@ -209,24 +209,41 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Self-invoke to continue processing
-async function invokeNextBatch(batchSize: number) {
-  try {
-    const response = await fetch(
-      `${supabaseUrl}/functions/v1/classify-title-emotions`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${serviceRoleKey}`,
-        },
-        body: JSON.stringify({ batchSize }),
+// Self-invoke to continue processing with retry logic
+async function invokeNextBatch(batchSize: number, retries = 3) {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      // Add small delay before self-invoke to avoid rate limiting
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      const response = await fetch(
+        `${supabaseUrl}/functions/v1/classify-title-emotions`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${serviceRoleKey}`,
+          },
+          body: JSON.stringify({ batchSize }),
+        }
+      );
+      console.log(`Self-invoked next batch, status: ${response.status}`);
+      
+      if (response.ok) {
+        return; // Success
       }
-    );
-    console.log("Self-invoked next batch, status:", response.status);
-  } catch (err) {
-    console.error("Failed to self-invoke:", err);
+      
+      console.warn(`Attempt ${attempt} failed with status ${response.status}`);
+    } catch (err) {
+      console.error(`Attempt ${attempt} failed to self-invoke:`, err);
+    }
+    
+    // Wait before retry (exponential backoff)
+    if (attempt < retries) {
+      await new Promise(resolve => setTimeout(resolve, attempt * 2000));
+    }
   }
+  console.error("All retry attempts failed for self-invocation");
 }
 
 // Check if job is still running
