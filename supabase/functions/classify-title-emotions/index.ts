@@ -214,11 +214,11 @@ serve(async (req: Request) => {
 
     console.log(`▶ classify-title-emotions: batchSize=${batchSize}`);
 
-    // 1) Load emotion_master (content_tone only)
+    // 1) Load emotion_master (content_state only)
     const { data: emotions, error: emoErr } = await supabase
       .from("emotion_master")
       .select("emotion_label")
-      .eq("category", "content_tone");
+      .eq("category", "content_state");
 
     if (emoErr || !emotions || emotions.length === 0) {
       console.error("Failed to load emotion_master:", emoErr);
@@ -226,7 +226,7 @@ serve(async (req: Request) => {
     }
 
     const emotionLabels = emotions.map((e: any) => e.emotion_label);
-    console.log(`Loaded ${emotionLabels.length} content_tone emotions.`);
+    console.log(`Loaded ${emotionLabels.length} content_state emotions.`);
 
     // 2) Load candidate titles (movies + series)
     const { data: titles, error: titleErr } = await supabase
