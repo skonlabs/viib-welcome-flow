@@ -923,18 +923,21 @@ export type Database = {
           emotion_id: string
           id: string
           intensity_level: number
+          source: string | null
           title_id: string
         }
         Insert: {
           emotion_id: string
           id?: string
           intensity_level: number
+          source?: string | null
           title_id: string
         }
         Update: {
           emotion_id?: string
           id?: string
           intensity_level?: number
+          source?: string | null
           title_id?: string
         }
         Relationships: [
