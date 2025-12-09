@@ -196,12 +196,11 @@ async function insertStagingRows(titleId: string, rows: ModelEmotion[], emotionM
     return 0;
   }
 
-  // Use upsert with onConflict to handle partial re-processing gracefully
+  // Use upsert to override existing emotions with new intensity values
   const { data, error } = await supabase
     .from("title_emotional_signatures")
     .upsert(payload, { 
-      onConflict: 'title_id,emotion_id',
-      ignoreDuplicates: true 
+      onConflict: 'title_id,emotion_id'
     })
     .select();
 
