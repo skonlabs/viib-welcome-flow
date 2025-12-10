@@ -223,32 +223,37 @@ async function processClassificationBatch(): Promise<void> {
       break;
     }
 
-    // Load candidate titles not yet classified
-    const { data: titles, error: titleErr } = await supabase
+    // Get IDs of titles already classified
+    const { data: stagedIds } = await supabase
+      .from("title_emotional_signatures_staging")
+      .select("title_id")
+      .eq("source", "ai");
+
+    const classifiedSet = new Set((stagedIds ?? []).map((s: any) => s.title_id));
+    
+    // Fetch batch of titles
+    const { data: allTitles, error: titleErr } = await supabase
       .from("titles")
       .select("id, title_type, name, original_name, overview, trailer_transcript, original_language, title_genres")
       .order("created_at", { ascending: false })
-      .limit(BATCH_SIZE * 4);
+      .limit(1000); // Fetch more to find unclassified ones
 
-    if (titleErr || !titles?.length) {
+    if (titleErr || !allTitles?.length) {
       console.log("No titles found or error:", titleErr);
       break;
     }
 
-    const candidateIds = (titles as TitleRow[]).map((t) => t.id);
-
-    // Find already staged
-    const { data: staged } = await supabase
-      .from("title_emotional_signatures_staging")
-      .select("title_id")
-      .in("title_id", candidateIds)
-      .eq("source", "ai");
-
-    const stagedIds = new Set((staged ?? []).map((s: any) => s.title_id));
-    const batch = (titles as TitleRow[]).filter((t) => !stagedIds.has(t.id)).slice(0, BATCH_SIZE);
+    // Filter to unclassified titles
+    const batch = (allTitles as TitleRow[])
+      .filter((t) => !classifiedSet.has(t.id))
+      .slice(0, BATCH_SIZE);
 
     if (!batch.length) {
-      console.log("No unclassified titles remaining in this batch.");
+      console.log("All titles in current window are classified. Job complete.");
+      await supabase
+        .from("jobs")
+        .update({ status: "idle", error_message: null })
+        .eq("job_type", JOB_TYPE);
       break;
     }
 
@@ -293,16 +298,19 @@ async function processClassificationBatch(): Promise<void> {
 
   // Check if more work exists and job still running
   if (await isJobRunning()) {
-    const { count } = await supabase
+    // Check remaining - get counts efficiently
+    const { data: stagedCheck } = await supabase
+      .from("title_emotional_signatures_staging")
+      .select("title_id")
+      .eq("source", "ai");
+
+    const classifiedCount = stagedCheck?.length ?? 0;
+    
+    const { count: totalCount } = await supabase
       .from("titles")
       .select("id", { count: "exact", head: true });
 
-    const { count: stagedCount } = await supabase
-      .from("title_emotional_signatures_staging")
-      .select("title_id", { count: "exact", head: true })
-      .eq("source", "ai");
-
-    const remaining = (count ?? 0) - (stagedCount ?? 0);
+    const remaining = (totalCount ?? 0) - classifiedCount;
     
     if (remaining > 0) {
       console.log(`${remaining} titles remaining. Self-invoking next batch...`);
