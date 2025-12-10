@@ -1,25 +1,17 @@
 // supabase/functions/classify-title-emotions/index.ts
 // ========================================================================
-// ViiB — Optimized Emotional Batch Classification (Balanced Option B)
+// ViiB — Emotional Batch Classification (Backend Job Pattern)
 // ========================================================================
-// Behavior:
-// - maxConcurrent = 3 OpenAI calls at a time
-// - default batchSize = 15 titles
-// - IF trailer_transcript exists → PRIMARY emotional signal (~80% weight)
-// - IF transcript missing → fallback to overview + genres + title + language
-// - Works for both movies and series (series-level tone)
-// - Writes to title_emotional_signatures_staging with source='ai'
-// - Skips titles already staged by AI (source='ai')
-//
-// Required env vars:
-// - SUPABASE_URL
-// - SUPABASE_SERVICE_ROLE_KEY
-// - OPENAI_API_KEY
+// Uses EdgeRuntime.waitUntil() for background processing
+// Frontend invokes once, polls jobs table for status
+// Self-invokes if more work remains
 // ========================================================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import OpenAI from "https://esm.sh/openai@4.20.1";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+declare const EdgeRuntime: { waitUntil: (promise: Promise<unknown>) => void };
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -28,9 +20,16 @@ const openaiKey = Deno.env.get("OPENAI_API_KEY")!;
 const supabase = createClient(supabaseUrl, serviceRoleKey);
 const openai = new OpenAI({ apiKey: openaiKey });
 
-const DEFAULT_BATCH_SIZE = 15;
-const DEFAULT_MAX_CONCURRENT = 3;
+const JOB_TYPE = "classify_emotions";
+const BATCH_SIZE = 10;
+const MAX_CONCURRENT = 3;
 const MAX_TRANSCRIPT_CHARS = 4000;
+const MAX_RUNTIME_MS = 85000; // 85 seconds, leave buffer before 90s limit
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
 
 interface TitleRow {
   id: string;
@@ -59,12 +58,34 @@ interface ModelResponse {
 }
 
 // ---------------------------------------------------------------------
+// Check if job is still running
+// ---------------------------------------------------------------------
+async function isJobRunning(): Promise<boolean> {
+  const { data } = await supabase
+    .from("jobs")
+    .select("status")
+    .eq("job_type", JOB_TYPE)
+    .single();
+  return data?.status === "running";
+}
+
+// ---------------------------------------------------------------------
+// Update job progress
+// ---------------------------------------------------------------------
+async function incrementJobTitles(count: number): Promise<void> {
+  await supabase.rpc("increment_job_titles", {
+    p_job_type: JOB_TYPE,
+    p_increment: count,
+  });
+}
+
+// ---------------------------------------------------------------------
 // Simple concurrency pool
 // ---------------------------------------------------------------------
 async function runWithConcurrency<T, R>(
   items: T[],
   limit: number,
-  worker: (item: T, idx: number) => Promise<R>,
+  worker: (item: T) => Promise<R>,
 ): Promise<R[]> {
   const results: R[] = new Array(items.length);
   let i = 0;
@@ -72,13 +93,12 @@ async function runWithConcurrency<T, R>(
   async function next(): Promise<void> {
     const index = i++;
     if (index >= items.length) return;
-    results[index] = await worker(items[index], index);
+    results[index] = await worker(items[index]);
     await next();
   }
 
   const workers: Promise<void>[] = [];
-  const workerCount = Math.min(limit, items.length);
-  for (let w = 0; w < workerCount; w++) {
+  for (let w = 0; w < Math.min(limit, items.length); w++) {
     workers.push(next());
   }
 
@@ -87,87 +107,38 @@ async function runWithConcurrency<T, R>(
 }
 
 // ---------------------------------------------------------------------
-// Prompt builders — transcript primary when present (Option 1)
+// Prompt builders
 // ---------------------------------------------------------------------
 function buildSystemPrompt(emotionLabels: string[]): string {
-  return `
-You are an expert in emotional content modeling for movies and TV series.
+  return `You are an expert in emotional content modeling for movies and TV series.
 
-Goal:
-Estimate which EMOTIONS a typical viewer is likely to experience while watching
-this title, and how strongly (1–10).
+Goal: Estimate which EMOTIONS a viewer experiences while watching, and intensity (1–10).
 
-Input you may receive:
-- Basic metadata (title, type, language)
-- Plot overview (sometimes missing or short)
-- Trailer transcript (sometimes missing)
-- Genres
-
-IMPORTANT WEIGHTING LOGIC:
-- IF a trailer transcript is provided and not empty:
-  • Treat the transcript as the PRIMARY emotional signal (~80% weight).
-  • The overview and genres are only secondary, supporting context.
-- IF NO trailer transcript is provided:
-  • Infer emotions from overview, genres, title, and implied tone.
-
-For TV SERIES:
-- Model the overall series-level emotional tone, not just a single episode.
+IMPORTANT WEIGHTING:
+- IF trailer transcript provided: treat as PRIMARY signal (~80% weight)
+- IF NO transcript: infer from overview, genres, title, tone
 
 Emotional Vocabulary (USE THESE ONLY):
 ${emotionLabels.join(", ")}
 
-Output rules:
-- Always return a SINGLE JSON object.
-- Use 3–15 distinct emotions.
-- intensity_level must be an INTEGER between 1 and 10.
-- DO NOT invent emotion labels outside the given vocabulary.
-- DO NOT output any explanation text. Only JSON.
-`;
+Output: SINGLE JSON object, 3–15 emotions, intensity_level INTEGER 1-10.
+DO NOT invent labels. NO explanation text. Only JSON.`;
 }
 
 function buildUserPrompt(t: TitleRow): string {
-  const hasTranscript = !!t.trailer_transcript && t.trailer_transcript.trim().length > 0;
-
-  const overviewText = t.overview?.trim().length ? t.overview : "(no overview provided)";
-
-  const transcriptText = hasTranscript
-    ? t.trailer_transcript!.slice(0, MAX_TRANSCRIPT_CHARS)
-    : "(no trailer transcript available)";
-
+  const hasTranscript = !!t.trailer_transcript?.trim();
   const genres = Array.isArray(t.title_genres) ? t.title_genres.filter(Boolean) : [];
-  const genreText = genres.length ? genres.join(", ") : "(no genres available)";
-
-  const typeLabel = t.title_type === "tv" ? "TV SERIES (series-level tone)" : "MOVIE";
-
-  const transcriptInstruction = hasTranscript
-    ? `A trailer transcript IS provided and should be treated as the PRIMARY emotional signal (~80% weight). Use overview and genres only as secondary refinement.`
-    : `NO trailer transcript is available. You MUST infer emotions from overview, genres, title, language, and implied tone.`;
 
   return `
-Title Type: ${typeLabel}
+Title Type: ${t.title_type === "tv" ? "TV SERIES" : "MOVIE"}
 Title: ${t.name ?? "(unknown)"}
-Original Name: ${t.original_name ?? "(unknown)"}
-Original Language: ${t.original_language ?? "(unknown)"}
-Genres: ${genreText}
+Language: ${t.original_language ?? "(unknown)"}
+Genres: ${genres.length ? genres.join(", ") : "(none)"}
 
-Instructions regarding transcript:
-${transcriptInstruction}
+${hasTranscript ? "Transcript (PRIMARY):" : "Overview:"}
+${hasTranscript ? t.trailer_transcript!.slice(0, MAX_TRANSCRIPT_CHARS) : (t.overview || "(no overview)")}
 
-Overview (secondary if transcript exists; primary if transcript missing):
-${overviewText}
-
-Trailer Transcript:
-${transcriptText}
-
-Return ONLY a JSON object like:
-{
-  "title": "<title text>",
-  "emotions": [
-    { "emotion_label": "<allowed label>", "intensity_level": <1-10> },
-    ...
-  ]
-}
-`;
+Return ONLY JSON: { "title": "...", "emotions": [{ "emotion_label": "...", "intensity_level": N }, ...] }`;
 }
 
 // ---------------------------------------------------------------------
@@ -184,14 +155,8 @@ async function classifyWithAI(title: TitleRow, emotionLabels: string[]): Promise
       ],
       response_format: { type: "json_object" },
     });
-
     const raw = completion.choices[0]?.message?.content;
-    if (!raw) {
-      console.error("No content in AI response for title:", title.id);
-      return null;
-    }
-
-    return JSON.parse(raw) as ModelResponse;
+    return raw ? JSON.parse(raw) as ModelResponse : null;
   } catch (err) {
     console.error("AI error for title:", title.id, err);
     return null;
@@ -199,7 +164,7 @@ async function classifyWithAI(title: TitleRow, emotionLabels: string[]): Promise
 }
 
 // ---------------------------------------------------------------------
-// Insert staging rows - need to map emotion_label to emotion_id
+// Insert staging rows
 // ---------------------------------------------------------------------
 async function insertStagingRows(titleId: string, rows: ModelEmotion[], emotionLabelToId: Map<string, string>) {
   const payload = rows
@@ -211,26 +176,158 @@ async function insertStagingRows(titleId: string, rows: ModelEmotion[], emotionL
       source: "ai",
     }));
 
-  if (!payload.length) {
-    console.warn("No valid emotion mappings for title:", titleId);
-    return;
-  }
+  if (!payload.length) return;
 
   const { error } = await supabase.from("title_emotional_signatures_staging").insert(payload);
-
-  if (error) {
-    console.error("Error inserting staging rows for title:", titleId, error);
-    throw error;
-  }
+  if (error) throw error;
 }
 
 // ---------------------------------------------------------------------
-// CORS headers
+// Background processing logic
 // ---------------------------------------------------------------------
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+async function processClassificationBatch(): Promise<void> {
+  const startTime = Date.now();
+  
+  // Check job status
+  if (!await isJobRunning()) {
+    console.log("Job stopped by admin, exiting.");
+    return;
+  }
+
+  // Load emotion vocabulary
+  const { data: emotions, error: emoErr } = await supabase
+    .from("emotion_master")
+    .select("id, emotion_label")
+    .eq("category", "content_state");
+
+  if (emoErr || !emotions?.length) {
+    console.error("Failed to load emotion_master:", emoErr);
+    return;
+  }
+
+  const emotionLabelToId = new Map<string, string>();
+  const emotionLabels: string[] = [];
+  for (const e of emotions as EmotionRow[]) {
+    emotionLabels.push(e.emotion_label);
+    emotionLabelToId.set(e.emotion_label, e.id);
+  }
+  console.log(`Loaded ${emotionLabels.length} content_state emotions.`);
+
+  let totalProcessed = 0;
+
+  // Continuous batch processing within time limit
+  while (Date.now() - startTime < MAX_RUNTIME_MS) {
+    // Check job status each batch
+    if (!await isJobRunning()) {
+      console.log("Job stopped, exiting batch loop.");
+      break;
+    }
+
+    // Load candidate titles not yet classified
+    const { data: titles, error: titleErr } = await supabase
+      .from("titles")
+      .select("id, title_type, name, original_name, overview, trailer_transcript, original_language, title_genres")
+      .order("created_at", { ascending: false })
+      .limit(BATCH_SIZE * 4);
+
+    if (titleErr || !titles?.length) {
+      console.log("No titles found or error:", titleErr);
+      break;
+    }
+
+    const candidateIds = (titles as TitleRow[]).map((t) => t.id);
+
+    // Find already staged
+    const { data: staged } = await supabase
+      .from("title_emotional_signatures_staging")
+      .select("title_id")
+      .in("title_id", candidateIds)
+      .eq("source", "ai");
+
+    const stagedIds = new Set((staged ?? []).map((s: any) => s.title_id));
+    const batch = (titles as TitleRow[]).filter((t) => !stagedIds.has(t.id)).slice(0, BATCH_SIZE);
+
+    if (!batch.length) {
+      console.log("No unclassified titles remaining in this batch.");
+      break;
+    }
+
+    console.log(`Processing batch of ${batch.length} titles...`);
+    let batchProcessed = 0;
+
+    await runWithConcurrency(batch, MAX_CONCURRENT, async (title) => {
+      const label = title.name ?? title.original_name ?? title.id;
+      console.log(`→ Classifying [${title.title_type}] ${label}`);
+
+      try {
+        const result = await classifyWithAI(title, emotionLabels);
+        if (!result?.emotions?.length) return;
+
+        const cleaned = result.emotions
+          .filter((e) => emotionLabels.includes(e.emotion_label))
+          .map((e) => ({
+            emotion_label: e.emotion_label,
+            intensity_level: Math.min(10, Math.max(1, Math.round(e.intensity_level))),
+          }));
+
+        if (cleaned.length) {
+          await insertStagingRows(title.id, cleaned, emotionLabelToId);
+          batchProcessed++;
+          console.log(`✓ Saved ${cleaned.length} emotions for ${title.id}`);
+        }
+      } catch (err) {
+        console.error("Error processing title:", title.id, err);
+      }
+    });
+
+    if (batchProcessed > 0) {
+      await incrementJobTitles(batchProcessed);
+      totalProcessed += batchProcessed;
+    }
+
+    // Small delay between batches
+    await new Promise((r) => setTimeout(r, 500));
+  }
+
+  console.log(`Batch complete. Total processed: ${totalProcessed}`);
+
+  // Check if more work exists and job still running
+  if (await isJobRunning()) {
+    const { count } = await supabase
+      .from("titles")
+      .select("id", { count: "exact", head: true });
+
+    const { count: stagedCount } = await supabase
+      .from("title_emotional_signatures_staging")
+      .select("title_id", { count: "exact", head: true })
+      .eq("source", "ai");
+
+    const remaining = (count ?? 0) - (stagedCount ?? 0);
+    
+    if (remaining > 0) {
+      console.log(`${remaining} titles remaining. Self-invoking next batch...`);
+      
+      // Self-invoke for next batch
+      EdgeRuntime.waitUntil(
+        fetch(`${supabaseUrl}/functions/v1/classify-title-emotions`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${serviceRoleKey}`,
+          },
+          body: JSON.stringify({ continuation: true }),
+        }).catch((err) => console.error("Self-invoke failed:", err))
+      );
+    } else {
+      console.log("All titles classified. Job complete.");
+      // Mark job as idle
+      await supabase
+        .from("jobs")
+        .update({ status: "idle", error_message: null })
+        .eq("job_type", JOB_TYPE);
+    }
+  }
+}
 
 // ---------------------------------------------------------------------
 // Main handler
@@ -239,159 +336,37 @@ serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
-  
+
   if (req.method !== "POST") {
     return new Response("Method Not Allowed", { status: 405, headers: corsHeaders });
   }
 
   try {
-
     const body = await req.json().catch(() => ({}));
-    const batchSize: number = body.batchSize ?? DEFAULT_BATCH_SIZE;
-    const maxConcurrent: number = body.maxConcurrent ?? DEFAULT_MAX_CONCURRENT;
-
-    console.log(`▶ classify-title-emotions (optimized) — batchSize=${batchSize}, maxConcurrent=${maxConcurrent}`);
-
-    // 1) Load emotion_master (content_state only) - need both id and label
-    const { data: emotions, error: emoErr } = await supabase
-      .from("emotion_master")
-      .select("id, emotion_label")
-      .eq("category", "content_state");
-
-    if (emoErr || !emotions || emotions.length === 0) {
-      console.error("Failed to load emotion_master:", emoErr);
-      return new Response(JSON.stringify({ error: "Failed to load emotion_master" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    }
-
-    const emotionLabelToId = new Map<string, string>();
-    const emotionLabels: string[] = [];
-    for (const e of emotions as EmotionRow[]) {
-      emotionLabels.push(e.emotion_label);
-      emotionLabelToId.set(e.emotion_label, e.id);
-    }
-    console.log(`Loaded ${emotionLabels.length} content_state emotions.`);
-
-    // 2) Load candidate titles (movies + series) with genres
-    const { data: titles, error: titleErr } = await supabase
-      .from("titles")
-      .select(
-        `
-        id,
-        title_type,
-        name,
-        original_name,
-        overview,
-        trailer_transcript,
-        original_language,
-        title_genres
-      `,
-      )
-      .order("created_at", { ascending: false })
-      .limit(batchSize * 4);
-
-    if (titleErr || !titles || titles.length === 0) {
-      console.error("Failed to load titles or none found:", titleErr);
-      return new Response(JSON.stringify({ error: "Failed to load titles or none found" }), { status: 500 });
-    }
-
-    const candidateIds = (titles as TitleRow[]).map((t) => t.id);
-
-    // 3) Find titles already classified by AI in staging
-    const { data: staged, error: stagedErr } = await supabase
-      .from("title_emotional_signatures_staging")
-      .select("title_id")
-      .in("title_id", candidateIds)
-      .eq("source", "ai");
-
-    if (stagedErr) {
-      console.error("Failed to load staging info:", stagedErr);
-      return new Response(JSON.stringify({ error: "Failed to load staging info" }), { status: 500 });
-    }
-
-    const stagedIds = new Set((staged ?? []).map((s: any) => s.title_id));
-
-    // 4) Filter to titles without AI staging yet
-    const filtered: TitleRow[] = (titles as TitleRow[]).filter((t) => !stagedIds.has(t.id));
-
-    if (!filtered.length) {
-      console.log("No new titles to classify. All candidates already staged.");
+    
+    // If this is a continuation call, just process
+    if (body.continuation) {
+      EdgeRuntime.waitUntil(processClassificationBatch());
       return new Response(
-        JSON.stringify({
-          message: "No new titles to classify.",
-          processed: 0,
-          errors: {},
-        }),
-        { headers: { "Content-Type": "application/json" } },
+        JSON.stringify({ message: "Continuation batch started" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const batch: TitleRow[] = filtered.slice(0, batchSize);
-    console.log(`Found ${filtered.length} candidates, processing batch of ${batch.length}.`);
+    // Initial call - start background processing
+    console.log("▶ classify-title-emotions job started");
+    
+    EdgeRuntime.waitUntil(processClassificationBatch());
 
-    let processed = 0;
-    const errors: Record<string, string> = {};
-
-    // 5) Process titles with limited concurrency
-    await runWithConcurrency(batch, maxConcurrent, async (title) => {
-      const label = title.name ?? title.original_name ?? `${title.id} (${title.title_type ?? "unknown"})`;
-
-      console.log(
-        `→ Classifying [${title.title_type}] ${label} — transcript: ${
-          title.trailer_transcript && title.trailer_transcript.trim().length ? "YES" : "NO"
-        }`,
-      );
-
-      try {
-        const result = await classifyWithAI(title, emotionLabels);
-
-        if (!result || !Array.isArray(result.emotions)) {
-          const msg = "Invalid or empty AI response";
-          console.error(msg, "for title:", title.id);
-          errors[title.id] = msg;
-          return;
-        }
-
-        const cleaned: ModelEmotion[] = result.emotions
-          .filter((e) => emotionLabels.includes(e.emotion_label))
-          .map((e) => ({
-            emotion_label: e.emotion_label,
-            intensity_level: Math.min(10, Math.max(1, Math.round(e.intensity_level))),
-          }));
-
-        if (!cleaned.length) {
-          const msg = "No valid emotions after mapping to emotion_master vocabulary";
-          console.error(msg, "for title:", title.id);
-          errors[title.id] = msg;
-          return;
-        }
-
-        await insertStagingRows(title.id, cleaned, emotionLabelToId);
-        processed++;
-        console.log(`✓ Saved ${cleaned.length} emotion rows for title_id=${title.id}`);
-      } catch (err: any) {
-        const msg = err?.message ?? "Unknown error";
-        console.error("Error processing title:", title.id, err);
-        errors[title.id] = msg;
-      }
-    });
-
-    // 6) Return summary
     return new Response(
-      JSON.stringify(
-        {
-          message: "Optimized emotional classification batch complete",
-          processed,
-          errors,
-        },
-        null,
-        2,
-      ),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
+      JSON.stringify({ 
+        message: "Classification job started in background",
+        status: "running"
+      }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err: any) {
-    console.error("Unhandled error in classify-title-emotions:", err);
+    console.error("Error starting classify-title-emotions:", err);
     return new Response(
       JSON.stringify({ error: err?.message ?? "Unknown error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
