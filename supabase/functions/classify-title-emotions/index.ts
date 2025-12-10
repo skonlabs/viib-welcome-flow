@@ -225,16 +225,26 @@ async function insertStagingRows(titleId: string, rows: ModelEmotion[], emotionL
 }
 
 // ---------------------------------------------------------------------
+// CORS headers
+// ---------------------------------------------------------------------
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+// ---------------------------------------------------------------------
 // Main handler
 // ---------------------------------------------------------------------
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" } });
+    return new Response(null, { headers: corsHeaders });
   }
   
   if (req.method !== "POST") {
-    return new Response("Method Not Allowed", { status: 405 });
+    return new Response("Method Not Allowed", { status: 405, headers: corsHeaders });
   }
+
+  try {
 
     const body = await req.json().catch(() => ({}));
     const batchSize: number = body.batchSize ?? DEFAULT_BATCH_SIZE;
@@ -250,7 +260,7 @@ serve(async (req: Request) => {
 
     if (emoErr || !emotions || emotions.length === 0) {
       console.error("Failed to load emotion_master:", emoErr);
-      return new Response(JSON.stringify({ error: "Failed to load emotion_master" }), { status: 500 });
+      return new Response(JSON.stringify({ error: "Failed to load emotion_master" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     const emotionLabelToId = new Map<string, string>();
@@ -377,7 +387,14 @@ serve(async (req: Request) => {
         2,
       ),
       {
-        headers: { "Content-Type": "application/json" },
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       },
     );
+  } catch (err: any) {
+    console.error("Unhandled error in classify-title-emotions:", err);
+    return new Response(
+      JSON.stringify({ error: err?.message ?? "Unknown error" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
 });
