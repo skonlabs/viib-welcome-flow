@@ -164,7 +164,7 @@ async function classifyWithAI(title: TitleRow, emotionLabels: string[]): Promise
 }
 
 // ---------------------------------------------------------------------
-// Insert staging rows
+// Insert staging rows (using upsert to ignore duplicates)
 // ---------------------------------------------------------------------
 async function insertStagingRows(titleId: string, rows: ModelEmotion[], emotionLabelToId: Map<string, string>) {
   const payload = rows
@@ -178,7 +178,10 @@ async function insertStagingRows(titleId: string, rows: ModelEmotion[], emotionL
 
   if (!payload.length) return;
 
-  const { error } = await supabase.from("title_emotional_signatures_staging").insert(payload);
+  // Use upsert with ignoreDuplicates to skip already-existing rows
+  const { error } = await supabase
+    .from("title_emotional_signatures_staging")
+    .upsert(payload, { onConflict: "title_id,emotion_id", ignoreDuplicates: true });
   if (error) throw error;
 }
 
@@ -223,20 +226,29 @@ async function processClassificationBatch(): Promise<void> {
       break;
     }
 
-    // Get IDs of titles already classified
-    const { data: stagedIds } = await supabase
+    // Use LEFT JOIN approach: get titles that DON'T have staging rows
+    // We'll fetch a batch of titles and use NOT IN with a subquery
+    // First, get distinct classified title_ids (with limit to avoid memory issues)
+    const { data: stagedData } = await supabase
       .from("title_emotional_signatures_staging")
       .select("title_id")
-      .eq("source", "ai");
+      .eq("source", "ai")
+      .limit(50000); // Higher limit to catch more
 
-    const classifiedSet = new Set((stagedIds ?? []).map((s: any) => s.title_id));
+    // Get unique title_ids
+    const classifiedSet = new Set<string>();
+    if (stagedData) {
+      for (const row of stagedData) {
+        classifiedSet.add(row.title_id);
+      }
+    }
     
     // Fetch batch of titles
     const { data: allTitles, error: titleErr } = await supabase
       .from("titles")
       .select("id, title_type, name, original_name, overview, trailer_transcript, original_language, title_genres")
       .order("created_at", { ascending: false })
-      .limit(1000); // Fetch more to find unclassified ones
+      .limit(BATCH_SIZE * 10); // Fetch extra to find unclassified ones
 
     if (titleErr || !allTitles?.length) {
       console.log("No titles found or error:", titleErr);
@@ -249,11 +261,19 @@ async function processClassificationBatch(): Promise<void> {
       .slice(0, BATCH_SIZE);
 
     if (!batch.length) {
-      console.log("All titles in current window are classified. Job complete.");
-      await supabase
-        .from("jobs")
-        .update({ status: "idle", error_message: null })
-        .eq("job_type", JOB_TYPE);
+      console.log("All titles in current window are classified. Checking if job complete...");
+      // Check total counts to see if we're actually done
+      const { count: totalCount } = await supabase
+        .from("titles")
+        .select("id", { count: "exact", head: true });
+      
+      if (classifiedSet.size >= (totalCount ?? 0)) {
+        console.log("Job complete - all titles classified.");
+        await supabase
+          .from("jobs")
+          .update({ status: "idle", error_message: null })
+          .eq("job_type", JOB_TYPE);
+      }
       break;
     }
 
@@ -298,18 +318,22 @@ async function processClassificationBatch(): Promise<void> {
 
   // Check if more work exists and job still running
   if (await isJobRunning()) {
-    // Check remaining - get counts efficiently
-    const { data: stagedCheck } = await supabase
-      .from("title_emotional_signatures_staging")
-      .select("title_id")
-      .eq("source", "ai");
-
-    const classifiedCount = stagedCheck?.length ?? 0;
-    
+    // Get total titles count
     const { count: totalCount } = await supabase
       .from("titles")
       .select("id", { count: "exact", head: true });
 
+    // Get distinct classified count - use a different approach to avoid limit issues
+    const { data: distinctStaged } = await supabase
+      .from("title_emotional_signatures_staging")
+      .select("title_id")
+      .eq("source", "ai")
+      .limit(50000);
+
+    // Count unique title_ids
+    const uniqueClassified = new Set(distinctStaged?.map(r => r.title_id) ?? []);
+    const classifiedCount = uniqueClassified.size;
+    
     const remaining = (totalCount ?? 0) - classifiedCount;
     
     if (remaining > 0) {
