@@ -957,6 +957,45 @@ export type Database = {
           },
         ]
       }
+      title_emotional_signatures_staging: {
+        Row: {
+          emotion_id: string
+          id: string
+          intensity_level: number
+          source: string | null
+          title_id: string
+        }
+        Insert: {
+          emotion_id: string
+          id?: string
+          intensity_level: number
+          source?: string | null
+          title_id: string
+        }
+        Update: {
+          emotion_id?: string
+          id?: string
+          intensity_level?: number
+          source?: string | null
+          title_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "title_emotional_signatures_staging_emotion_id_fkey"
+            columns: ["emotion_id"]
+            isOneToOne: false
+            referencedRelation: "emotion_master"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "title_emotional_signatures_staging_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: false
+            referencedRelation: "titles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       title_genres: {
         Row: {
           genre_id: string
@@ -1202,6 +1241,7 @@ export type Database = {
           runtime: number | null
           status: string | null
           tagline: string | null
+          title_genres: Json | null
           title_type: string | null
           tmdb_id: number | null
           trailer_transcript: string | null
@@ -1229,6 +1269,7 @@ export type Database = {
           runtime?: number | null
           status?: string | null
           tagline?: string | null
+          title_genres?: Json | null
           title_type?: string | null
           tmdb_id?: number | null
           trailer_transcript?: string | null
@@ -1256,6 +1297,7 @@ export type Database = {
           runtime?: number | null
           status?: string | null
           tagline?: string | null
+          title_genres?: Json | null
           title_type?: string | null
           tmdb_id?: number | null
           trailer_transcript?: string | null
