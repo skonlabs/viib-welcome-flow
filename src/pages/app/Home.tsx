@@ -54,7 +54,7 @@ const Home = () => {
         return;
       }
 
-      // Fetch title details for recommended titles
+      // Fetch title details for recommended titles (genres now in title_genres column)
       const titleIds = recData.map((r: any) => r.title_id);
       const { data: titles, error: titlesError } = await supabase
         .from('titles')
@@ -66,7 +66,8 @@ const Home = () => {
           first_air_date,
           poster_path,
           trailer_url,
-          runtime
+          runtime,
+          title_genres
         `)
         .in('id', titleIds);
 
@@ -75,19 +76,6 @@ const Home = () => {
         setLoading(false);
         return;
       }
-
-      // Fetch genres for titles
-      const { data: titleGenres } = await supabase
-        .from('title_genres')
-        .select('title_id, genres(genre_name)')
-        .in('title_id', titleIds);
-
-      // Map genres by title_id
-      const genresMap: Record<string, string[]> = {};
-      titleGenres?.forEach((tg: any) => {
-        if (!genresMap[tg.title_id]) genresMap[tg.title_id] = [];
-        if (tg.genres?.genre_name) genresMap[tg.title_id].push(tg.genres.genre_name);
-      });
 
       // Combine recommendation scores with title details
       const enrichedRecs: RecommendedTitle[] = recData
@@ -101,6 +89,11 @@ const Home = () => {
               ? new Date(title.first_air_date).getFullYear()
               : undefined;
 
+          // Parse title_genres from JSON column
+          const genres = Array.isArray(title.title_genres) 
+            ? title.title_genres 
+            : [];
+
           return {
             id: title.id,
             title: title.name || 'Unknown Title',
@@ -109,7 +102,7 @@ const Home = () => {
             poster_path: title.poster_path,
             trailer_url: title.trailer_url,
             runtime: title.runtime,
-            genres: genresMap[title.id] || [],
+            genres,
             final_score: rec.final_score,
             base_viib_score: rec.base_viib_score,
             intent_alignment_score: rec.intent_alignment_score,
