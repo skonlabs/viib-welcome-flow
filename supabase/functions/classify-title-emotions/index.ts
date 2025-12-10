@@ -303,31 +303,43 @@ serve(async (req: Request) => {
     const emotionLabels = Array.from(emotionMap.keys());
     console.log(`Loaded ${emotionLabels.length} content_state emotions.`);
 
-    // 2) Get batch of UNCLASSIFIED titles only (no existing signatures)
-    // Use a LEFT JOIN approach: get titles where no signature exists
-    const { data: candidates, error: titleErr } = await supabase
+    // 2) Simple approach: Get a batch of titles, then filter out already classified ones
+    // Step 2a: Get batch of titles ordered by created_at
+    const { data: titleBatch, error: titleErr } = await supabase
       .from("titles")
-      .select(`
-        id, title_type, name, original_name, overview, trailer_transcript, original_language,
-        title_emotional_signatures!left(title_id)
-      `)
-      .is("title_emotional_signatures.title_id", null)
+      .select("id, title_type, name, original_name, overview, trailer_transcript, original_language")
       .order("created_at", { ascending: true })
-      .limit(batchSize);
+      .limit(100); // Fetch more to ensure we get enough unclassified
     
     if (titleErr) {
       console.error("Failed to fetch titles:", titleErr);
       return new Response(JSON.stringify({ error: "Failed to fetch titles" }), { status: 500, headers: corsHeaders });
     }
     
-    // No more unclassified titles = job complete
-    if (!candidates || candidates.length === 0) {
-      console.log("No more unclassified titles. Marking job complete.");
+    if (!titleBatch || titleBatch.length === 0) {
+      console.log("No titles in database. Marking job complete.");
+      await supabase.from("jobs").update({ status: 'completed' }).eq("job_type", "classify_emotions");
+      return new Response(JSON.stringify({ message: "No titles to classify" }), { status: 200, headers: corsHeaders });
+    }
+    
+    // Step 2b: Check which of these already have signatures
+    const titleIds = titleBatch.map(t => t.id);
+    const { data: existingSigs } = await supabase
+      .from("title_emotional_signatures")
+      .select("title_id")
+      .in("title_id", titleIds);
+    
+    const classifiedSet = new Set((existingSigs ?? []).map((s: any) => s.title_id));
+    const candidates = titleBatch.filter(t => !classifiedSet.has(t.id)).slice(0, batchSize);
+    
+    console.log(`Fetched ${titleBatch.length} titles, ${classifiedSet.size} already classified, ${candidates.length} to process.`);
+    
+    // No unclassified titles in this batch = job complete
+    if (candidates.length === 0) {
+      console.log("All titles classified. Marking job complete.");
       await supabase.from("jobs").update({ status: 'completed' }).eq("job_type", "classify_emotions");
       return new Response(JSON.stringify({ message: "All titles classified" }), { status: 200, headers: corsHeaders });
     }
-    
-    console.log(`Found ${candidates.length} unclassified titles to process.`);
 
     let processed = 0;
     const errors: Record<string, string> = {};
