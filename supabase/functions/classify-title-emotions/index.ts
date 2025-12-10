@@ -44,6 +44,7 @@ interface TitleRow {
 }
 
 interface EmotionRow {
+  id: string;
   emotion_label: string;
 }
 
@@ -198,15 +199,22 @@ async function classifyWithAI(title: TitleRow, emotionLabels: string[]): Promise
 }
 
 // ---------------------------------------------------------------------
-// Insert staging rows
+// Insert staging rows - need to map emotion_label to emotion_id
 // ---------------------------------------------------------------------
-async function insertStagingRows(titleId: string, rows: ModelEmotion[]) {
-  const payload = rows.map((e) => ({
-    title_id: titleId,
-    emotion_label: e.emotion_label,
-    intensity_level: e.intensity_level,
-    source: "ai",
-  }));
+async function insertStagingRows(titleId: string, rows: ModelEmotion[], emotionLabelToId: Map<string, string>) {
+  const payload = rows
+    .filter((e) => emotionLabelToId.has(e.emotion_label))
+    .map((e) => ({
+      title_id: titleId,
+      emotion_id: emotionLabelToId.get(e.emotion_label)!,
+      intensity_level: e.intensity_level,
+      source: "ai",
+    }));
+
+  if (!payload.length) {
+    console.warn("No valid emotion mappings for title:", titleId);
+    return;
+  }
 
   const { error } = await supabase.from("title_emotional_signatures_staging").insert(payload);
 
@@ -234,10 +242,10 @@ serve(async (req: Request) => {
 
     console.log(`▶ classify-title-emotions (optimized) — batchSize=${batchSize}, maxConcurrent=${maxConcurrent}`);
 
-    // 1) Load emotion_master (content_state only)
+    // 1) Load emotion_master (content_state only) - need both id and label
     const { data: emotions, error: emoErr } = await supabase
       .from("emotion_master")
-      .select("emotion_label")
+      .select("id, emotion_label")
       .eq("category", "content_state");
 
     if (emoErr || !emotions || emotions.length === 0) {
@@ -245,7 +253,12 @@ serve(async (req: Request) => {
       return new Response(JSON.stringify({ error: "Failed to load emotion_master" }), { status: 500 });
     }
 
-    const emotionLabels = (emotions as EmotionRow[]).map((e) => e.emotion_label);
+    const emotionLabelToId = new Map<string, string>();
+    const emotionLabels: string[] = [];
+    for (const e of emotions as EmotionRow[]) {
+      emotionLabels.push(e.emotion_label);
+      emotionLabelToId.set(e.emotion_label, e.id);
+    }
     console.log(`Loaded ${emotionLabels.length} content_state emotions.`);
 
     // 2) Load candidate titles (movies + series) with genres
@@ -342,7 +355,7 @@ serve(async (req: Request) => {
           return;
         }
 
-        await insertStagingRows(title.id, cleaned);
+        await insertStagingRows(title.id, cleaned, emotionLabelToId);
         processed++;
         console.log(`✓ Saved ${cleaned.length} emotion rows for title_id=${title.id}`);
       } catch (err: any) {
