@@ -17,9 +17,9 @@
 // - OPENAI_API_KEY
 // ========================================================================
 
-import { serve } from "https://deno.land/x/sift@0.6.0/mod.ts";
-import OpenAI from "https://deno.land/x/openai@v4.16.0/mod.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.6";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import OpenAI from "https://esm.sh/openai@4.20.1";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -34,15 +34,13 @@ const MAX_TRANSCRIPT_CHARS = 4000;
 
 interface TitleRow {
   id: string;
-  type: "movie" | "series" | string;
+  title_type: "movie" | "tv" | string | null;
   name: string | null;
   original_name: string | null;
   overview: string | null;
   trailer_transcript: string | null;
   original_language: string | null;
-  season_count?: number | null;
-  episode_count?: number | null;
-  title_genres?: { genre: { name: string | null } | null }[] | null;
+  title_genres?: string[] | null;
 }
 
 interface EmotionRow {
@@ -135,10 +133,10 @@ function buildUserPrompt(t: TitleRow): string {
     ? t.trailer_transcript!.slice(0, MAX_TRANSCRIPT_CHARS)
     : "(no trailer transcript available)";
 
-  const genres = t.title_genres?.map((g) => g?.genre?.name).filter(Boolean) ?? [];
+  const genres = Array.isArray(t.title_genres) ? t.title_genres.filter(Boolean) : [];
   const genreText = genres.length ? genres.join(", ") : "(no genres available)";
 
-  const typeLabel = t.type === "series" ? "TV SERIES (series-level tone)" : "MOVIE";
+  const typeLabel = t.title_type === "tv" ? "TV SERIES (series-level tone)" : "MOVIE";
 
   const transcriptInstruction = hasTranscript
     ? `A trailer transcript IS provided and should be treated as the PRIMARY emotional signal (~80% weight). Use overview and genres only as secondary refinement.`
@@ -221,11 +219,14 @@ async function insertStagingRows(titleId: string, rows: ModelEmotion[]) {
 // ---------------------------------------------------------------------
 // Main handler
 // ---------------------------------------------------------------------
-serve({
-  "/": async (req: Request) => {
-    if (req.method !== "POST") {
-      return new Response("Method Not Allowed", { status: 405 });
-    }
+serve(async (req: Request) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" } });
+  }
+  
+  if (req.method !== "POST") {
+    return new Response("Method Not Allowed", { status: 405 });
+  }
 
     const body = await req.json().catch(() => ({}));
     const batchSize: number = body.batchSize ?? DEFAULT_BATCH_SIZE;
@@ -253,18 +254,13 @@ serve({
       .select(
         `
         id,
-        type,
+        title_type,
         name,
         original_name,
         overview,
         trailer_transcript,
         original_language,
-        season_count,
-        episode_count,
-        created_at,
-        title_genres (
-          genre: genres ( name )
-        )
+        title_genres
       `,
       )
       .order("created_at", { ascending: false })
@@ -314,10 +310,10 @@ serve({
 
     // 5) Process titles with limited concurrency
     await runWithConcurrency(batch, maxConcurrent, async (title) => {
-      const label = title.name ?? title.original_name ?? `${title.id} (${title.type ?? "unknown"})`;
+      const label = title.name ?? title.original_name ?? `${title.id} (${title.title_type ?? "unknown"})`;
 
       console.log(
-        `→ Classifying [${title.type}] ${label} — transcript: ${
+        `→ Classifying [${title.title_type}] ${label} — transcript: ${
           title.trailer_transcript && title.trailer_transcript.trim().length ? "YES" : "NO"
         }`,
       );
@@ -371,5 +367,4 @@ serve({
         headers: { "Content-Type": "application/json" },
       },
     );
-  },
 });
