@@ -218,7 +218,7 @@ const corsHeaders = {
 };
 
 // Self-invoke to continue processing with retry logic
-async function invokeNextBatch(batchSize: number, offset: number, retries = 3) {
+async function invokeNextBatch(batchSize: number, retries = 3) {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       // Add small delay before self-invoke to avoid rate limiting
@@ -232,10 +232,10 @@ async function invokeNextBatch(batchSize: number, offset: number, retries = 3) {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${serviceRoleKey}`,
           },
-          body: JSON.stringify({ batchSize, offset }),
+          body: JSON.stringify({ batchSize }),
         }
       );
-      console.log(`Self-invoked next batch at offset ${offset}, status: ${response.status}`);
+      console.log(`Self-invoked next batch, status: ${response.status}`);
       
       if (response.ok) {
         return; // Success
@@ -276,9 +276,8 @@ serve(async (req: Request) => {
   try {
     const body = await req.json().catch(() => ({}));
     const batchSize: number = body.batchSize ?? 10;
-    const offset: number = body.offset ?? 0;
 
-    console.log(`▶ classify-title-emotions: batchSize=${batchSize}, offset=${offset}`);
+    console.log(`▶ classify-title-emotions: batchSize=${batchSize}`);
 
     // Check if job is still running
     const running = await isJobRunning();
@@ -304,58 +303,36 @@ serve(async (req: Request) => {
     const emotionLabels = Array.from(emotionMap.keys());
     console.log(`Loaded ${emotionLabels.length} content_state emotions.`);
 
-    // 2) Get batch of titles at current offset
+    // 2) Get batch of UNCLASSIFIED titles only (no existing signatures)
+    // Use a LEFT JOIN approach: get titles where no signature exists
     const { data: candidates, error: titleErr } = await supabase
       .from("titles")
-      .select("id, title_type, name, original_name, overview, trailer_transcript, original_language")
+      .select(`
+        id, title_type, name, original_name, overview, trailer_transcript, original_language,
+        title_emotional_signatures!left(title_id)
+      `)
+      .is("title_emotional_signatures.title_id", null)
       .order("created_at", { ascending: true })
-      .range(offset, offset + batchSize - 1);
+      .limit(batchSize);
     
     if (titleErr) {
       console.error("Failed to fetch titles:", titleErr);
       return new Response(JSON.stringify({ error: "Failed to fetch titles" }), { status: 500, headers: corsHeaders });
     }
     
-    // No more titles at this offset = job complete
+    // No more unclassified titles = job complete
     if (!candidates || candidates.length === 0) {
-      console.log("No more titles. Marking job complete.");
+      console.log("No more unclassified titles. Marking job complete.");
       await supabase.from("jobs").update({ status: 'completed' }).eq("job_type", "classify_emotions");
       return new Response(JSON.stringify({ message: "All titles classified" }), { status: 200, headers: corsHeaders });
     }
     
-    // Filter out titles that already have signatures
-    const titleIds = candidates.map(t => t.id);
-    const { data: existingSigs } = await supabase
-      .from("title_emotional_signatures")
-      .select("title_id")
-      .in("title_id", titleIds);
-    
-    const classifiedSet = new Set((existingSigs ?? []).map((s: any) => s.title_id));
-    const unclassified = candidates.filter(t => !classifiedSet.has(t.id));
-    
-    const nextOffset = offset + candidates.length;
-    console.log(`Offset ${offset}: fetched ${candidates.length}, ${classifiedSet.size} classified, ${unclassified.length} to process.`);
-    
-    // All in this batch already classified - skip to next offset
-    if (unclassified.length === 0) {
-      console.log("Batch already classified, advancing to next offset...");
-      EdgeRuntime.waitUntil(invokeNextBatch(batchSize, nextOffset));
-      return new Response(JSON.stringify({ message: "Batch skipped", nextOffset }), { status: 200, headers: corsHeaders });
-    }
-    
-    console.log(`Processing ${unclassified.length} unclassified titles.`);
-
-    // If no candidates left, job is complete
-    if (candidates.length === 0) {
-      console.log("All titles classified. Marking job complete.");
-      await supabase.from("jobs").update({ status: 'completed' }).eq("job_type", "classify_emotions");
-      return new Response(JSON.stringify({ message: "All titles classified" }), { status: 200, headers: corsHeaders });
-    }
+    console.log(`Found ${candidates.length} unclassified titles to process.`);
 
     let processed = 0;
     const errors: Record<string, string> = {};
 
-    // 5) Sequentially classify each candidate title
+    // 3) Sequentially classify each candidate title
     for (const title of candidates) {
       // Check job status periodically
       if (processed > 0 && processed % 5 === 0) {
@@ -379,7 +356,7 @@ serve(async (req: Request) => {
           continue;
         }
 
-        // 6) Clean and validate model output
+        // 4) Clean and validate model output
         const cleaned: ModelEmotion[] = result.emotions
           .filter((e) => emotionLabels.includes(e.emotion_label))
           .map((e) => ({
@@ -404,11 +381,15 @@ serve(async (req: Request) => {
       }
     }
 
-    // 7) Check if more work remains and self-invoke with next offset
+    // 5) Self-invoke if job still running (the next batch will find any remaining unclassified titles)
     const stillRunning = await isJobRunning();
     if (stillRunning && processed > 0) {
-      console.log(`Processed ${processed} titles. Scheduling next batch at offset ${nextOffset}...`);
-      EdgeRuntime.waitUntil(invokeNextBatch(batchSize, nextOffset));
+      console.log(`Processed ${processed} titles. Scheduling next batch...`);
+      EdgeRuntime.waitUntil(invokeNextBatch(batchSize));
+    } else if (stillRunning && processed === 0) {
+      // No titles processed but job running = all done
+      console.log("All titles classified. Marking job complete.");
+      await supabase.from("jobs").update({ status: 'completed' }).eq("job_type", "classify_emotions");
     }
 
     return new Response(
@@ -416,7 +397,6 @@ serve(async (req: Request) => {
         message: "Batch complete",
         processed,
         errors,
-        hasMore: stillRunning,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 },
     );
