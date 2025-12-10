@@ -303,53 +303,48 @@ serve(async (req: Request) => {
     const emotionLabels = Array.from(emotionMap.keys());
     console.log(`Loaded ${emotionLabels.length} content_state emotions.`);
 
-    // 2) Get ALL titles that have signatures using pagination to avoid 1000 row limit
-    const classifiedIds = new Set<string>();
-    let offset = 0;
-    const pageSize = 1000;
+    // 2) Use RPC to get unclassified titles directly from database
+    // This is much more efficient than fetching all classified IDs
+    const { data: candidates, error: titleErr } = await supabase
+      .rpc('get_unclassified_titles', { p_limit: batchSize });
     
-    while (true) {
-      const { data: sigs, error: sigErr } = await supabase
-        .from("title_emotional_signatures")
-        .select("title_id")
-        .range(offset, offset + pageSize - 1);
+    if (titleErr) {
+      console.error("RPC failed, trying direct query:", titleErr);
       
-      if (sigErr) {
-        console.error("Error fetching signatures:", sigErr);
-        break;
+      // Fallback: Direct query using NOT EXISTS subquery pattern
+      const { data: fallbackTitles, error: fallbackErr } = await supabase
+        .from("titles")
+        .select("id, title_type, name, original_name, overview, trailer_transcript, original_language")
+        .limit(batchSize);
+      
+      if (fallbackErr || !fallbackTitles) {
+        console.error("Failed to load titles:", fallbackErr);
+        return new Response(JSON.stringify({ error: "Failed to load titles" }), { status: 500, headers: corsHeaders });
       }
       
-      if (!sigs || sigs.length === 0) break;
+      // Filter using a batch check
+      const titleIds = fallbackTitles.map((t: any) => t.id);
+      const { data: existingSigs } = await supabase
+        .from("title_emotional_signatures")
+        .select("title_id")
+        .in("title_id", titleIds);
       
-      sigs.forEach((s: any) => classifiedIds.add(s.title_id));
+      const existingSet = new Set((existingSigs ?? []).map((s: any) => s.title_id));
+      const filtered = fallbackTitles.filter((t: any) => !existingSet.has(t.id));
       
-      if (sigs.length < pageSize) break; // Last page
-      offset += pageSize;
+      console.log(`Found ${filtered.length} unclassified titles (fallback method).`);
+      
+      if (filtered.length === 0) {
+        // Need to fetch next batch - the first batch was all classified
+        console.log("First batch all classified, fetching more...");
+        return await invokeNextBatch(batchSize);
+      }
+      
+      // Use filtered as candidates
+      (candidates as any) = filtered;
     }
-    
-    console.log(`${classifiedIds.size} titles already have signatures.`);
-    
-    // 3) Get titles ordered by created_at ASC (process oldest first for consistency)
-    // Fetch more than needed to account for already-classified ones
-    const fetchLimit = Math.min(batchSize * 10 + classifiedIds.size, 5000);
-    
-    const { data: allTitles, error: titleErr } = await supabase
-      .from("titles")
-      .select("id, title_type, name, original_name, overview, trailer_transcript, original_language")
-      .order("created_at", { ascending: true })
-      .limit(fetchLimit);
-    
-    if (titleErr || !allTitles) {
-      console.error("Failed to load titles:", titleErr);
-      return new Response(JSON.stringify({ error: "Failed to load titles" }), { status: 500, headers: corsHeaders });
-    }
-    
-    // Filter out already classified titles
-    const candidates: TitleRow[] = (allTitles as TitleRow[])
-      .filter((t) => !classifiedIds.has(t.id))
-      .slice(0, batchSize);
 
-    console.log(`Found ${candidates.length} unclassified titles to process (from ${allTitles.length} total fetched).`);
+    console.log(`Found ${(candidates as TitleRow[]).length} unclassified titles to process.`);
 
     // If no candidates left, job is complete
     if (candidates.length === 0) {
