@@ -303,63 +303,26 @@ serve(async (req: Request) => {
     const emotionLabels = Array.from(emotionMap.keys());
     console.log(`Loaded ${emotionLabels.length} content_state emotions.`);
 
-    // 2) Find unclassified titles using cursor-based pagination
-    // Fetch batches of titles and filter out classified ones until we find enough
-    let candidates: TitleRow[] = [];
-    let cursor: string | null = null;
-    const fetchBatchSize = 100; // Fetch more to find unclassified ones
-    let attempts = 0;
-    const maxAttempts = 50; // Prevent infinite loops
+    // 2) Get titles updated within the last 7 days - always re-classify regardless of existing signatures
+    const oneWeekAgo = new Date();
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+    const oneWeekAgoISO = oneWeekAgo.toISOString();
     
-    while (candidates.length < batchSize && attempts < maxAttempts) {
-      attempts++;
-      
-      // Build query with cursor
-      let query = supabase
-        .from("titles")
-        .select("id, title_type, name, original_name, overview, trailer_transcript, original_language")
-        .order("id", { ascending: true })
-        .limit(fetchBatchSize);
-      
-      if (cursor) {
-        query = query.gt("id", cursor);
-      }
-      
-      const { data: batch, error: batchErr } = await query;
-      
-      if (batchErr) {
-        console.error("Failed to fetch titles batch:", batchErr);
-        return new Response(JSON.stringify({ error: "Failed to fetch titles" }), { status: 500, headers: corsHeaders });
-      }
-      
-      if (!batch || batch.length === 0) {
-        console.log("No more titles to process.");
-        break;
-      }
-      
-      // Update cursor for next iteration
-      cursor = batch[batch.length - 1].id;
-      
-      // Check which ones already have signatures
-      const batchIds = batch.map((t: any) => t.id);
-      const { data: existingSigs } = await supabase
-        .from("title_emotional_signatures")
-        .select("title_id")
-        .in("title_id", batchIds);
-      
-      const classifiedSet = new Set((existingSigs ?? []).map((s: any) => s.title_id));
-      
-      // Add unclassified titles to candidates
-      const unclassified = batch.filter((t: any) => !classifiedSet.has(t.id));
-      candidates.push(...unclassified);
-      
-      console.log(`Batch ${attempts}: ${batch.length} titles, ${unclassified.length} unclassified, total candidates: ${candidates.length}`);
+    console.log(`Fetching titles updated since: ${oneWeekAgoISO}`);
+    
+    const { data: candidates, error: titleErr } = await supabase
+      .from("titles")
+      .select("id, title_type, name, original_name, overview, trailer_transcript, original_language")
+      .gte("updated_at", oneWeekAgoISO)
+      .order("updated_at", { ascending: true })
+      .limit(batchSize);
+    
+    if (titleErr) {
+      console.error("Failed to fetch titles:", titleErr);
+      return new Response(JSON.stringify({ error: "Failed to fetch titles" }), { status: 500, headers: corsHeaders });
     }
     
-    // Trim to batchSize
-    candidates = candidates.slice(0, batchSize);
-    
-    console.log(`Found ${candidates.length} unclassified titles to process.`);
+    console.log(`Found ${(candidates ?? []).length} titles updated in last 7 days to classify.`);
 
     // If no candidates left, job is complete
     if (candidates.length === 0) {
