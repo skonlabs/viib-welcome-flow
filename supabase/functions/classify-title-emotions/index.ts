@@ -218,7 +218,7 @@ const corsHeaders = {
 };
 
 // Self-invoke to continue processing with retry logic
-async function invokeNextBatch(batchSize: number, retries = 3) {
+async function invokeNextBatch(batchSize: number, offset: number, retries = 3) {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       // Add small delay before self-invoke to avoid rate limiting
@@ -232,10 +232,10 @@ async function invokeNextBatch(batchSize: number, retries = 3) {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${serviceRoleKey}`,
           },
-          body: JSON.stringify({ batchSize }),
+          body: JSON.stringify({ batchSize, offset }),
         }
       );
-      console.log(`Self-invoked next batch, status: ${response.status}`);
+      console.log(`Self-invoked next batch at offset ${offset}, status: ${response.status}`);
       
       if (response.ok) {
         return; // Success
@@ -276,8 +276,9 @@ serve(async (req: Request) => {
   try {
     const body = await req.json().catch(() => ({}));
     const batchSize: number = body.batchSize ?? 10;
+    const offset: number = body.offset ?? 0;
 
-    console.log(`▶ classify-title-emotions: batchSize=${batchSize}`);
+    console.log(`▶ classify-title-emotions: batchSize=${batchSize}, offset=${offset}`);
 
     // Check if job is still running
     const running = await isJobRunning();
@@ -303,86 +304,46 @@ serve(async (req: Request) => {
     const emotionLabels = Array.from(emotionMap.keys());
     console.log(`Loaded ${emotionLabels.length} content_state emotions.`);
 
-    // 2) Get titles updated within the last 7 days and classify them
-    const oneWeekAgo = new Date();
-    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-    const oneWeekAgoISO = oneWeekAgo.toISOString();
+    // 2) Get batch of titles at current offset
+    const { data: candidates, error: titleErr } = await supabase
+      .from("titles")
+      .select("id, title_type, name, original_name, overview, trailer_transcript, original_language")
+      .order("created_at", { ascending: true })
+      .range(offset, offset + batchSize - 1);
     
-    console.log(`Looking for titles updated since: ${oneWeekAgoISO}`);
-    
-    // Step A: Get ALL title IDs updated in the last 7 days (paginated to avoid 1000 row limit)
-    let allIds: string[] = [];
-    let offset = 0;
-    const pageSize = 1000;
-    
-    while (true) {
-      const { data: idBatch, error: idsErr } = await supabase
-        .from("titles")
-        .select("id")
-        .gte("updated_at", oneWeekAgoISO)
-        .order("id", { ascending: true })
-        .range(offset, offset + pageSize - 1);
-      
-      if (idsErr) {
-        console.error("Failed to fetch title IDs:", idsErr);
-        return new Response(JSON.stringify({ error: "Failed to fetch title IDs" }), { status: 500, headers: corsHeaders });
-      }
-      
-      if (!idBatch || idBatch.length === 0) break;
-      
-      allIds.push(...idBatch.map((t: any) => t.id));
-      
-      if (idBatch.length < pageSize) break; // Last page
-      offset += pageSize;
+    if (titleErr) {
+      console.error("Failed to fetch titles:", titleErr);
+      return new Response(JSON.stringify({ error: "Failed to fetch titles" }), { status: 500, headers: corsHeaders });
     }
     
-    const totalRecentTitles = allIds.length;
-    console.log(`Total titles updated in last 7 days: ${totalRecentTitles}`);
-    
-    if (totalRecentTitles === 0) {
-      console.log("No titles updated in last 7 days. Marking job complete.");
-      await supabase.from("jobs").update({ status: 'completed' }).eq("job_type", "classify_emotions");
-      return new Response(JSON.stringify({ message: "No titles to classify" }), { status: 200, headers: corsHeaders });
-    }
-    
-    // Step B: Find which of these titles DON'T have signatures yet
-    // Query in batches to avoid query size limits
-    const chunkSize = 500;
-    const classifiedIds = new Set<string>();
-    
-    for (let i = 0; i < allIds.length; i += chunkSize) {
-      const chunk = allIds.slice(i, i + chunkSize);
-      const { data: sigs } = await supabase
-        .from("title_emotional_signatures")
-        .select("title_id")
-        .in("title_id", chunk);
-      
-      (sigs ?? []).forEach((s: any) => classifiedIds.add(s.title_id));
-    }
-    
-    // Get unclassified IDs
-    const unclassifiedIds = allIds.filter((id: string) => !classifiedIds.has(id));
-    console.log(`${classifiedIds.size} already classified, ${unclassifiedIds.length} need classification.`);
-    
-    if (unclassifiedIds.length === 0) {
-      console.log("All recent titles already classified. Marking job complete.");
+    // No more titles at this offset = job complete
+    if (!candidates || candidates.length === 0) {
+      console.log("No more titles. Marking job complete.");
       await supabase.from("jobs").update({ status: 'completed' }).eq("job_type", "classify_emotions");
       return new Response(JSON.stringify({ message: "All titles classified" }), { status: 200, headers: corsHeaders });
     }
     
-    // Step C: Fetch full data for the batch we'll process
-    const batchIds = unclassifiedIds.slice(0, batchSize);
-    const { data: candidates, error: titleErr } = await supabase
-      .from("titles")
-      .select("id, title_type, name, original_name, overview, trailer_transcript, original_language")
-      .in("id", batchIds);
+    // Filter out titles that already have signatures
+    const titleIds = candidates.map(t => t.id);
+    const { data: existingSigs } = await supabase
+      .from("title_emotional_signatures")
+      .select("title_id")
+      .in("title_id", titleIds);
     
-    if (titleErr || !candidates) {
-      console.error("Failed to fetch title details:", titleErr);
-      return new Response(JSON.stringify({ error: "Failed to fetch title details" }), { status: 500, headers: corsHeaders });
+    const classifiedSet = new Set((existingSigs ?? []).map((s: any) => s.title_id));
+    const unclassified = candidates.filter(t => !classifiedSet.has(t.id));
+    
+    const nextOffset = offset + candidates.length;
+    console.log(`Offset ${offset}: fetched ${candidates.length}, ${classifiedSet.size} classified, ${unclassified.length} to process.`);
+    
+    // All in this batch already classified - skip to next offset
+    if (unclassified.length === 0) {
+      console.log("Batch already classified, advancing to next offset...");
+      EdgeRuntime.waitUntil(invokeNextBatch(batchSize, nextOffset));
+      return new Response(JSON.stringify({ message: "Batch skipped", nextOffset }), { status: 200, headers: corsHeaders });
     }
     
-    console.log(`Processing batch of ${candidates.length} titles.`);
+    console.log(`Processing ${unclassified.length} unclassified titles.`);
 
     // If no candidates left, job is complete
     if (candidates.length === 0) {
@@ -443,11 +404,11 @@ serve(async (req: Request) => {
       }
     }
 
-    // 7) Check if more work remains and self-invoke
+    // 7) Check if more work remains and self-invoke with next offset
     const stillRunning = await isJobRunning();
     if (stillRunning && processed > 0) {
-      console.log(`Processed ${processed} titles. Scheduling next batch...`);
-      EdgeRuntime.waitUntil(invokeNextBatch(batchSize));
+      console.log(`Processed ${processed} titles. Scheduling next batch at offset ${nextOffset}...`);
+      EdgeRuntime.waitUntil(invokeNextBatch(batchSize, nextOffset));
     }
 
     return new Response(
