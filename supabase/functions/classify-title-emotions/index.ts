@@ -44,7 +44,7 @@ interface TitleRow {
 }
 
 interface EmotionRow {
-  label: string;
+  emotion_label: string;
 }
 
 interface ModelEmotion {
@@ -237,7 +237,7 @@ serve(async (req: Request) => {
     // 1) Load emotion_master (content_state only)
     const { data: emotions, error: emoErr } = await supabase
       .from("emotion_master")
-      .select("label")
+      .select("emotion_label")
       .eq("category", "content_state");
 
     if (emoErr || !emotions || emotions.length === 0) {
@@ -245,7 +245,7 @@ serve(async (req: Request) => {
       return new Response(JSON.stringify({ error: "Failed to load emotion_master" }), { status: 500 });
     }
 
-    const emotionLabels = (emotions as EmotionRow[]).map((e) => e.label);
+    const emotionLabels = (emotions as EmotionRow[]).map((e) => e.emotion_label);
     console.log(`Loaded ${emotionLabels.length} content_state emotions.`);
 
     // 2) Load candidate titles (movies + series) with genres
