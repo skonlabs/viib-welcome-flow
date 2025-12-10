@@ -381,6 +381,12 @@ serve(async (req) => {
         const releaseYear = movie.release_date ? new Date(movie.release_date).getFullYear() : null;
         const { url: trailerUrl, isTmdbTrailer } = await fetchTrailer(movie.id, 'movie', movie.title, releaseYear, movie.original_language || languageCode);
 
+        // Build genres JSON array from TMDB genre IDs
+        const movieGenreIds = movie.genre_ids || [];
+        const genresJson = movieGenreIds
+          .map((gId: number) => TMDB_GENRE_MAP[gId])
+          .filter(Boolean);
+
         const { data: upsertedTitle, error: titleError } = await supabase
           .from('titles')
           .upsert({
@@ -405,6 +411,7 @@ serve(async (req) => {
             tagline: details?.tagline || null,
             trailer_url: trailerUrl,
             is_tmdb_trailer: isTmdbTrailer,
+            title_genres: genresJson,
             updated_at: new Date().toISOString()
           }, { onConflict: 'tmdb_id,title_type' })
           .select('id')
@@ -425,18 +432,6 @@ serve(async (req) => {
               streaming_service_id: provider.serviceId,
               region_code: 'US'
             }, { onConflict: 'title_id,streaming_service_id,region_code' });
-          }
-
-          // Map ALL genres from movie (not just the searched genre)
-          const movieGenreIds = movie.genre_ids || [];
-          for (const gId of movieGenreIds) {
-            const gName = TMDB_GENRE_MAP[gId];
-            if (gName) {
-              const ourGenreId = genreNameToId[gName.toLowerCase()];
-              if (ourGenreId) {
-                await supabase.from('title_genres').upsert({ title_id: upsertedTitle.id, genre_id: ourGenreId }, { onConflict: 'title_id,genre_id' });
-              }
-            }
           }
 
           if (details?.spoken_languages) {
@@ -604,6 +599,12 @@ serve(async (req) => {
           const seasonName = latestSeason?.name || (latestSeasonNumber ? `Season ${latestSeasonNumber}` : undefined);
           const { url: trailerUrl, isTmdbTrailer: isTmdbTrailerTv } = await fetchTrailer(show.id, 'tv', show.name, releaseYear, show.original_language || languageCode, latestSeasonNumber, seasonName);
 
+          // Build genres JSON array from TMDB genre IDs
+          const showGenreIds = show.genre_ids || [];
+          const genresJson = showGenreIds
+            .map((gId: number) => TMDB_GENRE_MAP[gId])
+            .filter(Boolean);
+
           const { data: upsertedTitle, error: titleError } = await supabase
             .from('titles')
             .upsert({
@@ -628,6 +629,7 @@ serve(async (req) => {
               tagline: details?.tagline || null,
               trailer_url: trailerUrl,
               is_tmdb_trailer: isTmdbTrailerTv,
+              title_genres: genresJson,
               updated_at: new Date().toISOString()
             }, { onConflict: 'tmdb_id,title_type' })
             .select('id')
@@ -648,18 +650,6 @@ serve(async (req) => {
                 streaming_service_id: provider.serviceId,
                 region_code: 'US'
               }, { onConflict: 'title_id,streaming_service_id,region_code' });
-            }
-
-            // Map ALL genres from show (not just searched genre)
-            const showGenreIds = show.genre_ids || [];
-            for (const gId of showGenreIds) {
-              const gName = TMDB_GENRE_MAP[gId];
-              if (gName) {
-                const ourGenreId = genreNameToId[gName.toLowerCase()];
-                if (ourGenreId) {
-                  await supabase.from('title_genres').upsert({ title_id: upsertedTitle.id, genre_id: ourGenreId }, { onConflict: 'title_id,genre_id' });
-                }
-              }
             }
 
             if (details?.spoken_languages) {
@@ -909,6 +899,12 @@ serve(async (req) => {
                 const seasonName = latestSeason?.name || (latestSeasonNumber ? `Season ${latestSeasonNumber}` : undefined);
                 const { url: trailerUrl, isTmdbTrailer } = await fetchTrailer(show.id, 'tv', show.name, releaseYear, show.original_language || languageCode, latestSeasonNumber, seasonName);
                 
+                // Build genres JSON array
+                const showGenreIds = show.genre_ids || [];
+                const genresJson = showGenreIds
+                  .map((gId: number) => TMDB_GENRE_MAP[gId])
+                  .filter(Boolean);
+
                 const { data: upsertedTitle, error: titleError } = await supabase
                   .from('titles')
                   .upsert({
@@ -933,6 +929,7 @@ serve(async (req) => {
                     tagline: details?.tagline || null,
                     trailer_url: trailerUrl,
                     is_tmdb_trailer: isTmdbTrailer,
+                    title_genres: genresJson,
                     updated_at: new Date().toISOString()
                   }, { onConflict: 'tmdb_id,title_type' })
                   .select('id')
@@ -953,18 +950,6 @@ serve(async (req) => {
                       streaming_service_id: provider.serviceId,
                       region_code: 'US'
                     }, { onConflict: 'title_id,streaming_service_id,region_code' });
-                  }
-                  
-                  // Map genres
-                  const showGenreIds = show.genre_ids || [];
-                  for (const gId of showGenreIds) {
-                    const gName = TMDB_GENRE_MAP[gId];
-                    if (gName) {
-                      const ourGenreId = genreNameToId[gName.toLowerCase()];
-                      if (ourGenreId) {
-                        await supabase.from('title_genres').upsert({ title_id: upsertedTitle.id, genre_id: ourGenreId }, { onConflict: 'title_id,genre_id' });
-                      }
-                    }
                   }
                   
                   // Map languages
@@ -1038,6 +1023,12 @@ serve(async (req) => {
                   const seasonName = latestSeason?.name || (latestSeasonNumber ? `Season ${latestSeasonNumber}` : undefined);
                   const { url: trailerUrl, isTmdbTrailer } = await fetchTrailer(show.id, 'tv', show.name, releaseYear, show.original_language || languageCode, latestSeasonNumber, seasonName);
                   
+                  // Build genres JSON array
+                  const showGenreIds = show.genre_ids || [];
+                  const genresJson = showGenreIds
+                    .map((gId: number) => TMDB_GENRE_MAP[gId])
+                    .filter(Boolean);
+
                   const { data: upsertedTitle, error: titleError } = await supabase
                     .from('titles')
                     .upsert({
@@ -1062,6 +1053,7 @@ serve(async (req) => {
                       tagline: details?.tagline || null,
                       trailer_url: trailerUrl,
                       is_tmdb_trailer: isTmdbTrailer,
+                      title_genres: genresJson,
                       updated_at: new Date().toISOString()
                     }, { onConflict: 'tmdb_id,title_type' })
                     .select('id')
@@ -1077,17 +1069,6 @@ serve(async (req) => {
                         streaming_service_id: provider.serviceId,
                         region_code: 'US'
                       }, { onConflict: 'title_id,streaming_service_id,region_code' });
-                    }
-                    
-                    const showGenreIds = show.genre_ids || [];
-                    for (const gId of showGenreIds) {
-                      const gName = TMDB_GENRE_MAP[gId];
-                      if (gName) {
-                        const ourGenreId = genreNameToId[gName.toLowerCase()];
-                        if (ourGenreId) {
-                          await supabase.from('title_genres').upsert({ title_id: upsertedTitle.id, genre_id: ourGenreId }, { onConflict: 'title_id,genre_id' });
-                        }
-                      }
                     }
                     
                     if (details?.spoken_languages) {
