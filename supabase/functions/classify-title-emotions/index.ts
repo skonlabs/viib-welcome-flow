@@ -2,8 +2,8 @@
 // ========================================================================
 // ViiB — Emotional Batch Classification (Backend Job Pattern)
 // ========================================================================
-// Uses offset-based pagination stored in job configuration
-// Each batch advances through titles table sequentially
+// Uses CURSOR-BASED pagination (id > last_id) for O(1) performance
+// instead of offset-based which times out at high offsets
 // ========================================================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -57,7 +57,7 @@ interface ModelResponse {
 }
 
 interface JobConfig {
-  current_offset?: number;
+  last_processed_id?: string | null; // Cursor-based: store last ID instead of offset
 }
 
 // ---------------------------------------------------------------------
@@ -75,7 +75,7 @@ async function getJobConfig(): Promise<{ status: string; config: JobConfig }> {
   };
 }
 
-async function updateJobOffset(offset: number): Promise<void> {
+async function updateJobCursor(lastId: string | null): Promise<void> {
   const { data: job } = await supabase
     .from("jobs")
     .select("configuration")
@@ -83,7 +83,7 @@ async function updateJobOffset(offset: number): Promise<void> {
     .single();
   
   const config = (job?.configuration as JobConfig) ?? {};
-  config.current_offset = offset;
+  config.last_processed_id = lastId;
   
   await supabase
     .from("jobs")
@@ -211,9 +211,9 @@ async function insertStagingRows(titleId: string, rows: ModelEmotion[], emotionL
 }
 
 // ---------------------------------------------------------------------
-// Background processing logic with offset-based pagination
+// Background processing logic with CURSOR-BASED pagination
 // ---------------------------------------------------------------------
-async function processClassificationBatch(startOffset: number): Promise<void> {
+async function processClassificationBatch(lastId: string | null): Promise<void> {
   const startTime = Date.now();
   
   // Check job status
@@ -223,18 +223,12 @@ async function processClassificationBatch(startOffset: number): Promise<void> {
     return;
   }
 
-  // Get total titles count
+  // Get total titles count for progress tracking
   const { count: totalTitles } = await supabase
     .from("titles")
     .select("id", { count: "exact", head: true });
 
-  if (!totalTitles) {
-    console.log("No titles in database.");
-    await markJobComplete();
-    return;
-  }
-
-  console.log(`Total titles: ${totalTitles}, starting at offset: ${startOffset}`);
+  console.log(`Total titles in DB: ${totalTitles}, cursor: ${lastId ?? "START"}`);
 
   // Load emotion vocabulary
   const { data: emotions, error: emoErr } = await supabase
@@ -254,18 +248,11 @@ async function processClassificationBatch(startOffset: number): Promise<void> {
     emotionLabelToId.set(e.emotion_label, e.id);
   }
 
-  let currentOffset = startOffset;
+  let currentCursor = lastId;
   let totalProcessed = 0;
 
   // Continuous batch processing within time limit
   while (Date.now() - startTime < MAX_RUNTIME_MS) {
-    // Check if we've processed all titles
-    if (currentOffset >= totalTitles) {
-      console.log("All titles processed. Job complete.");
-      await markJobComplete();
-      return;
-    }
-
     // Check job status each batch
     const { status: currentStatus } = await getJobConfig();
     if (currentStatus !== "running") {
@@ -273,12 +260,19 @@ async function processClassificationBatch(startOffset: number): Promise<void> {
       break;
     }
 
-    // Fetch batch using offset
-    const { data: batch, error: titleErr } = await supabase
+    // Fetch batch using CURSOR-BASED pagination (O(1) performance!)
+    let query = supabase
       .from("titles")
       .select("id, title_type, name, original_name, overview, trailer_transcript, original_language, title_genres")
-      .order("created_at", { ascending: true }) // Consistent ordering
-      .range(currentOffset, currentOffset + BATCH_SIZE - 1);
+      .order("id", { ascending: true })
+      .limit(BATCH_SIZE);
+
+    // If we have a cursor, get records AFTER it
+    if (currentCursor) {
+      query = query.gt("id", currentCursor);
+    }
+
+    const { data: batch, error: titleErr } = await query;
 
     if (titleErr) {
       console.error("Error fetching titles:", titleErr);
@@ -291,7 +285,7 @@ async function processClassificationBatch(startOffset: number): Promise<void> {
       return;
     }
 
-    console.log(`Processing batch at offset ${currentOffset}, ${batch.length} titles...`);
+    console.log(`Processing batch of ${batch.length} titles after cursor ${currentCursor ?? "START"}...`);
     let batchProcessed = 0;
 
     await runWithConcurrency(batch as TitleRow[], MAX_CONCURRENT, async (title) => {
@@ -319,9 +313,9 @@ async function processClassificationBatch(startOffset: number): Promise<void> {
       }
     });
 
-    // Update progress
-    currentOffset += batch.length;
-    await updateJobOffset(currentOffset);
+    // Update cursor to last processed ID
+    currentCursor = batch[batch.length - 1].id;
+    await updateJobCursor(currentCursor);
     
     if (batchProcessed > 0) {
       await incrementJobTitles(batchProcessed);
@@ -332,13 +326,12 @@ async function processClassificationBatch(startOffset: number): Promise<void> {
     await new Promise((r) => setTimeout(r, 300));
   }
 
-  console.log(`Batch complete. Processed: ${totalProcessed}, Current offset: ${currentOffset}`);
+  console.log(`Batch complete. Processed: ${totalProcessed}, cursor: ${currentCursor}`);
 
   // Self-invoke for next batch if more work remains
   const { status: finalStatus } = await getJobConfig();
-  if (finalStatus === "running" && currentOffset < totalTitles) {
-    const remaining = totalTitles - currentOffset;
-    console.log(`${remaining} titles remaining. Self-invoking next batch at offset ${currentOffset}...`);
+  if (finalStatus === "running" && currentCursor) {
+    console.log(`Self-invoking next batch with cursor ${currentCursor}...`);
     
     EdgeRuntime.waitUntil(
       fetch(`${supabaseUrl}/functions/v1/classify-title-emotions`, {
@@ -347,7 +340,7 @@ async function processClassificationBatch(startOffset: number): Promise<void> {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${serviceRoleKey}`,
         },
-        body: JSON.stringify({ continuation: true, offset: currentOffset }),
+        body: JSON.stringify({ continuation: true, cursor: currentCursor }),
       }).catch((err) => console.error("Self-invoke failed:", err))
     );
   }
@@ -368,21 +361,21 @@ serve(async (req: Request) => {
   try {
     const body = await req.json().catch(() => ({}));
     
-    // Continuation call - use provided offset
+    // Continuation call - use provided cursor
     if (body.continuation) {
-      const offset = body.offset ?? 0;
-      EdgeRuntime.waitUntil(processClassificationBatch(offset));
+      const cursor = body.cursor ?? null;
+      EdgeRuntime.waitUntil(processClassificationBatch(cursor));
       return new Response(
-        JSON.stringify({ message: "Continuation batch started", offset }),
+        JSON.stringify({ message: "Continuation batch started", cursor }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Initial call - reset offset to 0 and start
+    // Initial call - reset cursor to null (start from beginning) and start
     console.log("▶ classify-title-emotions job started (fresh run)");
-    await updateJobOffset(0);
+    await updateJobCursor(null);
     
-    EdgeRuntime.waitUntil(processClassificationBatch(0));
+    EdgeRuntime.waitUntil(processClassificationBatch(null));
 
     return new Response(
       JSON.stringify({ 
