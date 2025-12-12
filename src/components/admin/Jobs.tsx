@@ -60,6 +60,8 @@ export const Jobs = () => {
   const [loading, setLoading] = useState(true);
   const [cronLoading, setCronLoading] = useState(true);
   const [runningJobs, setRunningJobs] = useState<Set<string>>(new Set());
+  const [runningCronJobs, setRunningCronJobs] = useState<Set<number>>(new Set());
+  const [cronJobStartTimes, setCronJobStartTimes] = useState<Map<number, number>>(new Map());
   const [parallelProgress, setParallelProgress] = useState<ParallelProgress | null>(null);
   const { toast } = useToast();
 
@@ -151,22 +153,45 @@ export const Jobs = () => {
   };
 
   const handleRunCronJobNow = async (cronJob: CronJob) => {
+    // Mark as running
+    setRunningCronJobs(prev => new Set(prev).add(cronJob.jobid));
+    setCronJobStartTimes(prev => new Map(prev).set(cronJob.jobid, Date.now()));
+    
+    toast({
+      title: "Cron Job Started",
+      description: `${cronJob.jobname} is now running. This may take several minutes for large datasets.`,
+    });
+    
     try {
       const { error } = await supabase
         .rpc('run_cron_job_now' as any, { p_command: cronJob.command });
       
       if (error) throw error;
       
+      const startTime = cronJobStartTimes.get(cronJob.jobid);
+      const elapsed = startTime ? Math.round((Date.now() - startTime) / 1000) : 0;
+      
       toast({
-        title: "Cron Job Executed",
-        description: `${cronJob.jobname} has been executed manually.`,
+        title: "Cron Job Completed",
+        description: `${cronJob.jobname} finished successfully in ${elapsed} seconds.`,
       });
     } catch (error) {
       await errorLogger.log(error, { operation: 'run_cron_job_now', jobId: cronJob.jobid });
       toast({
         title: "Error",
-        description: "Failed to run cron job. Please try again.",
+        description: "Failed to run cron job. Check logs for details.",
         variant: "destructive",
+      });
+    } finally {
+      setRunningCronJobs(prev => {
+        const next = new Set(prev);
+        next.delete(cronJob.jobid);
+        return next;
+      });
+      setCronJobStartTimes(prev => {
+        const next = new Map(prev);
+        next.delete(cronJob.jobid);
+        return next;
       });
     }
   };
@@ -1184,9 +1209,19 @@ export const Jobs = () => {
                       onClick={() => handleRunCronJobNow(cronJob)}
                       size="sm"
                       className="flex-1"
+                      disabled={runningCronJobs.has(cronJob.jobid)}
                     >
-                      <Play className="w-4 h-4 mr-2" />
-                      Run Now
+                      {runningCronJobs.has(cronJob.jobid) ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                          Running...
+                        </>
+                      ) : (
+                        <>
+                          <Play className="w-4 h-4 mr-2" />
+                          Run Now
+                        </>
+                      )}
                     </Button>
                     <Button
                       onClick={() => handleToggleCronJob(cronJob)}
