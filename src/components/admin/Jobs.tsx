@@ -162,27 +162,92 @@ export const Jobs = () => {
       description: `${cronJob.jobname} is now running. This may take several minutes for large datasets.`,
     });
     
+    // Get baseline counts before running
+    let baselineCounts: { vectors: number; transforms: number; intents: number; social: number } | null = null;
     try {
+      const { data: baseline } = await supabase.rpc('get_cron_job_progress' as any);
+      if (baseline) {
+        baselineCounts = {
+          vectors: baseline.vector_count || 0,
+          transforms: baseline.transform_count || 0,
+          intents: baseline.intent_count || 0,
+          social: baseline.social_count || 0,
+        };
+      }
+    } catch {
+      // Continue without baseline
+    }
+    
+    try {
+      // Start the job - this returns immediately but job runs in background
       const { error } = await supabase
         .rpc('run_cron_job_now' as any, { p_command: cronJob.command });
       
       if (error) throw error;
       
-      const startTime = cronJobStartTimes.get(cronJob.jobid);
-      const elapsed = startTime ? Math.round((Date.now() - startTime) / 1000) : 0;
+      // Poll for completion by checking if data is changing
+      const pollInterval = 5000; // 5 seconds
+      const maxPolls = 60; // Max 5 minutes
+      let pollCount = 0;
+      let lastCount = 0;
+      let stableCount = 0;
       
-      toast({
-        title: "Cron Job Completed",
-        description: `${cronJob.jobname} finished successfully in ${elapsed} seconds.`,
-      });
+      const checkProgress = async () => {
+        pollCount++;
+        
+        try {
+          // Check current counts
+          const { data: counts } = await supabase.rpc('get_cron_job_progress' as any);
+          
+          if (counts) {
+            const currentTotal = (counts.vector_count || 0) + (counts.transform_count || 0) + 
+                                 (counts.intent_count || 0) + (counts.social_count || 0);
+            
+            if (currentTotal === lastCount) {
+              stableCount++;
+            } else {
+              stableCount = 0;
+            }
+            lastCount = currentTotal;
+            
+            // If counts stable for 3 polls (15 seconds) or max polls reached, consider done
+            if (stableCount >= 3 || pollCount >= maxPolls) {
+              const startTime = cronJobStartTimes.get(cronJob.jobid);
+              const elapsed = startTime ? Math.round((Date.now() - startTime) / 1000) : 0;
+              
+              setRunningCronJobs(prev => {
+                const next = new Set(prev);
+                next.delete(cronJob.jobid);
+                return next;
+              });
+              setCronJobStartTimes(prev => {
+                const next = new Map(prev);
+                next.delete(cronJob.jobid);
+                return next;
+              });
+              
+              toast({
+                title: "Cron Job Completed",
+                description: `${cronJob.jobname} finished in ${elapsed} seconds.`,
+              });
+              return;
+            }
+          }
+          
+          // Continue polling
+          setTimeout(checkProgress, pollInterval);
+        } catch {
+          // Continue polling on error
+          setTimeout(checkProgress, pollInterval);
+        }
+      };
+      
+      // Start polling after a brief delay
+      setTimeout(checkProgress, pollInterval);
+      
     } catch (error) {
       await errorLogger.log(error, { operation: 'run_cron_job_now', jobId: cronJob.jobid });
-      toast({
-        title: "Error",
-        description: "Failed to run cron job. Check logs for details.",
-        variant: "destructive",
-      });
-    } finally {
+      
       setRunningCronJobs(prev => {
         const next = new Set(prev);
         next.delete(cronJob.jobid);
@@ -192,6 +257,12 @@ export const Jobs = () => {
         const next = new Map(prev);
         next.delete(cronJob.jobid);
         return next;
+      });
+      
+      toast({
+        title: "Error",
+        description: "Failed to run cron job. Check logs for details.",
+        variant: "destructive",
       });
     }
   };
