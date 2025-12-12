@@ -282,31 +282,14 @@ serve(async (req: Request) => {
   }
 
   // ------------------------------------------------------------------------
-  // 8. CALL REFRESH FUNCTIONS (only when all batches are done)
+  // 8. PROMOTION COMPLETE - Refresh functions run as separate cron jobs
   // ------------------------------------------------------------------------
-  console.log("All staging rows processed. Calling refresh functions...");
-
-  const refreshErrors: string[] = [];
-
-  async function callRefresh(fn: string) {
-    console.log(`Calling refresh: ${fn}()`);
-    try {
-      const { error } = await supabase.rpc(fn);
-      if (error) {
-        console.error(`Error in ${fn}:`, error);
-        refreshErrors.push(fn);
-      } else {
-        console.log(`✓ ${fn} executed`);
-      }
-    } catch (err) {
-      console.error(`Exception in ${fn}:`, err);
-      refreshErrors.push(fn);
-    }
-  }
-
-  await callRefresh("refresh_title_emotion_vectors");
-  await callRefresh("refresh_title_transformation_scores");
-  await callRefresh("refresh_title_intent_alignment_scores");
+  // NOTE: The refresh functions (refresh_title_emotion_vectors, 
+  // refresh_title_transformation_scores, refresh_title_intent_alignment_scores)
+  // are computationally intensive and run as scheduled cron jobs.
+  // They should NOT be called inline here as they timeout.
+  console.log("All staging rows processed. Promotion complete.");
+  console.log("Note: Refresh functions run as separate scheduled cron jobs.");
 
   // Mark job complete
   await markJobComplete();
@@ -317,9 +300,8 @@ serve(async (req: Request) => {
   console.log("▶ promote-title-emotions — COMPLETE\n");
 
   return jsonOk({
-    message: "Promotion complete",
+    message: "Promotion complete. Refresh functions will run via scheduled cron jobs.",
     promoted_titles: titleIds.length,
     inserted_rows: finalRows.length,
-    refresh_function_errors: refreshErrors,
   });
 });
