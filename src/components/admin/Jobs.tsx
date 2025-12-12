@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Play, Pause, RefreshCw, Clock, Calendar as CalendarIcon, Settings, XCircle, Layers } from "@/icons";
 import { errorLogger } from "@/lib/services/ErrorLoggerService";
+import { CronMetricsDashboard } from "./CronMetricsDashboard";
 import { ThreadMonitor } from "./ThreadMonitor";
 import {
   Dialog,
@@ -1215,6 +1216,9 @@ export const Jobs = () => {
           </Card>
         ))}
       </div>
+
+      {/* Cron Metrics Dashboard */}
+      <CronMetricsDashboard />
 
       {/* Cron Jobs Section */}
       <div className="space-y-4">
