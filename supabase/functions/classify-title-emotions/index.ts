@@ -24,6 +24,7 @@ const BATCH_SIZE = 10;
 const MAX_CONCURRENT = 3;
 const MAX_TRANSCRIPT_CHARS = 4000;
 const MAX_RUNTIME_MS = 85000;
+const SKIP_DAYS = 7; // Skip titles processed in the last N days
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -251,6 +252,23 @@ async function processClassificationBatch(lastId: string | null): Promise<void> 
   let currentCursor = lastId;
   let totalProcessed = 0;
 
+  // Calculate cutoff date for 7-day skip
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - SKIP_DAYS);
+  const cutoffISO = cutoffDate.toISOString();
+  console.log(`Skipping titles processed after: ${cutoffISO}`);
+
+  // Get list of title IDs that were already processed in the last 7 days
+  const { data: recentlyProcessed } = await supabase
+    .from("title_emotional_signatures_staging")
+    .select("title_id")
+    .gte("created_at", cutoffISO);
+  
+  const recentlyProcessedIds = new Set(
+    (recentlyProcessed ?? []).map((r: { title_id: string }) => r.title_id)
+  );
+  console.log(`Found ${recentlyProcessedIds.size} titles processed in last ${SKIP_DAYS} days - will skip.`);
+
   // Continuous batch processing within time limit
   while (Date.now() - startTime < MAX_RUNTIME_MS) {
     // Check job status each batch
@@ -265,30 +283,45 @@ async function processClassificationBatch(lastId: string | null): Promise<void> 
       .from("titles")
       .select("id, title_type, name, original_name, overview, trailer_transcript, original_language, title_genres")
       .order("id", { ascending: true })
-      .limit(BATCH_SIZE);
+      .limit(BATCH_SIZE * 2); // Fetch more to account for skipped titles
 
     // If we have a cursor, get records AFTER it
     if (currentCursor) {
       query = query.gt("id", currentCursor);
     }
 
-    const { data: batch, error: titleErr } = await query;
+    const { data: rawBatch, error: titleErr } = await query;
 
     if (titleErr) {
       console.error("Error fetching titles:", titleErr);
       break;
     }
 
-    if (!batch?.length) {
+    if (!rawBatch?.length) {
       console.log("No more titles to process. Job complete.");
       await markJobComplete();
       return;
     }
 
-    console.log(`Processing batch of ${batch.length} titles after cursor ${currentCursor ?? "START"}...`);
+    // Filter out recently processed titles
+    const batch = rawBatch.filter((t: TitleRow) => !recentlyProcessedIds.has(t.id));
+    
+    // Update cursor to last fetched ID (not last processed)
+    currentCursor = rawBatch[rawBatch.length - 1].id;
+
+    if (!batch.length) {
+      console.log(`Skipped ${rawBatch.length} recently processed titles, continuing...`);
+      await updateJobCursor(currentCursor);
+      continue;
+    }
+
+    // Limit to BATCH_SIZE for actual processing
+    const processBatch = batch.slice(0, BATCH_SIZE);
+
+    console.log(`Processing ${processBatch.length} titles (skipped ${rawBatch.length - batch.length} recent)...`);
     let batchProcessed = 0;
 
-    await runWithConcurrency(batch as TitleRow[], MAX_CONCURRENT, async (title) => {
+    await runWithConcurrency(processBatch as TitleRow[], MAX_CONCURRENT, async (title) => {
       const label = title.name ?? title.original_name ?? title.id;
       console.log(`→ Classifying [${title.title_type}] ${label}`);
 

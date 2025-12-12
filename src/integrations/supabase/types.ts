@@ -959,6 +959,7 @@ export type Database = {
       }
       title_emotional_signatures_staging: {
         Row: {
+          created_at: string
           emotion_id: string
           id: string
           intensity_level: number
@@ -966,6 +967,7 @@ export type Database = {
           title_id: string
         }
         Insert: {
+          created_at?: string
           emotion_id: string
           id?: string
           intensity_level: number
@@ -973,6 +975,7 @@ export type Database = {
           title_id: string
         }
         Update: {
+          created_at?: string
           emotion_id?: string
           id?: string
           intensity_level?: number
