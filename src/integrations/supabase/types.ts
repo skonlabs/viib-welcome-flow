@@ -1993,6 +1993,19 @@ export type Database = {
         Args: { p_title_id: string; p_user_id: string }
         Returns: Json
       }
+      get_cron_job_progress: {
+        Args: never
+        Returns: {
+          intent_count: number
+          intent_updated_at: string
+          social_count: number
+          social_updated_at: string
+          transform_count: number
+          transform_updated_at: string
+          vector_count: number
+          vector_updated_at: string
+        }[]
+      }
       get_cron_jobs: {
         Args: never
         Returns: {
