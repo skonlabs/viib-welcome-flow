@@ -24,7 +24,7 @@ const BATCH_SIZE = 10;
 const MAX_CONCURRENT = 3;
 const MAX_TRANSCRIPT_CHARS = 4000;
 const MAX_RUNTIME_MS = 85000;
-const SKIP_DAYS = 7; // Skip titles processed in the last N days
+// Note: We skip ALL titles that already have staging data (not time-based)
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -252,22 +252,16 @@ async function processClassificationBatch(lastId: string | null): Promise<void> 
   let currentCursor = lastId;
   let totalProcessed = 0;
 
-  // Calculate cutoff date for 7-day skip
-  const cutoffDate = new Date();
-  cutoffDate.setDate(cutoffDate.getDate() - SKIP_DAYS);
-  const cutoffISO = cutoffDate.toISOString();
-  console.log(`Skipping titles processed after: ${cutoffISO}`);
-
-  // Get list of title IDs that were already processed in the last 7 days
-  const { data: recentlyProcessed } = await supabase
+  // Get list of title IDs that already have ANY staging data
+  // (these don't need to be reprocessed regardless of date)
+  const { data: existingStaging } = await supabase
     .from("title_emotional_signatures_staging")
-    .select("title_id")
-    .gte("created_at", cutoffISO);
+    .select("title_id");
   
-  const recentlyProcessedIds = new Set(
-    (recentlyProcessed ?? []).map((r: { title_id: string }) => r.title_id)
+  const alreadyProcessedIds = new Set(
+    (existingStaging ?? []).map((r: { title_id: string }) => r.title_id)
   );
-  console.log(`Found ${recentlyProcessedIds.size} titles processed in last ${SKIP_DAYS} days - will skip.`);
+  console.log(`Found ${alreadyProcessedIds.size} titles already have staging data - will skip.`);
 
   // Continuous batch processing within time limit
   while (Date.now() - startTime < MAX_RUNTIME_MS) {
@@ -283,7 +277,7 @@ async function processClassificationBatch(lastId: string | null): Promise<void> 
       .from("titles")
       .select("id, title_type, name, original_name, overview, trailer_transcript, original_language, title_genres")
       .order("id", { ascending: true })
-      .limit(BATCH_SIZE * 2); // Fetch more to account for skipped titles
+      .limit(BATCH_SIZE * 3); // Fetch more to account for skipped titles
 
     // If we have a cursor, get records AFTER it
     if (currentCursor) {
@@ -303,14 +297,14 @@ async function processClassificationBatch(lastId: string | null): Promise<void> 
       return;
     }
 
-    // Filter out recently processed titles
-    const batch = rawBatch.filter((t: TitleRow) => !recentlyProcessedIds.has(t.id));
+    // Filter out titles that already have staging data
+    const batch = rawBatch.filter((t: TitleRow) => !alreadyProcessedIds.has(t.id));
     
-    // Update cursor to last fetched ID (not last processed)
+    // Update cursor to last fetched ID
     currentCursor = rawBatch[rawBatch.length - 1].id;
 
     if (!batch.length) {
-      console.log(`Skipped ${rawBatch.length} recently processed titles, continuing...`);
+      console.log(`Skipped ${rawBatch.length} already-processed titles, continuing...`);
       await updateJobCursor(currentCursor);
       continue;
     }
@@ -346,14 +340,13 @@ async function processClassificationBatch(lastId: string | null): Promise<void> 
       }
     });
 
-    // Update cursor to last processed ID
-    currentCursor = batch[batch.length - 1].id;
-    await updateJobCursor(currentCursor);
-    
+    // Cursor already updated to last fetched ID above
+    // Just update job with count of actually processed titles
     if (batchProcessed > 0) {
       await incrementJobTitles(batchProcessed);
       totalProcessed += batchProcessed;
     }
+    await updateJobCursor(currentCursor);
 
     // Small delay between batches
     await new Promise((r) => setTimeout(r, 300));
