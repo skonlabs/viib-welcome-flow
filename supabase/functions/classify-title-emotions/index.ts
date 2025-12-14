@@ -199,7 +199,7 @@ async function insertStagingRows(titleId: string, rows: ModelEmotion[], emotionL
 // ---------------------------------------------------------------------
 // Background processing logic - staging table IS source of truth
 // ---------------------------------------------------------------------
-async function processClassificationBatch(): Promise<void> {
+async function processClassificationBatch(cursor?: string): Promise<void> {
   const startTime = Date.now();
   
   // Check job status
@@ -239,6 +239,7 @@ async function processClassificationBatch(): Promise<void> {
   }
 
   let totalProcessed = 0;
+  let currentCursor: string | null = cursor || null;
 
   // Continuous batch processing within time limit
   while (Date.now() - startTime < MAX_RUNTIME_MS) {
@@ -249,19 +250,44 @@ async function processClassificationBatch(): Promise<void> {
       return;
     }
 
-    // Fetch titles that DO NOT exist in staging table
-    // This is the ONLY correct way - staging IS the source of truth
-    const { data: batch, error: fetchError } = await supabase
+    // Get a batch of titles starting from cursor
+    let query = supabase
       .from("titles")
-      .select("id, name, overview, trailer_transcript")
-      .not("id", "in", `(SELECT title_id FROM title_emotional_signatures_staging)`)
+      .select("id, name, title_type, overview, trailer_transcript")
       .order("id", { ascending: true })
-      .limit(BATCH_SIZE);
+      .limit(BATCH_SIZE * 3); // Fetch more to find unprocessed ones
+
+    if (currentCursor) {
+      query = query.gt("id", currentCursor);
+    }
+
+    const { data: candidateTitles, error: fetchError } = await query;
 
     if (fetchError) {
-      console.error("Error fetching unclassified titles:", fetchError);
+      console.error("Error fetching titles:", fetchError);
       return;
     }
+
+    if (!candidateTitles || candidateTitles.length === 0) {
+      console.log("No more titles to check!");
+      await markJobComplete();
+      return;
+    }
+
+    // Check which of these are already in staging
+    const candidateIds = candidateTitles.map(t => t.id);
+    const { data: existingStaged } = await supabase
+      .from("title_emotional_signatures_staging")
+      .select("title_id")
+      .in("title_id", candidateIds);
+
+    const stagedSet = new Set((existingStaged || []).map(r => r.title_id));
+    const batch = candidateTitles.filter(t => !stagedSet.has(t.id)).slice(0, BATCH_SIZE);
+    
+    // Update cursor to last candidate checked (not just processed)
+    currentCursor = candidateTitles[candidateTitles.length - 1].id;
+
+    console.log(`Checked ${candidateTitles.length} titles, ${stagedSet.size} staged, processing ${batch.length}, cursor: ${currentCursor}`);
 
     // No more unprocessed titles - we're done!
     if (!batch || batch.length === 0) {
@@ -307,12 +333,12 @@ async function processClassificationBatch(): Promise<void> {
     await new Promise((r) => setTimeout(r, 300));
   }
 
-  console.log(`Batch complete. Processed: ${totalProcessed} titles.`);
+  console.log(`Batch complete. Processed: ${totalProcessed}, cursor: ${currentCursor}`);
 
   // Self-invoke for next batch if more work remains
   const { status: finalStatus } = await getJobConfig();
   if (finalStatus === "running") {
-    console.log(`Self-invoking next batch...`);
+    console.log(`Self-invoking next batch with cursor ${currentCursor}...`);
     
     EdgeRuntime.waitUntil(
       fetch(`${supabaseUrl}/functions/v1/classify-title-emotions`, {
@@ -321,7 +347,7 @@ async function processClassificationBatch(): Promise<void> {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${serviceRoleKey}`,
         },
-        body: JSON.stringify({ continuation: true }),
+        body: JSON.stringify({ continuation: true, cursor: currentCursor }),
       }).catch((err) => console.error("Self-invoke failed:", err))
     );
   }
@@ -342,11 +368,11 @@ serve(async (req: Request) => {
   try {
     const body = await req.json().catch(() => ({}));
     
-    // Continuation call - just continue processing
+    // Continuation call - continue processing with cursor
     if (body.continuation) {
-      EdgeRuntime.waitUntil(processClassificationBatch());
+      EdgeRuntime.waitUntil(processClassificationBatch(body.cursor));
       return new Response(
-        JSON.stringify({ message: "Continuation batch started" }),
+        JSON.stringify({ message: "Continuation batch started", cursor: body.cursor }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
