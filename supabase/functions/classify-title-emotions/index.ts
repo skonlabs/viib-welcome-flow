@@ -76,21 +76,6 @@ async function getJobConfig(): Promise<{ status: string; config: JobConfig }> {
   };
 }
 
-async function updateJobCursor(lastId: string | null): Promise<void> {
-  const { data: job } = await supabase
-    .from("jobs")
-    .select("configuration")
-    .eq("job_type", JOB_TYPE)
-    .single();
-  
-  const config = (job?.configuration as JobConfig) ?? {};
-  config.last_processed_id = lastId;
-  
-  await supabase
-    .from("jobs")
-    .update({ configuration: config })
-    .eq("job_type", JOB_TYPE);
-}
 
 async function incrementJobTitles(count: number): Promise<void> {
   await supabase.rpc("increment_job_titles", {
@@ -212,9 +197,9 @@ async function insertStagingRows(titleId: string, rows: ModelEmotion[], emotionL
 }
 
 // ---------------------------------------------------------------------
-// Background processing logic with CURSOR-BASED pagination
+// Background processing logic - staging table IS source of truth
 // ---------------------------------------------------------------------
-async function processClassificationBatch(lastId: string | null): Promise<void> {
+async function processClassificationBatch(): Promise<void> {
   const startTime = Date.now();
   
   // Check job status
@@ -224,12 +209,16 @@ async function processClassificationBatch(lastId: string | null): Promise<void> 
     return;
   }
 
-  // Get total titles count for progress tracking
+  // Get counts for progress tracking
   const { count: totalTitles } = await supabase
     .from("titles")
     .select("id", { count: "exact", head: true });
+  
+  const { count: stagedCount } = await supabase
+    .from("title_emotional_signatures_staging")
+    .select("title_id", { count: "exact", head: true });
 
-  console.log(`Total titles in DB: ${totalTitles}, cursor: ${lastId ?? "START"}`);
+  console.log(`Total titles: ${totalTitles}, Already staged: ${stagedCount}, Remaining: ${(totalTitles || 0) - (stagedCount || 0)}`);
 
   // Load emotion vocabulary
   const { data: emotions, error: emoErr } = await supabase
@@ -249,76 +238,44 @@ async function processClassificationBatch(lastId: string | null): Promise<void> 
     emotionLabelToId.set(e.emotion_label, e.id);
   }
 
-  let currentCursor = lastId;
   let totalProcessed = 0;
 
   // Continuous batch processing within time limit
   while (Date.now() - startTime < MAX_RUNTIME_MS) {
     // Check job status each batch
-    const { status: currentStatus } = await getJobConfig();
-    if (currentStatus !== "running") {
-      console.log("Job stopped, exiting batch loop.");
-      break;
+    const jobStatus = await getJobConfig();
+    if (jobStatus?.status !== "running") {
+      console.log("Job stopped by user, aborting.");
+      return;
     }
 
-    // Fetch batch using CURSOR-BASED pagination (O(1) performance!)
-    let query = supabase
+    // Fetch titles that DO NOT exist in staging table
+    // This is the ONLY correct way - staging IS the source of truth
+    const { data: batch, error: fetchError } = await supabase
       .from("titles")
-      .select("id, title_type, name, original_name, overview, trailer_transcript, original_language, title_genres")
+      .select("id, name, overview, trailer_transcript")
+      .not("id", "in", `(SELECT title_id FROM title_emotional_signatures_staging)`)
       .order("id", { ascending: true })
-      .limit(BATCH_SIZE * 3); // Fetch more to account for skipped titles
+      .limit(BATCH_SIZE);
 
-    // If we have a cursor, get records AFTER it
-    if (currentCursor) {
-      query = query.gt("id", currentCursor);
+    if (fetchError) {
+      console.error("Error fetching unclassified titles:", fetchError);
+      return;
     }
 
-    const { data: rawBatch, error: titleErr } = await query;
-
-    if (titleErr) {
-      console.error("Error fetching titles:", titleErr);
-      break;
-    }
-
-    if (!rawBatch?.length) {
-      console.log("No more titles to process. Job complete.");
+    // No more unprocessed titles - we're done!
+    if (!batch || batch.length === 0) {
+      console.log("All titles have been classified!");
       await markJobComplete();
       return;
     }
 
-    // Update cursor to last fetched ID
-    currentCursor = rawBatch[rawBatch.length - 1].id;
-
-    // Check which titles from THIS BATCH already have staging data
-    // (query per-batch to avoid Supabase's default 1000 row limit)
-    const batchIds = rawBatch.map((t: TitleRow) => t.id);
-    const { data: existingInBatch } = await supabase
-      .from("title_emotional_signatures_staging")
-      .select("title_id")
-      .in("title_id", batchIds);
-    
-    const alreadyProcessedIds = new Set(
-      (existingInBatch ?? []).map((r: { title_id: string }) => r.title_id)
-    );
-
-    // Filter out titles that already have staging data
-    const batch = rawBatch.filter((t: TitleRow) => !alreadyProcessedIds.has(t.id));
-
-    if (!batch.length) {
-      console.log(`Skipped ${rawBatch.length} already-processed titles, continuing...`);
-      await updateJobCursor(currentCursor);
-      continue;
-    }
-
-    // Limit to BATCH_SIZE for actual processing
-    const processBatch = batch.slice(0, BATCH_SIZE);
-
-    console.log(`Processing ${processBatch.length} titles (skipped ${rawBatch.length - batch.length} recent)...`);
+    console.log(`Processing batch of ${batch.length} unclassified titles...`);
     let batchProcessed = 0;
 
-    await runWithConcurrency(processBatch as TitleRow[], MAX_CONCURRENT, async (title) => {
-      const label = title.name ?? title.original_name ?? title.id;
-      console.log(`→ Classifying [${title.title_type}] ${label}`);
+    await runWithConcurrency(batch as TitleRow[], MAX_CONCURRENT, async (title) => {
+      const label = title.name ?? title.id;
+      console.log(`→ Classifying ${label}`);
 
       try {
         const result = await classifyWithAI(title, emotionLabels);
@@ -341,24 +298,21 @@ async function processClassificationBatch(lastId: string | null): Promise<void> 
       }
     });
 
-    // Cursor already updated to last fetched ID above
-    // Just update job with count of actually processed titles
     if (batchProcessed > 0) {
       await incrementJobTitles(batchProcessed);
       totalProcessed += batchProcessed;
     }
-    await updateJobCursor(currentCursor);
 
     // Small delay between batches
     await new Promise((r) => setTimeout(r, 300));
   }
 
-  console.log(`Batch complete. Processed: ${totalProcessed}, cursor: ${currentCursor}`);
+  console.log(`Batch complete. Processed: ${totalProcessed} titles.`);
 
   // Self-invoke for next batch if more work remains
   const { status: finalStatus } = await getJobConfig();
-  if (finalStatus === "running" && currentCursor) {
-    console.log(`Self-invoking next batch with cursor ${currentCursor}...`);
+  if (finalStatus === "running") {
+    console.log(`Self-invoking next batch...`);
     
     EdgeRuntime.waitUntil(
       fetch(`${supabaseUrl}/functions/v1/classify-title-emotions`, {
@@ -367,7 +321,7 @@ async function processClassificationBatch(lastId: string | null): Promise<void> 
           "Content-Type": "application/json",
           "Authorization": `Bearer ${serviceRoleKey}`,
         },
-        body: JSON.stringify({ continuation: true, cursor: currentCursor }),
+        body: JSON.stringify({ continuation: true }),
       }).catch((err) => console.error("Self-invoke failed:", err))
     );
   }
@@ -388,21 +342,19 @@ serve(async (req: Request) => {
   try {
     const body = await req.json().catch(() => ({}));
     
-    // Continuation call - use provided cursor
+    // Continuation call - just continue processing
     if (body.continuation) {
-      const cursor = body.cursor ?? null;
-      EdgeRuntime.waitUntil(processClassificationBatch(cursor));
+      EdgeRuntime.waitUntil(processClassificationBatch());
       return new Response(
-        JSON.stringify({ message: "Continuation batch started", cursor }),
+        JSON.stringify({ message: "Continuation batch started" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Initial call - reset cursor to null (start from beginning) and start
+    // Initial call - start fresh
     console.log("▶ classify-title-emotions job started (fresh run)");
-    await updateJobCursor(null);
     
-    EdgeRuntime.waitUntil(processClassificationBatch(null));
+    EdgeRuntime.waitUntil(processClassificationBatch());
 
     return new Response(
       JSON.stringify({ 
