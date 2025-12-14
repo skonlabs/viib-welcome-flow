@@ -252,17 +252,6 @@ async function processClassificationBatch(lastId: string | null): Promise<void> 
   let currentCursor = lastId;
   let totalProcessed = 0;
 
-  // Get list of title IDs that already have ANY staging data
-  // (these don't need to be reprocessed regardless of date)
-  const { data: existingStaging } = await supabase
-    .from("title_emotional_signatures_staging")
-    .select("title_id");
-  
-  const alreadyProcessedIds = new Set(
-    (existingStaging ?? []).map((r: { title_id: string }) => r.title_id)
-  );
-  console.log(`Found ${alreadyProcessedIds.size} titles already have staging data - will skip.`);
-
   // Continuous batch processing within time limit
   while (Date.now() - startTime < MAX_RUNTIME_MS) {
     // Check job status each batch
@@ -297,11 +286,23 @@ async function processClassificationBatch(lastId: string | null): Promise<void> 
       return;
     }
 
-    // Filter out titles that already have staging data
-    const batch = rawBatch.filter((t: TitleRow) => !alreadyProcessedIds.has(t.id));
-    
     // Update cursor to last fetched ID
     currentCursor = rawBatch[rawBatch.length - 1].id;
+
+    // Check which titles from THIS BATCH already have staging data
+    // (query per-batch to avoid Supabase's default 1000 row limit)
+    const batchIds = rawBatch.map((t: TitleRow) => t.id);
+    const { data: existingInBatch } = await supabase
+      .from("title_emotional_signatures_staging")
+      .select("title_id")
+      .in("title_id", batchIds);
+    
+    const alreadyProcessedIds = new Set(
+      (existingInBatch ?? []).map((r: { title_id: string }) => r.title_id)
+    );
+
+    // Filter out titles that already have staging data
+    const batch = rawBatch.filter((t: TitleRow) => !alreadyProcessedIds.has(t.id));
 
     if (!batch.length) {
       console.log(`Skipped ${rawBatch.length} already-processed titles, continuing...`);
