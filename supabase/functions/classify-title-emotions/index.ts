@@ -303,11 +303,11 @@ async function processClassificationBatch(cursor?: string): Promise<void> {
 
     console.log(`Checked ${candidateTitles.length}, staged: ${stagingMap.size}, processing: ${batch.length} (new or >7 days old), cursor: ${currentCursor}`);
 
-    // No more unprocessed titles - we're done!
+    // If this batch has nothing to process, continue to next cursor (don't stop!)
+    // We already have candidateTitles, so there ARE more titles to check
     if (!batch || batch.length === 0) {
-      console.log("All titles have been classified!");
-      await markJobComplete();
-      return;
+      console.log(`No titles to process in this range, continuing to next cursor...`);
+      continue; // Move to next batch with updated cursor
     }
 
     console.log(`Processing batch of ${batch.length} unclassified titles...`);
