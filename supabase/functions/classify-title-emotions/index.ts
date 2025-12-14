@@ -255,7 +255,7 @@ async function processClassificationBatch(cursor?: string): Promise<void> {
       .from("titles")
       .select("id, name, title_type, overview, trailer_transcript")
       .order("id", { ascending: true })
-      .limit(BATCH_SIZE * 3); // Fetch more to find unprocessed ones
+      .limit(BATCH_SIZE * 3);
 
     if (currentCursor) {
       query = query.gt("id", currentCursor);
@@ -274,20 +274,34 @@ async function processClassificationBatch(cursor?: string): Promise<void> {
       return;
     }
 
-    // Check which of these are already in staging
+    // Check staging for these titles - get title_id AND created_at
     const candidateIds = candidateTitles.map(t => t.id);
-    const { data: existingStaged } = await supabase
+    const { data: stagingRecords } = await supabase
       .from("title_emotional_signatures_staging")
-      .select("title_id")
+      .select("title_id, created_at")
       .in("title_id", candidateIds);
 
-    const stagedSet = new Set((existingStaged || []).map(r => r.title_id));
-    const batch = candidateTitles.filter(t => !stagedSet.has(t.id)).slice(0, BATCH_SIZE);
+    // Build map of title_id -> created_at
+    const stagingMap = new Map<string, Date>();
+    for (const rec of stagingRecords || []) {
+      stagingMap.set(rec.title_id, new Date(rec.created_at));
+    }
+
+    // Calculate 7 days ago threshold
+    const oneWeekAgo = new Date();
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+
+    // Process titles that: NOT in staging OR staged more than 7 days ago
+    const batch = candidateTitles.filter(t => {
+      if (!stagingMap.has(t.id)) return true; // Not in staging - needs processing
+      const createdAt = stagingMap.get(t.id)!;
+      return createdAt < oneWeekAgo; // Older than 7 days - needs refresh
+    }).slice(0, BATCH_SIZE);
     
-    // Update cursor to last candidate checked (not just processed)
+    // Update cursor to last candidate checked
     currentCursor = candidateTitles[candidateTitles.length - 1].id;
 
-    console.log(`Checked ${candidateTitles.length} titles, ${stagedSet.size} staged, processing ${batch.length}, cursor: ${currentCursor}`);
+    console.log(`Checked ${candidateTitles.length}, staged: ${stagingMap.size}, processing: ${batch.length} (new or >7 days old), cursor: ${currentCursor}`);
 
     // No more unprocessed titles - we're done!
     if (!batch || batch.length === 0) {
