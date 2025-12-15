@@ -12,6 +12,24 @@ verify_jwt = false
 [functions.verify-email-otp]
 verify_jwt = false
 
+[functions.hash-password]
+verify_jwt = false
+
+[functions.verify-password]
+verify_jwt = false
+
+[functions.search-tmdb]
+verify_jwt = false
+
+[functions.send-activation-invite]
+verify_jwt = false
+
+[functions.send-invites]
+verify_jwt = false
+
+[functions.enrich-title-details]
+verify_jwt = false
+
 [functions.full-refresh-titles]
 verify_jwt = false
 
