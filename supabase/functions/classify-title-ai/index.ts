@@ -191,7 +191,7 @@ Return ONLY JSON: { "title": "...", "emotions": [...], "intents": [...] }`;
 async function classifyWithAI(title: TitleRow, emotionLabels: string[]): Promise<ModelResponse | null> {
   try {
     const completion = await openai.chat.completions.create({
-      model: "gpt-4.1-mini",
+      model: "gpt-4o-mini",
       temperature: 0.3,
       messages: [
         { role: "system", content: buildSystemPrompt(emotionLabels) },

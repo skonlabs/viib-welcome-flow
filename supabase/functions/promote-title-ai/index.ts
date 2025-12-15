@@ -15,6 +15,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.6";
 
+declare const EdgeRuntime: { waitUntil: (promise: Promise<unknown>) => void };
+
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const supabase = createClient(supabaseUrl, serviceRoleKey);
@@ -257,10 +259,15 @@ serve(async (req: Request) => {
   if (hasMoreWork) {
     console.log(`Remaining: ${remainingEmotions || 0} emotions, ${remainingIntents || 0} intents. Self-invoking...`);
     
-    (globalThis as any).EdgeRuntime.waitUntil(
-      supabase.functions.invoke("promote-title-ai", {
-        body: { batchSize }
-      })
+    EdgeRuntime.waitUntil(
+      fetch(`${supabaseUrl}/functions/v1/promote-title-ai`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${serviceRoleKey}`,
+        },
+        body: JSON.stringify({ batchSize }),
+      }).catch((err) => console.error("Self-invoke failed:", err))
     );
 
     return jsonOk({
