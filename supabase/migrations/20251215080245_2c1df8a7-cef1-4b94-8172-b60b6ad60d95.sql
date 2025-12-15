@@ -1,0 +1,2 @@
+-- Delete deprecated job records that have been replaced by unified classify_ai and promote_ai jobs
+DELETE FROM jobs WHERE job_type IN ('classify_emotions', 'promote_emotions', 'classify_intents', 'promote_intents');
