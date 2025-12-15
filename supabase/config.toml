@@ -45,18 +45,6 @@ verify_jwt = false
 [functions.transcribe-trailers]
 verify_jwt = false
 
-[functions.classify-title-emotions]
-verify_jwt = false
-
-[functions.promote-title-emotions]
-verify_jwt = false
-
-[functions.classify-title-intents]
-verify_jwt = false
-
-[functions.promote-title-intents]
-verify_jwt = false
-
 [functions.classify-title-ai]
 verify_jwt = false
 
