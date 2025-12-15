@@ -2095,6 +2095,7 @@ export type Database = {
       }
       promote_title_intents: { Args: { p_limit?: number }; Returns: number }
       refresh_title_emotion_vectors: { Args: never; Returns: undefined }
+      refresh_title_intent_alignment_scores: { Args: never; Returns: undefined }
       refresh_title_social_summary: { Args: never; Returns: undefined }
       refresh_title_transformation_scores: { Args: never; Returns: undefined }
       refresh_viib_reco_materializations: { Args: never; Returns: undefined }
