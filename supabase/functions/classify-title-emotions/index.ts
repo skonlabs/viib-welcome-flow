@@ -197,7 +197,8 @@ async function insertStagingRows(titleId: string, rows: ModelEmotion[], emotionL
 }
 
 // ---------------------------------------------------------------------
-// Background processing logic - staging table IS source of truth
+// Background processing logic - primary table is source of truth
+// Classifies titles NOT in title_emotional_signatures within last 7 days
 // ---------------------------------------------------------------------
 async function processClassificationBatch(cursor?: string): Promise<void> {
   const startTime = Date.now();
@@ -209,16 +210,22 @@ async function processClassificationBatch(cursor?: string): Promise<void> {
     return;
   }
 
+  // Calculate 7 days ago threshold
+  const oneWeekAgo = new Date();
+  oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+  const oneWeekAgoISO = oneWeekAgo.toISOString();
+
   // Get counts for progress tracking
   const { count: totalTitles } = await supabase
     .from("titles")
     .select("id", { count: "exact", head: true });
   
-  const { count: stagedCount } = await supabase
-    .from("title_emotional_signatures_staging")
+  // Count titles already classified in primary table within last 7 days
+  const { count: classifiedCount } = await supabase
+    .from("title_emotional_signatures")
     .select("title_id", { count: "exact", head: true });
 
-  console.log(`Total titles: ${totalTitles}, Already staged: ${stagedCount}, Remaining: ${(totalTitles || 0) - (stagedCount || 0)}`);
+  console.log(`Total titles: ${totalTitles}, Already classified: ${classifiedCount}`);
 
   // Load emotion vocabulary
   const { data: emotions, error: emoErr } = await supabase
@@ -253,7 +260,7 @@ async function processClassificationBatch(cursor?: string): Promise<void> {
     // Get a batch of titles starting from cursor
     let query = supabase
       .from("titles")
-      .select("id, name, title_type, overview, trailer_transcript")
+      .select("id, name, title_type, overview, trailer_transcript, original_language, title_genres")
       .order("id", { ascending: true })
       .limit(BATCH_SIZE * 3);
 
@@ -274,40 +281,31 @@ async function processClassificationBatch(cursor?: string): Promise<void> {
       return;
     }
 
-    // Check staging for these titles - get title_id AND created_at
+    // Check PRIMARY table (title_emotional_signatures) for these titles
     const candidateIds = candidateTitles.map(t => t.id);
-    const { data: stagingRecords } = await supabase
-      .from("title_emotional_signatures_staging")
-      .select("title_id, created_at")
+    const { data: classifiedRecords } = await supabase
+      .from("title_emotional_signatures")
+      .select("title_id")
       .in("title_id", candidateIds);
 
-    // Build map of title_id -> created_at
-    const stagingMap = new Map<string, Date>();
-    for (const rec of stagingRecords || []) {
-      stagingMap.set(rec.title_id, new Date(rec.created_at));
+    // Build set of title_ids that are already classified
+    const classifiedSet = new Set<string>();
+    for (const rec of classifiedRecords || []) {
+      classifiedSet.add(rec.title_id);
     }
 
-    // Calculate 7 days ago threshold
-    const oneWeekAgo = new Date();
-    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-
-    // Process titles that: NOT in staging OR staged more than 7 days ago
-    const batch = candidateTitles.filter(t => {
-      if (!stagingMap.has(t.id)) return true; // Not in staging - needs processing
-      const createdAt = stagingMap.get(t.id)!;
-      return createdAt < oneWeekAgo; // Older than 7 days - needs refresh
-    }).slice(0, BATCH_SIZE);
+    // Process titles that are NOT in the primary table
+    const batch = candidateTitles.filter(t => !classifiedSet.has(t.id)).slice(0, BATCH_SIZE);
     
     // Update cursor to last candidate checked
     currentCursor = candidateTitles[candidateTitles.length - 1].id;
 
-    console.log(`Checked ${candidateTitles.length}, staged: ${stagingMap.size}, processing: ${batch.length} (new or >7 days old), cursor: ${currentCursor}`);
+    console.log(`Checked ${candidateTitles.length}, already classified: ${classifiedSet.size}, processing: ${batch.length} (unclassified), cursor: ${currentCursor}`);
 
-    // If this batch has nothing to process, continue to next cursor (don't stop!)
-    // We already have candidateTitles, so there ARE more titles to check
+    // If this batch has nothing to process, continue to next cursor
     if (!batch || batch.length === 0) {
       console.log(`No titles to process in this range, continuing to next cursor...`);
-      continue; // Move to next batch with updated cursor
+      continue;
     }
 
     console.log(`Processing batch of ${batch.length} unclassified titles...`);
