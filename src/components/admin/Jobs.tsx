@@ -419,22 +419,6 @@ export const Jobs = () => {
       } else if (job.job_type === 'transcribe_trailers') {
         functionName = 'transcribe-trailers';
         functionBody = { jobId: job.id };
-      } else if (job.job_type === 'classify_emotions') {
-        functionName = 'classify-title-emotions';
-        const config = job.configuration || {};
-        functionBody = { jobId: job.id, batchSize: config.batch_size || 10 };
-      } else if (job.job_type === 'promote_emotions') {
-        functionName = 'promote-title-emotions';
-        const config = job.configuration || {};
-        functionBody = { batchSize: config.batch_size || 50 };
-      } else if (job.job_type === 'classify_intents') {
-        functionName = 'classify-title-intents';
-        const config = job.configuration || {};
-        functionBody = { jobId: job.id, batchSize: config.batch_size || 10 };
-      } else if (job.job_type === 'promote_intents') {
-        functionName = 'promote-title-intents';
-        const config = job.configuration || {};
-        functionBody = { batchSize: config.batch_size || 50 };
       } else if (job.job_type === 'classify_ai') {
         functionName = 'classify-title-ai';
         const config = job.configuration || {};
@@ -1203,93 +1187,6 @@ export const Jobs = () => {
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Job-specific Metrics for Classify Emotions */}
-              {job.job_type === 'classify_emotions' && jobMetrics && (
-                <div className="grid grid-cols-4 gap-3 text-sm bg-muted/50 rounded-lg p-3">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-foreground">{jobMetrics.totalTitles.toLocaleString()}</div>
-                    <div className="text-xs text-muted-foreground">Total Titles</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-green-500">{jobMetrics.emotionClassifiedRecent.toLocaleString()}</div>
-                    <div className="text-xs text-muted-foreground">Classified Titles</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-amber-500">{jobMetrics.emotionUnclassified.toLocaleString()}</div>
-                    <div className="text-xs text-muted-foreground">Unclassified Titles</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-blue-500">{job.total_titles_processed.toLocaleString()}</div>
-                    <div className="text-xs text-muted-foreground">Currently Processing</div>
-                  </div>
-                </div>
-              )}
-
-              {/* Job-specific Metrics for Promote Emotions */}
-              {job.job_type === 'promote_emotions' && jobMetrics && (
-                <div className="grid grid-cols-4 gap-3 text-sm bg-muted/50 rounded-lg p-3">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-foreground">{jobMetrics.totalTitles.toLocaleString()}</div>
-                    <div className="text-xs text-muted-foreground">Total Titles</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-green-500">{jobMetrics.emotionPromoted.toLocaleString()}</div>
-                    <div className="text-xs text-muted-foreground">Promoted Titles</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-amber-500">{jobMetrics.emotionUnpromoted.toLocaleString()}</div>
-                    <div className="text-xs text-muted-foreground">Unpromoted Titles</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-blue-500">{job.total_titles_processed.toLocaleString()}</div>
-                    <div className="text-xs text-muted-foreground">Currently Processing</div>
-                  </div>
-                </div>
-              )}
-
-              {/* Job-specific Metrics for Classify Intents */}
-              {job.job_type === 'classify_intents' && jobMetrics && (
-                <div className="grid grid-cols-4 gap-3 text-sm bg-muted/50 rounded-lg p-3">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-foreground">{jobMetrics.totalTitles.toLocaleString()}</div>
-                    <div className="text-xs text-muted-foreground">Total Titles</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-green-500">{jobMetrics.intentClassifiedRecent.toLocaleString()}</div>
-                    <div className="text-xs text-muted-foreground">Classified Titles</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-amber-500">{jobMetrics.intentUnclassified.toLocaleString()}</div>
-                    <div className="text-xs text-muted-foreground">Unclassified Titles</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-blue-500">{job.total_titles_processed.toLocaleString()}</div>
-                    <div className="text-xs text-muted-foreground">Currently Processing</div>
-                  </div>
-                </div>
-              )}
-
-              {/* Job-specific Metrics for Promote Intents */}
-              {job.job_type === 'promote_intents' && jobMetrics && (
-                <div className="grid grid-cols-4 gap-3 text-sm bg-muted/50 rounded-lg p-3">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-foreground">{jobMetrics.totalTitles.toLocaleString()}</div>
-                    <div className="text-xs text-muted-foreground">Total Titles</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-green-500">{jobMetrics.intentPromoted.toLocaleString()}</div>
-                    <div className="text-xs text-muted-foreground">Promoted Titles</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-amber-500">{jobMetrics.intentUnpromoted.toLocaleString()}</div>
-                    <div className="text-xs text-muted-foreground">Unpromoted Titles</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-blue-500">{job.total_titles_processed.toLocaleString()}</div>
-                    <div className="text-xs text-muted-foreground">Currently Processing</div>
-                  </div>
-                </div>
-              )}
 
               {/* Job-specific Metrics for Classify AI (Combined) */}
               {job.job_type === 'classify_ai' && jobMetrics && (
@@ -1372,7 +1269,7 @@ export const Jobs = () => {
               )}
 
               {/* Standard Job Stats for other job types */}
-              {job.job_type !== 'classify_emotions' && job.job_type !== 'promote_emotions' && job.job_type !== 'classify_intents' && job.job_type !== 'promote_intents' && job.job_type !== 'classify_ai' && job.job_type !== 'promote_ai' && (
+              {job.job_type !== 'classify_ai' && job.job_type !== 'promote_ai' && (
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div className="space-y-1">
                     <div className="flex items-center text-muted-foreground">
@@ -1400,7 +1297,7 @@ export const Jobs = () => {
               )}
 
               {/* Last Run info for emotion, intent, and classify_ai/promote_ai jobs */}
-              {(job.job_type === 'classify_emotions' || job.job_type === 'promote_emotions' || job.job_type === 'classify_intents' || job.job_type === 'promote_intents' || job.job_type === 'classify_ai' || job.job_type === 'promote_ai') && (
+              {(job.job_type === 'classify_ai' || job.job_type === 'promote_ai') && (
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div className="space-y-1">
                     <div className="flex items-center text-muted-foreground">
