@@ -37,7 +37,7 @@ const Home = () => {
 
       // Call the ViiB recommendation engine
       const { data: recData, error: recError } = await supabase.rpc(
-        'get_top_recommendations_with_intent',
+        'get_top_recommendations',
         { p_user_id: userId, p_limit: 10 }
       );
 
