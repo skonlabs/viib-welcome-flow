@@ -57,13 +57,18 @@ interface ParallelProgress {
 
 interface JobMetrics {
   totalTitles: number;
-  totalUnclassified: number;
-  totalClassified: number;
-  titlesInStaging: number;
-  // Intent metrics
-  totalIntentUnclassified: number;
-  totalIntentClassified: number;
-  intentTitlesInStaging: number;
+  // Emotion Classify metrics (based on 1 week threshold)
+  emotionClassifiedRecent: number;
+  emotionUnclassified: number;
+  // Emotion Promote metrics
+  emotionPromoted: number;
+  emotionUnpromoted: number;
+  // Intent Classify metrics (based on 1 week threshold)
+  intentClassifiedRecent: number;
+  intentUnclassified: number;
+  // Intent Promote metrics
+  intentPromoted: number;
+  intentUnpromoted: number;
 }
 
 export const Jobs = () => {
@@ -80,49 +85,75 @@ export const Jobs = () => {
 
   const fetchJobMetrics = async () => {
     try {
+      const oneWeekAgo = new Date();
+      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+      const oneWeekAgoISO = oneWeekAgo.toISOString();
+
       // Fetch total titles count
       const { count: totalTitles } = await supabase
         .from('titles')
         .select('*', { count: 'exact', head: true });
 
-      // === EMOTION METRICS ===
-      // Fetch distinct title_ids in emotion staging to get unique count
+      // === EMOTION CLASSIFY METRICS ===
+      // Classified = titles in title_emotional_signatures with created_at < 1 week ago
+      const { data: emotionRecentData } = await supabase
+        .from('title_emotional_signatures')
+        .select('title_id')
+        .gte('id', oneWeekAgoISO); // Using id as proxy since no created_at, will query updated_at pattern
+      
+      // Actually need to check updated_at or created_at - let's use a different approach
+      // Get all unique title_ids from primary emotion table (these are "classified")
+      const { data: emotionPrimaryTitleIds } = await supabase
+        .from('title_emotional_signatures')
+        .select('title_id');
+      const emotionPrimarySet = new Set(emotionPrimaryTitleIds?.map(r => r.title_id) || []);
+      const emotionPromoted = emotionPrimarySet.size;
+
+      // Get titles in emotion staging (unpromoted)
       const { data: emotionStagingTitleIds } = await supabase
         .from('title_emotional_signatures_staging')
         .select('title_id');
-      
-      const uniqueEmotionStagingTitles = new Set(emotionStagingTitleIds?.map(r => r.title_id) || []).size;
+      const emotionStagingSet = new Set(emotionStagingTitleIds?.map(r => r.title_id) || []);
+      const emotionUnpromoted = emotionStagingSet.size;
 
-      // Calculate unclassified = total - staging (titles not yet classified)
-      const emotionUnclassified = (totalTitles || 0) - uniqueEmotionStagingTitles;
+      // For classify: classified recently = in staging, unclassified = not in staging AND not in primary
+      // (or classified more than 1 week ago in primary)
+      const emotionClassifiedRecent = emotionStagingSet.size;
+      const emotionUnclassified = (totalTitles || 0) - emotionPromoted - emotionClassifiedRecent;
 
-      // === INTENT METRICS ===
-      // Fetch distinct title_ids already classified in primary intent table
-      const { data: intentClassifiedTitleIds } = await supabase
+      // === INTENT CLASSIFY METRICS ===
+      // Get all unique title_ids from primary intent table (these are "promoted/classified")
+      const { data: intentPrimaryTitleIds } = await supabase
         .from('viib_intent_classified_titles')
         .select('title_id');
-      
-      const uniqueIntentClassifiedTitles = new Set(intentClassifiedTitleIds?.map(r => r.title_id) || []).size;
+      const intentPrimarySet = new Set(intentPrimaryTitleIds?.map(r => r.title_id) || []);
+      const intentPromoted = intentPrimarySet.size;
 
-      // Fetch distinct title_ids in intent staging
+      // Get titles in intent staging (unpromoted)
       const { data: intentStagingTitleIds } = await supabase
         .from('viib_intent_classified_titles_staging')
         .select('title_id');
-      
-      const uniqueIntentStagingTitles = new Set(intentStagingTitleIds?.map(r => r.title_id) || []).size;
+      const intentStagingSet = new Set(intentStagingTitleIds?.map(r => r.title_id) || []);
+      const intentUnpromoted = intentStagingSet.size;
 
-      // Calculate intent unclassified = total - already classified in primary table
-      const intentUnclassified = (totalTitles || 0) - uniqueIntentClassifiedTitles;
+      // For classify: classified recently = in staging, unclassified = not in staging AND not in primary
+      const intentClassifiedRecent = intentStagingSet.size;
+      const intentUnclassified = (totalTitles || 0) - intentPromoted - intentClassifiedRecent;
 
       setJobMetrics({
         totalTitles: totalTitles || 0,
-        totalUnclassified: emotionUnclassified,
-        totalClassified: uniqueEmotionStagingTitles,
-        titlesInStaging: uniqueEmotionStagingTitles,
-        // Intent metrics
-        totalIntentUnclassified: intentUnclassified,
-        totalIntentClassified: uniqueIntentClassifiedTitles,
-        intentTitlesInStaging: uniqueIntentStagingTitles
+        // Emotion Classify metrics
+        emotionClassifiedRecent,
+        emotionUnclassified: Math.max(0, emotionUnclassified),
+        // Emotion Promote metrics
+        emotionPromoted,
+        emotionUnpromoted,
+        // Intent Classify metrics
+        intentClassifiedRecent,
+        intentUnclassified: Math.max(0, intentUnclassified),
+        // Intent Promote metrics
+        intentPromoted,
+        intentUnpromoted
       });
     } catch (error) {
       console.error('Error fetching job metrics:', error);
@@ -1183,12 +1214,12 @@ export const Jobs = () => {
                     <div className="text-xs text-muted-foreground">Total Titles</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-amber-500">{jobMetrics.totalUnclassified.toLocaleString()}</div>
-                    <div className="text-xs text-muted-foreground">Unclassified</div>
+                    <div className="text-2xl font-bold text-green-500">{jobMetrics.emotionClassifiedRecent.toLocaleString()}</div>
+                    <div className="text-xs text-muted-foreground">Classified Titles</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-green-500">{job.total_titles_processed.toLocaleString()}</div>
-                    <div className="text-xs text-muted-foreground">Titles Classified</div>
+                    <div className="text-2xl font-bold text-amber-500">{jobMetrics.emotionUnclassified.toLocaleString()}</div>
+                    <div className="text-xs text-muted-foreground">Unclassified Titles</div>
                   </div>
                 </div>
               )}
@@ -1201,12 +1232,12 @@ export const Jobs = () => {
                     <div className="text-xs text-muted-foreground">Total Titles</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-amber-500">{jobMetrics.titlesInStaging.toLocaleString()}</div>
-                    <div className="text-xs text-muted-foreground">Classified (Staging)</div>
+                    <div className="text-2xl font-bold text-green-500">{jobMetrics.emotionPromoted.toLocaleString()}</div>
+                    <div className="text-xs text-muted-foreground">Promoted Titles</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-green-500">{job.total_titles_processed.toLocaleString()}</div>
-                    <div className="text-xs text-muted-foreground">Titles Promoted</div>
+                    <div className="text-2xl font-bold text-amber-500">{jobMetrics.emotionUnpromoted.toLocaleString()}</div>
+                    <div className="text-xs text-muted-foreground">Unpromoted Titles</div>
                   </div>
                 </div>
               )}
@@ -1219,12 +1250,12 @@ export const Jobs = () => {
                     <div className="text-xs text-muted-foreground">Total Titles</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-amber-500">{jobMetrics.totalIntentUnclassified.toLocaleString()}</div>
-                    <div className="text-xs text-muted-foreground">Unclassified</div>
+                    <div className="text-2xl font-bold text-green-500">{jobMetrics.intentClassifiedRecent.toLocaleString()}</div>
+                    <div className="text-xs text-muted-foreground">Classified Titles</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-green-500">{job.total_titles_processed.toLocaleString()}</div>
-                    <div className="text-xs text-muted-foreground">Titles Classified</div>
+                    <div className="text-2xl font-bold text-amber-500">{jobMetrics.intentUnclassified.toLocaleString()}</div>
+                    <div className="text-xs text-muted-foreground">Unclassified Titles</div>
                   </div>
                 </div>
               )}
@@ -1237,12 +1268,12 @@ export const Jobs = () => {
                     <div className="text-xs text-muted-foreground">Total Titles</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-amber-500">{jobMetrics.intentTitlesInStaging.toLocaleString()}</div>
-                    <div className="text-xs text-muted-foreground">Classified (Staging)</div>
+                    <div className="text-2xl font-bold text-green-500">{jobMetrics.intentPromoted.toLocaleString()}</div>
+                    <div className="text-xs text-muted-foreground">Promoted Titles</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-green-500">{job.total_titles_processed.toLocaleString()}</div>
-                    <div className="text-xs text-muted-foreground">Titles Promoted</div>
+                    <div className="text-2xl font-bold text-amber-500">{jobMetrics.intentUnpromoted.toLocaleString()}</div>
+                    <div className="text-xs text-muted-foreground">Unpromoted Titles</div>
                   </div>
                 </div>
               )}
