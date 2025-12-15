@@ -50,3 +50,9 @@ verify_jwt = false
 
 [functions.promote-title-emotions]
 verify_jwt = false
+
+[functions.classify-title-intents]
+verify_jwt = false
+
+[functions.promote-title-intents]
+verify_jwt = false
