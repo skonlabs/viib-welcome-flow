@@ -378,8 +378,9 @@ async function processClassificationBatch(cursor?: string): Promise<void> {
         let emotionsSaved = 0;
         let intentsSaved = 0;
 
-        // Process emotions if not already classified
-        if (!emotionClassifiedSet.has(title.id) && result.emotions?.length) {
+        // ALWAYS save BOTH to staging - promote job handles deduplication via primary table check
+        // This ensures no title is missed for either classification
+        if (result.emotions?.length) {
           const cleanedEmotions = result.emotions
             .filter((e) => emotionLabels.includes(e.emotion_label))
             .map((e) => ({
@@ -392,8 +393,7 @@ async function processClassificationBatch(cursor?: string): Promise<void> {
           }
         }
 
-        // Process intents if not already classified
-        if (!intentClassifiedSet.has(title.id) && result.intents?.length) {
+        if (result.intents?.length) {
           const cleanedIntents = result.intents
             .filter((i) => INTENT_TYPES.includes(i.intent_type))
             .map((i) => ({
