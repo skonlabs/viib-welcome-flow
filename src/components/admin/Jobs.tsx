@@ -55,6 +55,13 @@ interface ParallelProgress {
   titlesProcessed: number;
 }
 
+interface JobMetrics {
+  totalTitles: number;
+  totalUnclassified: number;
+  totalClassified: number;
+  titlesInStaging: number;
+}
+
 export const Jobs = () => {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [cronJobs, setCronJobs] = useState<CronJob[]>([]);
@@ -64,7 +71,41 @@ export const Jobs = () => {
   const [runningCronJobs, setRunningCronJobs] = useState<Set<number>>(new Set());
   const [cronJobStartTimes, setCronJobStartTimes] = useState<Map<number, number>>(new Map());
   const [parallelProgress, setParallelProgress] = useState<ParallelProgress | null>(null);
+  const [jobMetrics, setJobMetrics] = useState<JobMetrics | null>(null);
   const { toast } = useToast();
+
+  const fetchJobMetrics = async () => {
+    try {
+      // Fetch total titles count
+      const { count: totalTitles } = await supabase
+        .from('titles')
+        .select('*', { count: 'exact', head: true });
+
+      // Fetch titles in staging (classified but not promoted)
+      const { count: titlesInStaging } = await supabase
+        .from('title_emotional_signatures_staging')
+        .select('title_id', { count: 'exact', head: true });
+
+      // Fetch distinct title_ids in staging to get unique count
+      const { data: stagingTitleIds } = await supabase
+        .from('title_emotional_signatures_staging')
+        .select('title_id');
+      
+      const uniqueStagingTitles = new Set(stagingTitleIds?.map(r => r.title_id) || []).size;
+
+      // Calculate unclassified = total - staging (titles not yet classified)
+      const totalUnclassified = (totalTitles || 0) - uniqueStagingTitles;
+
+      setJobMetrics({
+        totalTitles: totalTitles || 0,
+        totalUnclassified: totalUnclassified,
+        totalClassified: uniqueStagingTitles,
+        titlesInStaging: uniqueStagingTitles
+      });
+    } catch (error) {
+      console.error('Error fetching job metrics:', error);
+    }
+  };
 
   const fetchJobs = async () => {
     try {
@@ -294,8 +335,12 @@ export const Jobs = () => {
   useEffect(() => {
     fetchJobs();
     fetchCronJobs();
+    fetchJobMetrics();
     // Refresh every 10 seconds
-    const interval = setInterval(fetchJobs, 10000);
+    const interval = setInterval(() => {
+      fetchJobs();
+      fetchJobMetrics();
+    }, 10000);
     return () => clearInterval(interval);
   }, []);
 
@@ -1092,31 +1137,89 @@ export const Jobs = () => {
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Job Stats */}
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div className="space-y-1">
-                  <div className="flex items-center text-muted-foreground">
-                    <CalendarIcon className="w-4 h-4 mr-2" />
-                    Last Run
+              {/* Job-specific Metrics for Classify Emotions */}
+              {job.job_type === 'classify_emotions' && jobMetrics && (
+                <div className="grid grid-cols-3 gap-3 text-sm bg-muted/50 rounded-lg p-3">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-foreground">{jobMetrics.totalTitles.toLocaleString()}</div>
+                    <div className="text-xs text-muted-foreground">Total Titles</div>
                   </div>
-                  <div className="font-medium">{formatDate(job.last_run_at)}</div>
-                </div>
-                <div className="space-y-1">
-                  <div className="flex items-center text-muted-foreground">
-                    <Clock className="w-4 h-4 mr-2" />
-                    Duration
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-amber-500">{jobMetrics.totalUnclassified.toLocaleString()}</div>
+                    <div className="text-xs text-muted-foreground">Unclassified</div>
                   </div>
-                  <div className="font-medium">{formatDuration(job.last_run_duration_seconds)}</div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-green-500">{job.total_titles_processed.toLocaleString()}</div>
+                    <div className="text-xs text-muted-foreground">Titles Classified</div>
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <div className="text-muted-foreground">Next Run</div>
-                  <div className="font-medium">{formatDate(job.next_run_at)}</div>
+              )}
+
+              {/* Job-specific Metrics for Promote Emotions */}
+              {job.job_type === 'promote_emotions' && jobMetrics && (
+                <div className="grid grid-cols-3 gap-3 text-sm bg-muted/50 rounded-lg p-3">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-foreground">{jobMetrics.totalTitles.toLocaleString()}</div>
+                    <div className="text-xs text-muted-foreground">Total Titles</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-amber-500">{jobMetrics.titlesInStaging.toLocaleString()}</div>
+                    <div className="text-xs text-muted-foreground">Classified (Staging)</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-green-500">{job.total_titles_processed.toLocaleString()}</div>
+                    <div className="text-xs text-muted-foreground">Titles Promoted</div>
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <div className="text-muted-foreground">Titles Processed</div>
-                  <div className="font-medium">{job.total_titles_processed.toLocaleString()}</div>
+              )}
+
+              {/* Standard Job Stats for other job types */}
+              {job.job_type !== 'classify_emotions' && job.job_type !== 'promote_emotions' && (
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div className="space-y-1">
+                    <div className="flex items-center text-muted-foreground">
+                      <CalendarIcon className="w-4 h-4 mr-2" />
+                      Last Run
+                    </div>
+                    <div className="font-medium">{formatDate(job.last_run_at)}</div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center text-muted-foreground">
+                      <Clock className="w-4 h-4 mr-2" />
+                      Duration
+                    </div>
+                    <div className="font-medium">{formatDuration(job.last_run_duration_seconds)}</div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-muted-foreground">Next Run</div>
+                    <div className="font-medium">{formatDate(job.next_run_at)}</div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-muted-foreground">Titles Processed</div>
+                    <div className="font-medium">{job.total_titles_processed.toLocaleString()}</div>
+                  </div>
                 </div>
-              </div>
+              )}
+
+              {/* Last Run info for emotion jobs */}
+              {(job.job_type === 'classify_emotions' || job.job_type === 'promote_emotions') && (
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div className="space-y-1">
+                    <div className="flex items-center text-muted-foreground">
+                      <CalendarIcon className="w-4 h-4 mr-2" />
+                      Last Run
+                    </div>
+                    <div className="font-medium">{formatDate(job.last_run_at)}</div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center text-muted-foreground">
+                      <Clock className="w-4 h-4 mr-2" />
+                      Duration
+                    </div>
+                    <div className="font-medium">{formatDuration(job.last_run_duration_seconds)}</div>
+                  </div>
+                </div>
+              )}
 
               {/* Combined Thread Monitor */}
               {job.job_type === 'full_refresh' && job.status === 'running' && (
