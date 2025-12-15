@@ -450,6 +450,10 @@ export const Jobs = () => {
         functionName = 'promote-title-intents';
         const config = job.configuration || {};
         functionBody = { batchSize: config.batch_size || 50 };
+      } else if (job.job_type === 'classify_ai') {
+        functionName = 'classify-title-ai';
+        const config = job.configuration || {};
+        functionBody = { jobId: job.id, batchSize: config.batch_size || 10 };
       } else {
         throw new Error(`Unknown job type: ${job.job_type}`);
       }
@@ -1199,6 +1203,8 @@ export const Jobs = () => {
                       ? 'Classify title viewing intents using AI'
                       : job.job_type === 'promote_intents'
                       ? 'Promote classified intents to primary table'
+                      : job.job_type === 'classify_ai'
+                      ? 'Combined AI classification (emotions + intents in one call)'
                       : 'Automated nightly sync for new titles'}
                   </CardDescription>
                 </div>
@@ -1294,8 +1300,42 @@ export const Jobs = () => {
                 </div>
               )}
 
+              {/* Job-specific Metrics for Classify AI (Combined) */}
+              {job.job_type === 'classify_ai' && jobMetrics && (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-3 gap-3 text-sm bg-muted/50 rounded-lg p-3">
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-foreground">{jobMetrics.totalTitles.toLocaleString()}</div>
+                      <div className="text-xs text-muted-foreground">Total Titles</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-green-500">{jobMetrics.emotionPromoted.toLocaleString()}</div>
+                      <div className="text-xs text-muted-foreground">Classified Emotions</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-amber-500">{jobMetrics.emotionUnclassified.toLocaleString()}</div>
+                      <div className="text-xs text-muted-foreground">Unclassified Emotions</div>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3 text-sm bg-muted/50 rounded-lg p-3">
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-blue-500">{job.total_titles_processed.toLocaleString()}</div>
+                      <div className="text-xs text-muted-foreground">Currently Processing</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-green-500">{jobMetrics.intentPromoted.toLocaleString()}</div>
+                      <div className="text-xs text-muted-foreground">Classified Intents</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-amber-500">{jobMetrics.intentUnclassified.toLocaleString()}</div>
+                      <div className="text-xs text-muted-foreground">Unclassified Intents</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Standard Job Stats for other job types */}
-              {job.job_type !== 'classify_emotions' && job.job_type !== 'promote_emotions' && job.job_type !== 'classify_intents' && job.job_type !== 'promote_intents' && (
+              {job.job_type !== 'classify_emotions' && job.job_type !== 'promote_emotions' && job.job_type !== 'classify_intents' && job.job_type !== 'promote_intents' && job.job_type !== 'classify_ai' && (
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div className="space-y-1">
                     <div className="flex items-center text-muted-foreground">
@@ -1322,8 +1362,8 @@ export const Jobs = () => {
                 </div>
               )}
 
-              {/* Last Run info for emotion and intent jobs */}
-              {(job.job_type === 'classify_emotions' || job.job_type === 'promote_emotions' || job.job_type === 'classify_intents' || job.job_type === 'promote_intents') && (
+              {/* Last Run info for emotion, intent, and classify_ai jobs */}
+              {(job.job_type === 'classify_emotions' || job.job_type === 'promote_emotions' || job.job_type === 'classify_intents' || job.job_type === 'promote_intents' || job.job_type === 'classify_ai') && (
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div className="space-y-1">
                     <div className="flex items-center text-muted-foreground">

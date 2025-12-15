@@ -56,3 +56,6 @@ verify_jwt = false
 
 [functions.promote-title-intents]
 verify_jwt = false
+
+[functions.classify-title-ai]
+verify_jwt = false
