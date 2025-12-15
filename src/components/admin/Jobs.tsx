@@ -60,6 +60,10 @@ interface JobMetrics {
   totalUnclassified: number;
   totalClassified: number;
   titlesInStaging: number;
+  // Intent metrics
+  totalIntentUnclassified: number;
+  totalIntentClassified: number;
+  intentTitlesInStaging: number;
 }
 
 export const Jobs = () => {
@@ -81,26 +85,44 @@ export const Jobs = () => {
         .from('titles')
         .select('*', { count: 'exact', head: true });
 
-      // Fetch titles in staging (classified but not promoted)
-      const { count: titlesInStaging } = await supabase
-        .from('title_emotional_signatures_staging')
-        .select('title_id', { count: 'exact', head: true });
-
-      // Fetch distinct title_ids in staging to get unique count
-      const { data: stagingTitleIds } = await supabase
+      // === EMOTION METRICS ===
+      // Fetch distinct title_ids in emotion staging to get unique count
+      const { data: emotionStagingTitleIds } = await supabase
         .from('title_emotional_signatures_staging')
         .select('title_id');
       
-      const uniqueStagingTitles = new Set(stagingTitleIds?.map(r => r.title_id) || []).size;
+      const uniqueEmotionStagingTitles = new Set(emotionStagingTitleIds?.map(r => r.title_id) || []).size;
 
       // Calculate unclassified = total - staging (titles not yet classified)
-      const totalUnclassified = (totalTitles || 0) - uniqueStagingTitles;
+      const emotionUnclassified = (totalTitles || 0) - uniqueEmotionStagingTitles;
+
+      // === INTENT METRICS ===
+      // Fetch distinct title_ids already classified in primary intent table
+      const { data: intentClassifiedTitleIds } = await supabase
+        .from('viib_intent_classified_titles')
+        .select('title_id');
+      
+      const uniqueIntentClassifiedTitles = new Set(intentClassifiedTitleIds?.map(r => r.title_id) || []).size;
+
+      // Fetch distinct title_ids in intent staging
+      const { data: intentStagingTitleIds } = await supabase
+        .from('viib_intent_classified_titles_staging')
+        .select('title_id');
+      
+      const uniqueIntentStagingTitles = new Set(intentStagingTitleIds?.map(r => r.title_id) || []).size;
+
+      // Calculate intent unclassified = total - already classified in primary table
+      const intentUnclassified = (totalTitles || 0) - uniqueIntentClassifiedTitles;
 
       setJobMetrics({
         totalTitles: totalTitles || 0,
-        totalUnclassified: totalUnclassified,
-        totalClassified: uniqueStagingTitles,
-        titlesInStaging: uniqueStagingTitles
+        totalUnclassified: emotionUnclassified,
+        totalClassified: uniqueEmotionStagingTitles,
+        titlesInStaging: uniqueEmotionStagingTitles,
+        // Intent metrics
+        totalIntentUnclassified: intentUnclassified,
+        totalIntentClassified: uniqueIntentClassifiedTitles,
+        intentTitlesInStaging: uniqueIntentStagingTitles
       });
     } catch (error) {
       console.error('Error fetching job metrics:', error);
@@ -387,6 +409,14 @@ export const Jobs = () => {
         functionBody = { jobId: job.id, batchSize: config.batch_size || 10 };
       } else if (job.job_type === 'promote_emotions') {
         functionName = 'promote-title-emotions';
+        const config = job.configuration || {};
+        functionBody = { batchSize: config.batch_size || 50 };
+      } else if (job.job_type === 'classify_intents') {
+        functionName = 'classify-title-intents';
+        const config = job.configuration || {};
+        functionBody = { jobId: job.id, batchSize: config.batch_size || 10 };
+      } else if (job.job_type === 'promote_intents') {
+        functionName = 'promote-title-intents';
         const config = job.configuration || {};
         functionBody = { batchSize: config.batch_size || 50 };
       } else {
@@ -1130,6 +1160,14 @@ export const Jobs = () => {
                       ? 'Enrich titles with trailer URLs'
                       : job.job_type === 'transcribe_trailers'
                       ? 'Transcribe trailer videos to text'
+                      : job.job_type === 'classify_emotions'
+                      ? 'Classify title emotions using AI'
+                      : job.job_type === 'promote_emotions'
+                      ? 'Promote classified emotions to primary table'
+                      : job.job_type === 'classify_intents'
+                      ? 'Classify title viewing intents using AI'
+                      : job.job_type === 'promote_intents'
+                      ? 'Promote classified intents to primary table'
                       : 'Automated nightly sync for new titles'}
                   </CardDescription>
                 </div>
@@ -1173,8 +1211,44 @@ export const Jobs = () => {
                 </div>
               )}
 
+              {/* Job-specific Metrics for Classify Intents */}
+              {job.job_type === 'classify_intents' && jobMetrics && (
+                <div className="grid grid-cols-3 gap-3 text-sm bg-muted/50 rounded-lg p-3">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-foreground">{jobMetrics.totalTitles.toLocaleString()}</div>
+                    <div className="text-xs text-muted-foreground">Total Titles</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-amber-500">{jobMetrics.totalIntentUnclassified.toLocaleString()}</div>
+                    <div className="text-xs text-muted-foreground">Unclassified</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-green-500">{job.total_titles_processed.toLocaleString()}</div>
+                    <div className="text-xs text-muted-foreground">Titles Classified</div>
+                  </div>
+                </div>
+              )}
+
+              {/* Job-specific Metrics for Promote Intents */}
+              {job.job_type === 'promote_intents' && jobMetrics && (
+                <div className="grid grid-cols-3 gap-3 text-sm bg-muted/50 rounded-lg p-3">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-foreground">{jobMetrics.totalTitles.toLocaleString()}</div>
+                    <div className="text-xs text-muted-foreground">Total Titles</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-amber-500">{jobMetrics.intentTitlesInStaging.toLocaleString()}</div>
+                    <div className="text-xs text-muted-foreground">Classified (Staging)</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-green-500">{job.total_titles_processed.toLocaleString()}</div>
+                    <div className="text-xs text-muted-foreground">Titles Promoted</div>
+                  </div>
+                </div>
+              )}
+
               {/* Standard Job Stats for other job types */}
-              {job.job_type !== 'classify_emotions' && job.job_type !== 'promote_emotions' && (
+              {job.job_type !== 'classify_emotions' && job.job_type !== 'promote_emotions' && job.job_type !== 'classify_intents' && job.job_type !== 'promote_intents' && (
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div className="space-y-1">
                     <div className="flex items-center text-muted-foreground">
@@ -1201,8 +1275,8 @@ export const Jobs = () => {
                 </div>
               )}
 
-              {/* Last Run info for emotion jobs */}
-              {(job.job_type === 'classify_emotions' || job.job_type === 'promote_emotions') && (
+              {/* Last Run info for emotion and intent jobs */}
+              {(job.job_type === 'classify_emotions' || job.job_type === 'promote_emotions' || job.job_type === 'classify_intents' || job.job_type === 'promote_intents') && (
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div className="space-y-1">
                     <div className="flex items-center text-muted-foreground">
