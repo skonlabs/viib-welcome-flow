@@ -1902,6 +1902,41 @@ export type Database = {
           },
         ]
       }
+      viib_intent_classified_titles_staging: {
+        Row: {
+          confidence_score: number
+          created_at: string
+          id: string
+          intent_type: Database["public"]["Enums"]["viib_intent_type"]
+          source: string
+          title_id: string
+        }
+        Insert: {
+          confidence_score: number
+          created_at?: string
+          id?: string
+          intent_type: Database["public"]["Enums"]["viib_intent_type"]
+          source?: string
+          title_id: string
+        }
+        Update: {
+          confidence_score?: number
+          created_at?: string
+          id?: string
+          intent_type?: Database["public"]["Enums"]["viib_intent_type"]
+          source?: string
+          title_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "viib_intent_classified_titles_staging_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: false
+            referencedRelation: "titles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       viib_title_intent_stats: {
         Row: {
           intent_count: number
@@ -2037,16 +2072,6 @@ export type Database = {
           title_id: string
         }[]
       }
-      get_top_recommendations_with_intent: {
-        Args: { p_limit: number; p_user_id: string }
-        Returns: {
-          base_viib_score: number
-          final_score: number
-          intent_alignment_score: number
-          social_priority_score: number
-          title_id: string
-        }[]
-      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -2068,15 +2093,11 @@ export type Database = {
         }
         Returns: undefined
       }
+      promote_title_intents: { Args: { p_limit?: number }; Returns: number }
       refresh_title_emotion_vectors: { Args: never; Returns: undefined }
-      refresh_title_intent_alignment_scores: { Args: never; Returns: undefined }
       refresh_title_social_summary: { Args: never; Returns: undefined }
       refresh_title_transformation_scores: { Args: never; Returns: undefined }
       refresh_viib_reco_materializations: { Args: never; Returns: undefined }
-      refresh_viib_title_intent_stats: {
-        Args: { p_title_id: string }
-        Returns: undefined
-      }
       run_cron_job_now: { Args: { p_command: string }; Returns: undefined }
       store_user_emotion_vector: {
         Args: {
@@ -2223,6 +2244,15 @@ export type Database = {
         | "complementary"
         | "reinforcing"
         | "neutral_balancing"
+      viib_intent_type:
+        | "adrenaline_rush"
+        | "background_passive"
+        | "comfort_escape"
+        | "deep_thought"
+        | "discovery"
+        | "emotional_release"
+        | "family_bonding"
+        | "light_entertainment"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2439,6 +2469,16 @@ export const Constants = {
         "complementary",
         "reinforcing",
         "neutral_balancing",
+      ],
+      viib_intent_type: [
+        "adrenaline_rush",
+        "background_passive",
+        "comfort_escape",
+        "deep_thought",
+        "discovery",
+        "emotional_release",
+        "family_bonding",
+        "light_entertainment",
       ],
     },
   },
