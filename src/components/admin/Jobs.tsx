@@ -1208,7 +1208,7 @@ export const Jobs = () => {
             <CardContent className="space-y-4">
               {/* Job-specific Metrics for Classify Emotions */}
               {job.job_type === 'classify_emotions' && jobMetrics && (
-                <div className="grid grid-cols-3 gap-3 text-sm bg-muted/50 rounded-lg p-3">
+                <div className="grid grid-cols-4 gap-3 text-sm bg-muted/50 rounded-lg p-3">
                   <div className="text-center">
                     <div className="text-2xl font-bold text-foreground">{jobMetrics.totalTitles.toLocaleString()}</div>
                     <div className="text-xs text-muted-foreground">Total Titles</div>
@@ -1221,12 +1221,16 @@ export const Jobs = () => {
                     <div className="text-2xl font-bold text-amber-500">{jobMetrics.emotionUnclassified.toLocaleString()}</div>
                     <div className="text-xs text-muted-foreground">Unclassified Titles</div>
                   </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-blue-500">{job.total_titles_processed.toLocaleString()}</div>
+                    <div className="text-xs text-muted-foreground">Currently Processing</div>
+                  </div>
                 </div>
               )}
 
               {/* Job-specific Metrics for Promote Emotions */}
               {job.job_type === 'promote_emotions' && jobMetrics && (
-                <div className="grid grid-cols-3 gap-3 text-sm bg-muted/50 rounded-lg p-3">
+                <div className="grid grid-cols-4 gap-3 text-sm bg-muted/50 rounded-lg p-3">
                   <div className="text-center">
                     <div className="text-2xl font-bold text-foreground">{jobMetrics.totalTitles.toLocaleString()}</div>
                     <div className="text-xs text-muted-foreground">Total Titles</div>
@@ -1239,12 +1243,16 @@ export const Jobs = () => {
                     <div className="text-2xl font-bold text-amber-500">{jobMetrics.emotionUnpromoted.toLocaleString()}</div>
                     <div className="text-xs text-muted-foreground">Unpromoted Titles</div>
                   </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-blue-500">{job.total_titles_processed.toLocaleString()}</div>
+                    <div className="text-xs text-muted-foreground">Currently Processing</div>
+                  </div>
                 </div>
               )}
 
               {/* Job-specific Metrics for Classify Intents */}
               {job.job_type === 'classify_intents' && jobMetrics && (
-                <div className="grid grid-cols-3 gap-3 text-sm bg-muted/50 rounded-lg p-3">
+                <div className="grid grid-cols-4 gap-3 text-sm bg-muted/50 rounded-lg p-3">
                   <div className="text-center">
                     <div className="text-2xl font-bold text-foreground">{jobMetrics.totalTitles.toLocaleString()}</div>
                     <div className="text-xs text-muted-foreground">Total Titles</div>
@@ -1257,12 +1265,16 @@ export const Jobs = () => {
                     <div className="text-2xl font-bold text-amber-500">{jobMetrics.intentUnclassified.toLocaleString()}</div>
                     <div className="text-xs text-muted-foreground">Unclassified Titles</div>
                   </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-blue-500">{job.total_titles_processed.toLocaleString()}</div>
+                    <div className="text-xs text-muted-foreground">Currently Processing</div>
+                  </div>
                 </div>
               )}
 
               {/* Job-specific Metrics for Promote Intents */}
               {job.job_type === 'promote_intents' && jobMetrics && (
-                <div className="grid grid-cols-3 gap-3 text-sm bg-muted/50 rounded-lg p-3">
+                <div className="grid grid-cols-4 gap-3 text-sm bg-muted/50 rounded-lg p-3">
                   <div className="text-center">
                     <div className="text-2xl font-bold text-foreground">{jobMetrics.totalTitles.toLocaleString()}</div>
                     <div className="text-xs text-muted-foreground">Total Titles</div>
@@ -1274,6 +1286,10 @@ export const Jobs = () => {
                   <div className="text-center">
                     <div className="text-2xl font-bold text-amber-500">{jobMetrics.intentUnpromoted.toLocaleString()}</div>
                     <div className="text-xs text-muted-foreground">Unpromoted Titles</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-blue-500">{job.total_titles_processed.toLocaleString()}</div>
+                    <div className="text-xs text-muted-foreground">Currently Processing</div>
                   </div>
                 </div>
               )}
