@@ -1226,6 +1226,7 @@ export type Database = {
       titles: {
         Row: {
           backdrop_path: string | null
+          classification_status: string | null
           created_at: string
           episode_run_time: number[] | null
           first_air_date: string | null
@@ -1234,6 +1235,7 @@ export type Database = {
           is_adult: boolean | null
           is_tmdb_trailer: boolean | null
           last_air_date: string | null
+          last_classified_at: string | null
           name: string | null
           original_language: string | null
           original_name: string | null
@@ -1254,6 +1256,7 @@ export type Database = {
         }
         Insert: {
           backdrop_path?: string | null
+          classification_status?: string | null
           created_at?: string
           episode_run_time?: number[] | null
           first_air_date?: string | null
@@ -1262,6 +1265,7 @@ export type Database = {
           is_adult?: boolean | null
           is_tmdb_trailer?: boolean | null
           last_air_date?: string | null
+          last_classified_at?: string | null
           name?: string | null
           original_language?: string | null
           original_name?: string | null
@@ -1282,6 +1286,7 @@ export type Database = {
         }
         Update: {
           backdrop_path?: string | null
+          classification_status?: string | null
           created_at?: string
           episode_run_time?: number[] | null
           first_air_date?: string | null
@@ -1290,6 +1295,7 @@ export type Database = {
           is_adult?: boolean | null
           is_tmdb_trailer?: boolean | null
           last_air_date?: string | null
+          last_classified_at?: string | null
           name?: string | null
           original_language?: string | null
           original_name?: string | null
