@@ -326,14 +326,14 @@ async function processClassificationBatch(cursor?: string): Promise<void> {
       return;
     }
 
-    // Check PRIMARY tables with timestamps to detect stale classifications
+    // Check PRIMARY tables with timestamps to detect stale classifications (> 7 days old)
     const candidateIds = candidateTitles.map(t => t.id);
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
     
-    // Check emotion primary table - get title_id and most recent created_at per title
+    // Check emotion primary table with created_at
     const { data: emotionClassified } = await supabase
       .from("title_emotional_signatures")
-      .select("title_id, id")
+      .select("title_id, created_at")
       .in("title_id", candidateIds);
     
     // Check intent primary table with created_at
@@ -342,39 +342,33 @@ async function processClassificationBatch(cursor?: string): Promise<void> {
       .select("title_id, created_at")
       .in("title_id", candidateIds);
 
-    // Build maps: title_id -> exists (for emotions we don't have created_at, so check staging for freshness)
-    const emotionExistsSet = new Set<string>(
-      (emotionClassified || []).map(r => r.title_id)
-    );
+    // Build maps tracking both existence and staleness
+    const emotionDataMap = new Map<string, { exists: boolean; isStale: boolean }>();
+    for (const r of (emotionClassified || [])) {
+      const isStale = r.created_at ? new Date(r.created_at) < new Date(sevenDaysAgo) : false;
+      emotionDataMap.set(r.title_id, { exists: true, isStale });
+    }
     
-    // For intents, track both existence and freshness
     const intentDataMap = new Map<string, { exists: boolean; isStale: boolean }>();
     for (const r of (intentClassified || [])) {
       const isStale = r.created_at ? new Date(r.created_at) < new Date(sevenDaysAgo) : false;
       intentDataMap.set(r.title_id, { exists: true, isStale });
     }
 
-    // Also check emotion staging to get freshness info (title_emotional_signatures doesn't have created_at)
-    const { data: emotionStaging } = await supabase
-      .from("title_emotional_signatures_staging")
-      .select("title_id, created_at")
-      .in("title_id", candidateIds);
-    
-    // If emotion is in staging recently, it's fresh; if in primary but not staging, check age via proxy
-    // For simplicity: emotion needs reprocessing if NOT in primary table
-    // Intent needs reprocessing if NOT in primary table OR if created_at > 7 days ago
-
     // A title needs processing if:
     // 1. Missing from emotion table OR missing from intent table, OR
-    // 2. Intent classification is older than 7 days
+    // 2. Either emotion OR intent classification is older than 7 days
     const needsProcessing = candidateTitles.filter(t => {
-      const hasEmotion = emotionExistsSet.has(t.id);
+      const emotionData = emotionDataMap.get(t.id);
       const intentData = intentDataMap.get(t.id);
+      
+      const hasEmotion = emotionData?.exists ?? false;
       const hasIntent = intentData?.exists ?? false;
+      const emotionIsStale = emotionData?.isStale ?? false;
       const intentIsStale = intentData?.isStale ?? false;
       
-      // Process if missing from either table OR intent is stale
-      return !hasEmotion || !hasIntent || intentIsStale;
+      // Process if missing from either table OR if either is stale
+      return !hasEmotion || !hasIntent || emotionIsStale || intentIsStale;
     });
 
     const batch = needsProcessing.slice(0, BATCH_SIZE);
