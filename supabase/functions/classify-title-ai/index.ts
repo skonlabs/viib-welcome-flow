@@ -326,7 +326,7 @@ async function processClassificationBatch(cursor?: string): Promise<void> {
       return;
     }
 
-    // Check BOTH primary tables AND staging tables for these titles
+    // Check ONLY PRIMARY tables - staging is temporary and shouldn't block reprocessing
     const candidateIds = candidateTitles.map(t => t.id);
     
     // Check emotion primary table
@@ -341,29 +341,16 @@ async function processClassificationBatch(cursor?: string): Promise<void> {
       .select("title_id")
       .in("title_id", candidateIds);
 
-    // Check emotion staging table (already classified but not yet promoted)
-    const { data: emotionStaging } = await supabase
-      .from("title_emotional_signatures_staging")
-      .select("title_id")
-      .in("title_id", candidateIds);
+    // Build sets from PRIMARY tables only - not staging
+    // This ensures titles missing from primary get classified even if in staging
+    const emotionDoneSet = new Set<string>(
+      (emotionClassified || []).map(r => r.title_id)
+    );
+    const intentDoneSet = new Set<string>(
+      (intentClassified || []).map(r => r.title_id)
+    );
 
-    // Check intent staging table (already classified but not yet promoted)
-    const { data: intentStaging } = await supabase
-      .from("viib_intent_classified_titles_staging")
-      .select("title_id")
-      .in("title_id", candidateIds);
-
-    // Build sets of already done title_ids (primary OR staging counts as done)
-    const emotionDoneSet = new Set<string>([
-      ...(emotionClassified || []).map(r => r.title_id),
-      ...(emotionStaging || []).map(r => r.title_id)
-    ]);
-    const intentDoneSet = new Set<string>([
-      ...(intentClassified || []).map(r => r.title_id),
-      ...(intentStaging || []).map(r => r.title_id)
-    ]);
-
-    // A title needs processing if it's missing from BOTH primary AND staging for EITHER type
+    // A title needs processing if it's missing from PRIMARY for EITHER emotions or intents
     const needsProcessing = candidateTitles.filter(t => 
       !emotionDoneSet.has(t.id) || !intentDoneSet.has(t.id)
     );
