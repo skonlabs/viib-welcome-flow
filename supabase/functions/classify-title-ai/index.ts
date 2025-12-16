@@ -326,32 +326,32 @@ async function processClassificationBatch(cursor?: string): Promise<void> {
       return;
     }
 
-    // Check PRIMARY tables with timestamps to detect stale classifications (> 7 days old)
+    // Check PRIMARY tables with updated_at to detect stale classifications (> 7 days old)
     const candidateIds = candidateTitles.map(t => t.id);
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
     
-    // Check emotion primary table with created_at
+    // Check emotion primary table with updated_at
     const { data: emotionClassified } = await supabase
       .from("title_emotional_signatures")
-      .select("title_id, created_at")
+      .select("title_id, updated_at")
       .in("title_id", candidateIds);
     
-    // Check intent primary table with created_at
+    // Check intent primary table with updated_at
     const { data: intentClassified } = await supabase
       .from("viib_intent_classified_titles")
-      .select("title_id, created_at")
+      .select("title_id, updated_at")
       .in("title_id", candidateIds);
 
-    // Build maps tracking both existence and staleness
+    // Build maps tracking both existence and staleness using updated_at
     const emotionDataMap = new Map<string, { exists: boolean; isStale: boolean }>();
     for (const r of (emotionClassified || [])) {
-      const isStale = r.created_at ? new Date(r.created_at) < new Date(sevenDaysAgo) : false;
+      const isStale = r.updated_at ? new Date(r.updated_at) < new Date(sevenDaysAgo) : false;
       emotionDataMap.set(r.title_id, { exists: true, isStale });
     }
     
     const intentDataMap = new Map<string, { exists: boolean; isStale: boolean }>();
     for (const r of (intentClassified || [])) {
-      const isStale = r.created_at ? new Date(r.created_at) < new Date(sevenDaysAgo) : false;
+      const isStale = r.updated_at ? new Date(r.updated_at) < new Date(sevenDaysAgo) : false;
       intentDataMap.set(r.title_id, { exists: true, isStale });
     }
 
