@@ -1925,6 +1925,7 @@ export type Database = {
           intent_type: Database["public"]["Enums"]["viib_intent_type"]
           source: string
           title_id: string
+          updated_at: string
         }
         Insert: {
           confidence_score: number
@@ -1933,6 +1934,7 @@ export type Database = {
           intent_type: Database["public"]["Enums"]["viib_intent_type"]
           source?: string
           title_id: string
+          updated_at?: string
         }
         Update: {
           confidence_score?: number
@@ -1941,6 +1943,7 @@ export type Database = {
           intent_type?: Database["public"]["Enums"]["viib_intent_type"]
           source?: string
           title_id?: string
+          updated_at?: string
         }
         Relationships: [
           {

@@ -64,14 +64,16 @@ serve(async (req) => {
      2. PROMOTE EMOTIONS + INTENTS (UPSERT)
   -------------------------------------------------- */
 
+  const now = new Date().toISOString();
+
   const emotionUpserts = promotableTitleIds.flatMap((id) =>
     emotionByTitle.get(id)!.map((r) => ({
       title_id: r.title_id,
       emotion_id: r.emotion_id,
       intensity_level: r.intensity_level,
       source: r.source,
-      model: r.model,
-      prompt_version: r.prompt_version,
+      created_at: r.created_at,
+      updated_at: now,
     })),
   );
 
@@ -81,8 +83,8 @@ serve(async (req) => {
       intent_type: r.intent_type,
       confidence_score: r.confidence_score,
       source: r.source,
-      model: r.model,
-      prompt_version: r.prompt_version,
+      created_at: r.created_at,
+      updated_at: now,
     })),
   );
 
