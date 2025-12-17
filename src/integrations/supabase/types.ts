@@ -1074,36 +1074,6 @@ export type Database = {
           },
         ]
       }
-      title_keywords: {
-        Row: {
-          keyword_id: string
-          title_id: string
-        }
-        Insert: {
-          keyword_id: string
-          title_id: string
-        }
-        Update: {
-          keyword_id?: string
-          title_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "title_keywords_keyword_id_fkey"
-            columns: ["keyword_id"]
-            isOneToOne: false
-            referencedRelation: "keywords"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "title_keywords_title_id_fkey"
-            columns: ["title_id"]
-            isOneToOne: false
-            referencedRelation: "titles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       title_social_summary: {
         Row: {
           social_mean_rating: number | null
@@ -1128,36 +1098,6 @@ export type Database = {
             foreignKeyName: "title_social_summary_title_id_fkey"
             columns: ["title_id"]
             isOneToOne: true
-            referencedRelation: "titles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      title_spoken_languages: {
-        Row: {
-          iso_639_1: string
-          title_id: string
-        }
-        Insert: {
-          iso_639_1: string
-          title_id: string
-        }
-        Update: {
-          iso_639_1?: string
-          title_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "title_spoken_languages_iso_639_1_fkey"
-            columns: ["iso_639_1"]
-            isOneToOne: false
-            referencedRelation: "spoken_languages"
-            referencedColumns: ["iso_639_1"]
-          },
-          {
-            foreignKeyName: "title_spoken_languages_title_id_fkey"
-            columns: ["title_id"]
-            isOneToOne: false
             referencedRelation: "titles"
             referencedColumns: ["id"]
           },
@@ -1254,7 +1194,6 @@ export type Database = {
           release_date: string | null
           runtime: number | null
           status: string | null
-          tagline: string | null
           title_genres: Json | null
           title_type: string | null
           tmdb_id: number | null
@@ -1284,7 +1223,6 @@ export type Database = {
           release_date?: string | null
           runtime?: number | null
           status?: string | null
-          tagline?: string | null
           title_genres?: Json | null
           title_type?: string | null
           tmdb_id?: number | null
@@ -1314,7 +1252,6 @@ export type Database = {
           release_date?: string | null
           runtime?: number | null
           status?: string | null
-          tagline?: string | null
           title_genres?: Json | null
           title_type?: string | null
           tmdb_id?: number | null
@@ -2082,10 +2019,11 @@ export type Database = {
         Returns: string
       }
       get_top_recommendations: {
-        Args: { p_limit: number; p_user_id: string }
+        Args: { p_limit?: number; p_user_id: string }
         Returns: {
           base_viib_score: number
           final_score: number
+          intent_alignment_score: number
           social_priority_score: number
           title_id: string
         }[]
