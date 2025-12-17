@@ -1179,11 +1179,11 @@ export const Jobs = () => {
                       <div className="text-xs text-muted-foreground">Emotions (Primary)</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-2xl font-bold text-purple-500">{jobMetrics.emotionUnpromoted.toLocaleString()}</div>
+                      <div className="text-2xl font-bold text-orange-500">{jobMetrics.emotionUnpromoted.toLocaleString()}</div>
                       <div className="text-xs text-muted-foreground">Emotions (Staging)</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-2xl font-bold text-amber-500">{jobMetrics.emotionUnclassified.toLocaleString()}</div>
+                      <div className="text-2xl font-bold text-red-500">{jobMetrics.emotionUnclassified.toLocaleString()}</div>
                       <div className="text-xs text-muted-foreground">Unclassified</div>
                     </div>
                   </div>
@@ -1197,11 +1197,11 @@ export const Jobs = () => {
                       <div className="text-xs text-muted-foreground">Intents (Primary)</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-2xl font-bold text-purple-500">{jobMetrics.intentUnpromoted.toLocaleString()}</div>
+                      <div className="text-2xl font-bold text-orange-500">{jobMetrics.intentUnpromoted.toLocaleString()}</div>
                       <div className="text-xs text-muted-foreground">Intents (Staging)</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-2xl font-bold text-amber-500">{jobMetrics.intentUnclassified.toLocaleString()}</div>
+                      <div className="text-2xl font-bold text-red-500">{jobMetrics.intentUnclassified.toLocaleString()}</div>
                       <div className="text-xs text-muted-foreground">Unclassified</div>
                     </div>
                   </div>
@@ -1221,7 +1221,7 @@ export const Jobs = () => {
                       <div className="text-xs text-muted-foreground">Emotions (Primary)</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-2xl font-bold text-amber-500">{jobMetrics.emotionUnpromoted.toLocaleString()}</div>
+                      <div className="text-2xl font-bold text-orange-500">{jobMetrics.emotionUnpromoted.toLocaleString()}</div>
                       <div className="text-xs text-muted-foreground">Emotions (Staging)</div>
                     </div>
                     <div className="text-center">
@@ -1235,7 +1235,7 @@ export const Jobs = () => {
                       <div className="text-xs text-muted-foreground">Intents (Primary)</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-2xl font-bold text-amber-500">{jobMetrics.intentUnpromoted.toLocaleString()}</div>
+                      <div className="text-2xl font-bold text-orange-500">{jobMetrics.intentUnpromoted.toLocaleString()}</div>
                       <div className="text-xs text-muted-foreground">Intents (Staging)</div>
                     </div>
                     <div className="text-center">
