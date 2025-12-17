@@ -91,39 +91,48 @@ export const Jobs = () => {
         .select('*', { count: 'exact', head: true });
 
       // === EMOTION METRICS ===
-      // Get distinct title_ids from PRIMARY emotion table (already promoted/classified)
-      const { count: emotionPrimaryCount } = await supabase
+      // Get DISTINCT title_ids from PRIMARY emotion table using raw SQL via RPC
+      // Note: Supabase client count doesn't support distinct, so we fetch minimal data and count unique
+      const { data: emotionPrimaryData } = await supabase
         .from('title_emotional_signatures')
-        .select('title_id', { count: 'exact', head: true });
-      const emotionPromoted = emotionPrimaryCount || 0;
+        .select('title_id');
+      const emotionPromoted = new Set((emotionPrimaryData || []).map(r => r.title_id)).size;
 
-      // Get distinct title_ids from STAGING emotion table (classified but not yet promoted)
-      const { count: emotionStagingCount } = await supabase
+      // Get DISTINCT title_ids from STAGING emotion table
+      const { data: emotionStagingData } = await supabase
         .from('title_emotional_signatures_staging')
-        .select('title_id', { count: 'exact', head: true });
-      const emotionUnpromoted = emotionStagingCount || 0;
+        .select('title_id');
+      const emotionStagingDistinct = new Set((emotionStagingData || []).map(r => r.title_id));
+      const emotionUnpromoted = emotionStagingDistinct.size;
 
       // For classify_ai: unclassified = not in primary AND not in staging
-      // We need to exclude titles that are in EITHER table
-      const emotionClassifiedTotal = emotionPromoted + emotionUnpromoted;
-      const emotionUnclassified = Math.max(0, (totalTitles || 0) - emotionClassifiedTotal);
+      // Combine both sets to get total unique classified titles
+      const allEmotionTitles = new Set([
+        ...(emotionPrimaryData || []).map(r => r.title_id),
+        ...emotionStagingDistinct
+      ]);
+      const emotionUnclassified = Math.max(0, (totalTitles || 0) - allEmotionTitles.size);
 
       // === INTENT METRICS ===
-      // Get distinct title_ids from PRIMARY intent table (already promoted/classified)
-      const { count: intentPrimaryCount } = await supabase
+      // Get DISTINCT title_ids from PRIMARY intent table
+      const { data: intentPrimaryData } = await supabase
         .from('viib_intent_classified_titles')
-        .select('title_id', { count: 'exact', head: true });
-      const intentPromoted = intentPrimaryCount || 0;
+        .select('title_id');
+      const intentPromoted = new Set((intentPrimaryData || []).map(r => r.title_id)).size;
 
-      // Get distinct title_ids from STAGING intent table (classified but not yet promoted)
-      const { count: intentStagingCount } = await supabase
+      // Get DISTINCT title_ids from STAGING intent table
+      const { data: intentStagingData } = await supabase
         .from('viib_intent_classified_titles_staging')
-        .select('title_id', { count: 'exact', head: true });
-      const intentUnpromoted = intentStagingCount || 0;
+        .select('title_id');
+      const intentStagingDistinct = new Set((intentStagingData || []).map(r => r.title_id));
+      const intentUnpromoted = intentStagingDistinct.size;
 
       // For classify_ai: unclassified = not in primary AND not in staging
-      const intentClassifiedTotal = intentPromoted + intentUnpromoted;
-      const intentUnclassified = Math.max(0, (totalTitles || 0) - intentClassifiedTotal);
+      const allIntentTitles = new Set([
+        ...(intentPrimaryData || []).map(r => r.title_id),
+        ...intentStagingDistinct
+      ]);
+      const intentUnclassified = Math.max(0, (totalTitles || 0) - allIntentTitles.size);
 
       setJobMetrics({
         totalTitles: totalTitles || 0,
