@@ -326,48 +326,69 @@ async function processClassificationBatch(cursor?: string): Promise<void> {
       return;
     }
 
-    // Check PRIMARY tables with updated_at to detect stale classifications (> 7 days old)
+    // Check both PRIMARY and STAGING tables to avoid re-processing
     const candidateIds = candidateTitles.map(t => t.id);
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
     
-    // Check emotion primary table with updated_at
-    const { data: emotionClassified } = await supabase
+    // Check emotion primary table
+    const { data: emotionPrimary } = await supabase
       .from("title_emotional_signatures")
       .select("title_id, updated_at")
       .in("title_id", candidateIds);
     
-    // Check intent primary table with updated_at
-    const { data: intentClassified } = await supabase
+    // Check emotion staging table (already processed, awaiting promotion)
+    const { data: emotionStaging } = await supabase
+      .from("title_emotional_signatures_staging")
+      .select("title_id")
+      .in("title_id", candidateIds);
+    
+    // Check intent primary table
+    const { data: intentPrimary } = await supabase
       .from("viib_intent_classified_titles")
       .select("title_id, updated_at")
       .in("title_id", candidateIds);
+    
+    // Check intent staging table (already processed, awaiting promotion)
+    const { data: intentStaging } = await supabase
+      .from("viib_intent_classified_titles_staging")
+      .select("title_id")
+      .in("title_id", candidateIds);
 
-    // Build maps tracking both existence and staleness using updated_at
-    const emotionDataMap = new Map<string, { exists: boolean; isStale: boolean }>();
-    for (const r of (emotionClassified || [])) {
+    // Build sets for staging (just existence check)
+    const emotionStagingSet = new Set((emotionStaging || []).map(r => r.title_id));
+    const intentStagingSet = new Set((intentStaging || []).map(r => r.title_id));
+
+    // Build maps for primary tables (existence + staleness)
+    const emotionPrimaryMap = new Map<string, { exists: boolean; isStale: boolean }>();
+    for (const r of (emotionPrimary || [])) {
       const isStale = r.updated_at ? new Date(r.updated_at) < new Date(sevenDaysAgo) : false;
-      emotionDataMap.set(r.title_id, { exists: true, isStale });
+      emotionPrimaryMap.set(r.title_id, { exists: true, isStale });
     }
     
-    const intentDataMap = new Map<string, { exists: boolean; isStale: boolean }>();
-    for (const r of (intentClassified || [])) {
+    const intentPrimaryMap = new Map<string, { exists: boolean; isStale: boolean }>();
+    for (const r of (intentPrimary || [])) {
       const isStale = r.updated_at ? new Date(r.updated_at) < new Date(sevenDaysAgo) : false;
-      intentDataMap.set(r.title_id, { exists: true, isStale });
+      intentPrimaryMap.set(r.title_id, { exists: true, isStale });
     }
 
     // A title needs processing if:
-    // 1. Missing from emotion table OR missing from intent table, OR
-    // 2. Either emotion OR intent classification is older than 7 days
+    // 1. NOT in staging (not yet processed this run)
+    // 2. AND (missing from primary OR stale in primary)
     const needsProcessing = candidateTitles.filter(t => {
-      const emotionData = emotionDataMap.get(t.id);
-      const intentData = intentDataMap.get(t.id);
+      // Skip if already in staging (awaiting promotion)
+      if (emotionStagingSet.has(t.id) && intentStagingSet.has(t.id)) {
+        return false;
+      }
+      
+      const emotionData = emotionPrimaryMap.get(t.id);
+      const intentData = intentPrimaryMap.get(t.id);
       
       const hasEmotion = emotionData?.exists ?? false;
       const hasIntent = intentData?.exists ?? false;
       const emotionIsStale = emotionData?.isStale ?? false;
       const intentIsStale = intentData?.isStale ?? false;
       
-      // Process if missing from either table OR if either is stale
+      // Process if missing from either primary table OR if either is stale
       return !hasEmotion || !hasIntent || emotionIsStale || intentIsStale;
     });
 
