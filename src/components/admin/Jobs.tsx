@@ -85,70 +85,39 @@ export const Jobs = () => {
 
   const fetchJobMetrics = async () => {
     try {
-      // Fetch total titles count
-      const { count: totalTitles } = await supabase
-        .from('titles')
-        .select('*', { count: 'exact', head: true });
-
-      // === EMOTION METRICS ===
-      // Get DISTINCT title_ids from PRIMARY emotion table using raw SQL via RPC
-      // Note: Supabase client count doesn't support distinct, so we fetch minimal data and count unique
-      const { data: emotionPrimaryData } = await supabase
-        .from('title_emotional_signatures')
-        .select('title_id');
-      const emotionPromoted = new Set((emotionPrimaryData || []).map(r => r.title_id)).size;
-
-      // Get DISTINCT title_ids from STAGING emotion table
-      const { data: emotionStagingData } = await supabase
-        .from('title_emotional_signatures_staging')
-        .select('title_id');
-      const emotionStagingDistinct = new Set((emotionStagingData || []).map(r => r.title_id));
-      const emotionUnpromoted = emotionStagingDistinct.size;
-
-      // For classify_ai: unclassified = not in primary AND not in staging
-      // Combine both sets to get total unique classified titles
-      const allEmotionTitles = new Set([
-        ...(emotionPrimaryData || []).map(r => r.title_id),
-        ...emotionStagingDistinct
-      ]);
-      const emotionUnclassified = Math.max(0, (totalTitles || 0) - allEmotionTitles.size);
-
-      // === INTENT METRICS ===
-      // Get DISTINCT title_ids from PRIMARY intent table
-      const { data: intentPrimaryData } = await supabase
-        .from('viib_intent_classified_titles')
-        .select('title_id');
-      const intentPromoted = new Set((intentPrimaryData || []).map(r => r.title_id)).size;
-
-      // Get DISTINCT title_ids from STAGING intent table
-      const { data: intentStagingData } = await supabase
-        .from('viib_intent_classified_titles_staging')
-        .select('title_id');
-      const intentStagingDistinct = new Set((intentStagingData || []).map(r => r.title_id));
-      const intentUnpromoted = intentStagingDistinct.size;
-
-      // For classify_ai: unclassified = not in primary AND not in staging
-      const allIntentTitles = new Set([
-        ...(intentPrimaryData || []).map(r => r.title_id),
-        ...intentStagingDistinct
-      ]);
-      const intentUnclassified = Math.max(0, (totalTitles || 0) - allIntentTitles.size);
-
-      setJobMetrics({
-        totalTitles: totalTitles || 0,
-        // Emotion metrics - for classify_ai display
-        emotionClassifiedRecent: emotionUnpromoted, // in staging = recently classified
-        emotionUnclassified,
-        // Emotion Promote metrics
-        emotionPromoted,
-        emotionUnpromoted,
-        // Intent metrics - for classify_ai display
-        intentClassifiedRecent: intentUnpromoted, // in staging = recently classified
-        intentUnclassified,
-        // Intent Promote metrics
-        intentPromoted,
-        intentUnpromoted
-      });
+      // Use the efficient RPC function for distinct counts
+      const { data, error } = await supabase.rpc('get_job_classification_metrics' as any);
+      
+      if (error) throw error;
+      
+      if (data && data.length > 0) {
+        const metrics = data[0];
+        const totalTitles = Number(metrics.total_titles) || 0;
+        const emotionPrimary = Number(metrics.emotion_primary_distinct) || 0;
+        const emotionStaging = Number(metrics.emotion_staging_distinct) || 0;
+        const intentPrimary = Number(metrics.intent_primary_distinct) || 0;
+        const intentStaging = Number(metrics.intent_staging_distinct) || 0;
+        
+        // Calculate unclassified (not in primary AND not in staging)
+        // Since some titles might be in both, we need to be careful
+        // For simplicity, assume staging titles are not yet in primary
+        const emotionClassified = emotionPrimary + emotionStaging;
+        const intentClassified = intentPrimary + intentStaging;
+        
+        setJobMetrics({
+          totalTitles,
+          // Emotion metrics
+          emotionClassifiedRecent: emotionStaging,
+          emotionUnclassified: Math.max(0, totalTitles - emotionClassified),
+          emotionPromoted: emotionPrimary,
+          emotionUnpromoted: emotionStaging,
+          // Intent metrics
+          intentClassifiedRecent: intentStaging,
+          intentUnclassified: Math.max(0, totalTitles - intentClassified),
+          intentPromoted: intentPrimary,
+          intentUnpromoted: intentStaging
+        });
+      }
     } catch (error) {
       console.error('Error fetching job metrics:', error);
     }

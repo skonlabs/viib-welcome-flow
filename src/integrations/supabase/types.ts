@@ -2014,6 +2014,16 @@ export type Database = {
         Args: { p_user_id: string }
         Returns: string
       }
+      get_job_classification_metrics: {
+        Args: never
+        Returns: {
+          emotion_primary_distinct: number
+          emotion_staging_distinct: number
+          intent_primary_distinct: number
+          intent_staging_distinct: number
+          total_titles: number
+        }[]
+      }
       get_result_emotion_label: {
         Args: { p_emotion_label: string; p_intensity: number }
         Returns: string
