@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { getPosterUrl } from "@/lib/services/TitleCatalogService";
-import { Play, Share2, Check, Plus, X, Trash2 } from "lucide-react";
+import { Play, Share2, Eye, Plus, X, Trash2 } from "lucide-react";
 import { TrailerDialog } from "./TrailerDialog";
 
 // Flexible title type to handle both database and TMDB API formats
@@ -171,8 +171,8 @@ export function TitleCard({
                       actions.onWatched?.();
                     }}
                   >
-                    <Check className="h-3 w-3" />
-                    <span>Watched</span>
+                    <Eye className="h-3 w-3" />
+                    <span>Seen It</span>
                   </Button>
                 )}
 
