@@ -326,78 +326,72 @@ async function processClassificationBatch(cursor?: string): Promise<void> {
   currentCursor = batch[batch.length - 1].id;
   console.log(`Got ${batch.length} titles to classify, cursor: ${currentCursor}`);
 
-  // Process the batch within time limit
-  while (Date.now() - startTime < MAX_RUNTIME_MS) {
-    // Check job status
-    const jobStatus = await getJobConfig();
-    if (jobStatus?.status !== "running") {
-      console.log("Job stopped by user, aborting.");
-      return;
-    }
+  // Check job status before processing
+  const jobStatus = await getJobConfig();
+  if (jobStatus?.status !== "running") {
+    console.log("Job stopped by user, aborting.");
+    return;
+  }
 
-    console.log(`Processing batch of ${batch.length} titles with COMBINED AI call...`);
-    let batchProcessed = 0;
+  console.log(`Processing batch of ${batch.length} titles with COMBINED AI call...`);
+  let batchProcessed = 0;
 
-    await runWithConcurrency(batch as TitleRow[], MAX_CONCURRENT, async (title) => {
-      const label = title.name ?? title.id;
-      console.log(`→ Classifying ${label} (emotions + intents)`);
+  await runWithConcurrency(batch as TitleRow[], MAX_CONCURRENT, async (title) => {
+    const label = title.name ?? title.id;
+    console.log(`→ Classifying ${label} (emotions + intents)`);
 
-      try {
-        const result = await classifyWithAI(title, emotionLabels);
-        if (!result) return;
+    try {
+      const result = await classifyWithAI(title, emotionLabels);
+      if (!result) return;
 
-        let emotionsSaved = 0;
-        let intentsSaved = 0;
+      let emotionsSaved = 0;
+      let intentsSaved = 0;
 
-        // ALWAYS save BOTH to staging - promote job handles deduplication via primary table check
-        // This ensures no title is missed for either classification
-        if (result.emotions?.length) {
-          const cleanedEmotions = result.emotions
-            .filter((e) => emotionLabels.includes(e.emotion_label))
-            .map((e) => ({
-              emotion_label: e.emotion_label,
-              intensity_level: Math.min(10, Math.max(1, Math.round(e.intensity_level))),
-            }));
+      // ALWAYS save BOTH to staging - promote job handles deduplication via primary table check
+      // This ensures no title is missed for either classification
+      if (result.emotions?.length) {
+        const cleanedEmotions = result.emotions
+          .filter((e) => emotionLabels.includes(e.emotion_label))
+          .map((e) => ({
+            emotion_label: e.emotion_label,
+            intensity_level: Math.min(10, Math.max(1, Math.round(e.intensity_level))),
+          }));
 
-          if (cleanedEmotions.length) {
-            emotionsSaved = await insertEmotionStagingRows(title.id, cleanedEmotions, emotionLabelToId);
-          }
+        if (cleanedEmotions.length) {
+          emotionsSaved = await insertEmotionStagingRows(title.id, cleanedEmotions, emotionLabelToId);
         }
-
-        if (result.intents?.length) {
-          const cleanedIntents = result.intents
-            .filter((i) => INTENT_TYPES.includes(i.intent_type))
-            .map((i) => ({
-              intent_type: i.intent_type,
-              confidence_score: Math.min(1.0, Math.max(0.0, i.confidence_score)),
-            }));
-
-          if (cleanedIntents.length) {
-            intentsSaved = await insertIntentStagingRows(title.id, cleanedIntents);
-          }
-        }
-
-        if (emotionsSaved > 0 || intentsSaved > 0) {
-          batchProcessed++;
-          console.log(`✓ ${title.id}: ${emotionsSaved} emotions, ${intentsSaved} intents saved`);
-        }
-      } catch (err) {
-        console.error("Error processing title:", title.id, err);
       }
-    });
 
-    if (batchProcessed > 0) {
-      await incrementJobTitles(batchProcessed);
-      totalProcessed += batchProcessed;
+      if (result.intents?.length) {
+        const cleanedIntents = result.intents
+          .filter((i) => INTENT_TYPES.includes(i.intent_type))
+          .map((i) => ({
+            intent_type: i.intent_type,
+            confidence_score: Math.min(1.0, Math.max(0.0, i.confidence_score)),
+          }));
+
+        if (cleanedIntents.length) {
+          intentsSaved = await insertIntentStagingRows(title.id, cleanedIntents);
+        }
+      }
+
+      if (emotionsSaved > 0 || intentsSaved > 0) {
+        batchProcessed++;
+        console.log(`✓ ${title.id}: ${emotionsSaved} emotions, ${intentsSaved} intents saved`);
+      }
+    } catch (err) {
+      console.error("Error processing title:", title.id, err);
     }
+  });
 
-    // Save cursor after processing
-    if (currentCursor) {
-      await saveCursor(currentCursor);
-    }
+  if (batchProcessed > 0) {
+    await incrementJobTitles(batchProcessed);
+    totalProcessed += batchProcessed;
+  }
 
-    // Exit after processing this batch - self-invoke handles continuation
-    break;
+  // Save cursor after processing
+  if (currentCursor) {
+    await saveCursor(currentCursor);
   }
 
   console.log(`Batch complete. Processed: ${totalProcessed}, cursor: ${currentCursor}`);
