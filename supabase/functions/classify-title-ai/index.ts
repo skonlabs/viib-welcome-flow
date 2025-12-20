@@ -264,30 +264,43 @@ async function insertIntentStagingRows(titleId: string, intents: ModelIntent[]) 
 // ---------------------------------------------------------------------
 async function processClassificationBatch(cursor?: string): Promise<void> {
   const startTime = Date.now();
+  const timings: { step: string; ms: number }[] = [];
   
-  // Check job status and get saved cursor if none provided
+  const logTiming = (step: string, stepStart: number) => {
+    const elapsed = Date.now() - stepStart;
+    timings.push({ step, ms: elapsed });
+    console.log(`⏱️ ${step}: ${elapsed}ms`);
+  };
+
+  // Step 1: Check job status
+  let stepStart = Date.now();
   const { status, config } = await getJobConfig();
+  logTiming("1. getJobConfig", stepStart);
+  
   if (status !== "running") {
     console.log("Job not running, exiting.");
     return;
   }
 
-  // Use saved cursor if none passed (resume from last position)
   const effectiveCursor = cursor || config.last_processed_id || null;
   console.log(`Starting from cursor: ${effectiveCursor || 'beginning'}`);
 
-  // Get counts for progress tracking
+  // Step 2: Get total count (for progress tracking)
+  stepStart = Date.now();
   const { count: totalTitles } = await supabase
     .from("titles")
     .select("id", { count: "exact", head: true });
+  logTiming("2. Count total titles", stepStart);
 
   console.log(`Total titles in catalog: ${totalTitles}`);
 
-  // Load emotion vocabulary
+  // Step 3: Load emotion vocabulary
+  stepStart = Date.now();
   const { data: emotions, error: emoErr } = await supabase
     .from("emotion_master")
     .select("id, emotion_label")
     .eq("category", "content_state");
+  logTiming("3. Load emotion_master", stepStart);
 
   if (emoErr || !emotions?.length) {
     console.error("Failed to load emotion_master:", emoErr);
@@ -304,12 +317,14 @@ async function processClassificationBatch(cursor?: string): Promise<void> {
   let totalProcessed = 0;
   let currentCursor: string | null = effectiveCursor;
 
-  // Fetch batch ONCE before processing loop
+  // Step 4: Fetch titles needing classification
+  stepStart = Date.now();
   const { data: batch, error: fetchError } = await supabase
     .rpc("get_titles_needing_classification", {
       p_cursor: currentCursor,
       p_limit: BATCH_SIZE
     });
+  logTiming("4. get_titles_needing_classification RPC", stepStart);
 
   if (fetchError) {
     console.error("Error fetching titles:", fetchError);
@@ -322,12 +337,14 @@ async function processClassificationBatch(cursor?: string): Promise<void> {
     return;
   }
 
-  // Update cursor to last title in batch
   currentCursor = batch[batch.length - 1].id;
   console.log(`Got ${batch.length} titles to classify, cursor: ${currentCursor}`);
 
-  // Check job status before processing
+  // Step 5: Re-check job status before processing
+  stepStart = Date.now();
   const jobStatus = await getJobConfig();
+  logTiming("5. Re-check job status", stepStart);
+  
   if (jobStatus?.status !== "running") {
     console.log("Job stopped by user, aborting.");
     return;
@@ -336,19 +353,24 @@ async function processClassificationBatch(cursor?: string): Promise<void> {
   console.log(`Processing batch of ${batch.length} titles with COMBINED AI call...`);
   let batchProcessed = 0;
 
+  // Step 6: Process all titles with AI (concurrent)
+  stepStart = Date.now();
   await runWithConcurrency(batch as TitleRow[], MAX_CONCURRENT, async (title) => {
     const label = title.name ?? title.id;
-    console.log(`→ Classifying ${label} (emotions + intents)`);
+    const titleStart = Date.now();
 
     try {
+      // AI call timing
+      const aiStart = Date.now();
       const result = await classifyWithAI(title, emotionLabels);
+      console.log(`  ⏱️ AI call for ${label}: ${Date.now() - aiStart}ms`);
+      
       if (!result) return;
 
       let emotionsSaved = 0;
       let intentsSaved = 0;
 
-      // ALWAYS save BOTH to staging - promote job handles deduplication via primary table check
-      // This ensures no title is missed for either classification
+      // Emotion insert timing
       if (result.emotions?.length) {
         const cleanedEmotions = result.emotions
           .filter((e) => emotionLabels.includes(e.emotion_label))
@@ -358,10 +380,13 @@ async function processClassificationBatch(cursor?: string): Promise<void> {
           }));
 
         if (cleanedEmotions.length) {
+          const insertStart = Date.now();
           emotionsSaved = await insertEmotionStagingRows(title.id, cleanedEmotions, emotionLabelToId);
+          console.log(`  ⏱️ Insert emotions for ${label}: ${Date.now() - insertStart}ms`);
         }
       }
 
+      // Intent insert timing
       if (result.intents?.length) {
         const cleanedIntents = result.intents
           .filter((i) => INTENT_TYPES.includes(i.intent_type))
@@ -371,38 +396,55 @@ async function processClassificationBatch(cursor?: string): Promise<void> {
           }));
 
         if (cleanedIntents.length) {
+          const insertStart = Date.now();
           intentsSaved = await insertIntentStagingRows(title.id, cleanedIntents);
+          console.log(`  ⏱️ Insert intents for ${label}: ${Date.now() - insertStart}ms`);
         }
       }
 
       if (emotionsSaved > 0 || intentsSaved > 0) {
         batchProcessed++;
-        console.log(`✓ ${title.id}: ${emotionsSaved} emotions, ${intentsSaved} intents saved`);
+        console.log(`✓ ${title.id}: ${emotionsSaved} emotions, ${intentsSaved} intents (total: ${Date.now() - titleStart}ms)`);
       }
     } catch (err) {
       console.error("Error processing title:", title.id, err);
     }
   });
+  logTiming("6. Process all titles (AI + inserts)", stepStart);
 
+  // Step 7: Increment job counter
   if (batchProcessed > 0) {
+    stepStart = Date.now();
     await incrementJobTitles(batchProcessed);
+    logTiming("7. incrementJobTitles", stepStart);
     totalProcessed += batchProcessed;
   }
 
-  // Save cursor after processing
+  // Step 8: Save cursor
   if (currentCursor) {
+    stepStart = Date.now();
     await saveCursor(currentCursor);
+    logTiming("8. saveCursor", stepStart);
   }
 
-  console.log(`Batch complete. Processed: ${totalProcessed}, cursor: ${currentCursor}`);
+  // Print timing summary
+  console.log("\n📊 TIMING SUMMARY:");
+  console.log("─".repeat(40));
+  for (const t of timings) {
+    console.log(`${t.step.padEnd(35)} ${t.ms}ms`);
+  }
+  console.log("─".repeat(40));
+  console.log(`TOTAL: ${Date.now() - startTime}ms`);
+  console.log(`Processed: ${totalProcessed} titles`);
 
-  // Self-invoke for next batch if more work remains
+  // Step 9: Self-invoke for next batch
+  stepStart = Date.now();
   const { status: finalStatus } = await getJobConfig();
+  logTiming("9. Check final status", stepStart);
+  
   if (finalStatus === "running") {
     console.log(`Self-invoking next batch with cursor ${currentCursor}...`);
     
-    // Fire-and-forget self-invoke - don't await to avoid timeout chain
-    // The cursor is saved, so even if this fails, next cron/manual run will resume
     EdgeRuntime.waitUntil(
       fetch(`${supabaseUrl}/functions/v1/classify-title-ai`, {
         method: "POST",
