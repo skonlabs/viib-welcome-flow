@@ -1,15 +1,12 @@
 // ============================================================================
 // ViiB — Combined AI Classification (Emotions + Intents in ONE API call)
 // ============================================================================
-// Uses efficient SQL function to fetch ONLY titles needing classification
-// Eliminates wasteful "check 30 to find 1-4" pattern - direct query returns work
+// Processes in batches with self-invocation to handle large catalogs
 // ============================================================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import OpenAI from "https://esm.sh/openai@4.20.1";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-declare const EdgeRuntime: { waitUntil: (promise: Promise<unknown>) => void };
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -19,9 +16,9 @@ const supabase = createClient(supabaseUrl, serviceRoleKey);
 const openai = new OpenAI({ apiKey: openaiKey });
 
 const JOB_TYPE = "classify_ai";
-const CONCURRENT_AI_CALLS = 5;   // Process 5 titles in parallel with OpenAI
+const BATCH_SIZE = 50;           // Process 50 titles per invocation
+const CONCURRENT_AI_CALLS = 10;  // 10 parallel OpenAI calls
 const MAX_TRANSCRIPT_CHARS = 4000;
-const MAX_RUNTIME_MS = 50000;    // Keep under 60s edge function limit
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -258,49 +255,45 @@ async function insertIntentStagingRows(titleId: string, intents: ModelIntent[]) 
 }
 
 // ---------------------------------------------------------------------
-// Main processing logic
-// Fetches ALL titles needing classification, then processes them
+// Self-invoke for next batch
 // ---------------------------------------------------------------------
-async function processClassificationBatch(): Promise<void> {
+async function invokeNextBatch(): Promise<void> {
+  try {
+    console.log("🔄 Self-invoking for next batch...");
+    await supabase.functions.invoke("classify-title-ai", {
+      body: { continuation: true }
+    });
+  } catch (err) {
+    console.error("Failed to self-invoke:", err);
+  }
+}
+
+// ---------------------------------------------------------------------
+// Main processing logic - processes one batch then self-invokes
+// ---------------------------------------------------------------------
+async function processClassificationBatch(): Promise<{ processed: number; hasMore: boolean }> {
   const startTime = Date.now();
-  const timings: { step: string; ms: number }[] = [];
-  
-  const logTiming = (step: string, stepStart: number) => {
-    const elapsed = Date.now() - stepStart;
-    timings.push({ step, ms: elapsed });
-    console.log(`⏱️ ${step}: ${elapsed}ms`);
-  };
 
   // Step 1: Check job status
-  let stepStart = Date.now();
-  const { status } = await getJobConfig();
-  logTiming("1. getJobConfig", stepStart);
+  const { status, config } = await getJobConfig();
   
   if (status !== "running") {
     console.log("Job not running, exiting.");
-    return;
+    return { processed: 0, hasMore: false };
   }
 
-  // Step 2: Get total count (for progress tracking)
-  stepStart = Date.now();
-  const { count: totalTitles } = await supabase
-    .from("titles")
-    .select("id", { count: "exact", head: true });
-  logTiming("2. Count total titles", stepStart);
+  const cursor = config.last_processed_id || null;
+  console.log(`Starting batch with cursor: ${cursor || "(none)"}`);
 
-  console.log(`Total titles in catalog: ${totalTitles}`);
-
-  // Step 3: Load emotion vocabulary
-  stepStart = Date.now();
+  // Step 2: Load emotion vocabulary
   const { data: emotions, error: emoErr } = await supabase
     .from("emotion_master")
     .select("id, emotion_label")
     .eq("category", "content_state");
-  logTiming("3. Load emotion_master", stepStart);
 
   if (emoErr || !emotions?.length) {
     console.error("Failed to load emotion_master:", emoErr);
-    return;
+    return { processed: 0, hasMore: false };
   }
 
   const emotionLabelToId = new Map<string, string>();
@@ -310,61 +303,51 @@ async function processClassificationBatch(): Promise<void> {
     emotionLabelToId.set(e.emotion_label, e.id);
   }
 
-  let totalProcessed = 0;
-
-  // Step 4: Fetch ALL titles needing classification (single RPC call, no limit)
-  stepStart = Date.now();
-  const { data: allTitles, error: fetchError } = await supabase
+  // Step 3: Fetch batch of titles needing classification
+  const { data: batch, error: fetchError } = await supabase
     .rpc("get_titles_needing_classification", {
-      p_cursor: null,
-      p_limit: null  // Fetch ALL titles at once
+      p_cursor: cursor,
+      p_limit: BATCH_SIZE
     });
-  logTiming("4. get_titles_needing_classification RPC", stepStart);
 
   if (fetchError) {
     console.error("Error fetching titles:", fetchError);
-    return;
+    return { processed: 0, hasMore: false };
   }
 
-  if (!allTitles || allTitles.length === 0) {
+  if (!batch || batch.length === 0) {
     console.log("No more titles to classify!");
     await markJobComplete();
-    return;
+    return { processed: 0, hasMore: false };
   }
 
-  console.log(`Got ${allTitles.length} titles to classify`);
+  console.log(`Got ${batch.length} titles to classify`);
 
-  // Step 5: Re-check job status before processing
-  stepStart = Date.now();
+  // Step 4: Re-check job status before processing
   const jobStatus = await getJobConfig();
-  logTiming("5. Re-check job status", stepStart);
-  
   if (jobStatus?.status !== "running") {
     console.log("Job stopped by user, aborting.");
-    return;
+    return { processed: 0, hasMore: false };
   }
 
-  console.log(`Processing ${allTitles.length} titles with CONCURRENT_AI_CALLS=${CONCURRENT_AI_CALLS}...`);
+  // Step 5: Process batch with AI (concurrent)
   let batchProcessed = 0;
+  let lastProcessedId = cursor;
 
-  // Step 6: Process all titles with AI (concurrent)
-  stepStart = Date.now();
-  await runWithConcurrency(allTitles as TitleRow[], CONCURRENT_AI_CALLS, async (title) => {
+  await runWithConcurrency(batch as TitleRow[], CONCURRENT_AI_CALLS, async (title) => {
     const label = title.name ?? title.id;
-    const titleStart = Date.now();
 
     try {
-      // AI call timing
       const aiStart = Date.now();
       const result = await classifyWithAI(title, emotionLabels);
-      console.log(`  ⏱️ AI call for ${label}: ${Date.now() - aiStart}ms`);
+      console.log(`⏱️ AI: ${label} (${Date.now() - aiStart}ms)`);
       
       if (!result) return;
 
       let emotionsSaved = 0;
       let intentsSaved = 0;
 
-      // Emotion insert timing
+      // Insert emotions
       if (result.emotions?.length) {
         const cleanedEmotions = result.emotions
           .filter((e) => emotionLabels.includes(e.emotion_label))
@@ -374,13 +357,11 @@ async function processClassificationBatch(): Promise<void> {
           }));
 
         if (cleanedEmotions.length) {
-          const insertStart = Date.now();
           emotionsSaved = await insertEmotionStagingRows(title.id, cleanedEmotions, emotionLabelToId);
-          console.log(`  ⏱️ Insert emotions for ${label}: ${Date.now() - insertStart}ms`);
         }
       }
 
-      // Intent insert timing
+      // Insert intents
       if (result.intents?.length) {
         const cleanedIntents = result.intents
           .filter((i) => INTENT_TYPES.includes(i.intent_type))
@@ -390,47 +371,42 @@ async function processClassificationBatch(): Promise<void> {
           }));
 
         if (cleanedIntents.length) {
-          const insertStart = Date.now();
           intentsSaved = await insertIntentStagingRows(title.id, cleanedIntents);
-          console.log(`  ⏱️ Insert intents for ${label}: ${Date.now() - insertStart}ms`);
         }
       }
 
       if (emotionsSaved > 0 || intentsSaved > 0) {
         batchProcessed++;
-        console.log(`✓ ${title.id}: ${emotionsSaved} emotions, ${intentsSaved} intents (total: ${Date.now() - titleStart}ms)`);
+        console.log(`✓ ${title.id}: ${emotionsSaved}e, ${intentsSaved}i`);
       }
+
+      // Track last processed for cursor
+      lastProcessedId = title.id;
     } catch (err) {
       console.error("Error processing title:", title.id, err);
     }
   });
-  logTiming("6. Process all titles (AI + inserts)", stepStart);
 
-  // Step 7: Increment job counter
+  // Step 6: Update job progress
   if (batchProcessed > 0) {
-    stepStart = Date.now();
     await incrementJobTitles(batchProcessed);
-    logTiming("7. incrementJobTitles", stepStart);
-    totalProcessed += batchProcessed;
   }
 
-  // Print timing summary
-  console.log("\n📊 TIMING SUMMARY:");
-  console.log("─".repeat(40));
-  for (const t of timings) {
-    console.log(`${t.step.padEnd(35)} ${t.ms}ms`);
+  // Step 7: Save cursor for next batch
+  if (lastProcessedId) {
+    await saveCursor(lastProcessedId);
   }
-  console.log("─".repeat(40));
-  console.log(`TOTAL: ${Date.now() - startTime}ms`);
-  console.log(`Processed: ${totalProcessed} titles`);
 
-  // All titles processed - mark job complete
-  console.log("All titles classified, marking job complete.");
-  await markJobComplete();
+  const elapsed = Date.now() - startTime;
+  const hasMore = batch.length === BATCH_SIZE;
+  
+  console.log(`📊 Batch done: ${batchProcessed} titles in ${elapsed}ms. Has more: ${hasMore}`);
+
+  return { processed: batchProcessed, hasMore };
 }
 
 // ---------------------------------------------------------------------
-// Main handler - Responds immediately, processes in background
+// Main handler - processes batch then chains to next
 // ---------------------------------------------------------------------
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -442,25 +418,35 @@ serve(async (req: Request) => {
   }
 
   console.log(`▶ classify-title-ai invoked`);
-  
-  // Run processing in background - don't await
-  EdgeRuntime.waitUntil(
-    processClassificationBatch().catch((err) => {
-      console.error("Error in background classification:", err);
-      // Save error to job for visibility
-      supabase
-        .from("jobs")
-        .update({ error_message: err?.message || "Unknown error", status: "failed" })
-        .eq("job_type", JOB_TYPE);
-    })
-  );
 
-  // Respond immediately
-  return new Response(
-    JSON.stringify({ 
-      message: "Classification job started in background",
-      status: "processing"
-    }),
-    { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-  );
+  try {
+    // Process one batch
+    const { processed, hasMore } = await processClassificationBatch();
+
+    // If there's more work, self-invoke for next batch
+    if (hasMore) {
+      // Don't await - let it chain asynchronously
+      invokeNextBatch();
+    }
+
+    return new Response(
+      JSON.stringify({ 
+        message: hasMore ? `Processed ${processed}, continuing...` : `Completed (${processed} in final batch)`,
+        processed,
+        hasMore,
+        status: "ok"
+      }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  } catch (err: any) {
+    console.error("Error in classify-title-ai:", err);
+    await supabase
+      .from("jobs")
+      .update({ error_message: err?.message || "Unknown error", status: "failed" })
+      .eq("job_type", JOB_TYPE);
+    return new Response(
+      JSON.stringify({ error: err?.message ?? "Unknown error" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
 });
