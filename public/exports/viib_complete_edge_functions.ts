@@ -5852,7 +5852,7 @@ async function insertEmotionStagingRows(
   if (!payload.length) return 0;
 
   const { error } = await supabase
-    .from("title_emotional_signatures_staging")
+    .from("viib_emotion_classified_titles_staging")
     .upsert(payload, { onConflict: "title_id,emotion_id", ignoreDuplicates: true });
   if (error) throw error;
   return payload.length;
@@ -5958,7 +5958,7 @@ async function processClassificationBatch(cursor?: string): Promise<void> {
 
     // Check emotion primary table
     const { data: emotionClassified } = await supabase
-      .from("title_emotional_signatures")
+      .from("viib_emotion_classified_titles")
       .select("title_id")
       .in("title_id", candidateIds);
 
@@ -5970,7 +5970,7 @@ async function processClassificationBatch(cursor?: string): Promise<void> {
 
     // Check emotion staging table (already classified but not yet promoted)
     const { data: emotionStaging } = await supabase
-      .from("title_emotional_signatures_staging")
+      .from("viib_emotion_classified_titles_staging")
       .select("title_id")
       .in("title_id", candidateIds);
 
@@ -6141,7 +6141,7 @@ serve(async (req: Request) => {
 // ViiB — Promote AI Classifications (Emotions + Intents from Staging → Final)
 // ============================================================================
 // WHAT THIS FUNCTION DOES:
-// 1. Reads rows from title_emotional_signatures_staging where source='ai'
+// 1. Reads rows from viib_emotion_classified_titles_staging where source='ai'
 // 2. Reads rows from viib_intent_classified_titles_staging where source='ai'
 // 3. Takes up to N distinct title_ids (batch mode)
 // 4. Promotes emotions: delete old -> insert new -> delete staging
@@ -6253,7 +6253,7 @@ serve(async (req: Request) => {
   // PART 1: PROMOTE EMOTIONS
   // ------------------------------------------------------------------------
   const { data: emotionTitles, error: emotionErr } = await supabase
-    .from("title_emotional_signatures_staging")
+    .from("viib_emotion_classified_titles_staging")
     .select("title_id")
     .eq("source", "ai")
     .limit(batchSize);
@@ -6268,7 +6268,7 @@ serve(async (req: Request) => {
 
     // Fetch staging rows
     const { data: emotionRows, error: stagingErr } = await supabase
-      .from("title_emotional_signatures_staging")
+      .from("viib_emotion_classified_titles_staging")
       .select("title_id, emotion_id, intensity_level, source")
       .in("title_id", emotionTitleIds)
       .eq("source", "ai");
@@ -6283,10 +6283,10 @@ serve(async (req: Request) => {
       }));
 
       // Delete old emotions
-      await supabase.from("title_emotional_signatures").delete().in("title_id", emotionTitleIds);
+      await supabase.from("viib_emotion_classified_titles").delete().in("title_id", emotionTitleIds);
 
       // Insert new emotions
-      const { error: insertErr } = await supabase.from("title_emotional_signatures").insert(finalEmotionRows);
+      const { error: insertErr } = await supabase.from("viib_emotion_classified_titles").insert(finalEmotionRows);
 
       if (!insertErr) {
         emotionRowsInserted = finalEmotionRows.length;
@@ -6294,7 +6294,7 @@ serve(async (req: Request) => {
 
         // Delete staging rows
         await supabase
-          .from("title_emotional_signatures_staging")
+          .from("viib_emotion_classified_titles_staging")
           .delete()
           .in("title_id", emotionTitleIds)
           .eq("source", "ai");
@@ -6369,7 +6369,7 @@ serve(async (req: Request) => {
   // CHECK IF MORE WORK REMAINS
   // ------------------------------------------------------------------------
   const { count: remainingEmotions } = await supabase
-    .from("title_emotional_signatures_staging")
+    .from("viib_emotion_classified_titles_staging")
     .select("*", { count: "exact", head: true })
     .eq("source", "ai");
 

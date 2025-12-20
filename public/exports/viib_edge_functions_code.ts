@@ -740,7 +740,7 @@ Key Features:
 [Full implementation in supabase/functions/promote-title-ai/index.ts]
 
 Key Features:
-- Promotes emotions: title_emotional_signatures_staging → title_emotional_signatures
+- Promotes emotions: viib_emotion_classified_titles_staging → viib_emotion_classified_titles
 - Promotes intents: viib_intent_classified_titles_staging → viib_intent_classified_titles
 - Delete old → Insert new → Delete staging (atomic per title_id)
 - Self-invokes via EdgeRuntime.waitUntil for remaining work

@@ -297,8 +297,8 @@ CREATE TABLE public.emotion_transformation_map (
   priority_rank SMALLINT
 );
 
--- Title emotional signatures table
-CREATE TABLE public.title_emotional_signatures (
+-- ViiB emotion classified titles table
+CREATE TABLE public.viib_emotion_classified_titles (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   title_id UUID NOT NULL REFERENCES public.titles(id),
   emotion_id UUID NOT NULL REFERENCES public.emotion_master(id),
@@ -306,8 +306,8 @@ CREATE TABLE public.title_emotional_signatures (
   source TEXT
 );
 
--- Title emotional signatures staging table
-CREATE TABLE public.title_emotional_signatures_staging (
+-- ViiB emotion classified titles staging table
+CREATE TABLE public.viib_emotion_classified_titles_staging (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   title_id UUID NOT NULL REFERENCES public.titles(id),
   emotion_id UUID NOT NULL REFERENCES public.emotion_master(id),
@@ -606,7 +606,7 @@ CREATE INDEX idx_user_emotion_states_user_id ON public.user_emotion_states(user_
 CREATE INDEX idx_user_title_interactions_user_id ON public.user_title_interactions(user_id);
 CREATE INDEX idx_user_title_interactions_title_id ON public.user_title_interactions(title_id);
 CREATE INDEX idx_friend_connections_user_id ON public.friend_connections(user_id);
-CREATE INDEX idx_title_emotional_signatures_title_id ON public.title_emotional_signatures(title_id);
+CREATE INDEX idx_viib_emotion_classified_titles_title_id ON public.viib_emotion_classified_titles(title_id);
 CREATE INDEX idx_title_emotion_vectors_title_id ON public.title_emotion_vectors(title_id);
 
 -- ============================================
