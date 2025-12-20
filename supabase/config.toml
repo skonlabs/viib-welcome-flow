@@ -50,3 +50,6 @@ verify_jwt = false
 
 [functions.promote-title-ai]
 verify_jwt = false
+
+[functions.get-analytics]
+verify_jwt = false
