@@ -19,10 +19,10 @@ const supabase = createClient(supabaseUrl, serviceRoleKey);
 const openai = new OpenAI({ apiKey: openaiKey });
 
 const JOB_TYPE = "classify_ai";
-const BATCH_SIZE = 10;
-const MAX_CONCURRENT = 3;
+const FETCH_LIMIT = 500;         // Fetch many titles at once (RPC is slow)
+const CONCURRENT_AI_CALLS = 5;   // Process 5 titles in parallel with OpenAI
 const MAX_TRANSCRIPT_CHARS = 4000;
-const MAX_RUNTIME_MS = 50000; // Keep under 60s edge function limit to ensure self-invoke happens
+const MAX_RUNTIME_MS = 50000;    // Keep under 60s edge function limit
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -317,12 +317,12 @@ async function processClassificationBatch(cursor?: string): Promise<void> {
   let totalProcessed = 0;
   let currentCursor: string | null = effectiveCursor;
 
-  // Step 4: Fetch titles needing classification
+  // Step 4: Fetch ALL titles needing classification (single slow RPC call)
   stepStart = Date.now();
   const { data: batch, error: fetchError } = await supabase
     .rpc("get_titles_needing_classification", {
       p_cursor: currentCursor,
-      p_limit: BATCH_SIZE
+      p_limit: FETCH_LIMIT
     });
   logTiming("4. get_titles_needing_classification RPC", stepStart);
 
@@ -355,7 +355,7 @@ async function processClassificationBatch(cursor?: string): Promise<void> {
 
   // Step 6: Process all titles with AI (concurrent)
   stepStart = Date.now();
-  await runWithConcurrency(batch as TitleRow[], MAX_CONCURRENT, async (title) => {
+  await runWithConcurrency(batch as TitleRow[], CONCURRENT_AI_CALLS, async (title) => {
     const label = title.name ?? title.id;
     const titleStart = Date.now();
 
