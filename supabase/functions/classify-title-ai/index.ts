@@ -430,7 +430,7 @@ async function processClassificationBatch(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------
-// Main handler - Runs synchronously, self-invokes for next batch
+// Main handler - Responds immediately, processes in background
 // ---------------------------------------------------------------------
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -441,29 +441,26 @@ serve(async (req: Request) => {
     return new Response("Method Not Allowed", { status: 405, headers: corsHeaders });
   }
 
-  try {
-    console.log(`▶ classify-title-ai invoked`);
-    
-    // Run processing - fetches ALL titles needing classification at once
-    await processClassificationBatch();
+  console.log(`▶ classify-title-ai invoked`);
+  
+  // Run processing in background - don't await
+  EdgeRuntime.waitUntil(
+    processClassificationBatch().catch((err) => {
+      console.error("Error in background classification:", err);
+      // Save error to job for visibility
+      supabase
+        .from("jobs")
+        .update({ error_message: err?.message || "Unknown error", status: "failed" })
+        .eq("job_type", JOB_TYPE);
+    })
+  );
 
-    return new Response(
-      JSON.stringify({ 
-        message: "Batch completed",
-        status: "ok"
-      }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
-  } catch (err: any) {
-    console.error("Error in classify-title-ai:", err);
-    // Save error to job for visibility
-    await supabase
-      .from("jobs")
-      .update({ error_message: err?.message || "Unknown error" })
-      .eq("job_type", JOB_TYPE);
-    return new Response(
-      JSON.stringify({ error: err?.message ?? "Unknown error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
-  }
+  // Respond immediately
+  return new Response(
+    JSON.stringify({ 
+      message: "Classification job started in background",
+      status: "processing"
+    }),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+  );
 });
