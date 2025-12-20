@@ -19,7 +19,6 @@ const supabase = createClient(supabaseUrl, serviceRoleKey);
 const openai = new OpenAI({ apiKey: openaiKey });
 
 const JOB_TYPE = "classify_ai";
-const FETCH_LIMIT = 500;         // Fetch many titles at once (RPC is slow)
 const CONCURRENT_AI_CALLS = 5;   // Process 5 titles in parallel with OpenAI
 const MAX_TRANSCRIPT_CHARS = 4000;
 const MAX_RUNTIME_MS = 50000;    // Keep under 60s edge function limit
@@ -259,10 +258,10 @@ async function insertIntentStagingRows(titleId: string, intents: ModelIntent[]) 
 }
 
 // ---------------------------------------------------------------------
-// Background processing logic
-// Classifies titles NOT in EITHER primary table
+// Main processing logic
+// Fetches ALL titles needing classification, then processes them
 // ---------------------------------------------------------------------
-async function processClassificationBatch(cursor?: string): Promise<void> {
+async function processClassificationBatch(): Promise<void> {
   const startTime = Date.now();
   const timings: { step: string; ms: number }[] = [];
   
@@ -274,16 +273,13 @@ async function processClassificationBatch(cursor?: string): Promise<void> {
 
   // Step 1: Check job status
   let stepStart = Date.now();
-  const { status, config } = await getJobConfig();
+  const { status } = await getJobConfig();
   logTiming("1. getJobConfig", stepStart);
   
   if (status !== "running") {
     console.log("Job not running, exiting.");
     return;
   }
-
-  const effectiveCursor = cursor || config.last_processed_id || null;
-  console.log(`Starting from cursor: ${effectiveCursor || 'beginning'}`);
 
   // Step 2: Get total count (for progress tracking)
   stepStart = Date.now();
@@ -315,14 +311,13 @@ async function processClassificationBatch(cursor?: string): Promise<void> {
   }
 
   let totalProcessed = 0;
-  let currentCursor: string | null = effectiveCursor;
 
-  // Step 4: Fetch ALL titles needing classification (single slow RPC call)
+  // Step 4: Fetch ALL titles needing classification (single RPC call, no limit)
   stepStart = Date.now();
-  const { data: batch, error: fetchError } = await supabase
+  const { data: allTitles, error: fetchError } = await supabase
     .rpc("get_titles_needing_classification", {
-      p_cursor: currentCursor,
-      p_limit: FETCH_LIMIT
+      p_cursor: null,
+      p_limit: null  // Fetch ALL titles at once
     });
   logTiming("4. get_titles_needing_classification RPC", stepStart);
 
@@ -331,14 +326,13 @@ async function processClassificationBatch(cursor?: string): Promise<void> {
     return;
   }
 
-  if (!batch || batch.length === 0) {
+  if (!allTitles || allTitles.length === 0) {
     console.log("No more titles to classify!");
     await markJobComplete();
     return;
   }
 
-  currentCursor = batch[batch.length - 1].id;
-  console.log(`Got ${batch.length} titles to classify, cursor: ${currentCursor}`);
+  console.log(`Got ${allTitles.length} titles to classify`);
 
   // Step 5: Re-check job status before processing
   stepStart = Date.now();
@@ -350,12 +344,12 @@ async function processClassificationBatch(cursor?: string): Promise<void> {
     return;
   }
 
-  console.log(`Processing batch of ${batch.length} titles with COMBINED AI call...`);
+  console.log(`Processing ${allTitles.length} titles with CONCURRENT_AI_CALLS=${CONCURRENT_AI_CALLS}...`);
   let batchProcessed = 0;
 
   // Step 6: Process all titles with AI (concurrent)
   stepStart = Date.now();
-  await runWithConcurrency(batch as TitleRow[], CONCURRENT_AI_CALLS, async (title) => {
+  await runWithConcurrency(allTitles as TitleRow[], CONCURRENT_AI_CALLS, async (title) => {
     const label = title.name ?? title.id;
     const titleStart = Date.now();
 
@@ -420,13 +414,6 @@ async function processClassificationBatch(cursor?: string): Promise<void> {
     totalProcessed += batchProcessed;
   }
 
-  // Step 8: Save cursor
-  if (currentCursor) {
-    stepStart = Date.now();
-    await saveCursor(currentCursor);
-    logTiming("8. saveCursor", stepStart);
-  }
-
   // Print timing summary
   console.log("\n📊 TIMING SUMMARY:");
   console.log("─".repeat(40));
@@ -437,27 +424,9 @@ async function processClassificationBatch(cursor?: string): Promise<void> {
   console.log(`TOTAL: ${Date.now() - startTime}ms`);
   console.log(`Processed: ${totalProcessed} titles`);
 
-  // Step 9: Self-invoke for next batch
-  stepStart = Date.now();
-  const { status: finalStatus } = await getJobConfig();
-  logTiming("9. Check final status", stepStart);
-  
-  if (finalStatus === "running") {
-    console.log(`Self-invoking next batch with cursor ${currentCursor}...`);
-    
-    EdgeRuntime.waitUntil(
-      fetch(`${supabaseUrl}/functions/v1/classify-title-ai`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${serviceRoleKey}`,
-        },
-        body: JSON.stringify({ cursor: currentCursor }),
-      })
-        .then(r => console.log(`Self-invoke response: ${r.status}`))
-        .catch(err => console.error("Self-invoke failed, cursor saved for resume:", err))
-    );
-  }
+  // All titles processed - mark job complete
+  console.log("All titles classified, marking job complete.");
+  await markJobComplete();
 }
 
 // ---------------------------------------------------------------------
@@ -473,14 +442,10 @@ serve(async (req: Request) => {
   }
 
   try {
-    const body = await req.json().catch(() => ({}));
-    const cursor = body.cursor || null;
+    console.log(`▶ classify-title-ai invoked`);
     
-    console.log(`▶ classify-title-ai invoked (cursor: ${cursor || 'none'})`);
-    
-    // Run the batch SYNCHRONOUSLY (not in background)
-    // This ensures the work completes before the function times out
-    await processClassificationBatch(cursor);
+    // Run processing - fetches ALL titles needing classification at once
+    await processClassificationBatch();
 
     return new Response(
       JSON.stringify({ 
