@@ -382,27 +382,27 @@ async function processClassificationBatch(cursor?: string): Promise<void> {
       intentPrimaryMap.set(r.title_id, { exists: true, isStale });
     }
 
-    // Logic:
-    // 1) FIRST: Check if stale (>7 days) or missing from PRIMARY tables
-    // 2) SECOND: Skip if already in BOTH staging tables (awaiting promotion)
+    // Logic per spreadsheet:
+    // EMOTION: pickEmotion = isStale || (!existsInPrimary && !existsInStaging)
+    // INTENT:  pickIntent  = isStale || (!existsInPrimary && !existsInStaging)
+    // FINAL:   pick = pickEmotion || pickIntent
     const needsProcessing = candidateTitles.filter(t => {
-      // FIRST CHECK: Must be stale or missing from PRIMARY
-      const emotionData = emotionPrimaryMap.get(t.id);
-      const intentData = intentPrimaryMap.get(t.id);
-      const emotionIsStale = !emotionData?.exists || emotionData?.isStale;
-      const intentIsStale = !intentData?.exists || intentData?.isStale;
-      
-      // If both are fresh in PRIMARY, skip
-      if (!emotionIsStale && !intentIsStale) {
-        return false;
-      }
-      
-      // SECOND CHECK: Skip if already in BOTH staging tables
-      if (emotionStagingSet.has(t.id) && intentStagingSet.has(t.id)) {
-        return false;
-      }
-      
-      return true;
+      // EMOTION check
+      const emotionPrimary = emotionPrimaryMap.get(t.id);
+      const emotionInStaging = emotionStagingSet.has(t.id);
+      const emotionIsStale = emotionPrimary?.exists && emotionPrimary?.isStale;
+      const emotionMissing = !emotionPrimary?.exists && !emotionInStaging;
+      const pickEmotion = emotionIsStale || emotionMissing;
+
+      // INTENT check
+      const intentPrimary = intentPrimaryMap.get(t.id);
+      const intentInStaging = intentStagingSet.has(t.id);
+      const intentIsStale = intentPrimary?.exists && intentPrimary?.isStale;
+      const intentMissing = !intentPrimary?.exists && !intentInStaging;
+      const pickIntent = intentIsStale || intentMissing;
+
+      // Pick if EITHER needs processing
+      return pickEmotion || pickIntent;
     });
 
     const batch = needsProcessing.slice(0, BATCH_SIZE);
