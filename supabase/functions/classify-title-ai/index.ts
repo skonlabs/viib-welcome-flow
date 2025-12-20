@@ -22,7 +22,7 @@ const JOB_TYPE = "classify_ai";
 const BATCH_SIZE = 10;
 const MAX_CONCURRENT = 3;
 const MAX_TRANSCRIPT_CHARS = 4000;
-const MAX_RUNTIME_MS = 85000;
+const MAX_RUNTIME_MS = 50000; // Keep under 60s edge function limit to ensure self-invoke happens
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -103,7 +103,14 @@ async function incrementJobTitles(count: number): Promise<void> {
 async function markJobComplete(): Promise<void> {
   await supabase
     .from("jobs")
-    .update({ status: "idle", error_message: null })
+    .update({ status: "idle", error_message: null, configuration: {} })
+    .eq("job_type", JOB_TYPE);
+}
+
+async function saveCursor(cursor: string): Promise<void> {
+  await supabase
+    .from("jobs")
+    .update({ configuration: { last_processed_id: cursor } })
     .eq("job_type", JOB_TYPE);
 }
 
@@ -258,12 +265,16 @@ async function insertIntentStagingRows(titleId: string, intents: ModelIntent[]) 
 async function processClassificationBatch(cursor?: string): Promise<void> {
   const startTime = Date.now();
   
-  // Check job status
-  const { status } = await getJobConfig();
+  // Check job status and get saved cursor if none provided
+  const { status, config } = await getJobConfig();
   if (status !== "running") {
     console.log("Job not running, exiting.");
     return;
   }
+
+  // Use saved cursor if none passed (resume from last position)
+  const effectiveCursor = cursor || config.last_processed_id || null;
+  console.log(`Starting from cursor: ${effectiveCursor || 'beginning'}`);
 
   // Get counts for progress tracking
   const { count: totalTitles } = await supabase
@@ -291,7 +302,7 @@ async function processClassificationBatch(cursor?: string): Promise<void> {
   }
 
   let totalProcessed = 0;
-  let currentCursor: string | null = cursor || null;
+  let currentCursor: string | null = effectiveCursor;
 
   // Continuous batch processing within time limit
   while (Date.now() - startTime < MAX_RUNTIME_MS) {
@@ -461,6 +472,11 @@ async function processClassificationBatch(cursor?: string): Promise<void> {
       totalProcessed += batchProcessed;
     }
 
+    // Save cursor after each batch for resume capability
+    if (currentCursor) {
+      await saveCursor(currentCursor);
+    }
+
     // Small delay between batches
     await new Promise((r) => setTimeout(r, 300));
   }
@@ -472,16 +488,21 @@ async function processClassificationBatch(cursor?: string): Promise<void> {
   if (finalStatus === "running") {
     console.log(`Self-invoking next batch with cursor ${currentCursor}...`);
     
-    EdgeRuntime.waitUntil(
-      fetch(`${supabaseUrl}/functions/v1/classify-title-ai`, {
+    // Use direct fetch instead of waitUntil for more reliable chaining
+    try {
+      const invokeResponse = await fetch(`${supabaseUrl}/functions/v1/classify-title-ai`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${serviceRoleKey}`,
         },
         body: JSON.stringify({ continuation: true, cursor: currentCursor }),
-      }).catch((err) => console.error("Self-invoke failed:", err))
-    );
+      });
+      console.log(`Self-invoke response: ${invokeResponse.status}`);
+    } catch (err) {
+      console.error("Self-invoke failed, cursor saved for resume:", err);
+      // Cursor is already saved, so next manual trigger will resume
+    }
   }
 }
 
