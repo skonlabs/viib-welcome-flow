@@ -337,7 +337,8 @@ async function processClassificationBatch(cursor?: string): Promise<void> {
       return;
     }
 
-    // Check both PRIMARY and STAGING tables to avoid re-processing
+    // Check PRIMARY tables ONLY - staging is irrelevant for deciding what needs classification
+    // The staging tables are just a temp holding area - we care if PRIMARY has the data
     const candidateIds = candidateTitles.map(t => t.id);
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
     
@@ -347,27 +348,11 @@ async function processClassificationBatch(cursor?: string): Promise<void> {
       .select("title_id, updated_at")
       .in("title_id", candidateIds);
     
-    // Check emotion staging table (already processed, awaiting promotion)
-    const { data: emotionStaging } = await supabase
-      .from("title_emotional_signatures_staging")
-      .select("title_id")
-      .in("title_id", candidateIds);
-    
     // Check intent primary table
     const { data: intentPrimary } = await supabase
       .from("viib_intent_classified_titles")
       .select("title_id, updated_at")
       .in("title_id", candidateIds);
-    
-    // Check intent staging table (already processed, awaiting promotion)
-    const { data: intentStaging } = await supabase
-      .from("viib_intent_classified_titles_staging")
-      .select("title_id")
-      .in("title_id", candidateIds);
-
-    // Build sets for staging (just existence check)
-    const emotionStagingSet = new Set((emotionStaging || []).map(r => r.title_id));
-    const intentStagingSet = new Set((intentStaging || []).map(r => r.title_id));
 
     // Build maps for primary tables (existence + staleness)
     const emotionPrimaryMap = new Map<string, { exists: boolean; isStale: boolean }>();
@@ -382,15 +367,9 @@ async function processClassificationBatch(cursor?: string): Promise<void> {
       intentPrimaryMap.set(r.title_id, { exists: true, isStale });
     }
 
-    // A title needs processing if:
-    // 1. NOT in staging (not yet processed this run)
-    // 2. AND (missing from primary OR stale in primary)
+    // A title needs processing if missing from PRIMARY or stale in PRIMARY
+    // We DON'T check staging - staging data will be overwritten via upsert
     const needsProcessing = candidateTitles.filter(t => {
-      // Skip if already in staging (awaiting promotion)
-      if (emotionStagingSet.has(t.id) && intentStagingSet.has(t.id)) {
-        return false;
-      }
-      
       const emotionData = emotionPrimaryMap.get(t.id);
       const intentData = intentPrimaryMap.get(t.id);
       
