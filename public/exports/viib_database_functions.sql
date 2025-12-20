@@ -318,15 +318,15 @@ AS $function$
         title_id, valence, arousal, dominance, emotion_strength, updated_at
     )
     SELECT
-        tes.title_id,
-        AVG(em.valence   * (tes.intensity_level / 10.0)) AS valence,
-        AVG(em.arousal   * (tes.intensity_level / 10.0)) AS arousal,
-        AVG(em.dominance * (tes.intensity_level / 10.0)) AS dominance,
-        AVG(tes.intensity_level / 10.0)                  AS emotion_strength,
+        vec.title_id,
+        AVG(em.valence   * (vec.intensity_level / 10.0)) AS valence,
+        AVG(em.arousal   * (vec.intensity_level / 10.0)) AS arousal,
+        AVG(em.dominance * (vec.intensity_level / 10.0)) AS dominance,
+        AVG(vec.intensity_level / 10.0)                  AS emotion_strength,
         NOW()                                            AS updated_at
-    FROM title_emotional_signatures tes
-    JOIN emotion_master em ON em.id = tes.emotion_id
-    GROUP BY tes.title_id
+    FROM viib_emotion_classified_titles vec
+    JOIN emotion_master em ON em.id = vec.emotion_id
+    GROUP BY vec.title_id
     ON CONFLICT (title_id) DO UPDATE
     SET
         valence          = EXCLUDED.valence,
@@ -346,7 +346,7 @@ AS $function$
     )
     SELECT
         etm.user_emotion_id,
-        tes.title_id,
+        vec.title_id,
         COALESCE(
             SUM(
                 etm.confidence_score *
@@ -356,7 +356,7 @@ AS $function$
                     WHEN 'reinforcing'        THEN 0.7
                     ELSE 0.5
                 END *
-                (tes.intensity_level / 10.0)
+                (vec.intensity_level / 10.0)
             ) / NULLIF(SUM(etm.confidence_score), 0),
             0.0
         ) AS transformation_score,
@@ -365,9 +365,9 @@ AS $function$
     JOIN emotion_master em_user
       ON em_user.id = etm.user_emotion_id
      AND em_user.category = 'user_state'
-    JOIN title_emotional_signatures tes
-      ON tes.emotion_id = etm.content_emotion_id
-    GROUP BY etm.user_emotion_id, tes.title_id
+    JOIN viib_emotion_classified_titles vec
+      ON vec.emotion_id = etm.content_emotion_id
+    GROUP BY etm.user_emotion_id, vec.title_id
     ON CONFLICT (user_emotion_id, title_id) DO UPDATE
     SET
         transformation_score = EXCLUDED.transformation_score,
@@ -559,16 +559,16 @@ BEGIN
     IF v_user_emotion_id IS NOT NULL THEN
         -- Get title emotion vectors
         SELECT
-            COALESCE(AVG(em.valence   * (tes.intensity_level / 10.0)), NULL),
-            COALESCE(AVG(em.arousal   * (tes.intensity_level / 10.0)), NULL),
-            COALESCE(AVG(em.dominance * (tes.intensity_level / 10.0)), NULL)
+            COALESCE(AVG(em.valence   * (vec.intensity_level / 10.0)), NULL),
+            COALESCE(AVG(em.arousal   * (vec.intensity_level / 10.0)), NULL),
+            COALESCE(AVG(em.dominance * (vec.intensity_level / 10.0)), NULL)
         INTO v_title_valence, v_title_arousal, v_title_dominance
-        FROM title_emotional_signatures tes
-        JOIN emotion_master em ON em.id = tes.emotion_id
-        WHERE tes.title_id = p_title_id;
+        FROM viib_emotion_classified_titles vec
+        JOIN emotion_master em ON em.id = vec.emotion_id
+        WHERE vec.title_id = p_title_id;
 
         SELECT EXISTS (
-            SELECT 1 FROM title_emotional_signatures tes2 WHERE tes2.title_id = p_title_id
+            SELECT 1 FROM viib_emotion_classified_titles vec2 WHERE vec2.title_id = p_title_id
         )
         INTO v_has_emotion_data;
 

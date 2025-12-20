@@ -295,8 +295,8 @@ CREATE TABLE public.user_emotion_states (
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
 );
 
--- Title emotional signatures (content emotions)
-CREATE TABLE public.title_emotional_signatures (
+-- ViiB emotion classified titles (content emotions)
+CREATE TABLE public.viib_emotion_classified_titles (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     title_id UUID NOT NULL REFERENCES public.titles(id) ON DELETE CASCADE,
     emotion_id UUID NOT NULL REFERENCES public.emotion_master(id) ON DELETE CASCADE,
@@ -304,8 +304,8 @@ CREATE TABLE public.title_emotional_signatures (
     source TEXT -- 'ai', 'manual', etc.
 );
 
--- Title emotional signatures staging (for AI classification)
-CREATE TABLE public.title_emotional_signatures_staging (
+-- ViiB emotion classified titles staging (for AI classification)
+CREATE TABLE public.viib_emotion_classified_titles_staging (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     title_id UUID NOT NULL REFERENCES public.titles(id) ON DELETE CASCADE,
     emotion_id UUID NOT NULL REFERENCES public.emotion_master(id) ON DELETE CASCADE,
