@@ -1,8 +1,8 @@
 // ============================================================================
 // ViiB — Combined AI Classification (Emotions + Intents in ONE API call)
 // ============================================================================
-// 50% cost savings: Input tokens sent once, both classifications returned
-// Uses CURSOR-BASED pagination (id > last_id) for O(1) performance
+// Uses efficient SQL function to fetch ONLY titles needing classification
+// Eliminates wasteful "check 30 to find 1-4" pattern - direct query returns work
 // ============================================================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -313,110 +313,28 @@ async function processClassificationBatch(cursor?: string): Promise<void> {
       return;
     }
 
-    // Get a batch of titles starting from cursor
-    let query = supabase
-      .from("titles")
-      .select("id, name, title_type, overview, trailer_transcript, original_language, title_genres")
-      .order("id", { ascending: true })
-      .limit(BATCH_SIZE * 3);
-
-    if (currentCursor) {
-      query = query.gt("id", currentCursor);
-    }
-
-    const { data: candidateTitles, error: fetchError } = await query;
+    // Use efficient SQL function - returns ONLY titles needing classification
+    // No more "check 30 to find 1-4" pattern - this is direct!
+    const { data: batch, error: fetchError } = await supabase
+      .rpc("get_titles_needing_classification", {
+        p_cursor: currentCursor,
+        p_limit: BATCH_SIZE
+      });
 
     if (fetchError) {
       console.error("Error fetching titles:", fetchError);
       return;
     }
 
-    if (!candidateTitles || candidateTitles.length === 0) {
-      console.log("No more titles to check!");
+    if (!batch || batch.length === 0) {
+      console.log("No more titles to classify!");
       await markJobComplete();
       return;
     }
 
-    // Check staleness and staging to decide what needs classification
-    const candidateIds = candidateTitles.map(t => t.id);
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-    
-    // Check emotion PRIMARY table (for staleness)
-    const { data: emotionPrimary } = await supabase
-      .from("title_emotional_signatures")
-      .select("title_id, updated_at")
-      .in("title_id", candidateIds);
-    
-    // Check intent PRIMARY table (for staleness)
-    const { data: intentPrimary } = await supabase
-      .from("viib_intent_classified_titles")
-      .select("title_id, updated_at")
-      .in("title_id", candidateIds);
-    
-    // Check emotion STAGING table
-    const { data: emotionStaging } = await supabase
-      .from("title_emotional_signatures_staging")
-      .select("title_id")
-      .in("title_id", candidateIds);
-    
-    // Check intent STAGING table
-    const { data: intentStaging } = await supabase
-      .from("viib_intent_classified_titles_staging")
-      .select("title_id")
-      .in("title_id", candidateIds);
-
-    // Build sets for staging
-    const emotionStagingSet = new Set((emotionStaging || []).map(r => r.title_id));
-    const intentStagingSet = new Set((intentStaging || []).map(r => r.title_id));
-
-    // Build maps for primary tables (existence + staleness)
-    const emotionPrimaryMap = new Map<string, { exists: boolean; isStale: boolean }>();
-    for (const r of (emotionPrimary || [])) {
-      const isStale = r.updated_at ? new Date(r.updated_at) < new Date(sevenDaysAgo) : false;
-      emotionPrimaryMap.set(r.title_id, { exists: true, isStale });
-    }
-    
-    const intentPrimaryMap = new Map<string, { exists: boolean; isStale: boolean }>();
-    for (const r of (intentPrimary || [])) {
-      const isStale = r.updated_at ? new Date(r.updated_at) < new Date(sevenDaysAgo) : false;
-      intentPrimaryMap.set(r.title_id, { exists: true, isStale });
-    }
-
-    // Logic per spreadsheet:
-    // EMOTION: pickEmotion = isStale || (!existsInPrimary && !existsInStaging)
-    // INTENT:  pickIntent  = isStale || (!existsInPrimary && !existsInStaging)
-    // FINAL:   pick = pickEmotion || pickIntent
-    const needsProcessing = candidateTitles.filter(t => {
-      // EMOTION check
-      const emotionPrimary = emotionPrimaryMap.get(t.id);
-      const emotionInStaging = emotionStagingSet.has(t.id);
-      const emotionIsStale = emotionPrimary?.exists && emotionPrimary?.isStale;
-      const emotionMissing = !emotionPrimary?.exists && !emotionInStaging;
-      const pickEmotion = emotionIsStale || emotionMissing;
-
-      // INTENT check
-      const intentPrimary = intentPrimaryMap.get(t.id);
-      const intentInStaging = intentStagingSet.has(t.id);
-      const intentIsStale = intentPrimary?.exists && intentPrimary?.isStale;
-      const intentMissing = !intentPrimary?.exists && !intentInStaging;
-      const pickIntent = intentIsStale || intentMissing;
-
-      // Pick if EITHER needs processing
-      return pickEmotion || pickIntent;
-    });
-
-    const batch = needsProcessing.slice(0, BATCH_SIZE);
-    
-    // Update cursor to last candidate checked
-    currentCursor = candidateTitles[candidateTitles.length - 1].id;
-
-    console.log(`Checked ${candidateTitles.length}, needs processing: ${needsProcessing.length}, batch: ${batch.length}, cursor: ${currentCursor}`);
-
-    // If this batch has nothing to process, continue to next cursor
-    if (!batch || batch.length === 0) {
-      console.log(`No titles to process in this range, continuing...`);
-      continue;
-    }
+    // Update cursor to last title in batch
+    currentCursor = batch[batch.length - 1].id;
+    console.log(`Got ${batch.length} titles to classify, cursor: ${currentCursor}`);
 
     console.log(`Processing batch of ${batch.length} titles with COMBINED AI call...`);
     let batchProcessed = 0;

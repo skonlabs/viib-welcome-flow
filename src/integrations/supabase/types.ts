@@ -2028,6 +2028,18 @@ export type Database = {
         Args: { p_emotion_label: string; p_intensity: number }
         Returns: string
       }
+      get_titles_needing_classification: {
+        Args: { p_cursor?: string; p_limit?: number }
+        Returns: {
+          id: string
+          name: string
+          original_language: string
+          overview: string
+          title_genres: Json
+          title_type: string
+          trailer_transcript: string
+        }[]
+      }
       get_top_recommendations: {
         Args: { p_limit?: number; p_user_id: string }
         Returns: {
