@@ -918,96 +918,6 @@ export type Database = {
           },
         ]
       }
-      title_emotional_signatures: {
-        Row: {
-          created_at: string
-          emotion_id: string
-          id: string
-          intensity_level: number
-          source: string | null
-          title_id: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          emotion_id: string
-          id?: string
-          intensity_level: number
-          source?: string | null
-          title_id: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          emotion_id?: string
-          id?: string
-          intensity_level?: number
-          source?: string | null
-          title_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "title_emotional_signatures_emotion_id_fkey"
-            columns: ["emotion_id"]
-            isOneToOne: false
-            referencedRelation: "emotion_master"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "title_emotional_signatures_title_id_fkey"
-            columns: ["title_id"]
-            isOneToOne: false
-            referencedRelation: "titles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      title_emotional_signatures_staging: {
-        Row: {
-          created_at: string
-          emotion_id: string
-          id: string
-          intensity_level: number
-          source: string | null
-          title_id: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          emotion_id: string
-          id?: string
-          intensity_level: number
-          source?: string | null
-          title_id: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          emotion_id?: string
-          id?: string
-          intensity_level?: number
-          source?: string | null
-          title_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "title_emotional_signatures_staging_emotion_id_fkey"
-            columns: ["emotion_id"]
-            isOneToOne: false
-            referencedRelation: "emotion_master"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "title_emotional_signatures_staging_title_id_fkey"
-            columns: ["title_id"]
-            isOneToOne: false
-            referencedRelation: "titles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       title_genres: {
         Row: {
           genre_id: string
@@ -1812,6 +1722,96 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      viib_emotion_classified_titles: {
+        Row: {
+          created_at: string
+          emotion_id: string
+          id: string
+          intensity_level: number
+          source: string | null
+          title_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          emotion_id: string
+          id?: string
+          intensity_level: number
+          source?: string | null
+          title_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          emotion_id?: string
+          id?: string
+          intensity_level?: number
+          source?: string | null
+          title_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "viib_emotion_classified_titles_emotion_id_fkey"
+            columns: ["emotion_id"]
+            isOneToOne: false
+            referencedRelation: "emotion_master"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "viib_emotion_classified_titles_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: false
+            referencedRelation: "titles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      viib_emotion_classified_titles_staging: {
+        Row: {
+          created_at: string
+          emotion_id: string
+          id: string
+          intensity_level: number
+          source: string | null
+          title_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          emotion_id: string
+          id?: string
+          intensity_level: number
+          source?: string | null
+          title_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          emotion_id?: string
+          id?: string
+          intensity_level?: number
+          source?: string | null
+          title_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "viib_emotion_classified_titles_staging_emotion_id_fkey"
+            columns: ["emotion_id"]
+            isOneToOne: false
+            referencedRelation: "emotion_master"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "viib_emotion_classified_titles_staging_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: false
+            referencedRelation: "titles"
             referencedColumns: ["id"]
           },
         ]

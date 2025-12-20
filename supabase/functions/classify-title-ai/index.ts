@@ -226,7 +226,7 @@ async function insertEmotionStagingRows(titleId: string, emotions: ModelEmotion[
   if (!payload.length) return 0;
 
   const { error } = await supabase
-    .from("title_emotional_signatures_staging")
+    .from("viib_emotion_classified_titles_staging")
     .upsert(payload, { onConflict: "title_id,emotion_id", ignoreDuplicates: true });
   if (error) throw error;
   return payload.length;

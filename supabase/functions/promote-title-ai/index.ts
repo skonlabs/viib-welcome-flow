@@ -42,7 +42,7 @@ serve(async (req) => {
     
     // Get title_ids from emotion staging
     const { data: emotionTitles, error: emotionErr } = await supabase
-      .from("title_emotional_signatures_staging")
+      .from("viib_emotion_classified_titles_staging")
       .select("title_id");
     
     if (emotionErr) throw new Error(`Failed to fetch emotion staging: ${emotionErr.message}`);
@@ -79,7 +79,7 @@ serve(async (req) => {
     // --------------------------------------------------
 
     const { data: emotionRows, error: fetchEmErr } = await supabase
-      .from("title_emotional_signatures_staging")
+      .from("viib_emotion_classified_titles_staging")
       .select("title_id, emotion_id, intensity_level, source, created_at")
       .in("title_id", promotableTitleIds);
 
@@ -103,7 +103,7 @@ serve(async (req) => {
       
       // Delete existing emotions for these titles (from any source)
       const { error: delEmErr } = await supabase
-        .from("title_emotional_signatures")
+        .from("viib_emotion_classified_titles")
         .delete()
         .in("title_id", titleIdsWithEmotions);
 
@@ -125,7 +125,7 @@ serve(async (req) => {
       for (let i = 0; i < emotionInserts.length; i += CHUNK_SIZE) {
         const chunk = emotionInserts.slice(i, i + CHUNK_SIZE);
         const { error: insEmErr } = await supabase
-          .from("title_emotional_signatures")
+          .from("viib_emotion_classified_titles")
           .insert(chunk);
 
         if (insEmErr) throw new Error(`Failed to insert emotions chunk ${i}: ${insEmErr.message}`);
@@ -196,7 +196,7 @@ serve(async (req) => {
     // --------------------------------------------------
 
     const { error: cleanEmErr } = await supabase
-      .from("title_emotional_signatures_staging")
+      .from("viib_emotion_classified_titles_staging")
       .delete()
       .in("title_id", promotableTitleIds);
 
@@ -229,7 +229,7 @@ serve(async (req) => {
     // --------------------------------------------------
 
     const { count: remainingEmotions } = await supabase
-      .from("title_emotional_signatures_staging")
+      .from("viib_emotion_classified_titles_staging")
       .select("title_id", { count: "exact", head: true })
       .limit(1);
 
