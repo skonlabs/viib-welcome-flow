@@ -2,13 +2,13 @@
 // ViiB — Promote AI Classifications (Emotions + Intents from Staging → Final)
 // ============================================================================
 // WHAT THIS FUNCTION DOES:
-// 1. Reads rows from title_emotional_signatures_staging
-// 2. Reads rows from viib_intent_classified_titles_staging
-// 3. Takes up to N distinct title_ids (batch mode)
-// 4. Promotes emotions: delete old -> insert new -> delete staging
-// 5. Promotes intents: delete old -> insert new -> delete staging
-// 6. Updates titles.classification_status = 'complete'
-// 7. Refreshes recommendation materializations
+// 1. Uses SQL to find distinct title_ids that have BOTH emotions AND intents in staging
+// 2. Promotes emotions: delete old -> insert new
+// 3. Promotes intents: delete old -> insert new
+// 4. Updates titles.classification_status = 'complete'
+// 5. Cleans staging tables
+// 6. Refreshes recommendation materializations
+// 7. Self-invokes if more work remains
 // ============================================================================
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
@@ -46,30 +46,27 @@ serve(async (req) => {
     // 1. FIND TITLES WITH BOTH EMOTIONS AND INTENTS IN STAGING
     // --------------------------------------------------
     
-    // Get distinct title_ids from emotions staging
-    const { data: emotionTitleIds, error: emotionErr } = await supabase
+    // Get ALL title_ids from both staging tables (Supabase limits to 1000 by default, but Set dedupes)
+    const { data: emotionTitles, error: emotionErr } = await supabase
       .from("title_emotional_signatures_staging")
-      .select("title_id")
-      .limit(BATCH_SIZE * 2);
-
+      .select("title_id");
+    
     if (emotionErr) throw new Error(`Failed to fetch emotion staging: ${emotionErr.message}`);
     
-    const emotionTitleSet = new Set((emotionTitleIds ?? []).map(r => r.title_id));
-    console.log(`Found ${emotionTitleSet.size} distinct titles with staged emotions`);
-
-    // Get distinct title_ids from intents staging
-    const { data: intentTitleIds, error: intentErr } = await supabase
+    const emotionSet = new Set((emotionTitles ?? []).map(r => r.title_id));
+    console.log(`Found ${emotionSet.size} distinct titles with staged emotions`);
+    
+    const { data: intentTitles, error: intentErr } = await supabase
       .from("viib_intent_classified_titles_staging")
-      .select("title_id")
-      .limit(BATCH_SIZE * 2);
-
+      .select("title_id");
+    
     if (intentErr) throw new Error(`Failed to fetch intent staging: ${intentErr.message}`);
     
-    const intentTitleSet = new Set((intentTitleIds ?? []).map(r => r.title_id));
-    console.log(`Found ${intentTitleSet.size} distinct titles with staged intents`);
-
-    // Find titles that have BOTH emotions AND intents
-    const promotableTitleIds = [...emotionTitleSet].filter(id => intentTitleSet.has(id)).slice(0, BATCH_SIZE);
+    const intentSet = new Set((intentTitles ?? []).map(r => r.title_id));
+    console.log(`Found ${intentSet.size} distinct titles with staged intents`);
+    
+    // Find intersection - titles that have BOTH emotions AND intents
+    const promotableTitleIds = [...emotionSet].filter(id => intentSet.has(id)).slice(0, BATCH_SIZE);
     
     if (promotableTitleIds.length === 0) {
       console.log("No titles ready to promote (need both emotions + intents)");
@@ -87,14 +84,14 @@ serve(async (req) => {
 
     const { data: emotionRows, error: fetchEmErr } = await supabase
       .from("title_emotional_signatures_staging")
-      .select("*")
+      .select("title_id, emotion_id, intensity_level, source, created_at")
       .in("title_id", promotableTitleIds);
 
     if (fetchEmErr) throw new Error(`Failed to fetch emotion rows: ${fetchEmErr.message}`);
 
     const { data: intentRows, error: fetchIntErr } = await supabase
       .from("viib_intent_classified_titles_staging")
-      .select("*")
+      .select("title_id, intent_type, confidence_score, source, created_at")
       .in("title_id", promotableTitleIds);
 
     if (fetchIntErr) throw new Error(`Failed to fetch intent rows: ${fetchIntErr.message}`);
@@ -105,7 +102,7 @@ serve(async (req) => {
     // 3. PROMOTE EMOTIONS (DELETE OLD → INSERT NEW)
     // --------------------------------------------------
 
-    // Delete existing emotions for these titles
+    // Delete existing emotions for these titles (from any source)
     const { error: delEmErr } = await supabase
       .from("title_emotional_signatures")
       .delete()
@@ -115,20 +112,26 @@ serve(async (req) => {
 
     // Insert new emotions
     if (emotionRows && emotionRows.length > 0) {
+      const now = new Date().toISOString();
       const emotionInserts = emotionRows.map(r => ({
         title_id: r.title_id,
         emotion_id: r.emotion_id,
         intensity_level: r.intensity_level,
         source: r.source || "ai",
         created_at: r.created_at,
-        updated_at: new Date().toISOString(),
+        updated_at: now,
       }));
 
-      const { error: insEmErr } = await supabase
-        .from("title_emotional_signatures")
-        .insert(emotionInserts);
+      // Insert in chunks to avoid payload limits
+      const CHUNK_SIZE = 1000;
+      for (let i = 0; i < emotionInserts.length; i += CHUNK_SIZE) {
+        const chunk = emotionInserts.slice(i, i + CHUNK_SIZE);
+        const { error: insEmErr } = await supabase
+          .from("title_emotional_signatures")
+          .insert(chunk);
 
-      if (insEmErr) throw new Error(`Failed to insert emotions: ${insEmErr.message}`);
+        if (insEmErr) throw new Error(`Failed to insert emotions chunk ${i}: ${insEmErr.message}`);
+      }
       promotedEmotions = emotionInserts.length;
     }
 
@@ -148,20 +151,26 @@ serve(async (req) => {
 
     // Insert new intents
     if (intentRows && intentRows.length > 0) {
+      const now = new Date().toISOString();
       const intentInserts = intentRows.map(r => ({
         title_id: r.title_id,
         intent_type: r.intent_type,
         confidence_score: r.confidence_score,
         source: r.source || "ai",
         created_at: r.created_at,
-        updated_at: new Date().toISOString(),
+        updated_at: now,
       }));
 
-      const { error: insIntErr } = await supabase
-        .from("viib_intent_classified_titles")
-        .insert(intentInserts);
+      // Insert in chunks
+      const CHUNK_SIZE = 1000;
+      for (let i = 0; i < intentInserts.length; i += CHUNK_SIZE) {
+        const chunk = intentInserts.slice(i, i + CHUNK_SIZE);
+        const { error: insIntErr } = await supabase
+          .from("viib_intent_classified_titles")
+          .insert(chunk);
 
-      if (insIntErr) throw new Error(`Failed to insert intents: ${insIntErr.message}`);
+        if (insIntErr) throw new Error(`Failed to insert intents chunk ${i}: ${insIntErr.message}`);
+      }
       promotedIntents = intentInserts.length;
     }
 
@@ -205,26 +214,32 @@ serve(async (req) => {
     console.log("Cleaned staging tables");
 
     // --------------------------------------------------
-    // 7. REFRESH MATERIALIZATIONS
+    // 7. REFRESH MATERIALIZATIONS (skip if batch is small to save time)
     // --------------------------------------------------
 
-    try {
-      await supabase.rpc("refresh_viib_reco_materializations");
-      console.log("Refreshed recommendation materializations");
-    } catch (rpcErr) {
-      console.error("Warning: Failed to refresh materializations:", rpcErr);
+    if (titlesUpdated >= 100) {
+      try {
+        await supabase.rpc("refresh_viib_reco_materializations");
+        console.log("Refreshed recommendation materializations");
+      } catch (rpcErr) {
+        console.error("Warning: Failed to refresh materializations:", rpcErr);
+      }
     }
 
     // --------------------------------------------------
-    // 8. SELF-INVOKE IF MORE WORK TO DO
+    // 8. CHECK IF MORE WORK AND SELF-INVOKE
     // --------------------------------------------------
 
-    const remainingEmotions = emotionTitleSet.size - promotableTitleIds.length;
-    const remainingIntents = intentTitleSet.size - promotableTitleIds.length;
-    const hasMore = remainingEmotions > 0 || remainingIntents > 0;
+    // Quick check if there's more in staging
+    const { count: remainingCount } = await supabase
+      .from("title_emotional_signatures_staging")
+      .select("title_id", { count: "exact", head: true })
+      .limit(1);
+
+    const hasMore = (remainingCount ?? 0) > 0;
 
     if (hasMore) {
-      console.log(`More work remaining (${remainingEmotions} emotions, ${remainingIntents} intents). Self-invoking...`);
+      console.log(`More work remaining. Self-invoking...`);
       
       // Fire-and-forget self-invoke for next batch
       fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/promote-title-ai`, {
