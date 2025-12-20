@@ -304,37 +304,36 @@ async function processClassificationBatch(cursor?: string): Promise<void> {
   let totalProcessed = 0;
   let currentCursor: string | null = effectiveCursor;
 
-  // Continuous batch processing within time limit
+  // Fetch batch ONCE before processing loop
+  const { data: batch, error: fetchError } = await supabase
+    .rpc("get_titles_needing_classification", {
+      p_cursor: currentCursor,
+      p_limit: BATCH_SIZE
+    });
+
+  if (fetchError) {
+    console.error("Error fetching titles:", fetchError);
+    return;
+  }
+
+  if (!batch || batch.length === 0) {
+    console.log("No more titles to classify!");
+    await markJobComplete();
+    return;
+  }
+
+  // Update cursor to last title in batch
+  currentCursor = batch[batch.length - 1].id;
+  console.log(`Got ${batch.length} titles to classify, cursor: ${currentCursor}`);
+
+  // Process the batch within time limit
   while (Date.now() - startTime < MAX_RUNTIME_MS) {
-    // Check job status each batch
+    // Check job status
     const jobStatus = await getJobConfig();
     if (jobStatus?.status !== "running") {
       console.log("Job stopped by user, aborting.");
       return;
     }
-
-    // Use efficient SQL function - returns ONLY titles needing classification
-    // No more "check 30 to find 1-4" pattern - this is direct!
-    const { data: batch, error: fetchError } = await supabase
-      .rpc("get_titles_needing_classification", {
-        p_cursor: currentCursor,
-        p_limit: BATCH_SIZE
-      });
-
-    if (fetchError) {
-      console.error("Error fetching titles:", fetchError);
-      return;
-    }
-
-    if (!batch || batch.length === 0) {
-      console.log("No more titles to classify!");
-      await markJobComplete();
-      return;
-    }
-
-    // Update cursor to last title in batch
-    currentCursor = batch[batch.length - 1].id;
-    console.log(`Got ${batch.length} titles to classify, cursor: ${currentCursor}`);
 
     console.log(`Processing batch of ${batch.length} titles with COMBINED AI call...`);
     let batchProcessed = 0;
@@ -392,13 +391,13 @@ async function processClassificationBatch(cursor?: string): Promise<void> {
       totalProcessed += batchProcessed;
     }
 
-    // Save cursor after each batch for resume capability
+    // Save cursor after processing
     if (currentCursor) {
       await saveCursor(currentCursor);
     }
 
-    // Small delay between batches
-    await new Promise((r) => setTimeout(r, 300));
+    // Exit after processing this batch - self-invoke handles continuation
+    break;
   }
 
   console.log(`Batch complete. Processed: ${totalProcessed}, cursor: ${currentCursor}`);
