@@ -488,26 +488,25 @@ async function processClassificationBatch(cursor?: string): Promise<void> {
   if (finalStatus === "running") {
     console.log(`Self-invoking next batch with cursor ${currentCursor}...`);
     
-    // Use direct fetch instead of waitUntil for more reliable chaining
-    try {
-      const invokeResponse = await fetch(`${supabaseUrl}/functions/v1/classify-title-ai`, {
+    // Fire-and-forget self-invoke - don't await to avoid timeout chain
+    // The cursor is saved, so even if this fails, next cron/manual run will resume
+    EdgeRuntime.waitUntil(
+      fetch(`${supabaseUrl}/functions/v1/classify-title-ai`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${serviceRoleKey}`,
         },
-        body: JSON.stringify({ continuation: true, cursor: currentCursor }),
-      });
-      console.log(`Self-invoke response: ${invokeResponse.status}`);
-    } catch (err) {
-      console.error("Self-invoke failed, cursor saved for resume:", err);
-      // Cursor is already saved, so next manual trigger will resume
-    }
+        body: JSON.stringify({ cursor: currentCursor }),
+      })
+        .then(r => console.log(`Self-invoke response: ${r.status}`))
+        .catch(err => console.error("Self-invoke failed, cursor saved for resume:", err))
+    );
   }
 }
 
 // ---------------------------------------------------------------------
-// Main handler
+// Main handler - Runs synchronously, self-invokes for next batch
 // ---------------------------------------------------------------------
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -520,30 +519,28 @@ serve(async (req: Request) => {
 
   try {
     const body = await req.json().catch(() => ({}));
+    const cursor = body.cursor || null;
     
-    // Continuation call
-    if (body.continuation) {
-      EdgeRuntime.waitUntil(processClassificationBatch(body.cursor));
-      return new Response(
-        JSON.stringify({ message: "Continuation batch started", cursor: body.cursor }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Initial call - start fresh
-    console.log("▶ classify-title-ai job started (combined emotions + intents)");
+    console.log(`▶ classify-title-ai invoked (cursor: ${cursor || 'none'})`);
     
-    EdgeRuntime.waitUntil(processClassificationBatch());
+    // Run the batch SYNCHRONOUSLY (not in background)
+    // This ensures the work completes before the function times out
+    await processClassificationBatch(cursor);
 
     return new Response(
       JSON.stringify({ 
-        message: "Combined AI classification job started in background",
-        status: "running"
+        message: "Batch completed",
+        status: "ok"
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err: any) {
-    console.error("Error starting classify-title-ai:", err);
+    console.error("Error in classify-title-ai:", err);
+    // Save error to job for visibility
+    await supabase
+      .from("jobs")
+      .update({ error_message: err?.message || "Unknown error" })
+      .eq("job_type", JOB_TYPE);
     return new Response(
       JSON.stringify({ error: err?.message ?? "Unknown error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
