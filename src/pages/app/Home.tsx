@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { TitleCard } from '@/components/TitleCard';
+import { RatingDialog } from '@/components/RatingDialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 
@@ -22,10 +23,29 @@ interface RecommendedTitle {
 const Home = () => {
   const [recommendations, setRecommendations] = useState<RecommendedTitle[]>([]);
   const [loading, setLoading] = useState(true);
+  const [userWatchlist, setUserWatchlist] = useState<Set<string>>(new Set());
+  const [ratingDialogOpen, setRatingDialogOpen] = useState(false);
+  const [titleToRate, setTitleToRate] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => {
     fetchRecommendations();
+    fetchUserWatchlist();
   }, []);
+
+  const fetchUserWatchlist = async () => {
+    const userId = localStorage.getItem('viib_user_id');
+    if (!userId) return;
+
+    const { data } = await supabase
+      .from('user_title_interactions')
+      .select('title_id')
+      .eq('user_id', userId)
+      .in('interaction_type', ['wishlisted', 'completed']);
+
+    if (data) {
+      setUserWatchlist(new Set(data.map(d => d.title_id)));
+    }
+  };
 
   const fetchRecommendations = async () => {
     try {
@@ -124,6 +144,12 @@ const Home = () => {
     const userId = localStorage.getItem('viib_user_id');
     if (!userId) return;
 
+    // Check if already in watchlist
+    if (userWatchlist.has(titleId)) {
+      toast.info('Already in your watchlist');
+      return;
+    }
+
     const { error } = await supabase.from('user_title_interactions').insert({
       user_id: userId,
       title_id: titleId,
@@ -131,28 +157,80 @@ const Home = () => {
     });
 
     if (error) {
-      toast.error('Failed to add to watchlist');
+      if (error.code === '23505') {
+        // Unique constraint violation - already exists
+        toast.info('Already in your watchlist');
+        setUserWatchlist(prev => new Set(prev).add(titleId));
+      } else {
+        toast.error('Failed to add to watchlist');
+      }
     } else {
       toast.success('Added to watchlist');
+      setUserWatchlist(prev => new Set(prev).add(titleId));
     }
   };
 
-  const handleMarkAsWatched = async (titleId: string) => {
+  const handleMarkAsWatched = (titleId: string, titleName: string) => {
+    // Open rating dialog instead of directly marking as watched
+    setTitleToRate({ id: titleId, name: titleName });
+    setRatingDialogOpen(true);
+  };
+
+  const handleRateAndMarkWatched = async (rating: 'love_it' | 'like_it' | 'dislike_it') => {
+    if (!titleToRate) return;
+    
     const userId = localStorage.getItem('viib_user_id');
     if (!userId) return;
 
-    const { error } = await supabase.from('user_title_interactions').insert({
-      user_id: userId,
-      title_id: titleId,
-      interaction_type: 'completed',
-    });
+    // Check if already exists
+    const { data: existing } = await supabase
+      .from('user_title_interactions')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('title_id', titleToRate.id)
+      .eq('interaction_type', 'completed')
+      .maybeSingle();
 
-    if (error) {
-      toast.error('Failed to mark as watched');
+    if (existing) {
+      // Update rating if already marked as watched
+      const { error } = await supabase
+        .from('user_title_interactions')
+        .update({ rating_value: rating })
+        .eq('id', existing.id);
+
+      if (error) {
+        toast.error('Failed to update rating');
+      } else {
+        toast.success('Rating updated');
+      }
     } else {
-      toast.success('Marked as watched');
-      setRecommendations((prev) => prev.filter((t) => t.id !== titleId));
+      // Delete any existing wishlisted entry first
+      await supabase
+        .from('user_title_interactions')
+        .delete()
+        .eq('user_id', userId)
+        .eq('title_id', titleToRate.id)
+        .eq('interaction_type', 'wishlisted');
+
+      // Insert new completed entry with rating
+      const { error } = await supabase.from('user_title_interactions').insert({
+        user_id: userId,
+        title_id: titleToRate.id,
+        interaction_type: 'completed',
+        rating_value: rating,
+      });
+
+      if (error) {
+        toast.error('Failed to mark as watched');
+      } else {
+        const ratingLabel = rating === 'love_it' ? 'Loved it!' : rating === 'like_it' ? 'Liked it!' : 'Noted';
+        toast.success(`Marked as watched - ${ratingLabel}`);
+        setRecommendations((prev) => prev.filter((t) => t.id !== titleToRate.id));
+        setUserWatchlist(prev => new Set(prev).add(titleToRate.id));
+      }
     }
+
+    setTitleToRate(null);
   };
 
   return (
@@ -202,12 +280,19 @@ const Home = () => {
               viibScore={title.final_score * 100}
               actions={{
                 onWatchlist: () => handleAddToWatchlist(title.id),
-                onWatched: () => handleMarkAsWatched(title.id),
+                onWatched: () => handleMarkAsWatched(title.id, title.title),
               }}
             />
           ))}
         </div>
       )}
+
+      <RatingDialog
+        open={ratingDialogOpen}
+        onOpenChange={setRatingDialogOpen}
+        titleName={titleToRate?.name || ''}
+        onRate={handleRateAndMarkWatched}
+      />
     </div>
   );
 };
