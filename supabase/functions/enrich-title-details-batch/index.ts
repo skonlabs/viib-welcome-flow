@@ -68,16 +68,28 @@ serve(async (req) => {
       }
     }
 
-    // Update job status to running
+    // Update job status to running - BUT ONLY if it's not stopped/idle
+    // This prevents overwriting a user's "stop" action
     if (jobId) {
-      await supabase
+      const { data: updateResult, error: updateError } = await supabase
         .from('jobs')
         .update({ 
           status: 'running', 
           last_run_at: new Date().toISOString(), 
           error_message: null 
         })
-        .eq('id', jobId);
+        .eq('id', jobId)
+        .eq('status', 'running') // Only update if still running (not stopped by user)
+        .select('status');
+      
+      // If no rows updated, it means job was stopped - exit immediately
+      if (!updateResult || updateResult.length === 0) {
+        console.log('Job status changed (possibly stopped), exiting without processing');
+        return new Response(
+          JSON.stringify({ success: true, message: 'Job was stopped', processed: 0 }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
     // Load job configuration
