@@ -103,14 +103,14 @@ serve(async (req) => {
     const batchSize = config.batch_size || BATCH_SIZE;
     const lastProcessedId = config.last_processed_id || null;
 
-    // Find titles that need enrichment using a simpler, faster query:
-    // - Query only missing poster_path first (most common issue) with cursor pagination
-    // - Use id-based ordering for consistent cursor pagination
+    // Find titles that need ANY enrichment in a single query
+    // This prevents the same title being processed multiple times across batches
+    // Use OR condition to find titles missing poster OR overview OR trailer
     let query = supabase
       .from('titles')
       .select('id, tmdb_id, title_type, name, overview, poster_path, trailer_url, backdrop_path')
       .not('tmdb_id', 'is', null)
-      .is('poster_path', null)
+      .or('poster_path.is.null,poster_path.eq.,overview.is.null,overview.eq.,trailer_url.is.null,trailer_url.eq.')
       .order('id', { ascending: true })
       .limit(batchSize);
 
@@ -119,48 +119,14 @@ serve(async (req) => {
       query = query.gt('id', lastProcessedId);
     }
 
-    const { data: titlesWithMissingPoster, error: fetchError1 } = await query;
+    const { data: titlesToEnrich, error: fetchError } = await query;
 
-    if (fetchError1) {
-      throw new Error(`Error fetching titles: ${fetchError1.message}`);
+    if (fetchError) {
+      throw new Error(`Error fetching titles: ${fetchError.message}`);
     }
 
-    // If no titles with missing poster, try missing overview
-    let titlesToEnrich = titlesWithMissingPoster || [];
-    
-    if (titlesToEnrich.length === 0) {
-      const { data: titlesWithMissingOverview, error: fetchError2 } = await supabase
-        .from('titles')
-        .select('id, tmdb_id, title_type, name, overview, poster_path, trailer_url, backdrop_path')
-        .not('tmdb_id', 'is', null)
-        .is('overview', null)
-        .order('id', { ascending: true })
-        .limit(batchSize);
-
-      if (fetchError2) {
-        throw new Error(`Error fetching titles: ${fetchError2.message}`);
-      }
-      titlesToEnrich = titlesWithMissingOverview || [];
-    }
-
-    // If still no titles, try missing trailer_url
-    if (titlesToEnrich.length === 0) {
-      const { data: titlesWithMissingTrailer, error: fetchError3 } = await supabase
-        .from('titles')
-        .select('id, tmdb_id, title_type, name, overview, poster_path, trailer_url, backdrop_path')
-        .not('tmdb_id', 'is', null)
-        .is('trailer_url', null)
-        .order('id', { ascending: true })
-        .limit(batchSize);
-
-      if (fetchError3) {
-        throw new Error(`Error fetching titles: ${fetchError3.message}`);
-      }
-      titlesToEnrich = titlesWithMissingTrailer || [];
-    }
-
-    // Filter to only titles that actually need enrichment (handle empty strings too)
-    const titlesNeedingEnrichment = titlesToEnrich.filter(title => 
+    // Filter to only titles that actually need enrichment (double-check empty strings)
+    const titlesNeedingEnrichment = (titlesToEnrich || []).filter(title => 
       isEmpty(title.overview) || isEmpty(title.poster_path) || isEmpty(title.trailer_url)
     );
 
