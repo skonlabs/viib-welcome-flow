@@ -389,6 +389,9 @@ export const Jobs = () => {
         functionName = 'promote-title-ai';
         const config = job.configuration || {};
         functionBody = { batchSize: config.batch_size || 50 };
+      } else if (job.job_type === 'enrich_details') {
+        functionName = 'enrich-title-details-batch';
+        functionBody = { jobId: job.id };
       } else {
         throw new Error(`Unknown job type: ${job.job_type}`);
       }
