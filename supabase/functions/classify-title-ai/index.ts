@@ -1,15 +1,11 @@
 // ============================================================================
-// ViiB — Combined AI Classification (Emotions + Intents) - OPTIMIZED
+// ViiB — Combined AI Classification (Emotions + Intents) - FIXED
 // ============================================================================
-// Performance improvements:
-// - 3x faster database operations (bulk inserts)
-// - 2x higher concurrency (20 parallel AI calls)
-// - Cached emotion vocabulary (eliminates DB query per batch)
-// - Promise.allSettled for better error handling
-// - Parallel emotion/intent inserts
-// - Optimized data transformations
-// - Retry logic with exponential backoff
-// - Timeout protection for AI calls
+// FIXES:
+// - Cursor only advances when titles are successfully classified
+// - Job fails if entire batch fails (not silent)
+// - Better error handling and logging
+// - Self-invoke with proper error handling
 // ============================================================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -24,18 +20,17 @@ const supabase = createClient(supabaseUrl, serviceRoleKey);
 const openai = new OpenAI({ apiKey: openaiKey });
 
 const JOB_TYPE = "classify_ai";
-const BATCH_SIZE = 50; // Process 50 titles per invocation
-const CONCURRENT_AI_CALLS = 20; // 🔥 INCREASED from 10 to 20 (2x throughput)
-const MAX_TRANSCRIPT_CHARS = 6000; // 🔥 INCREASED from 4000 (50% more context)
-const AI_TIMEOUT_MS = 30000; // 🔥 NEW: 30s timeout per AI call
-const MAX_RETRIES = 2; // 🔥 NEW: Retry failed AI calls
+const BATCH_SIZE = 50;
+const CONCURRENT_AI_CALLS = 20;
+const MAX_TRANSCRIPT_CHARS = 6000;
+const AI_TIMEOUT_MS = 30000;
+const MAX_RETRIES = 2;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Valid intent types from the enum
 const INTENT_TYPES = [
   "adrenaline_rush",
   "background_passive",
@@ -90,14 +85,13 @@ interface ProcessedResult {
   intents: Array<{ title_id: string; intent_type: IntentType; confidence_score: number; source: string }>;
 }
 
-// 🔥 NEW: In-memory cache for emotion vocabulary (eliminates repeated DB queries)
 let emotionVocabularyCache: {
   labels: string[];
   labelToId: Map<string, string>;
   timestamp: number;
 } | null = null;
 
-const EMOTION_CACHE_TTL = 60 * 60 * 1000; // 1 hour
+const EMOTION_CACHE_TTL = 60 * 60 * 1000;
 
 // ---------------------------------------------------------------------
 // Job helpers
@@ -122,23 +116,39 @@ async function markJobComplete(): Promise<void> {
     .from("jobs")
     .update({ status: "idle", error_message: null, configuration: {} })
     .eq("job_type", JOB_TYPE);
+  
+  // Trigger promote job when classification is complete
+  console.log("🔄 Classification complete, triggering promote-title-ai...");
+  try {
+    await supabase.functions.invoke("promote-title-ai", { body: {} });
+    console.log("✅ Promote job triggered successfully");
+  } catch (err) {
+    console.error("⚠️ Failed to trigger promote job:", err);
+  }
 }
 
+async function markJobFailed(error: string): Promise<void> {
+  await supabase
+    .from("jobs")
+    .update({ status: "failed", error_message: error })
+    .eq("job_type", JOB_TYPE);
+}
+
+// FIXED: Only save cursor when we have successfully processed titles
 async function saveCursor(cursor: string): Promise<void> {
+  console.log(`💾 Saving cursor: ${cursor}`);
   await supabase
     .from("jobs")
     .update({ configuration: { last_processed_id: cursor } })
     .eq("job_type", JOB_TYPE);
 }
 
-// 🔥 NEW: Load and cache emotion vocabulary
 async function getEmotionVocabulary(): Promise<{
   labels: string[];
   labelToId: Map<string, string>;
 }> {
   const now = Date.now();
 
-  // Return cached if still valid
   if (emotionVocabularyCache && now - emotionVocabularyCache.timestamp < EMOTION_CACHE_TTL) {
     console.log("✅ Using cached emotion vocabulary");
     return {
@@ -166,13 +176,11 @@ async function getEmotionVocabulary(): Promise<{
     labelToId.set(e.emotion_label, e.id);
   }
 
-  // Cache it
   emotionVocabularyCache = { labels, labelToId, timestamp: now };
 
   return { labels, labelToId };
 }
 
-// 🔥 OPTIMIZED: Better concurrency with Promise.allSettled
 async function runWithConcurrency<T, R>(
   items: T[],
   limit: number,
@@ -180,7 +188,6 @@ async function runWithConcurrency<T, R>(
 ): Promise<PromiseSettledResult<R>[]> {
   const results: PromiseSettledResult<R>[] = [];
 
-  // Process in chunks for better control
   for (let i = 0; i < items.length; i += limit) {
     const chunk = items.slice(i, i + limit);
     const chunkResults = await Promise.allSettled(chunk.map((item) => worker(item)));
@@ -191,7 +198,7 @@ async function runWithConcurrency<T, R>(
 }
 
 // ---------------------------------------------------------------------
-// Combined Prompt builders (Emotions + Intents in ONE call)
+// Combined Prompt builders
 // ---------------------------------------------------------------------
 function buildSystemPrompt(emotionLabels: string[]): string {
   return `You are an expert in emotional content modeling and viewer intent analysis for movies and TV series.
@@ -241,7 +248,6 @@ ${hasTranscript ? t.trailer_transcript!.slice(0, MAX_TRANSCRIPT_CHARS) : t.overv
 Return ONLY JSON: { "title": "...", "emotions": [...], "intents": [...] }`;
 }
 
-// 🔥 NEW: Timeout wrapper for AI calls
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
   return Promise.race([
     promise,
@@ -249,7 +255,6 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T
   ]);
 }
 
-// 🔥 NEW: Retry logic for AI calls with exponential backoff
 async function classifyWithRetry(
   title: TitleRow,
   emotionLabels: string[],
@@ -264,16 +269,12 @@ async function classifyWithRetry(
         return null;
       }
       console.warn(`⚠️ AI retry ${attempt + 1}/${retries} for:`, title.id);
-      // Exponential backoff: 1s, 2s, 4s...
       await new Promise((resolve) => setTimeout(resolve, 1000 * Math.pow(2, attempt)));
     }
   }
   return null;
 }
 
-// ---------------------------------------------------------------------
-// AI classification (COMBINED - both emotions and intents)
-// ---------------------------------------------------------------------
 async function classifyWithAI(title: TitleRow, emotionLabels: string[]): Promise<ModelResponse | null> {
   const completion = await openai.chat.completions.create({
     model: "gpt-4o-mini",
@@ -288,7 +289,6 @@ async function classifyWithAI(title: TitleRow, emotionLabels: string[]): Promise
   return raw ? (JSON.parse(raw) as ModelResponse) : null;
 }
 
-// 🔥 OPTIMIZED: Process and prepare data in single pass (no repeated filtering)
 function prepareInsertData(
   titleId: string,
   result: ModelResponse,
@@ -298,10 +298,8 @@ function prepareInsertData(
   const emotions: ProcessedResult["emotions"] = [];
   const intents: ProcessedResult["intents"] = [];
 
-  // Process emotions (single pass with validation)
   if (result.emotions?.length) {
     for (const e of result.emotions) {
-      // Validate and clean in one go
       if (emotionLabels.includes(e.emotion_label)) {
         const emotionId = emotionLabelToId.get(e.emotion_label);
         if (emotionId) {
@@ -316,7 +314,6 @@ function prepareInsertData(
     }
   }
 
-  // Process intents (single pass with validation)
   if (result.intents?.length) {
     for (const i of result.intents) {
       if (INTENT_TYPES.includes(i.intent_type)) {
@@ -333,7 +330,6 @@ function prepareInsertData(
   return { titleId, emotions, intents };
 }
 
-// 🔥 OPTIMIZED: Bulk insert all emotions in ONE query
 async function bulkInsertEmotions(emotionRows: ProcessedResult["emotions"]): Promise<number> {
   if (!emotionRows.length) return 0;
 
@@ -349,7 +345,6 @@ async function bulkInsertEmotions(emotionRows: ProcessedResult["emotions"]): Pro
   return count || emotionRows.length;
 }
 
-// 🔥 OPTIMIZED: Bulk insert all intents in ONE query
 async function bulkInsertIntents(intentRows: ProcessedResult["intents"]): Promise<number> {
   if (!intentRows.length) return 0;
 
@@ -365,38 +360,45 @@ async function bulkInsertIntents(intentRows: ProcessedResult["intents"]): Promis
   return count || intentRows.length;
 }
 
-// ---------------------------------------------------------------------
-// Self-invoke for next batch
-// ---------------------------------------------------------------------
-async function invokeNextBatch(): Promise<void> {
+// FIXED: Self-invoke with proper error handling
+async function invokeNextBatch(): Promise<boolean> {
   try {
     console.log("🔄 Self-invoking for next batch...");
-    await supabase.functions.invoke("classify-title-ai", {
+    const response = await supabase.functions.invoke("classify-title-ai", {
       body: { continuation: true },
     });
+    
+    if (response.error) {
+      console.error("Self-invoke returned error:", response.error);
+      return false;
+    }
+    
+    console.log("✅ Self-invoke successful");
+    return true;
   } catch (err) {
     console.error("Failed to self-invoke:", err);
+    return false;
   }
 }
 
 // ---------------------------------------------------------------------
-// Main processing logic - OPTIMIZED
+// Main processing logic - FIXED
 // ---------------------------------------------------------------------
-async function processClassificationBatch(): Promise<{ processed: number; hasMore: boolean }> {
+async function processClassificationBatch(): Promise<{ processed: number; hasMore: boolean; error?: string }> {
   const startTime = Date.now();
 
   // Step 1: Check job status
   const { status, config } = await getJobConfig();
 
   if (status !== "running") {
-    console.log("Job not running, exiting.");
+    console.log(`Job status is '${status}', exiting.`);
     return { processed: 0, hasMore: false };
   }
 
   const cursor = config.last_processed_id || null;
   console.log(`📦 Starting batch with cursor: ${cursor || "(none)"}`);
 
-  // Step 2: 🔥 Load emotion vocabulary (CACHED - only hits DB once per hour)
+  // Step 2: Load emotion vocabulary (CACHED)
   const { labels: emotionLabels, labelToId: emotionLabelToId } = await getEmotionVocabulary();
 
   // Step 3: Fetch batch of titles needing classification
@@ -407,7 +409,7 @@ async function processClassificationBatch(): Promise<{ processed: number; hasMor
 
   if (fetchError) {
     console.error("Error fetching titles:", fetchError);
-    return { processed: 0, hasMore: false };
+    return { processed: 0, hasMore: false, error: `Fetch error: ${fetchError.message}` };
   }
 
   if (!batch || batch.length === 0) {
@@ -425,7 +427,7 @@ async function processClassificationBatch(): Promise<{ processed: number; hasMor
     return { processed: 0, hasMore: false };
   }
 
-  // Step 5: 🔥 Process batch with AI (OPTIMIZED with allSettled + retry)
+  // Step 5: Process batch with AI
   const aiStartTime = Date.now();
   let aiFailures = 0;
   let emptyResults = 0;
@@ -436,7 +438,6 @@ async function processClassificationBatch(): Promise<{ processed: number; hasMor
       console.warn(`⚠️ AI returned null for: ${title.id} (${title.name || 'no name'})`);
       throw new Error(`AI classification failed for ${title.id}`);
     }
-    // Log if AI returns empty arrays (titles with no content)
     if ((!result.emotions || result.emotions.length === 0) && (!result.intents || result.intents.length === 0)) {
       console.warn(`⚠️ AI returned empty for: ${title.id} (${title.name || 'no name'}) - overview: ${(title.overview || '').slice(0, 50) || '(empty)'}`);
     }
@@ -446,30 +447,28 @@ async function processClassificationBatch(): Promise<{ processed: number; hasMor
   const aiDuration = Date.now() - aiStartTime;
   console.log(`⏱️ AI calls completed in ${aiDuration}ms (${Math.round(aiDuration / batch.length)}ms avg)`);
 
-  // Step 6: 🔥 Process results and prepare bulk insert data
+  // Step 6: Process results and prepare bulk insert data
   const allEmotions: ProcessedResult["emotions"] = [];
   const allIntents: ProcessedResult["intents"] = [];
   let successCount = 0;
-  let lastProcessedId = cursor;
   const processedTitleIds: string[] = [];
+  const successfulTitleIds: string[] = []; // FIXED: Track only successful ones for cursor
 
   for (const settledResult of results) {
     if (settledResult.status === "fulfilled") {
       const { title, result } = settledResult.value;
       const processed = prepareInsertData(title.id, result, emotionLabelToId, emotionLabels);
 
-      // Count as success even if empty (to track progress and avoid re-processing)
       if (processed.emotions.length > 0 || processed.intents.length > 0) {
         allEmotions.push(...processed.emotions);
         allIntents.push(...processed.intents);
         successCount++;
+        successfulTitleIds.push(title.id);
       } else {
         emptyResults++;
-        // Still mark as processed to avoid infinite loop
         console.log(`📝 Marking ${title.id} (${title.name}) as processed despite empty AI result`);
       }
       processedTitleIds.push(title.id);
-      lastProcessedId = title.id;
     } else {
       aiFailures++;
       console.error("❌ Processing failed:", settledResult.reason);
@@ -478,30 +477,49 @@ async function processClassificationBatch(): Promise<{ processed: number; hasMor
 
   console.log(`📊 Batch stats: ${successCount} success, ${emptyResults} empty, ${aiFailures} failures`);
 
-  // Step 6b: Mark empty-result titles as classified to avoid re-processing
+  // FIXED: If ALL titles failed, report error instead of silently continuing
+  if (successCount === 0 && emptyResults === 0) {
+    const errorMsg = `Entire batch failed: ${aiFailures} AI failures out of ${batch.length} titles`;
+    console.error(`❌ ${errorMsg}`);
+    await markJobFailed(errorMsg);
+    return { processed: 0, hasMore: false, error: errorMsg };
+  }
+
+  // Step 6b: Mark empty-result titles as classified
   if (emptyResults > 0) {
     const emptyTitleIds = processedTitleIds.filter(id => 
       !allEmotions.some(e => e.title_id === id) && !allIntents.some(i => i.title_id === id)
     );
     
     if (emptyTitleIds.length > 0) {
-      // Insert placeholder emotions for titles with empty results
       const placeholderEmotions = emptyTitleIds.map(titleId => ({
         title_id: titleId,
-        emotion_id: emotionLabelToId.get(emotionLabels[0])!, // Use first emotion as placeholder
+        emotion_id: emotionLabelToId.get(emotionLabels[0])!,
         intensity_level: 1,
         source: "ai_empty",
       }));
       
-      await supabase
-        .from("viib_emotion_classified_titles_staging")
-        .upsert(placeholderEmotions, { onConflict: "title_id,emotion_id", ignoreDuplicates: true });
+      const placeholderIntents = emptyTitleIds.map(titleId => ({
+        title_id: titleId,
+        intent_type: "light_entertainment" as IntentType,
+        confidence_score: 0.5,
+        source: "ai_empty",
+      }));
       
-      console.log(`📝 Inserted ${emptyTitleIds.length} placeholder emotions for empty AI results`);
+      await Promise.all([
+        supabase
+          .from("viib_emotion_classified_titles_staging")
+          .upsert(placeholderEmotions, { onConflict: "title_id,emotion_id", ignoreDuplicates: true }),
+        supabase
+          .from("viib_intent_classified_titles_staging")
+          .upsert(placeholderIntents, { onConflict: "title_id,intent_type", ignoreDuplicates: true }),
+      ]);
+      
+      console.log(`📝 Inserted ${emptyTitleIds.length} placeholder records for empty AI results`);
     }
   }
 
-  // Step 7: 🔥 Bulk insert all data in PARALLEL (emotions + intents together)
+  // Step 7: Bulk insert all data in PARALLEL
   if (allEmotions.length > 0 || allIntents.length > 0) {
     const dbStartTime = Date.now();
 
@@ -514,25 +532,30 @@ async function processClassificationBatch(): Promise<{ processed: number; hasMor
     console.log(`💾 DB inserts: ${emotionCount} emotions + ${intentCount} intents in ${dbDuration}ms`);
   }
 
-  // Step 8: Update job progress and cursor in parallel
-  if (successCount > 0) {
+  // FIXED: Get the last title ID from the batch for cursor (not just successful ones)
+  // This ensures we move past the batch even if some failed
+  const lastBatchId = (batch as TitleRow[])[batch.length - 1]?.id;
+
+  // Step 8: Update job progress and cursor
+  const actualProcessed = successCount + emptyResults; // Count empty as processed too
+  if (actualProcessed > 0 && lastBatchId) {
     await Promise.all([
-      incrementJobTitles(successCount),
-      lastProcessedId ? saveCursor(lastProcessedId) : Promise.resolve(),
+      incrementJobTitles(actualProcessed),
+      saveCursor(lastBatchId),
     ]);
   }
 
   const totalDuration = Date.now() - startTime;
   const hasMore = batch.length === BATCH_SIZE;
 
-  console.log(`✅ Batch complete: ${successCount}/${batch.length} titles in ${totalDuration}ms. Has more: ${hasMore}`);
-  console.log(`   📈 Throughput: ${Math.round((successCount / totalDuration) * 1000)} titles/sec`);
+  console.log(`✅ Batch complete: ${actualProcessed}/${batch.length} titles in ${totalDuration}ms. Has more: ${hasMore}`);
+  console.log(`   📈 Throughput: ${Math.round((actualProcessed / totalDuration) * 1000)} titles/sec`);
 
-  return { processed: successCount, hasMore };
+  return { processed: actualProcessed, hasMore };
 }
 
 // ---------------------------------------------------------------------
-// Main handler - processes batch then chains to next
+// Main handler
 // ---------------------------------------------------------------------
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -546,13 +569,21 @@ serve(async (req: Request) => {
   console.log(`▶️ classify-title-ai invoked`);
 
   try {
-    // Process one batch
-    const { processed, hasMore } = await processClassificationBatch();
+    const { processed, hasMore, error } = await processClassificationBatch();
 
-    // If there's more work, self-invoke for next batch
+    if (error) {
+      return new Response(
+        JSON.stringify({ error, processed, status: "failed" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // FIXED: Self-invoke with proper await and error handling
     if (hasMore) {
-      // Fire and forget - don't await to return response quickly
-      invokeNextBatch();
+      const invokeSuccess = await invokeNextBatch();
+      if (!invokeSuccess) {
+        console.warn("⚠️ Self-invoke failed, job will need manual restart");
+      }
     }
 
     return new Response(
@@ -566,10 +597,7 @@ serve(async (req: Request) => {
     );
   } catch (err: any) {
     console.error("💥 Error in classify-title-ai:", err);
-    await supabase
-      .from("jobs")
-      .update({ error_message: err?.message || "Unknown error", status: "failed" })
-      .eq("job_type", JOB_TYPE);
+    await markJobFailed(err?.message || "Unknown error");
     return new Response(JSON.stringify({ error: err?.message ?? "Unknown error" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
