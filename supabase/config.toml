@@ -30,6 +30,9 @@ verify_jwt = false
 [functions.enrich-title-details]
 verify_jwt = false
 
+[functions.enrich-title-details-batch]
+verify_jwt = false
+
 [functions.full-refresh-titles]
 verify_jwt = false
 
