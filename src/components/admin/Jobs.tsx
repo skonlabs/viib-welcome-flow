@@ -146,14 +146,14 @@ export const Jobs = () => {
           .select('id', { count: 'exact', head: true })
           .not('tmdb_id', 'is', null)
           .or('trailer_url.is.null,trailer_url.eq.'),
-        // Missing transcript: has valid YouTube trailer but no transcript
+        // Missing transcript: has valid YouTube trailer but no transcript (null or empty)
         supabase
           .from('titles')
           .select('id', { count: 'exact', head: true })
-          .is('trailer_transcript', null)
           .not('trailer_url', 'is', null)
           .neq('trailer_url', '')
-          .neq('trailer_url', '[no-trailer]'),
+          .neq('trailer_url', '[no-trailer]')
+          .or('trailer_transcript.is.null,trailer_transcript.eq.'),
       ]);
 
       const pendingPoster = posterResult.count || 0;
