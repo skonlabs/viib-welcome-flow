@@ -278,6 +278,7 @@ const Home = () => {
                 genres: title.genres,
               }}
               viibScore={title.final_score * 100}
+              isInWatchlist={userWatchlist.has(title.id)}
               actions={{
                 onWatchlist: () => handleAddToWatchlist(title.id),
                 onWatched: () => handleMarkAsWatched(title.id, title.title),

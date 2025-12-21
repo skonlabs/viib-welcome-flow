@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { getPosterUrl } from "@/lib/services/TitleCatalogService";
-import { Play, Share2, Eye, Plus, X, Trash2 } from "lucide-react";
+import { Play, Share2, Eye, Plus, X, Trash2, Check } from "lucide-react";
 import { TrailerDialog } from "./TrailerDialog";
 
 // Flexible title type to handle both database and TMDB API formats
@@ -45,6 +45,7 @@ interface TitleCardProps {
   recommendedBy?: string;
   recommendationNote?: string;
   viibScore?: number;
+  isInWatchlist?: boolean;
   actions?: {
     onWatched?: () => void;
     onWatchlist?: () => void;
@@ -61,6 +62,7 @@ export function TitleCard({
   recommendedBy, 
   recommendationNote, 
   viibScore, 
+  isInWatchlist = false,
   actions 
 }: TitleCardProps) {
   const [trailerOpen, setTrailerOpen] = useState(false);
@@ -179,14 +181,18 @@ export function TitleCard({
                 {actions.onWatchlist && (
                   <Button
                     size="sm"
-                    className="flex-1 gap-1 text-[9px] sm:text-xs bg-primary/90 backdrop-blur-sm hover:bg-primary h-7 sm:h-8"
+                    className={`flex-1 gap-1 text-[9px] sm:text-xs backdrop-blur-sm h-7 sm:h-8 ${
+                      isInWatchlist 
+                        ? 'bg-green-500/80 hover:bg-green-500/90 text-white' 
+                        : 'bg-primary/90 hover:bg-primary'
+                    }`}
                     onClick={(e) => {
                       e.stopPropagation();
                       actions.onWatchlist?.();
                     }}
                   >
-                    <Plus className="h-3 w-3" />
-                    <span>Watchlist</span>
+                    {isInWatchlist ? <Check className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
+                    <span>{isInWatchlist ? 'In Watchlist' : 'Watchlist'}</span>
                   </Button>
                 )}
 

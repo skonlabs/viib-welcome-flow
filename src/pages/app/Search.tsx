@@ -47,6 +47,7 @@ export default function Search() {
   const observerRef = useRef<IntersectionObserver | null>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const [userLanguage, setUserLanguage] = useState<string>('');
+  const [userWatchlist, setUserWatchlist] = useState<Set<string>>(new Set());
   const [userServices, setUserServices] = useState<string[]>([]);
 
   useEffect(() => {
@@ -119,6 +120,17 @@ export default function Search() {
 
     if (userSubscriptions) {
       setUserServices(userSubscriptions.map(sub => sub.streaming_service_id));
+    }
+
+    // Load user's watchlist
+    const { data: watchlistData } = await supabase
+      .from('user_title_interactions')
+      .select('title_id')
+      .eq('user_id', user.id)
+      .in('interaction_type', ['wishlisted', 'completed']);
+
+    if (watchlistData) {
+      setUserWatchlist(new Set(watchlistData.map(d => d.title_id)));
     }
   };
 
@@ -646,6 +658,7 @@ export default function Search() {
                 setSelectedTitle(title);
                 setDetailsOpen(true);
               }}
+              isInWatchlist={userWatchlist.has(title.external_id || '')}
               actions={title.type === 'movie' ? {
                 onWatchlist: () => handleAddToWatchlist(String((title as any).tmdb_id || title.external_id)),
                 onWatched: () => handleMarkAsWatched(String((title as any).tmdb_id || title.external_id), title.title)
