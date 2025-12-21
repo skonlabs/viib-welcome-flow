@@ -1210,48 +1210,43 @@ export const Jobs = () => {
                 </div>
               )}
 
-              {/* Job-specific Metrics for Promote AI (Combined) */}
+              {/* Job-specific Metrics for Promote AI (Combined) - Same layout as Classify AI */}
               {job.job_type === 'promote_ai' && jobMetrics && (
                 <div className="space-y-3">
-                  <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Emotions (Distinct Titles)</div>
-                  <div className="grid grid-cols-3 gap-3 text-sm bg-muted/50 rounded-lg p-3">
+                  <div className="grid grid-cols-4 gap-3 text-sm bg-muted/50 rounded-lg p-3">
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-foreground">{(jobMetrics.totalTitles ?? 0).toLocaleString()}</div>
+                      <div className="text-xs text-muted-foreground">Total Titles</div>
+                    </div>
                     <div className="text-center">
                       <div className="text-2xl font-bold text-green-500">{(jobMetrics.emotionPrimaryTitles ?? 0).toLocaleString()}</div>
-                      <div className="text-xs text-muted-foreground">Primary</div>
+                      <div className="text-xs text-muted-foreground">Emotions (Primary)</div>
                     </div>
                     <div className="text-center">
                       <div className="text-2xl font-bold text-orange-500">{(jobMetrics.emotionStagingTitles ?? 0).toLocaleString()}</div>
-                      <div className="text-xs text-muted-foreground">Staging</div>
+                      <div className="text-xs text-muted-foreground">Emotions (Staging)</div>
                     </div>
                     <div className="text-center">
                       <div className="text-2xl font-bold text-red-500">{(jobMetrics.emotionUnclassified ?? 0).toLocaleString()}</div>
                       <div className="text-xs text-muted-foreground">Unclassified</div>
                     </div>
                   </div>
-                  <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Intents (Distinct Titles)</div>
-                  <div className="grid grid-cols-3 gap-3 text-sm bg-muted/50 rounded-lg p-3">
+                  <div className="grid grid-cols-4 gap-3 text-sm bg-muted/50 rounded-lg p-3">
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-blue-500">{job.total_titles_processed.toLocaleString()}</div>
+                      <div className="text-xs text-muted-foreground">Promoted (Run)</div>
+                    </div>
                     <div className="text-center">
                       <div className="text-2xl font-bold text-green-500">{(jobMetrics.intentPrimaryTitles ?? 0).toLocaleString()}</div>
-                      <div className="text-xs text-muted-foreground">Primary</div>
+                      <div className="text-xs text-muted-foreground">Intents (Primary)</div>
                     </div>
                     <div className="text-center">
                       <div className="text-2xl font-bold text-orange-500">{(jobMetrics.intentStagingTitles ?? 0).toLocaleString()}</div>
-                      <div className="text-xs text-muted-foreground">Staging</div>
+                      <div className="text-xs text-muted-foreground">Intents (Staging)</div>
                     </div>
                     <div className="text-center">
                       <div className="text-2xl font-bold text-red-500">{(jobMetrics.intentUnclassified ?? 0).toLocaleString()}</div>
                       <div className="text-xs text-muted-foreground">Unclassified</div>
-                    </div>
-                  </div>
-                  <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">This Run</div>
-                  <div className="grid grid-cols-2 gap-3 text-sm bg-blue-500/10 rounded-lg p-3 border border-blue-500/20">
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-blue-500">{job.total_titles_processed.toLocaleString()}</div>
-                      <div className="text-xs text-muted-foreground">Titles Promoted</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-foreground">{(jobMetrics.totalTitles ?? 0).toLocaleString()}</div>
-                      <div className="text-xs text-muted-foreground">Total Titles</div>
                     </div>
                   </div>
                 </div>
