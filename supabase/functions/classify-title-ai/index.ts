@@ -112,19 +112,11 @@ async function incrementJobTitles(count: number): Promise<void> {
 }
 
 async function markJobComplete(): Promise<void> {
+  console.log("✅ Classification job complete, marking as idle");
   await supabase
     .from("jobs")
     .update({ status: "idle", error_message: null, configuration: {} })
     .eq("job_type", JOB_TYPE);
-  
-  // Trigger promote job when classification is complete
-  console.log("🔄 Classification complete, triggering promote-title-ai...");
-  try {
-    await supabase.functions.invoke("promote-title-ai", { body: {} });
-    console.log("✅ Promote job triggered successfully");
-  } catch (err) {
-    console.error("⚠️ Failed to trigger promote job:", err);
-  }
 }
 
 async function markJobFailed(error: string): Promise<void> {
