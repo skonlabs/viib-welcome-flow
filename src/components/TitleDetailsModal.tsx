@@ -1,7 +1,7 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Play, Plus } from "lucide-react";
+import { Play, Plus, Eye, Check } from "lucide-react";
 import { useState, useEffect } from "react";
 import { TrailerDialog } from "./TrailerDialog";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,13 +9,14 @@ import { getPosterUrl, getBackdropUrl } from "@/lib/services/TitleCatalogService
 
 interface TitleDetailsModalProps {
   title: {
+    id?: string;
     tmdb_id?: number;
     external_id?: string;
     title: string;
     type: 'movie' | 'series';
     year?: number | null;
-    poster_path?: string | null;  // TMDB path format
-    poster_url?: string | null;   // Full URL format (legacy)
+    poster_path?: string | null;
+    poster_url?: string | null;
     backdrop_path?: string | null;
     backdrop_url?: string | null;
     trailer_url?: string | null;
@@ -42,9 +43,11 @@ interface TitleDetailsModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onAddToWatchlist?: (titleId: string, seasonNumber?: number) => void;
+  onMarkAsWatched?: (titleId: string, titleName: string) => void;
+  isInWatchlist?: boolean;
 }
 
-export function TitleDetailsModal({ title, open, onOpenChange, onAddToWatchlist }: TitleDetailsModalProps) {
+export function TitleDetailsModal({ title, open, onOpenChange, onAddToWatchlist, onMarkAsWatched, isInWatchlist = false }: TitleDetailsModalProps) {
   const [trailerOpen, setTrailerOpen] = useState(false);
   const [enrichedData, setEnrichedData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
@@ -189,6 +192,35 @@ export function TitleDetailsModal({ title, open, onOpenChange, onAddToWatchlist 
               {displayDescription && (
                 <p className="text-sm leading-relaxed">{displayDescription}</p>
               )}
+
+              {/* Action Buttons */}
+              <div className="flex flex-wrap gap-2 pt-2">
+                {onMarkAsWatched && (
+                  <Button
+                    variant="outline"
+                    className="gap-2"
+                    onClick={() => {
+                      const titleId = title?.id || title?.external_id || String(title?.tmdb_id);
+                      onMarkAsWatched(titleId, title.title);
+                    }}
+                  >
+                    <Eye className="w-4 h-4" />
+                    Seen It
+                  </Button>
+                )}
+                {onAddToWatchlist && (
+                  <Button
+                    className={`gap-2 ${isInWatchlist ? 'bg-green-500/80 hover:bg-green-500/90' : ''}`}
+                    onClick={() => {
+                      const titleId = title?.id || title?.external_id || String(title?.tmdb_id);
+                      onAddToWatchlist(titleId);
+                    }}
+                  >
+                    {isInWatchlist ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                    {isInWatchlist ? 'In Watchlist' : 'Add to Watchlist'}
+                  </Button>
+                )}
+              </div>
 
               {/* Cast */}
               {displayCast.length > 0 && (
