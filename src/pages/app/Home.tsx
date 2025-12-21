@@ -260,15 +260,22 @@ const Home = () => {
     if (!userId) return;
 
     // Record as disliked interaction
-    const { error } = await supabase.from('user_title_interactions').upsert({
+    const { error } = await supabase.from('user_title_interactions').insert({
       user_id: userId,
       title_id: titleToDismiss.id,
       interaction_type: 'disliked',
       rating_value: 'dislike_it',
-    }, { onConflict: 'user_id,title_id,interaction_type' });
+    });
 
     if (error) {
-      toast.error('Failed to record preference');
+      // If duplicate, just remove from UI
+      if (error.code === '23505') {
+        toast.success('Got it! We\'ll adjust your recommendations');
+        setRecommendations((prev) => prev.filter((t) => t.id !== titleToDismiss.id));
+      } else {
+        console.error('Error recording preference:', error);
+        toast.error('Failed to record preference');
+      }
     } else {
       toast.success('Got it! We\'ll adjust your recommendations');
       setRecommendations((prev) => prev.filter((t) => t.id !== titleToDismiss.id));
