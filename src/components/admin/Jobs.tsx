@@ -760,11 +760,11 @@ export const Jobs = () => {
 
   const handleStopJob = async (job: Job) => {
     try {
-      // Stop the job - use 'stopped' status which the edge function checks for
+      // Stop the job - use 'idle' status (allowed by check constraint)
       const { data, error } = await supabase
         .from('jobs')
         .update({ 
-          status: 'stopped',
+          status: 'idle',
           is_active: false,
           error_message: 'Job manually stopped by administrator'
         })
