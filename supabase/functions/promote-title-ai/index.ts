@@ -98,9 +98,41 @@ serve(async (req) => {
   let promotedIntents = 0;
   let titlesUpdated = 0;
 
+  // Helper to update job status
+  async function updateJobStatus(status: string, errorMessage: string | null = null) {
+    try {
+      const updateData: any = { status };
+      if (errorMessage) updateData.error_message = errorMessage;
+      if (status === 'running') {
+        updateData.error_message = null;
+        updateData.last_run_at = new Date().toISOString();
+      }
+      await supabase
+        .from("jobs")
+        .update(updateData)
+        .eq("job_type", "promote_ai");
+    } catch (e) {
+      console.error("Failed to update job status:", e);
+    }
+  }
+
+  // Helper to increment job counter
+  async function incrementJobCounter(count: number) {
+    try {
+      await supabase.rpc("increment_job_titles", { 
+        p_job_type: "promote_ai", 
+        p_increment: count 
+      });
+    } catch (e) {
+      console.error("Failed to increment job counter:", e);
+    }
+  }
+
   try {
     console.log("▶ promote-title-ai started");
-
+    
+    // Mark job as running
+    await updateJobStatus("running");
     // --------------------------------------------------
     // 1. GET DISTINCT TITLE IDS FROM BOTH STAGING TABLES
     // --------------------------------------------------
@@ -259,6 +291,9 @@ serve(async (req) => {
     titlesUpdated = promotableTitleIds.length;
 
     console.log(`Updated ${titlesUpdated} titles to 'complete'`);
+    
+    // Update job counter with promoted titles
+    await incrementJobCounter(titlesUpdated);
 
     // --------------------------------------------------
     // 6. CLEAN STAGING (ONLY AFTER SUCCESS, IN CHUNKS)
@@ -311,6 +346,10 @@ serve(async (req) => {
       } catch (err) {
         console.error("Self-invoke failed:", err);
       }
+    } else {
+      // No more work - mark job as completed
+      await updateJobStatus("completed");
+      console.log("✓ All staging data promoted, job completed");
     }
 
     console.log("✓ promote-title-ai completed batch");
@@ -328,6 +367,8 @@ serve(async (req) => {
 
   } catch (err: any) {
     console.error("promote-title-ai error:", err);
+    // Mark job as failed
+    await updateJobStatus("failed", err?.message ?? "Unknown error");
     return new Response(
       JSON.stringify({ ok: false, error: err?.message ?? "Unknown error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
