@@ -308,6 +308,7 @@ const Home = () => {
         open={detailsModalOpen}
         onOpenChange={setDetailsModalOpen}
         title={selectedTitle ? {
+          id: selectedTitle.id,
           tmdb_id: selectedTitle.tmdb_id,
           external_id: selectedTitle.id,
           title: selectedTitle.title,
@@ -320,7 +321,12 @@ const Home = () => {
           genres: selectedTitle.genres,
           overview: selectedTitle.overview,
         } : null}
+        isInWatchlist={selectedTitle ? userWatchlist.has(selectedTitle.id) : false}
         onAddToWatchlist={(titleId) => handleAddToWatchlist(titleId)}
+        onMarkAsWatched={(titleId, titleName) => {
+          setDetailsModalOpen(false);
+          handleMarkAsWatched(titleId, titleName);
+        }}
       />
 
       <RatingDialog
