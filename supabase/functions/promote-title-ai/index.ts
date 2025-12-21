@@ -1,8 +1,7 @@
 // ============================================================================
 // ViiB — Promote AI Classifications (Intents from Staging → Final)
 // ============================================================================
-// FIXED: Promotes intents independently (emotions may already be in primary)
-// The classify job now only saves to staging what's missing from primary
+// FIXED: Reduced batch size to avoid URL length limits with .in() queries
 // ============================================================================
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
@@ -12,6 +11,73 @@ const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+// Smaller batch to avoid URL length limits with .in() queries (UUIDs are 36 chars each)
+const BATCH_SIZE = 50;
+const CHUNK_SIZE = 500;
+
+// Helper to fetch data in smaller chunks to avoid URL length limits
+async function fetchInChunks<T>(
+  supabase: any,
+  table: string,
+  selectFields: string,
+  titleIds: string[]
+): Promise<T[]> {
+  const results: T[] = [];
+  const FETCH_CHUNK_SIZE = 50; // ~50 UUIDs per request to keep URL short
+  
+  for (let i = 0; i < titleIds.length; i += FETCH_CHUNK_SIZE) {
+    const chunk = titleIds.slice(i, i + FETCH_CHUNK_SIZE);
+    const { data, error } = await supabase
+      .from(table)
+      .select(selectFields)
+      .in("title_id", chunk);
+    
+    if (error) throw new Error(`Failed to fetch from ${table}: ${error.message}`);
+    if (data) results.push(...data);
+  }
+  
+  return results;
+}
+
+// Helper to delete in chunks
+async function deleteInChunks(
+  supabase: any,
+  table: string,
+  titleIds: string[]
+): Promise<void> {
+  const DELETE_CHUNK_SIZE = 50;
+  
+  for (let i = 0; i < titleIds.length; i += DELETE_CHUNK_SIZE) {
+    const chunk = titleIds.slice(i, i + DELETE_CHUNK_SIZE);
+    const { error } = await supabase
+      .from(table)
+      .delete()
+      .in("title_id", chunk);
+    
+    if (error) throw new Error(`Failed to delete from ${table}: ${error.message}`);
+  }
+}
+
+// Helper to update in chunks
+async function updateInChunks(
+  supabase: any,
+  table: string,
+  updateData: any,
+  titleIds: string[]
+): Promise<void> {
+  const UPDATE_CHUNK_SIZE = 50;
+  
+  for (let i = 0; i < titleIds.length; i += UPDATE_CHUNK_SIZE) {
+    const chunk = titleIds.slice(i, i + UPDATE_CHUNK_SIZE);
+    const { error } = await supabase
+      .from(table)
+      .update(updateData)
+      .in("id", chunk);
+    
+    if (error) throw new Error(`Failed to update ${table}: ${error.message}`);
+  }
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -28,7 +94,6 @@ serve(async (req) => {
     { auth: { persistSession: false } }
   );
 
-  const BATCH_SIZE = 500;
   let promotedEmotions = 0;
   let promotedIntents = 0;
   let titlesUpdated = 0;
@@ -37,13 +102,14 @@ serve(async (req) => {
     console.log("▶ promote-title-ai started");
 
     // --------------------------------------------------
-    // 1. GET ALL TITLES FROM BOTH STAGING TABLES (UNION)
+    // 1. GET DISTINCT TITLE IDS FROM BOTH STAGING TABLES
     // --------------------------------------------------
     
-    // Get title_ids from emotion staging
+    // Get title_ids from emotion staging (limit to manageable count)
     const { data: emotionTitles, error: emotionErr } = await supabase
       .from("viib_emotion_classified_titles_staging")
-      .select("title_id");
+      .select("title_id")
+      .limit(1000);
     
     if (emotionErr) throw new Error(`Failed to fetch emotion staging: ${emotionErr.message}`);
     
@@ -53,7 +119,8 @@ serve(async (req) => {
     // Get title_ids from intent staging
     const { data: intentTitles, error: intentErr } = await supabase
       .from("viib_intent_classified_titles_staging")
-      .select("title_id");
+      .select("title_id")
+      .limit(1000);
     
     if (intentErr) throw new Error(`Failed to fetch intent staging: ${intentErr.message}`);
     
@@ -75,41 +142,52 @@ serve(async (req) => {
     console.log(`Promoting ${promotableTitleIds.length} titles from staging`);
 
     // --------------------------------------------------
-    // 2. FETCH STAGING DATA FOR PROMOTABLE TITLES
+    // 2. FETCH STAGING DATA FOR PROMOTABLE TITLES (IN CHUNKS)
     // --------------------------------------------------
 
-    const { data: emotionRows, error: fetchEmErr } = await supabase
-      .from("viib_emotion_classified_titles_staging")
-      .select("title_id, emotion_id, intensity_level, source, created_at")
-      .in("title_id", promotableTitleIds);
+    interface EmotionRow {
+      title_id: string;
+      emotion_id: string;
+      intensity_level: number;
+      source: string | null;
+      created_at: string;
+    }
 
-    if (fetchEmErr) throw new Error(`Failed to fetch emotion rows: ${fetchEmErr.message}`);
+    interface IntentRow {
+      title_id: string;
+      intent_type: string;
+      confidence_score: number;
+      source: string | null;
+      created_at: string;
+    }
 
-    const { data: intentRows, error: fetchIntErr } = await supabase
-      .from("viib_intent_classified_titles_staging")
-      .select("title_id, intent_type, confidence_score, source, created_at")
-      .in("title_id", promotableTitleIds);
+    const emotionRows = await fetchInChunks<EmotionRow>(
+      supabase,
+      "viib_emotion_classified_titles_staging",
+      "title_id, emotion_id, intensity_level, source, created_at",
+      promotableTitleIds
+    );
 
-    if (fetchIntErr) throw new Error(`Failed to fetch intent rows: ${fetchIntErr.message}`);
+    const intentRows = await fetchInChunks<IntentRow>(
+      supabase,
+      "viib_intent_classified_titles_staging",
+      "title_id, intent_type, confidence_score, source, created_at",
+      promotableTitleIds
+    );
 
-    console.log(`Loaded ${emotionRows?.length ?? 0} emotion rows and ${intentRows?.length ?? 0} intent rows`);
+    console.log(`Loaded ${emotionRows.length} emotion rows and ${intentRows.length} intent rows`);
 
     // --------------------------------------------------
     // 3. PROMOTE EMOTIONS (ONLY IF WE HAVE STAGED EMOTIONS)
     // --------------------------------------------------
 
-    if (emotionRows && emotionRows.length > 0) {
+    if (emotionRows.length > 0) {
       const titleIdsWithEmotions = [...new Set(emotionRows.map(r => r.title_id))];
       
-      // Delete existing emotions for these titles (from any source)
-      const { error: delEmErr } = await supabase
-        .from("viib_emotion_classified_titles")
-        .delete()
-        .in("title_id", titleIdsWithEmotions);
+      // Delete existing emotions for these titles (in chunks)
+      await deleteInChunks(supabase, "viib_emotion_classified_titles", titleIdsWithEmotions);
 
-      if (delEmErr) throw new Error(`Failed to delete old emotions: ${delEmErr.message}`);
-
-      // Insert new emotions
+      // Insert new emotions in chunks
       const now = new Date().toISOString();
       const emotionInserts = emotionRows.map(r => ({
         title_id: r.title_id,
@@ -120,8 +198,6 @@ serve(async (req) => {
         updated_at: now,
       }));
 
-      // Insert in chunks to avoid payload limits
-      const CHUNK_SIZE = 1000;
       for (let i = 0; i < emotionInserts.length; i += CHUNK_SIZE) {
         const chunk = emotionInserts.slice(i, i + CHUNK_SIZE);
         const { error: insEmErr } = await supabase
@@ -138,18 +214,13 @@ serve(async (req) => {
     // 4. PROMOTE INTENTS (ONLY IF WE HAVE STAGED INTENTS)
     // --------------------------------------------------
 
-    if (intentRows && intentRows.length > 0) {
+    if (intentRows.length > 0) {
       const titleIdsWithIntents = [...new Set(intentRows.map(r => r.title_id))];
       
-      // Delete existing intents for these titles
-      const { error: delIntErr } = await supabase
-        .from("viib_intent_classified_titles")
-        .delete()
-        .in("title_id", titleIdsWithIntents);
+      // Delete existing intents for these titles (in chunks)
+      await deleteInChunks(supabase, "viib_intent_classified_titles", titleIdsWithIntents);
 
-      if (delIntErr) throw new Error(`Failed to delete old intents: ${delIntErr.message}`);
-
-      // Insert new intents
+      // Insert new intents in chunks
       const now = new Date().toISOString();
       const intentInserts = intentRows.map(r => ({
         title_id: r.title_id,
@@ -160,8 +231,6 @@ serve(async (req) => {
         updated_at: now,
       }));
 
-      // Insert in chunks
-      const CHUNK_SIZE = 1000;
       for (let i = 0; i < intentInserts.length; i += CHUNK_SIZE) {
         const chunk = intentInserts.slice(i, i + CHUNK_SIZE);
         const { error: insIntErr } = await supabase
@@ -175,57 +244,42 @@ serve(async (req) => {
     }
 
     // --------------------------------------------------
-    // 5. UPDATE TITLE CLASSIFICATION STATUS
+    // 5. UPDATE TITLE CLASSIFICATION STATUS (IN CHUNKS)
     // --------------------------------------------------
 
-    const { error: updateErr } = await supabase
-      .from("titles")
-      .update({
+    await updateInChunks(
+      supabase,
+      "titles",
+      {
         classification_status: "complete",
         last_classified_at: new Date().toISOString(),
-      })
-      .in("id", promotableTitleIds);
-
-    if (updateErr) throw new Error(`Failed to update titles: ${updateErr.message}`);
+      },
+      promotableTitleIds
+    );
     titlesUpdated = promotableTitleIds.length;
 
     console.log(`Updated ${titlesUpdated} titles to 'complete'`);
 
     // --------------------------------------------------
-    // 6. CLEAN STAGING (ONLY AFTER SUCCESS)
+    // 6. CLEAN STAGING (ONLY AFTER SUCCESS, IN CHUNKS)
     // --------------------------------------------------
 
-    const { error: cleanEmErr } = await supabase
-      .from("viib_emotion_classified_titles_staging")
-      .delete()
-      .in("title_id", promotableTitleIds);
+    try {
+      await deleteInChunks(supabase, "viib_emotion_classified_titles_staging", promotableTitleIds);
+      console.log("Cleaned emotion staging");
+    } catch (cleanErr: any) {
+      console.error("Warning: Failed to clean emotion staging:", cleanErr.message);
+    }
 
-    if (cleanEmErr) console.error("Warning: Failed to clean emotion staging:", cleanEmErr.message);
-
-    const { error: cleanIntErr } = await supabase
-      .from("viib_intent_classified_titles_staging")
-      .delete()
-      .in("title_id", promotableTitleIds);
-
-    if (cleanIntErr) console.error("Warning: Failed to clean intent staging:", cleanIntErr.message);
-
-    console.log("Cleaned staging tables");
-
-    // --------------------------------------------------
-    // 7. REFRESH MATERIALIZATIONS (skip if batch is small)
-    // --------------------------------------------------
-
-    if (titlesUpdated >= 100) {
-      try {
-        await supabase.rpc("refresh_viib_reco_materializations");
-        console.log("Refreshed recommendation materializations");
-      } catch (rpcErr) {
-        console.error("Warning: Failed to refresh materializations:", rpcErr);
-      }
+    try {
+      await deleteInChunks(supabase, "viib_intent_classified_titles_staging", promotableTitleIds);
+      console.log("Cleaned intent staging");
+    } catch (cleanErr: any) {
+      console.error("Warning: Failed to clean intent staging:", cleanErr.message);
     }
 
     // --------------------------------------------------
-    // 8. CHECK IF MORE WORK AND SELF-INVOKE
+    // 7. CHECK IF MORE WORK AND SELF-INVOKE
     // --------------------------------------------------
 
     const { count: remainingEmotions } = await supabase
