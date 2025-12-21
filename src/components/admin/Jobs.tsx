@@ -1335,25 +1335,25 @@ export const Jobs = () => {
               {job.job_type === 'enrich_details' && (
                 <div className="space-y-3">
                   {/* Enrich metrics grid */}
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 text-sm bg-muted/50 rounded-lg p-3">
-                    <div className="text-center min-w-0">
-                      <div className="text-lg sm:text-xl lg:text-2xl font-bold text-green-500 truncate">{job.total_titles_processed.toLocaleString()}</div>
+                  <div className="grid grid-cols-5 gap-2 text-sm bg-muted/50 rounded-lg p-3">
+                    <div className="text-center">
+                      <div className="text-base font-bold text-green-500">{job.total_titles_processed.toLocaleString()}</div>
                       <div className="text-xs text-muted-foreground">Enriched</div>
                     </div>
-                    <div className="text-center min-w-0">
-                      <div className="text-lg sm:text-xl lg:text-2xl font-bold text-red-500 truncate">{(enrichMetrics?.pendingPoster ?? 0).toLocaleString()}</div>
+                    <div className="text-center">
+                      <div className="text-base font-bold text-red-500">{(enrichMetrics?.pendingPoster ?? 0).toLocaleString()}</div>
                       <div className="text-xs text-muted-foreground">No Poster</div>
                     </div>
-                    <div className="text-center min-w-0">
-                      <div className="text-lg sm:text-xl lg:text-2xl font-bold text-orange-500 truncate">{(enrichMetrics?.pendingOverview ?? 0).toLocaleString()}</div>
+                    <div className="text-center">
+                      <div className="text-base font-bold text-orange-500">{(enrichMetrics?.pendingOverview ?? 0).toLocaleString()}</div>
                       <div className="text-xs text-muted-foreground">No Overview</div>
                     </div>
-                    <div className="text-center min-w-0">
-                      <div className="text-lg sm:text-xl lg:text-2xl font-bold text-yellow-500 truncate">{(enrichMetrics?.pendingTrailer ?? 0).toLocaleString()}</div>
+                    <div className="text-center">
+                      <div className="text-base font-bold text-yellow-500">{(enrichMetrics?.pendingTrailer ?? 0).toLocaleString()}</div>
                       <div className="text-xs text-muted-foreground">No Trailer</div>
                     </div>
-                    <div className="text-center min-w-0">
-                      <div className="text-lg sm:text-xl lg:text-2xl font-bold text-purple-500 truncate">{(enrichMetrics?.pendingTranscript ?? 0).toLocaleString()}</div>
+                    <div className="text-center">
+                      <div className="text-base font-bold text-purple-500">{(enrichMetrics?.pendingTranscript ?? 0).toLocaleString()}</div>
                       <div className="text-xs text-muted-foreground">No Transcript</div>
                     </div>
                   </div>
