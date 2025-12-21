@@ -257,31 +257,53 @@ serve(async (req) => {
     // ========== PHASE 1: TITLES (Movies & Series) ==========
     console.log('=== PHASE 1: Processing titles ===');
 
-    // Find titles needing enrichment (missing poster, overview, trailer, OR transcript)
-    // Include placeholders so we can retry TMDB fetch
-    const { data: titlesToEnrich, error: fetchError } = await supabase
+    // Find titles needing enrichment - PRIORITIZE truly missing data (NULL/empty) over placeholders
+    // First query: titles with NULL/empty poster OR overview (truly missing data)
+    const { data: titlesWithMissingData, error: fetchError1 } = await supabase
       .from('titles')
       .select('id, tmdb_id, title_type, name, overview, poster_path, trailer_url, trailer_transcript, backdrop_path, release_date, first_air_date')
       .not('tmdb_id', 'is', null)
-      .or(
-        'poster_path.is.null,poster_path.eq.,poster_path.eq.[no-poster],' +
-        'overview.is.null,overview.eq.,overview.eq.[no-overview],' +
-        'trailer_url.is.null,trailer_url.eq.,' +
-        'trailer_transcript.is.null,trailer_transcript.eq.'
-      )
-      .order('id', { ascending: true })
+      .or('poster_path.is.null,poster_path.eq.,overview.is.null,overview.eq.')
+      .order('popularity', { ascending: false, nullsFirst: false })
       .limit(BATCH_SIZE);
 
-    if (fetchError) throw new Error(`Error fetching titles: ${fetchError.message}`);
+    if (fetchError1) throw new Error(`Error fetching titles: ${fetchError1.message}`);
 
-    // Filter to only titles that actually need enrichment using isPlaceholder
-    // which checks for null, empty, and placeholder values like [no-poster]
-    const titlesNeedingEnrichment = (titlesToEnrich || []).filter(title =>
-      isPlaceholder(title.overview) || 
-      isPlaceholder(title.poster_path) || 
-      isEmpty(title.trailer_url) ||
-      (hasValidTrailer(title.trailer_url) && (title.trailer_transcript === null || title.trailer_transcript === ''))
-    );
+    // If we didn't get enough titles with missing data, also get titles needing transcripts
+    let additionalTitles: typeof titlesWithMissingData = [];
+    if ((titlesWithMissingData?.length || 0) < BATCH_SIZE) {
+      const remainingSlots = BATCH_SIZE - (titlesWithMissingData?.length || 0);
+      const { data: transcriptTitles, error: fetchError2 } = await supabase
+        .from('titles')
+        .select('id, tmdb_id, title_type, name, overview, poster_path, trailer_url, trailer_transcript, backdrop_path, release_date, first_air_date')
+        .not('tmdb_id', 'is', null)
+        .not('poster_path', 'is', null)
+        .neq('poster_path', '')
+        .neq('poster_path', '[no-poster]')
+        .not('overview', 'is', null)
+        .neq('overview', '')
+        .neq('overview', '[no-overview]')
+        .or('trailer_url.is.null,trailer_url.eq.,trailer_transcript.is.null,trailer_transcript.eq.')
+        .order('popularity', { ascending: false, nullsFirst: false })
+        .limit(remainingSlots);
+
+      if (!fetchError2 && transcriptTitles) {
+        additionalTitles = transcriptTitles;
+      }
+    }
+
+    // Combine and deduplicate
+    const allTitles = [...(titlesWithMissingData || []), ...additionalTitles];
+    const seenIds = new Set<string>();
+    const titlesNeedingEnrichment = allTitles.filter(title => {
+      if (seenIds.has(title.id)) return false;
+      seenIds.add(title.id);
+      // Actually needs enrichment
+      return isEmpty(title.poster_path) || 
+             isEmpty(title.overview) || 
+             isEmpty(title.trailer_url) ||
+             (hasValidTrailer(title.trailer_url) && (title.trailer_transcript === null || title.trailer_transcript === ''));
+    });
 
     let titlesProcessed = 0;
     let titlesUpdated = 0;
@@ -326,27 +348,27 @@ serve(async (req) => {
 
         const details = await detailsRes.json();
 
-        // Update overview if missing or placeholder
-        if (isPlaceholder(title.overview)) {
+        // Update overview if missing (NULL or empty string)
+        if (isEmpty(title.overview)) {
           if (details.overview) {
             updateData.overview = details.overview;
             updates.push('overview');
-          } else if (title.overview !== '[no-overview]') {
-            // Only set placeholder if not already set
+          } else {
+            // Mark as checked with placeholder so we don't keep retrying
             updateData.overview = '[no-overview]';
-            updates.push('overview-placeholder');
+            updates.push('overview-empty');
           }
         }
 
-        // Update poster if missing or placeholder
-        if (isPlaceholder(title.poster_path)) {
+        // Update poster if missing (NULL or empty string)
+        if (isEmpty(title.poster_path)) {
           if (details.poster_path) {
             updateData.poster_path = details.poster_path;
             updates.push('poster');
-          } else if (title.poster_path !== '[no-poster]') {
-            // Only set placeholder if not already set
+          } else {
+            // Mark as checked with placeholder so we don't keep retrying
             updateData.poster_path = '[no-poster]';
-            updates.push('poster-placeholder');
+            updates.push('poster-empty');
           }
         }
 
