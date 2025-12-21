@@ -129,42 +129,36 @@ export const Jobs = () => {
   const fetchEnrichMetrics = async () => {
     try {
       // Fetch counts for titles needing enrichment
-      // Check for both NULL and empty strings, but EXCLUDE placeholders that mark "checked but unavailable"
+      // Check for both NULL and empty strings
       const [posterResult, overviewResult, trailerResult, transcriptTitlesResult, transcriptSeasonsResult] = await Promise.all([
-        // Poster: NULL or empty, exclude [no-poster] placeholder
+        // Poster: NULL or empty
         supabase
           .from('titles')
           .select('id', { count: 'exact', head: true })
           .not('tmdb_id', 'is', null)
           .or('poster_path.is.null,poster_path.eq.'),
-        // Overview: NULL or empty, exclude [no-overview] placeholder  
+        // Overview: NULL or empty
         supabase
           .from('titles')
           .select('id', { count: 'exact', head: true })
           .not('tmdb_id', 'is', null)
           .or('overview.is.null,overview.eq.'),
-        // Trailer: NULL or empty, exclude [no-trailer] placeholder
+        // Trailer: NULL or empty
         supabase
           .from('titles')
           .select('id', { count: 'exact', head: true })
           .not('tmdb_id', 'is', null)
           .or('trailer_url.is.null,trailer_url.eq.'),
-        // Missing transcript for TITLES: transcript is null/empty AND has valid trailer URL
+        // Transcript for TITLES: simply NULL or empty
         supabase
           .from('titles')
           .select('id', { count: 'exact', head: true })
-          .or('trailer_transcript.is.null,trailer_transcript.eq.')
-          .not('trailer_url', 'is', null)
-          .neq('trailer_url', '')
-          .neq('trailer_url', '[no-trailer]'),
-        // Missing transcript for SEASONS: transcript is null/empty AND has valid trailer URL
+          .or('trailer_transcript.is.null,trailer_transcript.eq.'),
+        // Transcript for SEASONS: simply NULL or empty
         supabase
           .from('seasons')
           .select('id', { count: 'exact', head: true })
-          .or('trailer_transcript.is.null,trailer_transcript.eq.')
-          .not('trailer_url', 'is', null)
-          .neq('trailer_url', '')
-          .neq('trailer_url', '[no-trailer]'),
+          .or('trailer_transcript.is.null,trailer_transcript.eq.'),
       ]);
 
       const pendingPoster = posterResult.count || 0;
