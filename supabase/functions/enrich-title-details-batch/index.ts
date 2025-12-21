@@ -92,12 +92,12 @@ serve(async (req) => {
 
     // Find titles that need enrichment:
     // - Has tmdb_id (so we can fetch from TMDB)
-    // - Missing overview OR poster_path OR trailer_url (any of the 3)
+    // - Missing overview OR poster_path OR trailer_url (NULL or empty string)
     const { data: titlesToEnrich, error: fetchError } = await supabase
       .from('titles')
       .select('id, tmdb_id, title_type, name, overview, poster_path, trailer_url')
       .not('tmdb_id', 'is', null)
-      .or('overview.is.null,poster_path.is.null,trailer_url.is.null')
+      .or('overview.is.null,overview.eq.,poster_path.is.null,poster_path.eq.,trailer_url.is.null,trailer_url.eq.')
       .order('popularity', { ascending: false, nullsFirst: false })
       .limit(batchSize);
 
@@ -115,7 +115,7 @@ serve(async (req) => {
       .from('titles')
       .select('id', { count: 'exact', head: true })
       .not('tmdb_id', 'is', null)
-      .or('overview.is.null,poster_path.is.null,trailer_url.is.null');
+      .or('overview.is.null,overview.eq.,poster_path.is.null,poster_path.eq.,trailer_url.is.null,trailer_url.eq.');
 
     const isComplete = titlesNeedingEnrichment.length === 0;
 
