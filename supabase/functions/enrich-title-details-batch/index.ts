@@ -257,53 +257,16 @@ serve(async (req) => {
     // ========== PHASE 1: TITLES (Movies & Series) ==========
     console.log('=== PHASE 1: Processing titles ===');
 
-    // Find titles needing enrichment - PRIORITIZE truly missing data (NULL/empty) over placeholders
-    // First query: titles with NULL/empty poster OR overview (truly missing data)
-    const { data: titlesWithMissingData, error: fetchError1 } = await supabase
+    // Single query: fetch all titles with ANY missing field (NULL or empty)
+    const { data: titlesNeedingEnrichment, error: fetchError } = await supabase
       .from('titles')
       .select('id, tmdb_id, title_type, name, overview, poster_path, trailer_url, trailer_transcript, backdrop_path, release_date, first_air_date')
       .not('tmdb_id', 'is', null)
-      .or('poster_path.is.null,poster_path.eq.,overview.is.null,overview.eq.')
+      .or('poster_path.is.null,poster_path.eq.,overview.is.null,overview.eq.,trailer_url.is.null,trailer_url.eq.,trailer_transcript.is.null,trailer_transcript.eq.')
       .order('popularity', { ascending: false, nullsFirst: false })
       .limit(BATCH_SIZE);
 
-    if (fetchError1) throw new Error(`Error fetching titles: ${fetchError1.message}`);
-
-    // If we didn't get enough titles with missing data, also get titles needing transcripts
-    let additionalTitles: typeof titlesWithMissingData = [];
-    if ((titlesWithMissingData?.length || 0) < BATCH_SIZE) {
-      const remainingSlots = BATCH_SIZE - (titlesWithMissingData?.length || 0);
-      const { data: transcriptTitles, error: fetchError2 } = await supabase
-        .from('titles')
-        .select('id, tmdb_id, title_type, name, overview, poster_path, trailer_url, trailer_transcript, backdrop_path, release_date, first_air_date')
-        .not('tmdb_id', 'is', null)
-        .not('poster_path', 'is', null)
-        .neq('poster_path', '')
-        .neq('poster_path', '[no-poster]')
-        .not('overview', 'is', null)
-        .neq('overview', '')
-        .neq('overview', '[no-overview]')
-        .or('trailer_url.is.null,trailer_url.eq.,trailer_transcript.is.null,trailer_transcript.eq.')
-        .order('popularity', { ascending: false, nullsFirst: false })
-        .limit(remainingSlots);
-
-      if (!fetchError2 && transcriptTitles) {
-        additionalTitles = transcriptTitles;
-      }
-    }
-
-    // Combine and deduplicate
-    const allTitles = [...(titlesWithMissingData || []), ...additionalTitles];
-    const seenIds = new Set<string>();
-    const titlesNeedingEnrichment = allTitles.filter(title => {
-      if (seenIds.has(title.id)) return false;
-      seenIds.add(title.id);
-      // Actually needs enrichment
-      return isEmpty(title.poster_path) || 
-             isEmpty(title.overview) || 
-             isEmpty(title.trailer_url) ||
-             (hasValidTrailer(title.trailer_url) && (title.trailer_transcript === null || title.trailer_transcript === ''));
-    });
+    if (fetchError) throw new Error(`Error fetching titles: ${fetchError.message}`);
 
     let titlesProcessed = 0;
     let titlesUpdated = 0;
@@ -312,9 +275,9 @@ serve(async (req) => {
     let errors = 0;
     let wasStoppedByUser = false;
 
-    console.log(`Found ${titlesNeedingEnrichment.length} titles to process`);
+    console.log(`Found ${titlesNeedingEnrichment?.length || 0} titles to process`);
 
-    for (const title of titlesNeedingEnrichment) {
+    for (const title of (titlesNeedingEnrichment || [])) {
       if (Date.now() - startTime > MAX_RUNTIME_MS) {
         console.log(`Runtime limit reached. Processed: ${titlesProcessed}`);
         break;
