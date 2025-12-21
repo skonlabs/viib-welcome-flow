@@ -297,17 +297,20 @@ serve(async (req) => {
     if (hasMore) {
       console.log(`More work remaining (emotions: ${remainingEmotions}, intents: ${remainingIntents}). Self-invoking...`);
       
-      // Fire-and-forget self-invoke for next batch
-      fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/promote-title-ai`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-        },
-        body: JSON.stringify({}),
-      })
-        .then(r => console.log(`Self-invoke response: ${r.status}`))
-        .catch(err => console.error("Self-invoke failed:", err));
+      // AWAIT the self-invoke to ensure it completes before function terminates
+      try {
+        const response = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/promote-title-ai`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+          },
+          body: JSON.stringify({}),
+        });
+        console.log(`Self-invoke response: ${response.status}`);
+      } catch (err) {
+        console.error("Self-invoke failed:", err);
+      }
     }
 
     console.log("✓ promote-title-ai completed batch");
