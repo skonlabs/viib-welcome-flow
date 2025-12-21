@@ -90,14 +90,14 @@ serve(async (req) => {
     const config = (jobData?.configuration as any) || {};
     const batchSize = config.batch_size || BATCH_SIZE;
 
-    // Find titles that need enrichment - PRIORITIZE missing poster_path first
+    // Find titles that need enrichment:
     // - Has tmdb_id (so we can fetch from TMDB)
-    // - Missing poster_path (highest priority), then overview, then trailer_url
+    // - Missing ANY of: overview, poster_path, or trailer_url
     const { data: titlesToEnrich, error: fetchError } = await supabase
       .from('titles')
       .select('id, tmdb_id, title_type, name, overview, poster_path, trailer_url, backdrop_path')
       .not('tmdb_id', 'is', null)
-      .or('poster_path.is.null,poster_path.eq.')
+      .or('overview.is.null,overview.eq.,poster_path.is.null,poster_path.eq.,trailer_url.is.null,trailer_url.eq.')
       .order('popularity', { ascending: false, nullsFirst: false })
       .limit(batchSize);
 
@@ -105,17 +105,17 @@ serve(async (req) => {
       throw new Error(`Error fetching titles: ${fetchError.message}`);
     }
 
-    // Filter to only titles that actually need poster_path enrichment
+    // Filter to only titles that actually need enrichment (handle empty strings too)
     const titlesNeedingEnrichment = (titlesToEnrich || []).filter(title => 
-      isEmpty(title.poster_path)
+      isEmpty(title.overview) || isEmpty(title.poster_path) || isEmpty(title.trailer_url)
     );
 
-    // Get count for remaining work (titles missing poster_path)
+    // Get count for remaining work
     const { count: remainingCount } = await supabase
       .from('titles')
       .select('id', { count: 'exact', head: true })
       .not('tmdb_id', 'is', null)
-      .or('poster_path.is.null,poster_path.eq.');
+      .or('overview.is.null,overview.eq.,poster_path.is.null,poster_path.eq.,trailer_url.is.null,trailer_url.eq.');
 
     const isComplete = titlesNeedingEnrichment.length === 0;
 
@@ -317,12 +317,40 @@ serve(async (req) => {
       }
     }
 
-    // Schedule next batch if more work remains and not stopped by user
-    if (moreRemaining && !wasStoppedByUser && jobId) {
+    // Check job status AGAIN before scheduling next batch (user may have stopped it)
+    let shouldScheduleNext = moreRemaining && !wasStoppedByUser && jobId;
+    
+    if (shouldScheduleNext && jobId) {
+      const { data: finalJobCheck } = await supabase
+        .from('jobs')
+        .select('status, is_active')
+        .eq('id', jobId)
+        .single();
+      
+      if (finalJobCheck?.status === 'stopped' || finalJobCheck?.status === 'idle' || !finalJobCheck?.is_active) {
+        console.log('Job was stopped before scheduling next batch, not continuing');
+        shouldScheduleNext = false;
+      }
+    }
+
+    // Schedule next batch if more work remains and job is still active
+    if (shouldScheduleNext && jobId) {
       console.log('More work remaining, scheduling next batch...');
       
       const invokeNextBatch = async () => {
         try {
+          // Double-check job status before actually invoking
+          const { data: preInvokeCheck } = await supabase
+            .from('jobs')
+            .select('status, is_active')
+            .eq('id', jobId)
+            .single();
+          
+          if (preInvokeCheck?.status === 'stopped' || preInvokeCheck?.status === 'idle' || !preInvokeCheck?.is_active) {
+            console.log('Job stopped before next batch invocation, aborting');
+            return;
+          }
+          
           const response = await fetch(`${SUPABASE_URL}/functions/v1/enrich-title-details-batch`, {
             method: 'POST',
             headers: {
@@ -350,7 +378,7 @@ serve(async (req) => {
         invokeNextBatch();
         console.log('Next batch dispatched (no EdgeRuntime available)');
       }
-    } else if (wasStoppedByUser) {
+    } else if (wasStoppedByUser || !shouldScheduleNext) {
       console.log('Job was stopped by user, not scheduling next batch');
     } else if (!moreRemaining) {
       console.log('All titles enriched, job complete');
