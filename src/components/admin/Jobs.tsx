@@ -67,6 +67,13 @@ interface JobMetrics {
   intentUnclassified: number;
 }
 
+interface EnrichMetrics {
+  pendingPoster: number;
+  pendingOverview: number;
+  pendingTrailer: number;
+  totalPending: number;
+}
+
 export const Jobs = () => {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [cronJobs, setCronJobs] = useState<CronJob[]>([]);
@@ -77,6 +84,7 @@ export const Jobs = () => {
   const [cronJobStartTimes, setCronJobStartTimes] = useState<Map<number, number>>(new Map());
   const [parallelProgress, setParallelProgress] = useState<ParallelProgress | null>(null);
   const [jobMetrics, setJobMetrics] = useState<JobMetrics | null>(null);
+  const [enrichMetrics, setEnrichMetrics] = useState<EnrichMetrics | null>(null);
   const { toast } = useToast();
 
   const fetchJobMetrics = async () => {
@@ -114,6 +122,45 @@ export const Jobs = () => {
       }
     } catch (error) {
       console.error('Error fetching job metrics:', error);
+    }
+  };
+
+  const fetchEnrichMetrics = async () => {
+    try {
+      // Fetch counts for titles needing enrichment - use simple fast queries
+      const [posterResult, overviewResult, trailerResult] = await Promise.all([
+        supabase
+          .from('titles')
+          .select('id', { count: 'exact', head: true })
+          .not('tmdb_id', 'is', null)
+          .is('poster_path', null),
+        supabase
+          .from('titles')
+          .select('id', { count: 'exact', head: true })
+          .not('tmdb_id', 'is', null)
+          .is('overview', null),
+        supabase
+          .from('titles')
+          .select('id', { count: 'exact', head: true })
+          .not('tmdb_id', 'is', null)
+          .is('trailer_url', null),
+      ]);
+
+      const pendingPoster = posterResult.count || 0;
+      const pendingOverview = overviewResult.count || 0;
+      const pendingTrailer = trailerResult.count || 0;
+
+      // Estimate total pending (max of the three since some titles may be missing multiple fields)
+      const totalPending = Math.max(pendingPoster, pendingOverview, pendingTrailer);
+
+      setEnrichMetrics({
+        pendingPoster,
+        pendingOverview,
+        pendingTrailer,
+        totalPending,
+      });
+    } catch (error) {
+      console.error('Error fetching enrich metrics:', error);
     }
   };
 
@@ -346,10 +393,12 @@ export const Jobs = () => {
     fetchJobs();
     fetchCronJobs();
     fetchJobMetrics();
+    fetchEnrichMetrics();
     // Refresh every 10 seconds
     const interval = setInterval(() => {
       fetchJobs();
       fetchJobMetrics();
+      fetchEnrichMetrics();
     }, 10000);
     return () => clearInterval(interval);
   }, []);
@@ -1270,8 +1319,50 @@ export const Jobs = () => {
                 </div>
               )}
 
+              {/* Enrich Details Job Stats */}
+              {job.job_type === 'enrich_details' && (
+                <div className="space-y-3">
+                  {/* Enrich metrics grid */}
+                  <div className="grid grid-cols-4 gap-3 text-sm bg-muted/50 rounded-lg p-3">
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-green-500">{job.total_titles_processed.toLocaleString()}</div>
+                      <div className="text-xs text-muted-foreground">Enriched (Run)</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-red-500">{(enrichMetrics?.pendingPoster ?? 0).toLocaleString()}</div>
+                      <div className="text-xs text-muted-foreground">Missing Poster</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-orange-500">{(enrichMetrics?.pendingOverview ?? 0).toLocaleString()}</div>
+                      <div className="text-xs text-muted-foreground">Missing Overview</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-yellow-500">{(enrichMetrics?.pendingTrailer ?? 0).toLocaleString()}</div>
+                      <div className="text-xs text-muted-foreground">Missing Trailer</div>
+                    </div>
+                  </div>
+                  {/* Last run info */}
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div className="space-y-1">
+                      <div className="flex items-center text-muted-foreground">
+                        <CalendarIcon className="w-4 h-4 mr-2" />
+                        Last Run
+                      </div>
+                      <div className="font-medium">{formatDate(job.last_run_at)}</div>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center text-muted-foreground">
+                        <Clock className="w-4 h-4 mr-2" />
+                        Duration
+                      </div>
+                      <div className="font-medium">{formatDuration(job.last_run_duration_seconds)}</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Standard Job Stats for other job types */}
-              {job.job_type !== 'classify_ai' && job.job_type !== 'promote_ai' && (
+              {job.job_type !== 'classify_ai' && job.job_type !== 'promote_ai' && job.job_type !== 'enrich_details' && (
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div className="space-y-1">
                     <div className="flex items-center text-muted-foreground">
