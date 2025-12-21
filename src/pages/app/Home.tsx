@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { TitleCard } from '@/components/TitleCard';
 import { TitleDetailsModal } from '@/components/TitleDetailsModal';
 import { RatingDialog } from '@/components/RatingDialog';
+import { DismissTitleDialog } from '@/components/DismissTitleDialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 
@@ -32,6 +33,8 @@ const Home = () => {
   const [titleToRate, setTitleToRate] = useState<{ id: string; name: string } | null>(null);
   const [selectedTitle, setSelectedTitle] = useState<RecommendedTitle | null>(null);
   const [detailsModalOpen, setDetailsModalOpen] = useState(false);
+  const [dismissDialogOpen, setDismissDialogOpen] = useState(false);
+  const [titleToDismiss, setTitleToDismiss] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => {
     fetchRecommendations();
@@ -245,6 +248,47 @@ const Home = () => {
     setTitleToRate(null);
   };
 
+  const handleDismissTitle = (titleId: string, titleName: string) => {
+    setTitleToDismiss({ id: titleId, name: titleName });
+    setDismissDialogOpen(true);
+  };
+
+  const handleNotMyTaste = async () => {
+    if (!titleToDismiss) return;
+    
+    const userId = localStorage.getItem('viib_user_id');
+    if (!userId) return;
+
+    // Record as disliked interaction
+    const { error } = await supabase.from('user_title_interactions').upsert({
+      user_id: userId,
+      title_id: titleToDismiss.id,
+      interaction_type: 'disliked',
+      rating_value: 'dislike_it',
+    }, { onConflict: 'user_id,title_id,interaction_type' });
+
+    if (error) {
+      toast.error('Failed to record preference');
+    } else {
+      toast.success('Got it! We\'ll adjust your recommendations');
+      setRecommendations((prev) => prev.filter((t) => t.id !== titleToDismiss.id));
+    }
+    setTitleToDismiss(null);
+  };
+
+  const handleSeenItFromDismiss = () => {
+    if (!titleToDismiss) return;
+    // Open rating dialog
+    setTitleToRate({ id: titleToDismiss.id, name: titleToDismiss.name });
+    setRatingDialogOpen(true);
+    setTitleToDismiss(null);
+  };
+
+  const handleKeepIt = () => {
+    // Just close the dialog, don't remove from recommendations
+    setTitleToDismiss(null);
+  };
+
   return (
     <div className="container mx-auto px-4 sm:px-6 py-4 sm:py-8">
       <div className="mb-8">
@@ -298,6 +342,7 @@ const Home = () => {
               actions={{
                 onWatchlist: () => handleAddToWatchlist(title.id),
                 onWatched: () => handleMarkAsWatched(title.id, title.title),
+                onPass: () => handleDismissTitle(title.id, title.title),
               }}
             />
           ))}
@@ -334,6 +379,15 @@ const Home = () => {
         onOpenChange={setRatingDialogOpen}
         titleName={titleToRate?.name || ''}
         onRate={handleRateAndMarkWatched}
+      />
+
+      <DismissTitleDialog
+        open={dismissDialogOpen}
+        onOpenChange={setDismissDialogOpen}
+        titleName={titleToDismiss?.name || ''}
+        onNotMyTaste={handleNotMyTaste}
+        onSeenIt={handleSeenItFromDismiss}
+        onKeepIt={handleKeepIt}
       />
     </div>
   );
