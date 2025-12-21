@@ -90,14 +90,14 @@ serve(async (req) => {
     const config = (jobData?.configuration as any) || {};
     const batchSize = config.batch_size || BATCH_SIZE;
 
-    // Find titles that need enrichment:
+    // Find titles that need enrichment - PRIORITIZE missing poster_path first
     // - Has tmdb_id (so we can fetch from TMDB)
-    // - Missing overview OR poster_path OR trailer_url (NULL or empty string)
+    // - Missing poster_path (highest priority), then overview, then trailer_url
     const { data: titlesToEnrich, error: fetchError } = await supabase
       .from('titles')
       .select('id, tmdb_id, title_type, name, overview, poster_path, trailer_url, backdrop_path')
       .not('tmdb_id', 'is', null)
-      .or('overview.is.null,overview.eq.,poster_path.is.null,poster_path.eq.,trailer_url.is.null,trailer_url.eq.')
+      .or('poster_path.is.null,poster_path.eq.')
       .order('popularity', { ascending: false, nullsFirst: false })
       .limit(batchSize);
 
@@ -105,17 +105,17 @@ serve(async (req) => {
       throw new Error(`Error fetching titles: ${fetchError.message}`);
     }
 
-    // Filter to only titles that actually need enrichment (handle empty strings too)
+    // Filter to only titles that actually need poster_path enrichment
     const titlesNeedingEnrichment = (titlesToEnrich || []).filter(title => 
-      isEmpty(title.overview) || isEmpty(title.poster_path) || isEmpty(title.trailer_url)
+      isEmpty(title.poster_path)
     );
 
-    // Get count for remaining work
+    // Get count for remaining work (titles missing poster_path)
     const { count: remainingCount } = await supabase
       .from('titles')
       .select('id', { count: 'exact', head: true })
       .not('tmdb_id', 'is', null)
-      .or('overview.is.null,overview.eq.,poster_path.is.null,poster_path.eq.,trailer_url.is.null,trailer_url.eq.');
+      .or('poster_path.is.null,poster_path.eq.');
 
     const isComplete = titlesNeedingEnrichment.length === 0;
 
