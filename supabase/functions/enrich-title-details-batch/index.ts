@@ -573,26 +573,37 @@ serve(async (req) => {
     const totalProcessed = titlesProcessed + seasonsProcessed;
     const totalUpdated = titlesUpdated + seasonsUpdated;
 
-    // Check remaining work
-    const { count: remainingCount } = await supabase
+    // Check remaining work - TITLES
+    const { count: remainingTitles } = await supabase
       .from('titles')
       .select('*', { count: 'exact', head: true })
       .not('tmdb_id', 'is', null)
-      .or('poster_path.is.null,poster_path.eq.,overview.is.null,overview.eq.,trailer_url.is.null,trailer_url.eq.,trailer_transcript.is.null');
+      .or('poster_path.is.null,poster_path.eq.,overview.is.null,overview.eq.,trailer_url.is.null,trailer_url.eq.');
 
-    const { count: remainingTranscripts } = await supabase
+    // Titles with valid trailer but missing transcript
+    const { count: titlesMissingTranscripts } = await supabase
       .from('titles')
       .select('*', { count: 'exact', head: true })
-      .is('trailer_transcript', null)
+      .or('trailer_transcript.is.null,trailer_transcript.eq.')
       .not('trailer_url', 'is', null)
       .neq('trailer_url', '')
       .neq('trailer_url', '[no-trailer]');
 
-    const hasMoreWork = (remainingCount || 0) > 0;
+    // Seasons with valid trailer but missing transcript
+    const { count: seasonsMissingTranscripts } = await supabase
+      .from('seasons')
+      .select('*', { count: 'exact', head: true })
+      .or('trailer_transcript.is.null,trailer_transcript.eq.')
+      .not('trailer_url', 'is', null)
+      .neq('trailer_url', '')
+      .neq('trailer_url', '[no-trailer]');
+
+    const totalMissingTranscripts = (titlesMissingTranscripts || 0) + (seasonsMissingTranscripts || 0);
+    const hasMoreWork = (remainingTitles || 0) > 0 || totalMissingTranscripts > 0;
     const isComplete = !hasMoreWork;
 
     console.log(`Batch completed: ${totalProcessed} processed, ${totalUpdated} updated, ${trailersEnriched} trailers, ${transcriptsEnriched} transcripts, ${errors} errors in ${duration}s`);
-    console.log(`Remaining: ${remainingCount} titles, ${remainingTranscripts} missing transcripts`);
+    console.log(`Remaining: ${remainingTitles} titles needing enrichment, ${totalMissingTranscripts} missing transcripts (${titlesMissingTranscripts} titles + ${seasonsMissingTranscripts} seasons)`);
 
     // Update job status
     if (jobId) {
@@ -656,8 +667,8 @@ serve(async (req) => {
         transcriptsEnriched,
         errors,
         duration_seconds: duration,
-        remaining: remainingCount || 0,
-        missingTranscripts: remainingTranscripts || 0,
+        remaining: remainingTitles || 0,
+        missingTranscripts: totalMissingTranscripts,
         isComplete,
         youtubeQuotaExceeded,
         supadataLimitExceeded
