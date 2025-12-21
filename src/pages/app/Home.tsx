@@ -147,6 +147,8 @@ const Home = () => {
     // Check if already in watchlist
     if (userWatchlist.has(titleId)) {
       toast.info('Already in your watchlist');
+      // Still remove from recommendations since it's already saved
+      setRecommendations((prev) => prev.filter((t) => t.id !== titleId));
       return;
     }
 
@@ -161,12 +163,14 @@ const Home = () => {
         // Unique constraint violation - already exists
         toast.info('Already in your watchlist');
         setUserWatchlist(prev => new Set(prev).add(titleId));
+        setRecommendations((prev) => prev.filter((t) => t.id !== titleId));
       } else {
         toast.error('Failed to add to watchlist');
       }
     } else {
       toast.success('Added to watchlist');
       setUserWatchlist(prev => new Set(prev).add(titleId));
+      setRecommendations((prev) => prev.filter((t) => t.id !== titleId));
     }
   };
 
