@@ -297,19 +297,30 @@ serve(async (req) => {
     if (hasMore) {
       console.log(`More work remaining (emotions: ${remainingEmotions}, intents: ${remainingIntents}). Self-invoking...`);
       
-      // AWAIT the self-invoke to ensure it completes before function terminates
+      // Use AbortController to fire request and abort after connection is established
+      // This ensures the request is sent without waiting for the full response (which times out)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 500); // 500ms is enough to establish connection
+      
       try {
-        const response = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/promote-title-ai`, {
+        await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/promote-title-ai`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
           },
           body: JSON.stringify({}),
+          signal: controller.signal,
         });
-        console.log(`Self-invoke response: ${response.status}`);
-      } catch (err) {
-        console.error("Self-invoke failed:", err);
+        console.log("Self-invoke request sent");
+      } catch (err: any) {
+        if (err.name === "AbortError") {
+          console.log("Self-invoke request sent (aborted after connection)");
+        } else {
+          console.error("Self-invoke failed:", err);
+        }
+      } finally {
+        clearTimeout(timeoutId);
       }
     }
 
