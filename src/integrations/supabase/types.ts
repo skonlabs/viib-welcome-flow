@@ -2077,6 +2077,10 @@ export type Database = {
       refresh_title_social_summary: { Args: never; Returns: undefined }
       refresh_title_transformation_scores: { Args: never; Returns: undefined }
       refresh_viib_reco_materializations: { Args: never; Returns: undefined }
+      refresh_viib_title_intent_stats: {
+        Args: { p_title_id: string }
+        Returns: undefined
+      }
       run_cron_job_now: { Args: { p_command: string }; Returns: undefined }
       store_user_emotion_vector: {
         Args: {
