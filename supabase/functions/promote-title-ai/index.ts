@@ -187,9 +187,20 @@ serve(async (req) => {
       // Delete existing emotions for these titles (in chunks)
       await deleteInChunks(supabase, "viib_emotion_classified_titles", titleIdsWithEmotions);
 
+      // DEDUPLICATE: Keep only one row per (title_id, emotion_id) - take highest intensity
+      const emotionMap = new Map<string, EmotionRow>();
+      for (const r of emotionRows) {
+        const key = `${r.title_id}:${r.emotion_id}`;
+        const existing = emotionMap.get(key);
+        if (!existing || r.intensity_level > existing.intensity_level) {
+          emotionMap.set(key, r);
+        }
+      }
+      const dedupedEmotions = [...emotionMap.values()];
+
       // Insert new emotions in chunks
       const now = new Date().toISOString();
-      const emotionInserts = emotionRows.map(r => ({
+      const emotionInserts = dedupedEmotions.map(r => ({
         title_id: r.title_id,
         emotion_id: r.emotion_id,
         intensity_level: r.intensity_level,
@@ -207,7 +218,7 @@ serve(async (req) => {
         if (insEmErr) throw new Error(`Failed to insert emotions chunk ${i}: ${insEmErr.message}`);
       }
       promotedEmotions = emotionInserts.length;
-      console.log(`Promoted ${promotedEmotions} emotion rows for ${titleIdsWithEmotions.length} titles`);
+      console.log(`Promoted ${promotedEmotions} emotion rows (deduped) for ${titleIdsWithEmotions.length} titles`);
     }
 
     // --------------------------------------------------
@@ -220,9 +231,20 @@ serve(async (req) => {
       // Delete existing intents for these titles (in chunks)
       await deleteInChunks(supabase, "viib_intent_classified_titles", titleIdsWithIntents);
 
+      // DEDUPLICATE: Keep only one row per (title_id, intent_type) - take highest confidence
+      const intentMap = new Map<string, IntentRow>();
+      for (const r of intentRows) {
+        const key = `${r.title_id}:${r.intent_type}`;
+        const existing = intentMap.get(key);
+        if (!existing || r.confidence_score > existing.confidence_score) {
+          intentMap.set(key, r);
+        }
+      }
+      const dedupedIntents = [...intentMap.values()];
+
       // Insert new intents in chunks
       const now = new Date().toISOString();
-      const intentInserts = intentRows.map(r => ({
+      const intentInserts = dedupedIntents.map(r => ({
         title_id: r.title_id,
         intent_type: r.intent_type,
         confidence_score: r.confidence_score,
@@ -240,7 +262,7 @@ serve(async (req) => {
         if (insIntErr) throw new Error(`Failed to insert intents chunk ${i}: ${insIntErr.message}`);
       }
       promotedIntents = intentInserts.length;
-      console.log(`Promoted ${promotedIntents} intent rows for ${titleIdsWithIntents.length} titles`);
+      console.log(`Promoted ${promotedIntents} intent rows (deduped) for ${titleIdsWithIntents.length} titles`);
     }
 
     // --------------------------------------------------
