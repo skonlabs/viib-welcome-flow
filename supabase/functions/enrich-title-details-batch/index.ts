@@ -95,7 +95,7 @@ serve(async (req) => {
     // - Missing overview OR poster_path OR trailer_url (NULL or empty string)
     const { data: titlesToEnrich, error: fetchError } = await supabase
       .from('titles')
-      .select('id, tmdb_id, title_type, name, overview, poster_path, trailer_url')
+      .select('id, tmdb_id, title_type, name, overview, poster_path, trailer_url, backdrop_path')
       .not('tmdb_id', 'is', null)
       .or('overview.is.null,overview.eq.,poster_path.is.null,poster_path.eq.,trailer_url.is.null,trailer_url.eq.')
       .order('popularity', { ascending: false, nullsFirst: false })
@@ -175,12 +175,11 @@ serve(async (req) => {
         const updates: string[] = [];
 
         // Fetch details from TMDB
-        const detailsRes = await fetch(
-          `${TMDB_BASE_URL}/${endpoint}/${title.tmdb_id}?api_key=${TMDB_API_KEY}&append_to_response=videos`
-        );
+        const tmdbUrl = `${TMDB_BASE_URL}/${endpoint}/${title.tmdb_id}?api_key=${TMDB_API_KEY}&append_to_response=videos`;
+        const detailsRes = await fetch(tmdbUrl);
 
         if (!detailsRes.ok) {
-          console.error(`TMDB API error for ${title.name}: ${detailsRes.status}`);
+          console.error(`TMDB API error for ${title.name} (tmdb_id: ${title.tmdb_id}): ${detailsRes.status}`);
           errors++;
           processed++;
           continue;
@@ -188,16 +187,27 @@ serve(async (req) => {
 
         const details = await detailsRes.json();
 
-        // Update overview if missing/empty
-        if (isEmpty(title.overview) && details.overview) {
-          updateData.overview = details.overview;
-          updates.push('overview');
+        // Log what TMDB returned for debugging
+        console.log(`TMDB response for ${title.name}: poster=${details.poster_path || 'null'}, overview=${details.overview ? 'yes' : 'null'}, videos=${details.videos?.results?.length || 0}`);
+
+        // Update overview if missing/empty - always update from TMDB if we have data
+        if (isEmpty(title.overview)) {
+          if (details.overview) {
+            updateData.overview = details.overview;
+            updates.push('overview');
+          } else {
+            console.log(`  No overview from TMDB for ${title.name}`);
+          }
         }
 
-        // Update poster_path if missing/empty
-        if (isEmpty(title.poster_path) && details.poster_path) {
-          updateData.poster_path = details.poster_path;
-          updates.push('poster');
+        // Update poster_path if missing/empty - always update from TMDB if we have data
+        if (isEmpty(title.poster_path)) {
+          if (details.poster_path) {
+            updateData.poster_path = details.poster_path;
+            updates.push('poster');
+          } else {
+            console.log(`  No poster_path from TMDB for ${title.name}`);
+          }
         }
 
         // Update trailer_url if missing/empty
@@ -212,13 +222,14 @@ serve(async (req) => {
             updateData.is_tmdb_trailer = true;
             updates.push('trailer');
           } else {
-            // No trailer found - set is_tmdb_trailer to NULL
+            // No trailer found - set is_tmdb_trailer to NULL to mark as checked
             updateData.is_tmdb_trailer = null;
+            console.log(`  No trailer from TMDB for ${title.name}`);
           }
         }
 
-        // Also grab backdrop if available
-        if (details.backdrop_path) {
+        // Also grab backdrop if available and missing
+        if (!title.backdrop_path && details.backdrop_path) {
           updateData.backdrop_path = details.backdrop_path;
         }
 
@@ -230,6 +241,22 @@ serve(async (req) => {
         // Update episode_run_time for TV
         if (title.title_type === 'tv' && details.episode_run_time?.length > 0) {
           updateData.episode_run_time = details.episode_run_time;
+        }
+
+        // If we couldn't get ANY of the 3 required fields from TMDB, we need to mark
+        // this title so we don't keep retrying it. Set placeholder values.
+        const gotOverview = !isEmpty(title.overview) || details.overview;
+        const gotPoster = !isEmpty(title.poster_path) || details.poster_path;
+        const gotTrailer = !isEmpty(title.trailer_url) || details.videos?.results?.find((v: any) => v.type === 'Trailer' && v.site === 'YouTube');
+
+        // If TMDB has no data for a field, mark it with a placeholder so we stop querying
+        if (isEmpty(title.overview) && !details.overview) {
+          updateData.overview = '[No overview available]';
+          updates.push('overview-placeholder');
+        }
+        if (isEmpty(title.poster_path) && !details.poster_path) {
+          updateData.poster_path = '/no-poster';
+          updates.push('poster-placeholder');
         }
 
         // Always update if we have changes
@@ -246,10 +273,10 @@ serve(async (req) => {
             errors++;
           } else {
             updated++;
-            if (updates.length > 0) {
-              console.log(`✓ ${title.name}: ${updates.join(', ')}`);
-            }
+            console.log(`✓ Updated ${title.name}: ${updates.join(', ')}`);
           }
+        } else {
+          console.log(`  No updates needed for ${title.name}`);
         }
 
         processed++;
