@@ -71,6 +71,7 @@ interface EnrichMetrics {
   pendingPoster: number;
   pendingOverview: number;
   pendingTrailer: number;
+  pendingTranscript: number;
   totalPending: number;
 }
 
@@ -129,7 +130,7 @@ export const Jobs = () => {
     try {
       // Fetch counts for titles needing enrichment
       // Check for both NULL and empty strings (both are considered "missing")
-      const [posterResult, overviewResult, trailerResult] = await Promise.all([
+      const [posterResult, overviewResult, trailerResult, transcriptResult] = await Promise.all([
         supabase
           .from('titles')
           .select('id', { count: 'exact', head: true })
@@ -145,11 +146,20 @@ export const Jobs = () => {
           .select('id', { count: 'exact', head: true })
           .not('tmdb_id', 'is', null)
           .or('trailer_url.is.null,trailer_url.eq.'),
+        // Missing transcript: has valid YouTube trailer but no transcript
+        supabase
+          .from('titles')
+          .select('id', { count: 'exact', head: true })
+          .is('trailer_transcript', null)
+          .not('trailer_url', 'is', null)
+          .neq('trailer_url', '')
+          .neq('trailer_url', '[no-trailer]'),
       ]);
 
       const pendingPoster = posterResult.count || 0;
       const pendingOverview = overviewResult.count || 0;
       const pendingTrailer = trailerResult.count || 0;
+      const pendingTranscript = transcriptResult.count || 0;
 
       // Estimate total pending (max of the three since some titles may be missing multiple fields)
       const totalPending = Math.max(pendingPoster, pendingOverview, pendingTrailer);
@@ -158,6 +168,7 @@ export const Jobs = () => {
         pendingPoster,
         pendingOverview,
         pendingTrailer,
+        pendingTranscript,
         totalPending,
       });
     } catch (error) {
@@ -1324,7 +1335,7 @@ export const Jobs = () => {
               {job.job_type === 'enrich_details' && (
                 <div className="space-y-3">
                   {/* Enrich metrics grid */}
-                  <div className="grid grid-cols-4 gap-3 text-sm bg-muted/50 rounded-lg p-3">
+                  <div className="grid grid-cols-5 gap-3 text-sm bg-muted/50 rounded-lg p-3">
                     <div className="text-center">
                       <div className="text-2xl font-bold text-green-500">{job.total_titles_processed.toLocaleString()}</div>
                       <div className="text-xs text-muted-foreground">Enriched (Run)</div>
@@ -1340,6 +1351,10 @@ export const Jobs = () => {
                     <div className="text-center">
                       <div className="text-2xl font-bold text-yellow-500">{(enrichMetrics?.pendingTrailer ?? 0).toLocaleString()}</div>
                       <div className="text-xs text-muted-foreground">Missing Trailer</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-purple-500">{(enrichMetrics?.pendingTranscript ?? 0).toLocaleString()}</div>
+                      <div className="text-xs text-muted-foreground">Missing Transcript</div>
                     </div>
                   </div>
                   {/* Last run info */}
