@@ -15,6 +15,11 @@ const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
 const MAX_RUNTIME_MS = 55000; // 55 seconds
 const BATCH_SIZE = 50;
 
+// Helper to check if a string is empty/null/whitespace
+function isEmpty(value: string | null | undefined): boolean {
+  return !value || value.trim() === '';
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -85,65 +90,34 @@ serve(async (req) => {
     const config = (jobData?.configuration as any) || {};
     const batchSize = config.batch_size || BATCH_SIZE;
 
-    // Find titles that ACTUALLY need enrichment:
+    // Find titles that need enrichment:
     // - Has tmdb_id (so we can fetch from TMDB)
-    // - Missing poster_path (we need to get poster)
-    // Priority by popularity to handle most important titles first
-    const { data: titlesNeedingPoster, error: posterError } = await supabase
+    // - Missing overview OR poster_path OR trailer_url (any of the 3)
+    const { data: titlesToEnrich, error: fetchError } = await supabase
       .from('titles')
-      .select('id, tmdb_id, title_type, name, poster_path, trailer_url')
+      .select('id, tmdb_id, title_type, name, overview, poster_path, trailer_url')
       .not('tmdb_id', 'is', null)
-      .is('poster_path', null)
+      .or('overview.is.null,poster_path.is.null,trailer_url.is.null')
       .order('popularity', { ascending: false, nullsFirst: false })
       .limit(batchSize);
 
-    if (posterError) {
-      throw new Error(`Error fetching titles needing poster: ${posterError.message}`);
+    if (fetchError) {
+      throw new Error(`Error fetching titles: ${fetchError.message}`);
     }
 
-    // Also find titles missing trailer_url (separately, to not mix concerns)
-    // Only if we have room in this batch
-    const remainingBatchSize = batchSize - (titlesNeedingPoster?.length || 0);
-    let titlesNeedingTrailer: any[] = [];
-    
-    if (remainingBatchSize > 0) {
-      const { data: trailerTitles, error: trailerError } = await supabase
-        .from('titles')
-        .select('id, tmdb_id, title_type, name, poster_path, trailer_url')
-        .not('tmdb_id', 'is', null)
-        .not('poster_path', 'is', null) // Already has poster
-        .is('trailer_url', null) // Missing trailer
-        .is('is_tmdb_trailer', null) // Haven't checked TMDB yet for trailer
-        .order('popularity', { ascending: false, nullsFirst: false })
-        .limit(remainingBatchSize);
+    // Filter to only titles that actually need enrichment (handle empty strings too)
+    const titlesNeedingEnrichment = (titlesToEnrich || []).filter(title => 
+      isEmpty(title.overview) || isEmpty(title.poster_path) || isEmpty(title.trailer_url)
+    );
 
-      if (trailerError) {
-        console.error(`Error fetching titles needing trailer: ${trailerError.message}`);
-      } else {
-        titlesNeedingTrailer = trailerTitles || [];
-      }
-    }
-
-    // Combine the lists (posters first, then trailers)
-    const titlesToEnrich = [...(titlesNeedingPoster || []), ...titlesNeedingTrailer];
-
-    // Get counts for remaining work
-    const { count: remainingPosterCount } = await supabase
+    // Get count for remaining work
+    const { count: remainingCount } = await supabase
       .from('titles')
       .select('id', { count: 'exact', head: true })
       .not('tmdb_id', 'is', null)
-      .is('poster_path', null);
+      .or('overview.is.null,poster_path.is.null,trailer_url.is.null');
 
-    const { count: remainingTrailerCount } = await supabase
-      .from('titles')
-      .select('id', { count: 'exact', head: true })
-      .not('tmdb_id', 'is', null)
-      .not('poster_path', 'is', null)
-      .is('trailer_url', null)
-      .is('is_tmdb_trailer', null);
-
-    const totalRemaining = (remainingPosterCount || 0) + (remainingTrailerCount || 0);
-    const isComplete = titlesToEnrich.length === 0;
+    const isComplete = titlesNeedingEnrichment.length === 0;
 
     if (isComplete) {
       console.log('No titles need enrichment - job complete');
@@ -166,15 +140,14 @@ serve(async (req) => {
       );
     }
 
-    console.log(`Found ${titlesToEnrich.length} titles to enrich (${remainingPosterCount || 0} need poster, ${remainingTrailerCount || 0} need trailer check)`);
+    console.log(`Found ${titlesNeedingEnrichment.length} titles to enrich (${remainingCount || 0} total remaining)`);
 
     let processed = 0;
-    let postersUpdated = 0;
-    let trailersUpdated = 0;
+    let updated = 0;
     let errors = 0;
     let wasStoppedByUser = false;
 
-    for (const title of titlesToEnrich) {
+    for (const title of titlesNeedingEnrichment) {
       // Check runtime limit
       if (Date.now() - startTime > MAX_RUNTIME_MS) {
         console.log(`Stopping due to runtime limit. Processed: ${processed}`);
@@ -199,83 +172,64 @@ serve(async (req) => {
       try {
         const endpoint = title.title_type === 'movie' ? 'movie' : 'tv';
         const updateData: Record<string, any> = {};
-        let needsTmdbCall = false;
+        const updates: string[] = [];
 
-        // Determine what we need from TMDB
-        const needsPoster = !title.poster_path;
-        const needsTrailer = !title.trailer_url;
+        // Fetch details from TMDB
+        const detailsRes = await fetch(
+          `${TMDB_BASE_URL}/${endpoint}/${title.tmdb_id}?api_key=${TMDB_API_KEY}&append_to_response=videos`
+        );
 
-        if (needsPoster || needsTrailer) {
-          needsTmdbCall = true;
-        }
-
-        if (!needsTmdbCall) {
+        if (!detailsRes.ok) {
+          console.error(`TMDB API error for ${title.name}: ${detailsRes.status}`);
+          errors++;
           processed++;
           continue;
         }
 
-        // Fetch details from TMDB (only if we need poster or other metadata)
-        if (needsPoster) {
-          const detailsRes = await fetch(
-            `${TMDB_BASE_URL}/${endpoint}/${title.tmdb_id}?api_key=${TMDB_API_KEY}`
+        const details = await detailsRes.json();
+
+        // Update overview if missing/empty
+        if (isEmpty(title.overview) && details.overview) {
+          updateData.overview = details.overview;
+          updates.push('overview');
+        }
+
+        // Update poster_path if missing/empty
+        if (isEmpty(title.poster_path) && details.poster_path) {
+          updateData.poster_path = details.poster_path;
+          updates.push('poster');
+        }
+
+        // Update trailer_url if missing/empty
+        if (isEmpty(title.trailer_url)) {
+          // Look for trailer in the videos response
+          const trailer = details.videos?.results?.find(
+            (v: any) => v.type === 'Trailer' && v.site === 'YouTube'
           );
-
-          if (!detailsRes.ok) {
-            console.error(`TMDB API error for ${title.name}: ${detailsRes.status}`);
-            errors++;
-            processed++;
-            continue;
-          }
-
-          const details = await detailsRes.json();
-
-          // Update poster_path if missing and available
-          if (!title.poster_path && details.poster_path) {
-            updateData.poster_path = details.poster_path;
-            postersUpdated++;
-            console.log(`✓ Poster: ${title.name}`);
-          }
-
-          // Also grab backdrop if available
-          if (details.backdrop_path) {
-            updateData.backdrop_path = details.backdrop_path;
-          }
-
-          // Update runtime for movies
-          if (title.title_type === 'movie' && details.runtime) {
-            updateData.runtime = details.runtime;
-          }
-
-          // Update episode_run_time for TV
-          if (title.title_type === 'tv' && details.episode_run_time?.length > 0) {
-            updateData.episode_run_time = details.episode_run_time;
+          
+          if (trailer) {
+            updateData.trailer_url = `https://www.youtube.com/watch?v=${trailer.key}`;
+            updateData.is_tmdb_trailer = true;
+            updates.push('trailer');
+          } else {
+            // No trailer found - set is_tmdb_trailer to NULL
+            updateData.is_tmdb_trailer = null;
           }
         }
 
-        // Fetch trailer if missing (separate API call to videos endpoint)
-        if (needsTrailer) {
-          const videosRes = await fetch(
-            `${TMDB_BASE_URL}/${endpoint}/${title.tmdb_id}/videos?api_key=${TMDB_API_KEY}`
-          );
+        // Also grab backdrop if available
+        if (details.backdrop_path) {
+          updateData.backdrop_path = details.backdrop_path;
+        }
 
-          if (videosRes.ok) {
-            const videosData = await videosRes.json();
-            const trailer = videosData.results?.find(
-              (v: any) => v.type === 'Trailer' && v.site === 'YouTube'
-            );
-            
-            if (trailer) {
-              updateData.trailer_url = `https://www.youtube.com/watch?v=${trailer.key}`;
-              updateData.is_tmdb_trailer = true;
-              trailersUpdated++;
-              console.log(`✓ Trailer: ${title.name}`);
-            } else {
-              // Mark that we checked TMDB but no trailer found
-              // This prevents re-checking this title
-              updateData.is_tmdb_trailer = false;
-              console.log(`○ No TMDB trailer: ${title.name}`);
-            }
-          }
+        // Update runtime for movies
+        if (title.title_type === 'movie' && details.runtime) {
+          updateData.runtime = details.runtime;
+        }
+
+        // Update episode_run_time for TV
+        if (title.title_type === 'tv' && details.episode_run_time?.length > 0) {
+          updateData.episode_run_time = details.episode_run_time;
         }
 
         // Always update if we have changes
@@ -290,6 +244,11 @@ serve(async (req) => {
           if (updateError) {
             console.error(`Error updating ${title.name}:`, updateError);
             errors++;
+          } else {
+            updated++;
+            if (updates.length > 0) {
+              console.log(`✓ ${title.name}: ${updates.join(', ')}`);
+            }
           }
         }
 
@@ -306,10 +265,10 @@ serve(async (req) => {
     }
 
     const duration = Math.round((Date.now() - startTime) / 1000);
-    const moreRemaining = totalRemaining - processed > 0;
+    const moreRemaining = (remainingCount || 0) - processed > 0;
     
-    console.log(`Batch completed: ${processed} processed, ${postersUpdated} posters, ${trailersUpdated} trailers, ${errors} errors in ${duration}s`);
-    console.log(`Remaining: ~${totalRemaining - processed} titles`);
+    console.log(`Batch completed: ${processed} processed, ${updated} updated, ${errors} errors in ${duration}s`);
+    console.log(`Remaining: ~${(remainingCount || 0) - processed} titles`);
 
     // Update job status
     if (jobId) {
@@ -323,11 +282,10 @@ serve(async (req) => {
         .eq('id', jobId);
 
       // Increment counter
-      const totalUpdated = postersUpdated + trailersUpdated;
-      if (totalUpdated > 0) {
+      if (updated > 0) {
         await supabase.rpc('increment_job_titles', { 
           p_job_type: 'enrich_details', 
-          p_increment: totalUpdated 
+          p_increment: updated 
         });
       }
     }
@@ -375,12 +333,10 @@ serve(async (req) => {
       JSON.stringify({
         success: true,
         processed,
-        postersUpdated,
-        trailersUpdated,
+        updated,
         errors,
         duration_seconds: duration,
-        remainingPosters: (remainingPosterCount || 0) - postersUpdated,
-        remainingTrailers: (remainingTrailerCount || 0),
+        remaining: (remainingCount || 0) - processed,
         isComplete: !moreRemaining,
         message: moreRemaining ? 'Batch completed, more work remaining' : 'All titles enriched'
       }),
