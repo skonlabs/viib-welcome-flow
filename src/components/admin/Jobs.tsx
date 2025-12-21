@@ -16,6 +16,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Calendar } from "@/components/ui/calendar";
@@ -86,6 +96,7 @@ export const Jobs = () => {
   const [parallelProgress, setParallelProgress] = useState<ParallelProgress | null>(null);
   const [jobMetrics, setJobMetrics] = useState<JobMetrics | null>(null);
   const [enrichMetrics, setEnrichMetrics] = useState<EnrichMetrics | null>(null);
+  const [jobToStop, setJobToStop] = useState<Job | null>(null);
   const { toast } = useToast();
 
   const fetchJobMetrics = async () => {
@@ -828,13 +839,18 @@ export const Jobs = () => {
 
   const handleStopJob = async (job: Job) => {
     try {
+      // Log that stop was initiated with timestamp and stack trace for debugging
+      const stopTimestamp = new Date().toISOString();
+      console.log(`[${stopTimestamp}] handleStopJob called for job: ${job.job_name} (${job.id})`);
+      console.log('Stop job call stack:', new Error().stack);
+      
       // Stop the job - use 'idle' status (allowed by check constraint)
       const { data, error } = await supabase
         .from('jobs')
         .update({ 
           status: 'idle',
           is_active: false,
-          error_message: 'Job manually stopped by administrator'
+          error_message: `Job manually stopped by administrator at ${stopTimestamp}`
         })
         .eq('id', job.id)
         .select();
@@ -849,10 +865,11 @@ export const Jobs = () => {
         throw new Error('Update failed - no rows modified');
       }
 
-      console.log('Job stopped successfully:', data);
+      console.log(`[${stopTimestamp}] Job stopped successfully:`, data);
 
       // Clear parallel progress UI immediately
       setParallelProgress(null);
+      setJobToStop(null);
 
       toast({
         title: "Job Stopped",
@@ -872,7 +889,12 @@ export const Jobs = () => {
         description: error?.message || "Failed to stop job. Please try again.",
         variant: "destructive",
       });
+      setJobToStop(null);
     }
+  };
+
+  const confirmStopJob = (job: Job) => {
+    setJobToStop(job);
   };
 
   const handleResumeJob = async (job: Job) => {
@@ -1207,6 +1229,27 @@ export const Jobs = () => {
 
   return (
     <div className="space-y-6">
+      {/* Stop Job Confirmation Dialog */}
+      <AlertDialog open={!!jobToStop} onOpenChange={(open) => !open && setJobToStop(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Stop Job?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to stop "{jobToStop?.job_name}"? 
+              This will halt all processing and you'll need to restart it manually.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => jobToStop && handleStopJob(jobToStop)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Stop Job
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Jobs</h2>
@@ -1446,7 +1489,7 @@ export const Jobs = () => {
               <div className="flex gap-2 pt-2">
                 {job.status === 'running' ? (
                   <Button
-                    onClick={() => handleStopJob(job)}
+                    onClick={() => confirmStopJob(job)}
                     variant="destructive"
                     className="flex-1"
                   >
