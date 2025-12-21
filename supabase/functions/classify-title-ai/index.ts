@@ -427,9 +427,19 @@ async function processClassificationBatch(): Promise<{ processed: number; hasMor
 
   // Step 5: 🔥 Process batch with AI (OPTIMIZED with allSettled + retry)
   const aiStartTime = Date.now();
+  let aiFailures = 0;
+  let emptyResults = 0;
+
   const results = await runWithConcurrency(batch as TitleRow[], CONCURRENT_AI_CALLS, async (title) => {
     const result = await classifyWithRetry(title, emotionLabels);
-    if (!result) throw new Error(`AI classification failed for ${title.id}`);
+    if (!result) {
+      console.warn(`⚠️ AI returned null for: ${title.id} (${title.name || 'no name'})`);
+      throw new Error(`AI classification failed for ${title.id}`);
+    }
+    // Log if AI returns empty arrays (titles with no content)
+    if ((!result.emotions || result.emotions.length === 0) && (!result.intents || result.intents.length === 0)) {
+      console.warn(`⚠️ AI returned empty for: ${title.id} (${title.name || 'no name'}) - overview: ${(title.overview || '').slice(0, 50) || '(empty)'}`);
+    }
     return { title, result };
   });
 
@@ -441,20 +451,53 @@ async function processClassificationBatch(): Promise<{ processed: number; hasMor
   const allIntents: ProcessedResult["intents"] = [];
   let successCount = 0;
   let lastProcessedId = cursor;
+  const processedTitleIds: string[] = [];
 
   for (const settledResult of results) {
     if (settledResult.status === "fulfilled") {
       const { title, result } = settledResult.value;
       const processed = prepareInsertData(title.id, result, emotionLabelToId, emotionLabels);
 
+      // Count as success even if empty (to track progress and avoid re-processing)
       if (processed.emotions.length > 0 || processed.intents.length > 0) {
         allEmotions.push(...processed.emotions);
         allIntents.push(...processed.intents);
         successCount++;
-        lastProcessedId = title.id;
+      } else {
+        emptyResults++;
+        // Still mark as processed to avoid infinite loop
+        console.log(`📝 Marking ${title.id} (${title.name}) as processed despite empty AI result`);
       }
+      processedTitleIds.push(title.id);
+      lastProcessedId = title.id;
     } else {
+      aiFailures++;
       console.error("❌ Processing failed:", settledResult.reason);
+    }
+  }
+
+  console.log(`📊 Batch stats: ${successCount} success, ${emptyResults} empty, ${aiFailures} failures`);
+
+  // Step 6b: Mark empty-result titles as classified to avoid re-processing
+  if (emptyResults > 0) {
+    const emptyTitleIds = processedTitleIds.filter(id => 
+      !allEmotions.some(e => e.title_id === id) && !allIntents.some(i => i.title_id === id)
+    );
+    
+    if (emptyTitleIds.length > 0) {
+      // Insert placeholder emotions for titles with empty results
+      const placeholderEmotions = emptyTitleIds.map(titleId => ({
+        title_id: titleId,
+        emotion_id: emotionLabelToId.get(emotionLabels[0])!, // Use first emotion as placeholder
+        intensity_level: 1,
+        source: "ai_empty",
+      }));
+      
+      await supabase
+        .from("viib_emotion_classified_titles_staging")
+        .upsert(placeholderEmotions, { onConflict: "title_id,emotion_id", ignoreDuplicates: true });
+      
+      console.log(`📝 Inserted ${emptyTitleIds.length} placeholder emotions for empty AI results`);
     }
   }
 
