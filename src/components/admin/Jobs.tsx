@@ -146,14 +146,13 @@ export const Jobs = () => {
           .select('id', { count: 'exact', head: true })
           .not('tmdb_id', 'is', null)
           .or('trailer_url.is.null,trailer_url.eq.'),
-        // Missing transcript: has YouTube trailer (not TMDB) but no transcript
+        // Missing transcript: has valid trailer URL but no transcript
         supabase
           .from('titles')
           .select('id', { count: 'exact', head: true })
           .not('trailer_url', 'is', null)
           .neq('trailer_url', '')
           .neq('trailer_url', '[no-trailer]')
-          .neq('is_tmdb_trailer', true)
           .or('trailer_transcript.is.null,trailer_transcript.eq.'),
       ]);
 
