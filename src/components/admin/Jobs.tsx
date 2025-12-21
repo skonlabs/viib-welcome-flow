@@ -129,26 +129,37 @@ export const Jobs = () => {
   const fetchEnrichMetrics = async () => {
     try {
       // Fetch counts for titles needing enrichment
-      // Check for both NULL and empty strings (both are considered "missing")
-      const [posterResult, overviewResult, trailerResult, transcriptResult] = await Promise.all([
+      // Check for both NULL and empty strings, but EXCLUDE placeholders that mark "checked but unavailable"
+      const [posterResult, overviewResult, trailerResult, transcriptTitlesResult, transcriptSeasonsResult] = await Promise.all([
+        // Poster: NULL or empty, exclude [no-poster] placeholder
         supabase
           .from('titles')
           .select('id', { count: 'exact', head: true })
           .not('tmdb_id', 'is', null)
           .or('poster_path.is.null,poster_path.eq.'),
+        // Overview: NULL or empty, exclude [no-overview] placeholder  
         supabase
           .from('titles')
           .select('id', { count: 'exact', head: true })
           .not('tmdb_id', 'is', null)
           .or('overview.is.null,overview.eq.'),
+        // Trailer: NULL or empty, exclude [no-trailer] placeholder
         supabase
           .from('titles')
           .select('id', { count: 'exact', head: true })
           .not('tmdb_id', 'is', null)
           .or('trailer_url.is.null,trailer_url.eq.'),
-        // Missing transcript: transcript is null/empty AND has valid trailer URL
+        // Missing transcript for TITLES: transcript is null/empty AND has valid trailer URL
         supabase
           .from('titles')
+          .select('id', { count: 'exact', head: true })
+          .or('trailer_transcript.is.null,trailer_transcript.eq.')
+          .not('trailer_url', 'is', null)
+          .neq('trailer_url', '')
+          .neq('trailer_url', '[no-trailer]'),
+        // Missing transcript for SEASONS: transcript is null/empty AND has valid trailer URL
+        supabase
+          .from('seasons')
           .select('id', { count: 'exact', head: true })
           .or('trailer_transcript.is.null,trailer_transcript.eq.')
           .not('trailer_url', 'is', null)
@@ -159,7 +170,9 @@ export const Jobs = () => {
       const pendingPoster = posterResult.count || 0;
       const pendingOverview = overviewResult.count || 0;
       const pendingTrailer = trailerResult.count || 0;
-      const pendingTranscript = transcriptResult.count || 0;
+      const pendingTranscriptTitles = transcriptTitlesResult.count || 0;
+      const pendingTranscriptSeasons = transcriptSeasonsResult.count || 0;
+      const pendingTranscript = pendingTranscriptTitles + pendingTranscriptSeasons;
 
       // Estimate total pending (max of the three since some titles may be missing multiple fields)
       const totalPending = Math.max(pendingPoster, pendingOverview, pendingTrailer);
