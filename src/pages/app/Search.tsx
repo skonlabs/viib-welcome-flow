@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { TitleCard } from "@/components/TitleCard";
+import { RatingDialog } from "@/components/RatingDialog";
 import { Input } from "@/components/ui/input";
+import { useTitleActions } from "@/hooks/useTitleActions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -341,61 +343,22 @@ export default function Search() {
     setSelectedYears([currentYear, currentYear - 1, currentYear - 2]);
   };
 
-  const addToWatchlist = async (tmdbId: string, seasonNumber?: number) => {
-    if (!user) {
-      toast.error("Please sign in to add to watchlist");
-      return;
-    }
+  const {
+    addToWatchlistByTmdb,
+    openRatingDialog,
+    handleRating,
+    handleRatingByTmdb,
+    ratingDialogOpen,
+    setRatingDialogOpen,
+    titleToRate,
+  } = useTitleActions();
 
-    try {
-      // First, look up the title in our database by tmdb_id
-      const { data: existingTitle } = await supabase
-        .from('titles')
-        .select('id')
-        .eq('tmdb_id', parseInt(tmdbId))
-        .maybeSingle();
+  const handleAddToWatchlist = async (tmdbId: string, seasonNumber?: number) => {
+    await addToWatchlistByTmdb(tmdbId, seasonNumber);
+  };
 
-      if (!existingTitle) {
-        toast.error("This title is not yet in our catalog. Try searching from our synced titles.");
-        return;
-      }
-
-      // Check if already in watchlist (with same season_number if applicable)
-      let existingQuery = supabase
-        .from('user_title_interactions')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('title_id', existingTitle.id)
-        .eq('interaction_type', 'wishlisted');
-
-      if (seasonNumber) {
-        existingQuery = existingQuery.eq('season_number', seasonNumber);
-      } else {
-        existingQuery = existingQuery.is('season_number', null);
-      }
-
-      const { data: existing } = await existingQuery.maybeSingle();
-
-      if (existing) {
-        toast.info("Already in your watchlist");
-        return;
-      }
-
-      const { error } = await supabase
-        .from('user_title_interactions')
-        .insert({
-          user_id: user.id,
-          title_id: existingTitle.id,
-          interaction_type: 'wishlisted',
-          season_number: seasonNumber || null
-        });
-
-      if (error) throw error;
-      toast.success(seasonNumber ? `Season ${seasonNumber} added to watchlist!` : "Added to watchlist!");
-    } catch (error) {
-      console.error('Failed to add to watchlist:', error);
-      toast.error("Failed to add to watchlist");
-    }
+  const handleMarkAsWatched = (tmdbId: string, titleName: string) => {
+    handleRatingByTmdb(tmdbId, titleName);
   };
 
   return (
@@ -684,7 +647,8 @@ export default function Search() {
                 setDetailsOpen(true);
               }}
               actions={title.type === 'movie' ? {
-                onWatchlist: () => addToWatchlist(String((title as any).tmdb_id || title.external_id))
+                onWatchlist: () => handleAddToWatchlist(String((title as any).tmdb_id || title.external_id)),
+                onWatched: () => handleMarkAsWatched(String((title as any).tmdb_id || title.external_id), title.title)
               } : undefined}
             />
           ))}
@@ -710,7 +674,14 @@ export default function Search() {
         title={selectedTitle}
         open={detailsOpen}
         onOpenChange={setDetailsOpen}
-        onAddToWatchlist={addToWatchlist}
+        onAddToWatchlist={handleAddToWatchlist}
+      />
+
+      <RatingDialog
+        open={ratingDialogOpen}
+        onOpenChange={setRatingDialogOpen}
+        titleName={titleToRate?.title || ''}
+        onRate={handleRating}
       />
     </div>
   );
