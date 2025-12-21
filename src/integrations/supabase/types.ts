@@ -1082,6 +1082,45 @@ export type Database = {
           },
         ]
       }
+      title_user_emotion_match_cache: {
+        Row: {
+          cosine_score: number
+          title_id: string
+          transformation_score: number | null
+          updated_at: string
+          user_emotion_id: string
+        }
+        Insert: {
+          cosine_score: number
+          title_id: string
+          transformation_score?: number | null
+          updated_at?: string
+          user_emotion_id: string
+        }
+        Update: {
+          cosine_score?: number
+          title_id?: string
+          transformation_score?: number | null
+          updated_at?: string
+          user_emotion_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "title_user_emotion_match_cache_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: false
+            referencedRelation: "titles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "title_user_emotion_match_cache_user_emotion_id_fkey"
+            columns: ["user_emotion_id"]
+            isOneToOne: false
+            referencedRelation: "emotion_master"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       titles: {
         Row: {
           backdrop_path: string | null
@@ -1446,6 +1485,38 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_title_social_scores: {
+        Row: {
+          social_component_score: number
+          social_priority_score: number
+          title_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          social_component_score: number
+          social_priority_score: number
+          title_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          social_component_score?: number
+          social_priority_score?: number
+          title_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_title_social_scores_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: false
+            referencedRelation: "titles"
             referencedColumns: ["id"]
           },
         ]
@@ -2076,6 +2147,14 @@ export type Database = {
       refresh_title_intent_alignment_scores: { Args: never; Returns: undefined }
       refresh_title_social_summary: { Args: never; Returns: undefined }
       refresh_title_transformation_scores: { Args: never; Returns: undefined }
+      refresh_title_user_emotion_match_cache: {
+        Args: never
+        Returns: undefined
+      }
+      refresh_user_title_social_scores_recent_users: {
+        Args: never
+        Returns: undefined
+      }
       refresh_viib_reco_materializations: { Args: never; Returns: undefined }
       refresh_viib_title_intent_stats: {
         Args: { p_title_id: string }
