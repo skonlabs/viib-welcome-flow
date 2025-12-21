@@ -419,9 +419,10 @@ serve(async (req) => {
           }
         }
 
-        // Handle transcript enrichment
+        // Handle transcript enrichment - check for NULL or empty string
         const trailerUrlForTranscript = updateData.trailer_url || title.trailer_url;
-        if (title.trailer_transcript === null && hasValidTrailer(trailerUrlForTranscript) && !supadataLimitExceeded) {
+        const needsTranscript = title.trailer_transcript === null || title.trailer_transcript === '';
+        if (needsTranscript && hasValidTrailer(trailerUrlForTranscript) && !supadataLimitExceeded) {
           const transcript = await getYouTubeTranscript(trailerUrlForTranscript);
           if (transcript) {
             updateData.trailer_transcript = transcript;
@@ -429,8 +430,9 @@ serve(async (req) => {
             transcriptsEnriched++;
             console.log(`  ✓ Transcript: ${transcript.length} chars`);
           } else {
-            updateData.trailer_transcript = '';
-            updates.push('transcript-empty');
+            // Mark as checked so we don't retry endlessly
+            updateData.trailer_transcript = '[no-transcript]';
+            updates.push('transcript-unavailable');
           }
         }
 
@@ -534,17 +536,19 @@ serve(async (req) => {
             }
           }
 
-          // Handle transcript enrichment for season
+          // Handle transcript enrichment for season - check for NULL or empty string
           const trailerUrlForTranscript = updateData.trailer_url || season.trailer_url;
-          if (season.trailer_transcript === null && hasValidTrailer(trailerUrlForTranscript) && !supadataLimitExceeded) {
+          const needsTranscript = season.trailer_transcript === null || season.trailer_transcript === '';
+          if (needsTranscript && hasValidTrailer(trailerUrlForTranscript) && !supadataLimitExceeded) {
             const transcript = await getYouTubeTranscript(trailerUrlForTranscript);
             if (transcript) {
               updateData.trailer_transcript = transcript;
               updates.push('transcript');
               transcriptsEnriched++;
             } else {
-              updateData.trailer_transcript = '';
-              updates.push('transcript-empty');
+              // Mark as checked so we don't retry endlessly
+              updateData.trailer_transcript = '[no-transcript]';
+              updates.push('transcript-unavailable');
             }
           }
 
