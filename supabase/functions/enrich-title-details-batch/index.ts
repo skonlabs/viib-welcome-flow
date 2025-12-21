@@ -271,11 +271,11 @@ serve(async (req) => {
 
         // If TMDB has no data for a field, mark it with a placeholder so we stop querying
         if (isEmpty(title.overview) && !details.overview) {
-          updateData.overview = '[No overview available]';
+          updateData.overview = '[no-overview]';
           updates.push('overview-placeholder');
         }
         if (isEmpty(title.poster_path) && !details.poster_path) {
-          updateData.poster_path = '/no-poster';
+          updateData.poster_path = '[no-poster]';
           updates.push('poster-placeholder');
         }
 
