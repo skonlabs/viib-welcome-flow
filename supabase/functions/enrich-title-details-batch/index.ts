@@ -222,8 +222,10 @@ serve(async (req) => {
             updateData.is_tmdb_trailer = true;
             updates.push('trailer');
           } else {
-            // No trailer found - set is_tmdb_trailer to NULL to mark as checked
+            // No trailer found - set placeholder so we don't keep re-fetching this title
+            updateData.trailer_url = '[no-trailer]';
             updateData.is_tmdb_trailer = null;
+            updates.push('trailer-placeholder');
             console.log(`  No trailer from TMDB for ${title.name}`);
           }
         }
