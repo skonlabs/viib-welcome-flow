@@ -59,8 +59,8 @@ serve(async (req) => {
         .eq('id', jobId)
         .single();
 
-      if (jobCheck?.status === 'stopped' || jobCheck?.status === 'idle' || !jobCheck?.is_active) {
-        console.log('Job was stopped by user or deactivated, exiting...');
+      if (jobCheck?.status === 'stopped' || jobCheck?.status === 'idle' || jobCheck?.status === 'failed' || !jobCheck?.is_active) {
+        console.log(`Job was stopped/deactivated (status: ${jobCheck?.status}, is_active: ${jobCheck?.is_active}), exiting...`);
         return new Response(
           JSON.stringify({ success: true, message: 'Job stopped by user', processed: 0 }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

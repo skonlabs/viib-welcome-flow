@@ -399,6 +399,7 @@ export const Jobs = () => {
       // Reset job status and counter before starting
       const updatePayload: any = {
         status: 'running',
+        is_active: true, // Re-enable is_active in case it was stopped before
         error_message: null,
         total_titles_processed: 0,
         last_run_at: new Date().toISOString()
@@ -759,11 +760,12 @@ export const Jobs = () => {
 
   const handleStopJob = async (job: Job) => {
     try {
-      // Stop the job and clear progress
+      // Stop the job - use 'stopped' status which the edge function checks for
       const { error } = await supabase
         .from('jobs')
         .update({ 
-          status: 'failed',
+          status: 'stopped',
+          is_active: false, // Also set is_active to false for extra safety
           error_message: 'Job manually stopped by administrator'
         })
         .eq('id', job.id);
