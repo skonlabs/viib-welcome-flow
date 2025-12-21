@@ -55,6 +55,21 @@ interface ParallelProgress {
   titlesProcessed: number;
 }
 
+interface JobMetrics {
+  totalTitles: number;
+  // Emotion Classify metrics (based on 1 week threshold)
+  emotionClassifiedRecent: number;
+  emotionUnclassified: number;
+  // Emotion Promote metrics
+  emotionPromoted: number;
+  emotionUnpromoted: number;
+  // Intent Classify metrics (based on 1 week threshold)
+  intentClassifiedRecent: number;
+  intentUnclassified: number;
+  // Intent Promote metrics
+  intentPromoted: number;
+  intentUnpromoted: number;
+}
 
 export const Jobs = () => {
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -65,7 +80,48 @@ export const Jobs = () => {
   const [runningCronJobs, setRunningCronJobs] = useState<Set<number>>(new Set());
   const [cronJobStartTimes, setCronJobStartTimes] = useState<Map<number, number>>(new Map());
   const [parallelProgress, setParallelProgress] = useState<ParallelProgress | null>(null);
+  const [jobMetrics, setJobMetrics] = useState<JobMetrics | null>(null);
   const { toast } = useToast();
+
+  const fetchJobMetrics = async () => {
+    try {
+      // Use the efficient RPC function for distinct counts
+      const { data, error } = await supabase.rpc('get_job_classification_metrics' as any);
+      
+      if (error) throw error;
+      
+      if (data && data.length > 0) {
+        const metrics = data[0];
+        const totalTitles = Number(metrics.total_titles) || 0;
+        const emotionPrimary = Number(metrics.emotion_primary_distinct) || 0;
+        const emotionStaging = Number(metrics.emotion_staging_distinct) || 0;
+        const intentPrimary = Number(metrics.intent_primary_distinct) || 0;
+        const intentStaging = Number(metrics.intent_staging_distinct) || 0;
+        
+        // Calculate unclassified (not in primary AND not in staging)
+        // Since some titles might be in both, we need to be careful
+        // For simplicity, assume staging titles are not yet in primary
+        const emotionClassified = emotionPrimary + emotionStaging;
+        const intentClassified = intentPrimary + intentStaging;
+        
+        setJobMetrics({
+          totalTitles,
+          // Emotion metrics
+          emotionClassifiedRecent: emotionStaging,
+          emotionUnclassified: Math.max(0, totalTitles - emotionClassified),
+          emotionPromoted: emotionPrimary,
+          emotionUnpromoted: emotionStaging,
+          // Intent metrics
+          intentClassifiedRecent: intentStaging,
+          intentUnclassified: Math.max(0, totalTitles - intentClassified),
+          intentPromoted: intentPrimary,
+          intentUnpromoted: intentStaging
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching job metrics:', error);
+    }
+  };
 
   const fetchJobs = async () => {
     try {
@@ -295,9 +351,11 @@ export const Jobs = () => {
   useEffect(() => {
     fetchJobs();
     fetchCronJobs();
+    fetchJobMetrics();
     // Refresh every 10 seconds
     const interval = setInterval(() => {
       fetchJobs();
+      fetchJobMetrics();
     }, 10000);
     return () => clearInterval(interval);
   }, []);
@@ -1116,30 +1174,86 @@ export const Jobs = () => {
             </CardHeader>
             <CardContent className="space-y-4">
 
-              {/* Job-specific Metrics for Classify AI */}
-              {job.job_type === 'classify_ai' && (
-                <div className="grid grid-cols-2 gap-3 text-sm bg-muted/50 rounded-lg p-3">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-foreground">{job.total_titles_processed.toLocaleString()}</div>
-                    <div className="text-xs text-muted-foreground">Titles Classified</div>
+              {/* Job-specific Metrics for Classify AI (Combined) */}
+              {job.job_type === 'classify_ai' && jobMetrics && (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-4 gap-3 text-sm bg-muted/50 rounded-lg p-3">
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-foreground">{jobMetrics.totalTitles.toLocaleString()}</div>
+                      <div className="text-xs text-muted-foreground">Total Titles</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-green-500">{jobMetrics.emotionPromoted.toLocaleString()}</div>
+                      <div className="text-xs text-muted-foreground">Emotions (Promoted)</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-orange-500">{jobMetrics.emotionUnpromoted.toLocaleString()}</div>
+                      <div className="text-xs text-muted-foreground">Emotions (Staging)</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-red-500">{jobMetrics.emotionUnclassified.toLocaleString()}</div>
+                      <div className="text-xs text-muted-foreground">Unclassified</div>
+                    </div>
                   </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-muted-foreground">{formatDate(job.last_run_at)}</div>
-                    <div className="text-xs text-muted-foreground">Last Run</div>
+                  <div className="grid grid-cols-4 gap-3 text-sm bg-muted/50 rounded-lg p-3">
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-blue-500">{job.total_titles_processed.toLocaleString()}</div>
+                      <div className="text-xs text-muted-foreground">Classified (Run)</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-green-500">{jobMetrics.intentPromoted.toLocaleString()}</div>
+                      <div className="text-xs text-muted-foreground">Intents (Promoted)</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-orange-500">{jobMetrics.intentUnpromoted.toLocaleString()}</div>
+                      <div className="text-xs text-muted-foreground">Intents (Staging)</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-red-500">{jobMetrics.intentUnclassified.toLocaleString()}</div>
+                      <div className="text-xs text-muted-foreground">Unclassified</div>
+                    </div>
                   </div>
                 </div>
               )}
 
-              {/* Job-specific Metrics for Promote AI */}
-              {job.job_type === 'promote_ai' && (
-                <div className="grid grid-cols-2 gap-3 text-sm bg-muted/50 rounded-lg p-3">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-foreground">{job.total_titles_processed.toLocaleString()}</div>
-                    <div className="text-xs text-muted-foreground">Titles Promoted</div>
+              {/* Job-specific Metrics for Promote AI (Combined) */}
+              {job.job_type === 'promote_ai' && jobMetrics && (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-4 gap-3 text-sm bg-muted/50 rounded-lg p-3">
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-foreground">{jobMetrics.totalTitles.toLocaleString()}</div>
+                      <div className="text-xs text-muted-foreground">Total Titles</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-green-500">{jobMetrics.emotionPromoted.toLocaleString()}</div>
+                      <div className="text-xs text-muted-foreground">Emotions (Promoted)</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-orange-500">{jobMetrics.emotionUnpromoted.toLocaleString()}</div>
+                      <div className="text-xs text-muted-foreground">Emotions (Staging)</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-red-500">{jobMetrics.emotionUnclassified.toLocaleString()}</div>
+                      <div className="text-xs text-muted-foreground">Unclassified</div>
+                    </div>
                   </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-muted-foreground">{formatDate(job.last_run_at)}</div>
-                    <div className="text-xs text-muted-foreground">Last Run</div>
+                  <div className="grid grid-cols-4 gap-3 text-sm bg-muted/50 rounded-lg p-3">
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-blue-500">{job.total_titles_processed.toLocaleString()}</div>
+                      <div className="text-xs text-muted-foreground">Promoted (Run)</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-green-500">{jobMetrics.intentPromoted.toLocaleString()}</div>
+                      <div className="text-xs text-muted-foreground">Intents (Promoted)</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-orange-500">{jobMetrics.intentUnpromoted.toLocaleString()}</div>
+                      <div className="text-xs text-muted-foreground">Intents (Staging)</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-red-500">{jobMetrics.intentUnclassified.toLocaleString()}</div>
+                      <div className="text-xs text-muted-foreground">Unclassified</div>
+                    </div>
                   </div>
                 </div>
               )}
