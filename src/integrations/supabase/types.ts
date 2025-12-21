@@ -1124,6 +1124,7 @@ export type Database = {
       titles: {
         Row: {
           backdrop_path: string | null
+          certification: string | null
           classification_status: string | null
           created_at: string
           episode_run_time: number[] | null
@@ -1153,6 +1154,7 @@ export type Database = {
         }
         Insert: {
           backdrop_path?: string | null
+          certification?: string | null
           classification_status?: string | null
           created_at?: string
           episode_run_time?: number[] | null
@@ -1182,6 +1184,7 @@ export type Database = {
         }
         Update: {
           backdrop_path?: string | null
+          certification?: string | null
           classification_status?: string | null
           created_at?: string
           episode_run_time?: number[] | null
