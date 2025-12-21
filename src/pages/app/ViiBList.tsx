@@ -13,10 +13,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, List, Users, Globe, Trash2, UserPlus, Share2, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { TitleCard } from "@/components/TitleCard";
+import { RatingDialog } from "@/components/RatingDialog";
 import { TitleDetailsModal } from "@/components/TitleDetailsModal";
 import { AddTitlesToListDialog } from "@/components/AddTitlesToListDialog";
 import { ManageTrustedCircleDialog } from "@/components/ManageTrustedCircleDialog";
 import { ShareListDialog } from "@/components/ShareListDialog";
+import { useTitleActions } from "@/hooks/useTitleActions";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -54,6 +56,15 @@ export default function ViiBList() {
   const [listToDelete, setListToDelete] = useState<string | null>(null);
   const [removeTitleDialogOpen, setRemoveTitleDialogOpen] = useState(false);
   const [titleToRemove, setTitleToRemove] = useState<string | null>(null);
+
+  const {
+    addToWatchlist,
+    openRatingDialog,
+    handleRating,
+    ratingDialogOpen,
+    setRatingDialogOpen,
+    titleToRate,
+  } = useTitleActions();
 
   const [newList, setNewList] = useState({
     name: "",
@@ -601,6 +612,10 @@ export default function ViiBList() {
                         <TitleCard
                           title={title}
                           onClick={() => handleTitleClick(title)}
+                          actions={{
+                            onWatchlist: () => addToWatchlist(title.external_id),
+                            onWatched: () => openRatingDialog({ id: title.external_id, title: title.title }),
+                          }}
                         />
                         {isOwnList && (
                           <Button
@@ -901,6 +916,13 @@ export default function ViiBList() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <RatingDialog
+        open={ratingDialogOpen}
+        onOpenChange={setRatingDialogOpen}
+        titleName={titleToRate?.title || ''}
+        onRate={handleRating}
+      />
     </div>
   );
 }

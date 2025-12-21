@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { TitleCard } from "@/components/TitleCard";
+import { RatingDialog } from "@/components/RatingDialog";
 import { WatchlistStats } from "@/components/WatchlistStats";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -65,6 +66,8 @@ export default function Watchlist() {
   const [loading, setLoading] = useState(false);
   const [recommendDialogOpen, setRecommendDialogOpen] = useState(false);
   const [titleToRecommend, setTitleToRecommend] = useState<{ id: string; name: string } | null>(null);
+  const [ratingDialogOpen, setRatingDialogOpen] = useState(false);
+  const [titleToRate, setTitleToRate] = useState<{ id: string; title_id: string; title: string } | null>(null);
 
   const { user } = useAuth();
 
@@ -300,23 +303,54 @@ export default function Watchlist() {
     }
   };
 
-  const markAsWatched = async (interactionId: string, titleId: string) => {
-    if (!user) return;
+  const openRatingDialogForPending = (item: EnrichedTitle) => {
+    setTitleToRate({ id: item.id, title_id: item.title_id, title: item.title });
+    setRatingDialogOpen(true);
+  };
+
+  const openRatingDialogForRecommended = (item: EnrichedTitle) => {
+    setTitleToRate({ id: '', title_id: item.title_id, title: item.title });
+    setRatingDialogOpen(true);
+  };
+
+  const handleRatingSubmit = async (rating: 'love_it' | 'like_it' | 'dislike_it') => {
+    if (!user || !titleToRate) return;
 
     try {
-      await supabase
-        .from('user_title_interactions')
-        .update({ interaction_type: 'completed' })
-        .eq('id', interactionId)
-        .eq('user_id', user.id);
+      if (titleToRate.id) {
+        // Update existing wishlisted entry to completed with rating
+        await supabase
+          .from('user_title_interactions')
+          .update({ 
+            interaction_type: 'completed',
+            rating_value: rating
+          })
+          .eq('id', titleToRate.id)
+          .eq('user_id', user.id);
+      } else {
+        // Create new completed entry (for recommended titles)
+        const { error } = await supabase
+          .from('user_title_interactions')
+          .insert({
+            user_id: user.id,
+            title_id: titleToRate.title_id,
+            interaction_type: 'completed',
+            rating_value: rating
+          });
 
-      toast.success('Marked as watched!');
+        if (error) throw error;
+      }
+
+      toast.success(`Marked as "${rating.replace('_', ' ')}"!`);
+      setRatingDialogOpen(false);
+      setTitleToRate(null);
       loadWatchlist('pending');
       loadWatchlist('watched');
+      loadRecommendedTitles();
       calculateStats();
     } catch (error) {
-      console.error('Failed to mark as watched:', error);
-      toast.error('Failed to update');
+      console.error('Failed to rate:', error);
+      toast.error('Failed to save rating');
     }
   };
 
@@ -324,6 +358,20 @@ export default function Watchlist() {
     if (!user) return;
 
     try {
+      // Check if already in watchlist
+      const { data: existing } = await supabase
+        .from('user_title_interactions')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('title_id', titleId)
+        .eq('interaction_type', 'wishlisted')
+        .maybeSingle();
+
+      if (existing) {
+        toast.info("Already in your watchlist");
+        return;
+      }
+
       const { error } = await supabase
         .from('user_title_interactions')
         .insert({
@@ -340,30 +388,6 @@ export default function Watchlist() {
     } catch (error) {
       console.error('Failed to add to watchlist:', error);
       toast.error('Failed to add to watchlist');
-    }
-  };
-
-  const moveToWatched = async (titleId: string) => {
-    if (!user) return;
-
-    try {
-      const { error } = await supabase
-        .from('user_title_interactions')
-        .insert({
-          user_id: user.id,
-          title_id: titleId,
-          interaction_type: 'completed'
-        });
-
-      if (error) throw error;
-
-      toast.success('Marked as watched!');
-      loadWatchlist('watched');
-      loadRecommendedTitles();
-      calculateStats();
-    } catch (error) {
-      console.error('Failed to mark as watched:', error);
-      toast.error('Failed to mark as watched');
     }
   };
 
@@ -501,7 +525,7 @@ export default function Watchlist() {
                     onClick={() => setSelectedTitle(item)}
                     showAvailability={true}
                     actions={{
-                      onWatched: () => markAsWatched(item.id, item.title_id),
+                      onWatched: () => openRatingDialogForPending(item),
                       onRecommend: () => {
                         setTitleToRecommend({ id: item.title_id, name: item.title });
                         setRecommendDialogOpen(true);
@@ -572,7 +596,7 @@ export default function Watchlist() {
                     recommendationNote={item.recommendation_note}
                     actions={{
                       onWatchlist: () => moveToWatchlist(item.title_id),
-                      onWatched: () => moveToWatched(item.title_id),
+                      onWatched: () => openRatingDialogForRecommended(item),
                       onRecommend: () => {
                         setTitleToRecommend({ id: item.title_id, name: item.title });
                         setRecommendDialogOpen(true);
@@ -640,6 +664,13 @@ export default function Watchlist() {
             titleName={titleToRecommend.name}
           />
         )}
+
+        <RatingDialog
+          open={ratingDialogOpen}
+          onOpenChange={setRatingDialogOpen}
+          titleName={titleToRate?.title || ''}
+          onRate={handleRatingSubmit}
+        />
       </div>
     </div>
   );
