@@ -56,6 +56,7 @@ export default function ViiBList() {
   const [listToDelete, setListToDelete] = useState<string | null>(null);
   const [removeTitleDialogOpen, setRemoveTitleDialogOpen] = useState(false);
   const [titleToRemove, setTitleToRemove] = useState<string | null>(null);
+  const [userWatchlist, setUserWatchlist] = useState<Set<string>>(new Set());
 
   const {
     addToWatchlist,
@@ -79,8 +80,22 @@ export default function ViiBList() {
       loadSharedWithMeLists();
       loadPublicLists();
       loadFollowedLists();
+      loadUserWatchlist();
     }
   }, [user]);
+
+  const loadUserWatchlist = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from('user_title_interactions')
+      .select('title_id')
+      .eq('user_id', user.id)
+      .in('interaction_type', ['wishlisted', 'completed']);
+
+    if (data) {
+      setUserWatchlist(new Set(data.map(d => d.title_id)));
+    }
+  };
 
   useEffect(() => {
     if (selectedList) {
@@ -612,6 +627,7 @@ export default function ViiBList() {
                         <TitleCard
                           title={title}
                           onClick={() => handleTitleClick(title)}
+                          isInWatchlist={userWatchlist.has(title.external_id)}
                           actions={{
                             onWatchlist: () => addToWatchlist(title.external_id),
                             onWatched: () => openRatingDialog({ id: title.external_id, title: title.title }),
