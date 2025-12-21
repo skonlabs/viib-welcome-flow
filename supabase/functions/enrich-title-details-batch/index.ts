@@ -584,23 +584,17 @@ serve(async (req) => {
       .not('tmdb_id', 'is', null)
       .or('poster_path.is.null,poster_path.eq.,overview.is.null,overview.eq.,trailer_url.is.null,trailer_url.eq.');
 
-    // Titles with valid trailer but missing transcript
+    // Titles with missing transcript (NULL or empty)
     const { count: titlesMissingTranscripts } = await supabase
       .from('titles')
       .select('*', { count: 'exact', head: true })
-      .or('trailer_transcript.is.null,trailer_transcript.eq.')
-      .not('trailer_url', 'is', null)
-      .neq('trailer_url', '')
-      .neq('trailer_url', '[no-trailer]');
+      .or('trailer_transcript.is.null,trailer_transcript.eq.');
 
-    // Seasons with valid trailer but missing transcript
+    // Seasons with missing transcript (NULL or empty)
     const { count: seasonsMissingTranscripts } = await supabase
       .from('seasons')
       .select('*', { count: 'exact', head: true })
-      .or('trailer_transcript.is.null,trailer_transcript.eq.')
-      .not('trailer_url', 'is', null)
-      .neq('trailer_url', '')
-      .neq('trailer_url', '[no-trailer]');
+      .or('trailer_transcript.is.null,trailer_transcript.eq.');
 
     const totalMissingTranscripts = (titlesMissingTranscripts || 0) + (seasonsMissingTranscripts || 0);
     const hasMoreWork = (remainingTitles || 0) > 0 || totalMissingTranscripts > 0;
