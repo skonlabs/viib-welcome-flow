@@ -761,34 +761,47 @@ export const Jobs = () => {
   const handleStopJob = async (job: Job) => {
     try {
       // Stop the job - use 'stopped' status which the edge function checks for
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('jobs')
         .update({ 
           status: 'stopped',
-          is_active: false, // Also set is_active to false for extra safety
+          is_active: false,
           error_message: 'Job manually stopped by administrator'
         })
-        .eq('id', job.id);
+        .eq('id', job.id)
+        .select();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Stop job error:', error);
+        throw error;
+      }
+      
+      if (!data || data.length === 0) {
+        console.error('No rows updated - RLS may be blocking');
+        throw new Error('Update failed - no rows modified');
+      }
+
+      console.log('Job stopped successfully:', data);
 
       // Clear parallel progress UI immediately
       setParallelProgress(null);
 
       toast({
         title: "Job Stopped",
-        description: `${job.job_name} has been stopped. Running threads will complete but won't update the job.`,
+        description: `${job.job_name} has been stopped.`,
       });
 
       await fetchJobs();
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Stop job failed:', error?.message || error);
       await errorLogger.log(error, { 
         operation: 'stop_job',
-        jobId: job.id
+        jobId: job.id,
+        errorMessage: error?.message
       });
       toast({
         title: "Error",
-        description: "Failed to stop job. Please try again.",
+        description: error?.message || "Failed to stop job. Please try again.",
         variant: "destructive",
       });
     }
