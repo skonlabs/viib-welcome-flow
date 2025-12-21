@@ -258,20 +258,30 @@ serve(async (req) => {
     console.log('=== PHASE 1: Processing titles ===');
 
     // Find titles needing enrichment (missing poster, overview, trailer, OR transcript)
+    // Include placeholders so we can retry TMDB fetch, but exclude titles that have real data
     const { data: titlesToEnrich, error: fetchError } = await supabase
       .from('titles')
       .select('id, tmdb_id, title_type, name, overview, poster_path, trailer_url, trailer_transcript, backdrop_path, release_date, first_air_date')
       .not('tmdb_id', 'is', null)
-      .or('poster_path.is.null,poster_path.eq.,overview.is.null,overview.eq.,trailer_url.is.null,trailer_url.eq.,trailer_transcript.is.null')
+      .or(
+        'poster_path.is.null,poster_path.eq.,' +
+        'overview.is.null,overview.eq.,' +
+        'trailer_url.is.null,trailer_url.eq.,' +
+        'trailer_transcript.is.null,trailer_transcript.eq.'
+      )
       .order('id', { ascending: true })
       .limit(BATCH_SIZE);
 
     if (fetchError) throw new Error(`Error fetching titles: ${fetchError.message}`);
 
-    // Filter to only titles that actually need enrichment
+    // Filter to only titles that actually need enrichment:
+    // - Empty/null overview OR poster OR trailer
+    // - OR has valid trailer but missing transcript (null or empty string)
     const titlesNeedingEnrichment = (titlesToEnrich || []).filter(title =>
-      isEmpty(title.overview) || isEmpty(title.poster_path) || isEmpty(title.trailer_url) ||
-      (title.trailer_transcript === null && hasValidTrailer(title.trailer_url))
+      isEmpty(title.overview) || 
+      isEmpty(title.poster_path) || 
+      isEmpty(title.trailer_url) ||
+      (hasValidTrailer(title.trailer_url) && (title.trailer_transcript === null || title.trailer_transcript === ''))
     );
 
     let titlesProcessed = 0;
