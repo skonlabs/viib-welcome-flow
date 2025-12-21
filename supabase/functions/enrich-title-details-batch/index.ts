@@ -257,16 +257,44 @@ serve(async (req) => {
     // ========== PHASE 1: TITLES (Movies & Series) ==========
     console.log('=== PHASE 1: Processing titles ===');
 
-    // Single query: fetch all titles with ANY missing field (NULL or empty)
-    const { data: titlesNeedingEnrichment, error: fetchError } = await supabase
+    // Prioritize titles with missing poster/overview/trailer (can always be fetched from TMDB)
+    // Then fill remaining slots with titles needing transcripts
+    const { data: titlesWithMissingBasics, error: fetchError1 } = await supabase
       .from('titles')
       .select('id, tmdb_id, title_type, name, overview, poster_path, trailer_url, trailer_transcript, backdrop_path, release_date, first_air_date')
       .not('tmdb_id', 'is', null)
-      .or('poster_path.is.null,poster_path.eq.,overview.is.null,overview.eq.,trailer_url.is.null,trailer_url.eq.,trailer_transcript.is.null,trailer_transcript.eq.')
+      .or('poster_path.is.null,poster_path.eq.,overview.is.null,overview.eq.,trailer_url.is.null,trailer_url.eq.')
       .order('popularity', { ascending: false, nullsFirst: false })
       .limit(BATCH_SIZE);
 
-    if (fetchError) throw new Error(`Error fetching titles: ${fetchError.message}`);
+    if (fetchError1) throw new Error(`Error fetching titles: ${fetchError1.message}`);
+
+    // Fill remaining slots with titles only needing transcripts (if we have capacity)
+    let titlesNeedingEnrichment = titlesWithMissingBasics || [];
+    const remainingSlots = BATCH_SIZE - titlesNeedingEnrichment.length;
+    
+    if (remainingSlots > 0 && !supadataLimitExceeded) {
+      const existingIds = new Set(titlesNeedingEnrichment.map(t => t.id));
+      const { data: titlesNeedingTranscript } = await supabase
+        .from('titles')
+        .select('id, tmdb_id, title_type, name, overview, poster_path, trailer_url, trailer_transcript, backdrop_path, release_date, first_air_date')
+        .not('tmdb_id', 'is', null)
+        .not('poster_path', 'is', null).neq('poster_path', '')
+        .not('overview', 'is', null).neq('overview', '')
+        .not('trailer_url', 'is', null).neq('trailer_url', '').neq('trailer_url', '[no-trailer]')
+        .or('trailer_transcript.is.null,trailer_transcript.eq.')
+        .order('popularity', { ascending: false, nullsFirst: false })
+        .limit(remainingSlots);
+      
+      if (titlesNeedingTranscript) {
+        // Add only titles not already in the list
+        for (const t of titlesNeedingTranscript) {
+          if (!existingIds.has(t.id)) {
+            titlesNeedingEnrichment.push(t);
+          }
+        }
+      }
+    }
 
     let titlesProcessed = 0;
     let titlesUpdated = 0;
@@ -275,7 +303,7 @@ serve(async (req) => {
     let errors = 0;
     let wasStoppedByUser = false;
 
-    console.log(`Found ${titlesNeedingEnrichment?.length || 0} titles to process`);
+    console.log(`Found ${titlesNeedingEnrichment.length} titles to process (${titlesWithMissingBasics?.length || 0} with missing basics)`);
 
     for (const title of (titlesNeedingEnrichment || [])) {
       if (Date.now() - startTime > MAX_RUNTIME_MS) {
