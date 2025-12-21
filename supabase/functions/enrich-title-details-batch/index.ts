@@ -85,27 +85,65 @@ serve(async (req) => {
     const config = (jobData?.configuration as any) || {};
     const batchSize = config.batch_size || BATCH_SIZE;
 
-    // Find titles with missing poster_path OR missing trailer_url that have tmdb_id
-    const { data: titlesToEnrich, error: fetchError } = await supabase
+    // Find titles that ACTUALLY need enrichment:
+    // - Has tmdb_id (so we can fetch from TMDB)
+    // - Missing poster_path (we need to get poster)
+    // Priority by popularity to handle most important titles first
+    const { data: titlesNeedingPoster, error: posterError } = await supabase
       .from('titles')
       .select('id, tmdb_id, title_type, name, poster_path, trailer_url')
       .not('tmdb_id', 'is', null)
-      .or('poster_path.is.null,trailer_url.is.null')
+      .is('poster_path', null)
       .order('popularity', { ascending: false, nullsFirst: false })
       .limit(batchSize);
 
-    if (fetchError) {
-      throw new Error(`Error fetching titles: ${fetchError.message}`);
+    if (posterError) {
+      throw new Error(`Error fetching titles needing poster: ${posterError.message}`);
     }
 
-    // Check remaining count for completion detection
-    const { count: remainingCount } = await supabase
+    // Also find titles missing trailer_url (separately, to not mix concerns)
+    // Only if we have room in this batch
+    const remainingBatchSize = batchSize - (titlesNeedingPoster?.length || 0);
+    let titlesNeedingTrailer: any[] = [];
+    
+    if (remainingBatchSize > 0) {
+      const { data: trailerTitles, error: trailerError } = await supabase
+        .from('titles')
+        .select('id, tmdb_id, title_type, name, poster_path, trailer_url')
+        .not('tmdb_id', 'is', null)
+        .not('poster_path', 'is', null) // Already has poster
+        .is('trailer_url', null) // Missing trailer
+        .is('is_tmdb_trailer', null) // Haven't checked TMDB yet for trailer
+        .order('popularity', { ascending: false, nullsFirst: false })
+        .limit(remainingBatchSize);
+
+      if (trailerError) {
+        console.error(`Error fetching titles needing trailer: ${trailerError.message}`);
+      } else {
+        titlesNeedingTrailer = trailerTitles || [];
+      }
+    }
+
+    // Combine the lists (posters first, then trailers)
+    const titlesToEnrich = [...(titlesNeedingPoster || []), ...titlesNeedingTrailer];
+
+    // Get counts for remaining work
+    const { count: remainingPosterCount } = await supabase
       .from('titles')
       .select('id', { count: 'exact', head: true })
       .not('tmdb_id', 'is', null)
-      .or('poster_path.is.null,trailer_url.is.null');
+      .is('poster_path', null);
 
-    const isComplete = !titlesToEnrich || titlesToEnrich.length === 0;
+    const { count: remainingTrailerCount } = await supabase
+      .from('titles')
+      .select('id', { count: 'exact', head: true })
+      .not('tmdb_id', 'is', null)
+      .not('poster_path', 'is', null)
+      .is('trailer_url', null)
+      .is('is_tmdb_trailer', null);
+
+    const totalRemaining = (remainingPosterCount || 0) + (remainingTrailerCount || 0);
+    const isComplete = titlesToEnrich.length === 0;
 
     if (isComplete) {
       console.log('No titles need enrichment - job complete');
@@ -128,10 +166,11 @@ serve(async (req) => {
       );
     }
 
-    console.log(`Found ${titlesToEnrich.length} titles to enrich (${remainingCount} total remaining)`);
+    console.log(`Found ${titlesToEnrich.length} titles to enrich (${remainingPosterCount || 0} need poster, ${remainingTrailerCount || 0} need trailer check)`);
 
     let processed = 0;
-    let updated = 0;
+    let postersUpdated = 0;
+    let trailersUpdated = 0;
     let errors = 0;
     let wasStoppedByUser = false;
 
@@ -159,39 +198,62 @@ serve(async (req) => {
 
       try {
         const endpoint = title.title_type === 'movie' ? 'movie' : 'tv';
-        
-        // Fetch details from TMDB
-        const detailsRes = await fetch(
-          `${TMDB_BASE_URL}/${endpoint}/${title.tmdb_id}?api_key=${TMDB_API_KEY}`
-        );
+        const updateData: Record<string, any> = {};
+        let needsTmdbCall = false;
 
-        if (!detailsRes.ok) {
-          console.error(`TMDB API error for ${title.name}: ${detailsRes.status}`);
-          errors++;
+        // Determine what we need from TMDB
+        const needsPoster = !title.poster_path;
+        const needsTrailer = !title.trailer_url;
+
+        if (needsPoster || needsTrailer) {
+          needsTmdbCall = true;
+        }
+
+        if (!needsTmdbCall) {
           processed++;
           continue;
         }
 
-        const details = await detailsRes.json();
-        const updateData: Record<string, any> = {};
+        // Fetch details from TMDB (only if we need poster or other metadata)
+        if (needsPoster) {
+          const detailsRes = await fetch(
+            `${TMDB_BASE_URL}/${endpoint}/${title.tmdb_id}?api_key=${TMDB_API_KEY}`
+          );
 
-        // Update poster_path if missing
-        if (!title.poster_path && details.poster_path) {
-          updateData.poster_path = details.poster_path;
-          console.log(`✓ Found poster for: ${title.name}`);
+          if (!detailsRes.ok) {
+            console.error(`TMDB API error for ${title.name}: ${detailsRes.status}`);
+            errors++;
+            processed++;
+            continue;
+          }
+
+          const details = await detailsRes.json();
+
+          // Update poster_path if missing and available
+          if (!title.poster_path && details.poster_path) {
+            updateData.poster_path = details.poster_path;
+            postersUpdated++;
+            console.log(`✓ Poster: ${title.name}`);
+          }
+
+          // Also grab backdrop if available
+          if (details.backdrop_path) {
+            updateData.backdrop_path = details.backdrop_path;
+          }
+
+          // Update runtime for movies
+          if (title.title_type === 'movie' && details.runtime) {
+            updateData.runtime = details.runtime;
+          }
+
+          // Update episode_run_time for TV
+          if (title.title_type === 'tv' && details.episode_run_time?.length > 0) {
+            updateData.episode_run_time = details.episode_run_time;
+          }
         }
 
-        // Update backdrop_path if available
-        if (details.backdrop_path) {
-          updateData.backdrop_path = details.backdrop_path;
-        }
-
-        // Fetch trailer if missing
-        if (!title.trailer_url) {
-          let trailerUrl: string | null = null;
-          let isTmdbTrailer = false;
-
-          // Try to get trailer from TMDB videos endpoint
+        // Fetch trailer if missing (separate API call to videos endpoint)
+        if (needsTrailer) {
           const videosRes = await fetch(
             `${TMDB_BASE_URL}/${endpoint}/${title.tmdb_id}/videos?api_key=${TMDB_API_KEY}`
           );
@@ -203,29 +265,20 @@ serve(async (req) => {
             );
             
             if (trailer) {
-              trailerUrl = `https://www.youtube.com/watch?v=${trailer.key}`;
-              isTmdbTrailer = true;
-              console.log(`✓ Found trailer for: ${title.name}`);
+              updateData.trailer_url = `https://www.youtube.com/watch?v=${trailer.key}`;
+              updateData.is_tmdb_trailer = true;
+              trailersUpdated++;
+              console.log(`✓ Trailer: ${title.name}`);
+            } else {
+              // Mark that we checked TMDB but no trailer found
+              // This prevents re-checking this title
+              updateData.is_tmdb_trailer = false;
+              console.log(`○ No TMDB trailer: ${title.name}`);
             }
           }
-
-          if (trailerUrl) {
-            updateData.trailer_url = trailerUrl;
-            updateData.is_tmdb_trailer = isTmdbTrailer;
-          }
         }
 
-        // Update runtime for movies if missing
-        if (title.title_type === 'movie' && details.runtime) {
-          updateData.runtime = details.runtime;
-        }
-
-        // Update episode_run_time for TV if available
-        if (title.title_type === 'tv' && details.episode_run_time?.length > 0) {
-          updateData.episode_run_time = details.episode_run_time;
-        }
-
-        // Only update if we have something to update
+        // Always update if we have changes
         if (Object.keys(updateData).length > 0) {
           updateData.updated_at = new Date().toISOString();
 
@@ -237,8 +290,6 @@ serve(async (req) => {
           if (updateError) {
             console.error(`Error updating ${title.name}:`, updateError);
             errors++;
-          } else {
-            updated++;
           }
         }
 
@@ -255,10 +306,10 @@ serve(async (req) => {
     }
 
     const duration = Math.round((Date.now() - startTime) / 1000);
-    const moreRemaining = (remainingCount || 0) - processed > 0;
+    const moreRemaining = totalRemaining - processed > 0;
     
-    console.log(`Batch completed: ${processed} processed, ${updated} updated, ${errors} errors in ${duration}s`);
-    console.log(`Remaining titles: ${(remainingCount || 0) - processed}`);
+    console.log(`Batch completed: ${processed} processed, ${postersUpdated} posters, ${trailersUpdated} trailers, ${errors} errors in ${duration}s`);
+    console.log(`Remaining: ~${totalRemaining - processed} titles`);
 
     // Update job status
     if (jobId) {
@@ -272,10 +323,11 @@ serve(async (req) => {
         .eq('id', jobId);
 
       // Increment counter
-      if (updated > 0) {
+      const totalUpdated = postersUpdated + trailersUpdated;
+      if (totalUpdated > 0) {
         await supabase.rpc('increment_job_titles', { 
           p_job_type: 'enrich_details', 
-          p_increment: updated 
+          p_increment: totalUpdated 
         });
       }
     }
@@ -310,7 +362,6 @@ serve(async (req) => {
         EdgeRuntime.waitUntil(invokeNextBatch());
         console.log('Next batch scheduled via EdgeRuntime.waitUntil');
       } else {
-        // Fallback - fire and forget
         invokeNextBatch();
         console.log('Next batch dispatched (no EdgeRuntime available)');
       }
@@ -324,10 +375,12 @@ serve(async (req) => {
       JSON.stringify({
         success: true,
         processed,
-        updated,
+        postersUpdated,
+        trailersUpdated,
         errors,
         duration_seconds: duration,
-        remaining: (remainingCount || 0) - processed,
+        remainingPosters: (remainingPosterCount || 0) - postersUpdated,
+        remainingTrailers: (remainingTrailerCount || 0),
         isComplete: !moreRemaining,
         message: moreRemaining ? 'Batch completed, more work remaining' : 'All titles enriched'
       }),
