@@ -127,23 +127,24 @@ export const Jobs = () => {
 
   const fetchEnrichMetrics = async () => {
     try {
-      // Fetch counts for titles needing enrichment - use simple fast queries
+      // Fetch counts for titles needing enrichment
+      // Check for both NULL and empty strings (both are considered "missing")
       const [posterResult, overviewResult, trailerResult] = await Promise.all([
         supabase
           .from('titles')
           .select('id', { count: 'exact', head: true })
           .not('tmdb_id', 'is', null)
-          .is('poster_path', null),
+          .or('poster_path.is.null,poster_path.eq.'),
         supabase
           .from('titles')
           .select('id', { count: 'exact', head: true })
           .not('tmdb_id', 'is', null)
-          .is('overview', null),
+          .or('overview.is.null,overview.eq.'),
         supabase
           .from('titles')
           .select('id', { count: 'exact', head: true })
           .not('tmdb_id', 'is', null)
-          .is('trailer_url', null),
+          .or('trailer_url.is.null,trailer_url.eq.'),
       ]);
 
       const pendingPoster = posterResult.count || 0;
