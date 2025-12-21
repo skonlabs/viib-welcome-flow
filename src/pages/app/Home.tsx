@@ -1,19 +1,23 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { TitleCard } from '@/components/TitleCard';
+import { TitleDetailsModal } from '@/components/TitleDetailsModal';
 import { RatingDialog } from '@/components/RatingDialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 
 interface RecommendedTitle {
   id: string;
+  tmdb_id?: number;
   title: string;
   type: 'movie' | 'series';
   year?: number;
   poster_path?: string | null;
+  backdrop_path?: string | null;
   trailer_url?: string | null;
   runtime?: number | null;
   genres: string[];
+  overview?: string | null;
   final_score: number;
   base_viib_score: number;
   intent_alignment_score: number;
@@ -26,6 +30,8 @@ const Home = () => {
   const [userWatchlist, setUserWatchlist] = useState<Set<string>>(new Set());
   const [ratingDialogOpen, setRatingDialogOpen] = useState(false);
   const [titleToRate, setTitleToRate] = useState<{ id: string; name: string } | null>(null);
+  const [selectedTitle, setSelectedTitle] = useState<RecommendedTitle | null>(null);
+  const [detailsModalOpen, setDetailsModalOpen] = useState(false);
 
   useEffect(() => {
     fetchRecommendations();
@@ -85,9 +91,12 @@ const Home = () => {
           release_date,
           first_air_date,
           poster_path,
+          backdrop_path,
           trailer_url,
           runtime,
-          title_genres
+          title_genres,
+          overview,
+          tmdb_id
         `)
         .in('id', titleIds);
 
@@ -116,13 +125,16 @@ const Home = () => {
 
           return {
             id: title.id,
+            tmdb_id: title.tmdb_id,
             title: title.name || 'Unknown Title',
             type: title.title_type === 'tv' ? 'series' : 'movie',
             year: releaseYear,
             poster_path: title.poster_path,
+            backdrop_path: title.backdrop_path,
             trailer_url: title.trailer_url,
             runtime: title.runtime,
             genres,
+            overview: title.overview,
             final_score: rec.final_score,
             base_viib_score: rec.base_viib_score,
             intent_alignment_score: rec.intent_alignment_score,
@@ -279,6 +291,10 @@ const Home = () => {
               }}
               viibScore={title.final_score * 100}
               isInWatchlist={userWatchlist.has(title.id)}
+              onClick={() => {
+                setSelectedTitle(title);
+                setDetailsModalOpen(true);
+              }}
               actions={{
                 onWatchlist: () => handleAddToWatchlist(title.id),
                 onWatched: () => handleMarkAsWatched(title.id, title.title),
@@ -287,6 +303,25 @@ const Home = () => {
           ))}
         </div>
       )}
+
+      <TitleDetailsModal
+        open={detailsModalOpen}
+        onOpenChange={setDetailsModalOpen}
+        title={selectedTitle ? {
+          tmdb_id: selectedTitle.tmdb_id,
+          external_id: selectedTitle.id,
+          title: selectedTitle.title,
+          type: selectedTitle.type,
+          year: selectedTitle.year,
+          poster_path: selectedTitle.poster_path,
+          backdrop_path: selectedTitle.backdrop_path,
+          trailer_url: selectedTitle.trailer_url,
+          runtime_minutes: selectedTitle.runtime,
+          genres: selectedTitle.genres,
+          overview: selectedTitle.overview,
+        } : null}
+        onAddToWatchlist={(titleId) => handleAddToWatchlist(titleId)}
+      />
 
       <RatingDialog
         open={ratingDialogOpen}
