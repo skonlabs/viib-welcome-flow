@@ -375,19 +375,9 @@ export const Jobs = () => {
         return;
       }
       
-      // Reset job status and counter before starting
-      await supabase
-        .from('jobs')
-        .update({
-          status: 'running',
-          error_message: null,
-          total_titles_processed: 0,
-          last_run_at: new Date().toISOString()
-        })
-        .eq('id', job.id);
-      
       let functionName: string;
       let functionBody: any = {};
+      let resetConfig = false;
       
       if (job.job_type === 'sync_delta') {
         functionName = 'sync-titles-delta';
@@ -399,8 +389,8 @@ export const Jobs = () => {
         functionBody = { jobId: job.id };
       } else if (job.job_type === 'classify_ai') {
         functionName = 'classify-title-ai';
-        const config = job.configuration || {};
-        functionBody = { jobId: job.id, batchSize: config.batch_size || 10 };
+        functionBody = { jobId: job.id };
+        resetConfig = true; // Reset cursor to start fresh
       } else if (job.job_type === 'promote_ai') {
         functionName = 'promote-title-ai';
         const config = job.configuration || {};
@@ -408,6 +398,24 @@ export const Jobs = () => {
       } else {
         throw new Error(`Unknown job type: ${job.job_type}`);
       }
+      
+      // Reset job status and counter before starting
+      const updatePayload: any = {
+        status: 'running',
+        error_message: null,
+        total_titles_processed: 0,
+        last_run_at: new Date().toISOString()
+      };
+      
+      // For classify_ai, reset the cursor so it starts fresh
+      if (resetConfig) {
+        updatePayload.configuration = {};
+      }
+      
+      await supabase
+        .from('jobs')
+        .update(updatePayload)
+        .eq('id', job.id);
       
       toast({
         title: "Job Started",
