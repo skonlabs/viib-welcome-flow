@@ -326,11 +326,32 @@ serve(async (req) => {
         const updateData: Record<string, any> = {};
         const updates: string[] = [];
 
+        // Ensure tmdb_id is an integer (handles scientific notation from DB)
+        const tmdbIdInt = Math.floor(Number(title.tmdb_id));
+        if (!tmdbIdInt || isNaN(tmdbIdInt)) {
+          console.error(`Invalid tmdb_id for ${title.name}: ${title.tmdb_id}`);
+          errors++;
+          titlesProcessed++;
+          continue;
+        }
+
         // Fetch details from TMDB
-        const tmdbUrl = `${TMDB_BASE_URL}/${endpoint}/${title.tmdb_id}?api_key=${TMDB_API_KEY}&append_to_response=videos`;
+        const tmdbUrl = `${TMDB_BASE_URL}/${endpoint}/${tmdbIdInt}?api_key=${TMDB_API_KEY}&append_to_response=videos`;
         const detailsRes = await fetch(tmdbUrl);
 
         if (!detailsRes.ok) {
+          // 404 means content was deleted from TMDB - mark with placeholder to skip future attempts
+          if (detailsRes.status === 404) {
+            console.log(`⚠ ${title.name}: removed from TMDB (404), marking as unavailable`);
+            await supabase.from('titles').update({
+              overview: title.overview || '[tmdb-unavailable]',
+              poster_path: title.poster_path || '[tmdb-unavailable]',
+              trailer_url: title.trailer_url || '[tmdb-unavailable]',
+              updated_at: new Date().toISOString()
+            }).eq('id', title.id);
+            titlesProcessed++;
+            continue;
+          }
           console.error(`TMDB API error for ${title.name}: ${detailsRes.status}`);
           errors++;
           titlesProcessed++;
@@ -478,6 +499,13 @@ serve(async (req) => {
           const titleName = titleInfo?.name;
           if (!tmdbId || !titleName) continue;
 
+          // Ensure tmdb_id is an integer
+          const tmdbIdInt = Math.floor(Number(tmdbId));
+          if (!tmdbIdInt || isNaN(tmdbIdInt)) {
+            console.error(`Invalid tmdb_id for season of ${titleName}: ${tmdbId}`);
+            continue;
+          }
+
           const updateData: Record<string, any> = {};
           const updates: string[] = [];
 
@@ -488,7 +516,7 @@ serve(async (req) => {
             let isTmdbTrailer = true;
 
             try {
-              const seasonVideosRes = await fetch(`${TMDB_BASE_URL}/tv/${tmdbId}/season/${season.season_number}/videos?api_key=${TMDB_API_KEY}`);
+              const seasonVideosRes = await fetch(`${TMDB_BASE_URL}/tv/${tmdbIdInt}/season/${season.season_number}/videos?api_key=${TMDB_API_KEY}`);
               if (seasonVideosRes.ok) {
                 const seasonVideos = await seasonVideosRes.json();
                 const trailer = seasonVideos.results?.find((v: any) => v.type === 'Trailer' && v.site === 'YouTube');
@@ -499,7 +527,7 @@ serve(async (req) => {
             // Fallback to series-level TMDB trailer
             if (!trailerUrl) {
               try {
-                const seriesVideosRes = await fetch(`${TMDB_BASE_URL}/tv/${tmdbId}/videos?api_key=${TMDB_API_KEY}`);
+                const seriesVideosRes = await fetch(`${TMDB_BASE_URL}/tv/${tmdbIdInt}/videos?api_key=${TMDB_API_KEY}`);
                 if (seriesVideosRes.ok) {
                   const seriesVideos = await seriesVideosRes.json();
                   const trailer = seriesVideos.results?.find((v: any) => v.type === 'Trailer' && v.site === 'YouTube');
