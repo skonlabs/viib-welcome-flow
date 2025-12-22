@@ -54,14 +54,20 @@ serve(async (req) => {
       throw new Error('tmdb_id and type are required');
     }
 
+    // Ensure tmdb_id is an integer (handles scientific notation from DB)
+    const tmdbIdInt = Math.floor(Number(tmdb_id));
+    if (!tmdbIdInt || isNaN(tmdbIdInt)) {
+      throw new Error(`Invalid tmdb_id: ${tmdb_id}`);
+    }
+
     const endpoint = type === 'movie' ? 'movie' : 'tv';
     
     // Fetch details, credits, videos, and watch providers in parallel
     const [detailsRes, creditsRes, videosRes, providersRes] = await Promise.all([
-      fetch(`${TMDB_BASE_URL}/${endpoint}/${tmdb_id}?api_key=${TMDB_API_KEY}`),
-      fetch(`${TMDB_BASE_URL}/${endpoint}/${tmdb_id}/credits?api_key=${TMDB_API_KEY}`),
-      fetch(`${TMDB_BASE_URL}/${endpoint}/${tmdb_id}/videos?api_key=${TMDB_API_KEY}`),
-      fetch(`${TMDB_BASE_URL}/${endpoint}/${tmdb_id}/watch/providers?api_key=${TMDB_API_KEY}`)
+      fetch(`${TMDB_BASE_URL}/${endpoint}/${tmdbIdInt}?api_key=${TMDB_API_KEY}`),
+      fetch(`${TMDB_BASE_URL}/${endpoint}/${tmdbIdInt}/credits?api_key=${TMDB_API_KEY}`),
+      fetch(`${TMDB_BASE_URL}/${endpoint}/${tmdbIdInt}/videos?api_key=${TMDB_API_KEY}`),
+      fetch(`${TMDB_BASE_URL}/${endpoint}/${tmdbIdInt}/watch/providers?api_key=${TMDB_API_KEY}`)
     ]);
 
     const [details, credits, videos, providers] = await Promise.all([
@@ -108,7 +114,7 @@ serve(async (req) => {
       
       // Fetch videos for each season with error handling
       const seasonVideoPromises = details.seasons.map((season: any) => 
-        fetch(`${TMDB_BASE_URL}/tv/${tmdb_id}/season/${season.season_number}/videos?api_key=${TMDB_API_KEY}`)
+        fetch(`${TMDB_BASE_URL}/tv/${tmdbIdInt}/season/${season.season_number}/videos?api_key=${TMDB_API_KEY}`)
           .then(res => {
             if (!res.ok) {
               console.error(`Failed to fetch videos for season ${season.season_number}: ${res.status}`);

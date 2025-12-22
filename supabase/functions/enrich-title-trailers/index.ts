@@ -269,13 +269,20 @@ serve(async (req) => {
     }
 
     // Helper function to fetch trailer from TMDB videos endpoint
-    async function fetchTmdbTrailer(tmdbId: number, endpoint: string, seasonNumber?: number): Promise<string | null> {
+    async function fetchTmdbTrailer(tmdbId: number | string, endpoint: string, seasonNumber?: number): Promise<string | null> {
       try {
+        // Ensure tmdb_id is an integer (handles scientific notation from DB)
+        const tmdbIdInt = Math.floor(Number(tmdbId));
+        if (!tmdbIdInt || isNaN(tmdbIdInt)) {
+          console.error(`Invalid tmdb_id for trailer fetch: ${tmdbId}`);
+          return null;
+        }
+
         let url: string;
         if (seasonNumber !== undefined) {
-          url = `${TMDB_BASE_URL}/tv/${tmdbId}/season/${seasonNumber}/videos?api_key=${TMDB_API_KEY}`;
+          url = `${TMDB_BASE_URL}/tv/${tmdbIdInt}/season/${seasonNumber}/videos?api_key=${TMDB_API_KEY}`;
         } else {
-          url = `${TMDB_BASE_URL}/${endpoint}/${tmdbId}/videos?api_key=${TMDB_API_KEY}`;
+          url = `${TMDB_BASE_URL}/${endpoint}/${tmdbIdInt}/videos?api_key=${TMDB_API_KEY}`;
         }
 
         const res = await fetch(url);
@@ -338,29 +345,38 @@ serve(async (req) => {
           let trailerUrl: string | null = null;
           let isTmdbTrailer = true;
 
+          // Ensure tmdb_id is an integer (handles scientific notation from DB)
+          const tmdbIdInt = Math.floor(Number(title.tmdb_id));
+          if (!tmdbIdInt || isNaN(tmdbIdInt)) {
+            console.error(`Invalid tmdb_id for ${title.name}: ${title.tmdb_id}`);
+            failed++;
+            totalProcessed++;
+            continue;
+          }
+
           if (title.title_type === 'movie') {
             // Try TMDB for movies
-            trailerUrl = await fetchTmdbTrailer(title.tmdb_id, 'movie');
+            trailerUrl = await fetchTmdbTrailer(tmdbIdInt, 'movie');
           } else {
             // For TV, try to get latest season trailer first, then series-level
             try {
-              const tvRes = await fetch(`${TMDB_BASE_URL}/tv/${title.tmdb_id}?api_key=${TMDB_API_KEY}`);
+              const tvRes = await fetch(`${TMDB_BASE_URL}/tv/${tmdbIdInt}?api_key=${TMDB_API_KEY}`);
               if (tvRes.ok) {
                 const tvData = await tvRes.json();
                 const seasons = tvData.seasons?.filter((s: any) => s.season_number > 0) || [];
                 const latestSeasonNumber = seasons.length > 0 ? Math.max(...seasons.map((s: any) => s.season_number)) : null;
                 
                 if (latestSeasonNumber) {
-                  trailerUrl = await fetchTmdbTrailer(title.tmdb_id, 'tv', latestSeasonNumber);
+                  trailerUrl = await fetchTmdbTrailer(tmdbIdInt, 'tv', latestSeasonNumber);
                 }
               }
             } catch (e) {
-              console.error(`Error fetching TV details for ${title.tmdb_id}:`, e);
+              console.error(`Error fetching TV details for ${tmdbIdInt}:`, e);
             }
             
             // Fallback to series-level TMDB trailer
             if (!trailerUrl) {
-              trailerUrl = await fetchTmdbTrailer(title.tmdb_id, 'tv');
+              trailerUrl = await fetchTmdbTrailer(tmdbIdInt, 'tv');
             }
           }
 
@@ -467,15 +483,22 @@ serve(async (req) => {
               continue;
             }
 
+            // Ensure tmdb_id is an integer (handles scientific notation from DB)
+            const tmdbIdInt = Math.floor(Number(tmdbId));
+            if (!tmdbIdInt || isNaN(tmdbIdInt)) {
+              console.error(`Invalid tmdb_id for season of ${titleName}: ${tmdbId}`);
+              continue;
+            }
+
             let trailerUrl: string | null = null;
             let isTmdbTrailer = true;
 
             // Try TMDB season-specific trailer
-            trailerUrl = await fetchTmdbTrailer(tmdbId, 'tv', season.season_number);
+            trailerUrl = await fetchTmdbTrailer(tmdbIdInt, 'tv', season.season_number);
 
             // Fallback to series-level TMDB trailer
             if (!trailerUrl) {
-              trailerUrl = await fetchTmdbTrailer(tmdbId, 'tv');
+              trailerUrl = await fetchTmdbTrailer(tmdbIdInt, 'tv');
             }
 
             // Fallback to YouTube with season-specific search
