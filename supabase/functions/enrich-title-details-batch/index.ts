@@ -258,16 +258,66 @@ serve(async (req) => {
     console.log('=== PHASE 1: Processing titles ===');
 
     // Prioritize titles with missing poster/overview/trailer (can always be fetched from TMDB)
-    // Then fill remaining slots with titles needing transcripts
-    const { data: titlesWithMissingBasics, error: fetchError1 } = await supabase
+    // Split into separate queries to avoid complex OR that causes timeouts
+    let titlesWithMissingBasics: any[] = [];
+    
+    // Query 1: Missing poster (simpler, faster query)
+    const { data: missingPoster, error: err1 } = await supabase
       .from('titles')
       .select('id, tmdb_id, title_type, name, overview, poster_path, trailer_url, trailer_transcript, backdrop_path, release_date, first_air_date')
       .not('tmdb_id', 'is', null)
-      .or('poster_path.is.null,poster_path.eq.,overview.is.null,overview.eq.,trailer_url.is.null,trailer_url.eq.')
+      .or('poster_path.is.null,poster_path.eq.')
       .order('popularity', { ascending: false, nullsFirst: false })
       .limit(BATCH_SIZE);
+    
+    if (err1) {
+      console.error('Error fetching missing poster titles:', err1.message);
+    } else if (missingPoster) {
+      titlesWithMissingBasics = [...missingPoster];
+    }
 
-    if (fetchError1) throw new Error(`Error fetching titles: ${fetchError1.message}`);
+    // Query 2: Missing overview (if we need more)
+    if (titlesWithMissingBasics.length < BATCH_SIZE) {
+      const existingIds = new Set(titlesWithMissingBasics.map(t => t.id));
+      const { data: missingOverview, error: err2 } = await supabase
+        .from('titles')
+        .select('id, tmdb_id, title_type, name, overview, poster_path, trailer_url, trailer_transcript, backdrop_path, release_date, first_air_date')
+        .not('tmdb_id', 'is', null)
+        .or('overview.is.null,overview.eq.')
+        .order('popularity', { ascending: false, nullsFirst: false })
+        .limit(BATCH_SIZE - titlesWithMissingBasics.length);
+      
+      if (!err2 && missingOverview) {
+        for (const t of missingOverview) {
+          if (!existingIds.has(t.id)) {
+            titlesWithMissingBasics.push(t);
+            existingIds.add(t.id);
+          }
+        }
+      }
+    }
+
+    // Query 3: Missing trailer (if we need more)
+    if (titlesWithMissingBasics.length < BATCH_SIZE) {
+      const existingIds = new Set(titlesWithMissingBasics.map(t => t.id));
+      const { data: missingTrailer, error: err3 } = await supabase
+        .from('titles')
+        .select('id, tmdb_id, title_type, name, overview, poster_path, trailer_url, trailer_transcript, backdrop_path, release_date, first_air_date')
+        .not('tmdb_id', 'is', null)
+        .or('trailer_url.is.null,trailer_url.eq.')
+        .order('popularity', { ascending: false, nullsFirst: false })
+        .limit(BATCH_SIZE - titlesWithMissingBasics.length);
+      
+      if (!err3 && missingTrailer) {
+        for (const t of missingTrailer) {
+          if (!existingIds.has(t.id)) {
+            titlesWithMissingBasics.push(t);
+          }
+        }
+      }
+    }
+
+    console.log(`Fetched ${titlesWithMissingBasics.length} titles with missing basics`);
 
     // Fill remaining slots with titles only needing transcripts (if we have capacity)
     let titlesNeedingEnrichment = titlesWithMissingBasics || [];
@@ -596,12 +646,26 @@ serve(async (req) => {
     const totalProcessed = titlesProcessed + seasonsProcessed;
     const totalUpdated = titlesUpdated + seasonsUpdated;
 
-    // Check remaining work - TITLES
-    const { count: remainingTitles } = await supabase
+    // Check remaining work - TITLES (use simpler count query)
+    const { count: remainingPoster } = await supabase
       .from('titles')
       .select('*', { count: 'exact', head: true })
       .not('tmdb_id', 'is', null)
-      .or('poster_path.is.null,poster_path.eq.,overview.is.null,overview.eq.,trailer_url.is.null,trailer_url.eq.');
+      .or('poster_path.is.null,poster_path.eq.');
+
+    const { count: remainingOverview } = await supabase
+      .from('titles')
+      .select('*', { count: 'exact', head: true })
+      .not('tmdb_id', 'is', null)
+      .or('overview.is.null,overview.eq.');
+
+    const { count: remainingTrailer } = await supabase
+      .from('titles')
+      .select('*', { count: 'exact', head: true })
+      .not('tmdb_id', 'is', null)
+      .or('trailer_url.is.null,trailer_url.eq.');
+
+    const remainingTitles = Math.max(remainingPoster || 0, remainingOverview || 0, remainingTrailer || 0);
 
     // Titles with missing transcript (NULL or empty)
     const { count: titlesMissingTranscripts } = await supabase
