@@ -1,59 +1,17 @@
 -- ============================================================================
--- PHASE 3: PERFORMANCE INDEXES AND REFRESH UTILITIES
+-- PHASE 3: REFRESH UTILITIES (FUNCTIONS ONLY)
 -- This migration adds:
--- 1. Performance indexes for recommendation queries
--- 2. Master refresh function to update all recommendation caches
--- 3. Utility function to check cache freshness
+-- 1. Master refresh function to update all recommendation caches
+-- 2. Utility function to check cache freshness
+--
+-- NOTE: Indexes are NOT created here due to timeout limits.
+-- Create indexes manually via Supabase Dashboard SQL Editor after migration.
+-- See bottom of file for index creation SQL.
 -- ============================================================================
-
--- Set longer timeout for index creation (10 minutes)
-SET statement_timeout TO '600s';
-
--- ============================================================================
--- PART 1: PERFORMANCE INDEXES
--- These indexes dramatically improve recommendation query performance
--- Using smaller tables first, then larger ones
--- ============================================================================
-
--- Small tables first (emotion_to_intent_map, friend_connections)
-CREATE INDEX IF NOT EXISTS idx_e2i_intent_type
-ON public.emotion_to_intent_map(intent_type);
-
-CREATE INDEX IF NOT EXISTS idx_fc_user_id
-ON public.friend_connections(user_id);
-
--- Medium tables (user_emotion_states, user_title_interactions)
-CREATE INDEX IF NOT EXISTS idx_ues_user_created
-ON public.user_emotion_states(user_id, created_at DESC);
-
-CREATE INDEX IF NOT EXISTS idx_uti_user_title
-ON public.user_title_interactions(user_id, title_id);
-
--- Larger tables (title_transformation_scores, classified_titles, cache)
-CREATE INDEX IF NOT EXISTS idx_tts_user_emotion_id
-ON public.title_transformation_scores(user_emotion_id);
-
-CREATE INDEX IF NOT EXISTS idx_vect_emotion_id
-ON public.viib_emotion_classified_titles(emotion_id);
-
-CREATE INDEX IF NOT EXISTS idx_vect_title_id
-ON public.viib_emotion_classified_titles(title_id);
-
-CREATE INDEX IF NOT EXISTS idx_vict_intent_type
-ON public.viib_intent_classified_titles(intent_type);
-
-CREATE INDEX IF NOT EXISTS idx_vict_title_id
-ON public.viib_intent_classified_titles(title_id);
-
-CREATE INDEX IF NOT EXISTS idx_tuemc_user_emotion
-ON public.title_user_emotion_match_cache(user_emotion_id);
-
--- Reset to default timeout
-RESET statement_timeout;
 
 
 -- ============================================================================
--- PART 2: MASTER REFRESH FUNCTION
+-- PART 1: MASTER REFRESH FUNCTION
 -- Call this after emotion classification jobs complete
 -- ============================================================================
 
@@ -291,10 +249,25 @@ GRANT EXECUTE ON FUNCTION public.check_recommendation_cache_freshness() TO authe
 -- ============================================================================
 -- PHASE 3 COMPLETE
 -- Summary:
--- 1. Added 10 performance indexes for recommendation queries (with 10min timeout)
--- 2. Created refresh_all_recommendation_caches() master refresh function
--- 3. Created check_recommendation_cache_freshness() monitoring function
+-- 1. Created refresh_all_recommendation_caches() master refresh function
+-- 2. Created check_recommendation_cache_freshness() monitoring function
 --
--- NOTE: After migration, run the cache refresh manually:
+-- POST-MIGRATION STEPS (run in Supabase Dashboard SQL Editor):
+--
+-- Step 1: Create indexes (run each one separately if needed)
+/*
+CREATE INDEX IF NOT EXISTS idx_e2i_intent_type ON public.emotion_to_intent_map(intent_type);
+CREATE INDEX IF NOT EXISTS idx_fc_user_id ON public.friend_connections(user_id);
+CREATE INDEX IF NOT EXISTS idx_ues_user_created ON public.user_emotion_states(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_uti_user_title ON public.user_title_interactions(user_id, title_id);
+CREATE INDEX IF NOT EXISTS idx_tts_user_emotion_id ON public.title_transformation_scores(user_emotion_id);
+CREATE INDEX IF NOT EXISTS idx_vect_emotion_id ON public.viib_emotion_classified_titles(emotion_id);
+CREATE INDEX IF NOT EXISTS idx_vect_title_id ON public.viib_emotion_classified_titles(title_id);
+CREATE INDEX IF NOT EXISTS idx_vict_intent_type ON public.viib_intent_classified_titles(intent_type);
+CREATE INDEX IF NOT EXISTS idx_vict_title_id ON public.viib_intent_classified_titles(title_id);
+CREATE INDEX IF NOT EXISTS idx_tuemc_user_emotion ON public.title_user_emotion_match_cache(user_emotion_id);
+*/
+--
+-- Step 2: Refresh caches
 --   SELECT * FROM refresh_all_recommendation_caches();
 -- ============================================================================
