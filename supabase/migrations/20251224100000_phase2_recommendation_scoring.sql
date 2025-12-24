@@ -43,7 +43,7 @@ BEGIN
     INTO v_cached_score
     FROM title_intent_alignment_scores tias
     WHERE tias.title_id = p_title_id
-      AND tias.emotion_id = v_emotion_id;
+      AND tias.user_emotion_id = v_emotion_id;
 
     IF v_cached_score IS NOT NULL THEN
         RETURN v_cached_score;
@@ -484,13 +484,13 @@ BEGIN
     -- Pre-compute intent alignment scores for all title-emotion combinations
     INSERT INTO public.title_intent_alignment_scores (
         title_id,
-        emotion_id,
+        user_emotion_id,
         alignment_score,
         updated_at
     )
     SELECT
         vit.title_id,
-        e2i.emotion_id,
+        e2i.emotion_id AS user_emotion_id,
         (
             SUM(e2i.weight * vit.confidence_score * COALESCE(tts.transformation_score, 0.5))
             / NULLIF(SUM(e2i.weight), 0)
@@ -503,7 +503,7 @@ BEGIN
         ON tts.title_id = vit.title_id
        AND tts.user_emotion_id = e2i.emotion_id
     GROUP BY vit.title_id, e2i.emotion_id
-    ON CONFLICT (title_id, emotion_id)
+    ON CONFLICT (title_id, user_emotion_id)
     DO UPDATE SET
         alignment_score = EXCLUDED.alignment_score,
         updated_at = now();
@@ -589,6 +589,7 @@ EXECUTE FUNCTION public.cascade_refresh_emotion_scores();
 
 -- ============================================================================
 -- PART 8: ENSURE title_intent_alignment_scores TABLE EXISTS
+-- Note: Table uses user_emotion_id (not emotion_id) to match existing schema
 -- ============================================================================
 
 DO $$
@@ -601,23 +602,29 @@ BEGIN
         CREATE TABLE public.title_intent_alignment_scores (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
             title_id UUID NOT NULL REFERENCES public.titles(id),
-            emotion_id UUID NOT NULL REFERENCES public.emotion_master(id),
+            user_emotion_id UUID NOT NULL REFERENCES public.emotion_master(id),
             alignment_score REAL NOT NULL,
             updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
         );
 
         CREATE UNIQUE INDEX IF NOT EXISTS idx_title_intent_alignment_unique
-        ON public.title_intent_alignment_scores(title_id, emotion_id);
+        ON public.title_intent_alignment_scores(title_id, user_emotion_id);
     END IF;
 
-    -- Add unique constraint if not exists
+    -- Add unique constraint if not exists (using existing column name user_emotion_id)
     IF NOT EXISTS (
         SELECT 1 FROM pg_constraint
-        WHERE conname = 'title_intent_alignment_scores_title_emotion_unique'
+        WHERE conname = 'title_intent_alignment_scores_title_user_emotion_unique'
     ) THEN
-        ALTER TABLE public.title_intent_alignment_scores
-        ADD CONSTRAINT title_intent_alignment_scores_title_emotion_unique
-        UNIQUE (title_id, emotion_id);
+        -- Only add constraint if not already present
+        BEGIN
+            ALTER TABLE public.title_intent_alignment_scores
+            ADD CONSTRAINT title_intent_alignment_scores_title_user_emotion_unique
+            UNIQUE (title_id, user_emotion_id);
+        EXCEPTION WHEN duplicate_object THEN
+            -- Constraint already exists, ignore
+            NULL;
+        END;
     END IF;
 END $$;
 
