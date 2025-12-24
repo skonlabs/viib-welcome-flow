@@ -2056,6 +2056,17 @@ export type Database = {
         Args: { p_emotion_id: string; p_energy_percentage: number }
         Returns: number
       }
+      check_recommendation_cache_freshness: {
+        Args: never
+        Returns: {
+          age_hours: number
+          cache_name: string
+          needs_refresh: boolean
+          newest_update: string
+          oldest_update: string
+          row_count: number
+        }[]
+      }
       explain_recommendation: {
         Args: { p_title_id: string; p_user_id: string }
         Returns: Json
@@ -2125,15 +2136,25 @@ export type Database = {
         }[]
       }
       get_top_recommendations_v2: {
-        Args: { p_user_id: string; p_limit?: number }
+        Args: { p_limit?: number; p_user_id: string }
         Returns: {
-          title_id: string
           base_viib_score: number
+          final_score: number
+          intent_alignment_score: number
+          recommendation_reason: string
+          social_priority_score: number
+          title_id: string
+          transformation_score: number
+        }[]
+      }
+      get_top_recommendations_with_intent: {
+        Args: { p_limit: number; p_user_id: string }
+        Returns: {
+          base_viib_score: number
+          final_score: number
           intent_alignment_score: number
           social_priority_score: number
-          transformation_score: number
-          final_score: number
-          recommendation_reason: string
+          title_id: string
         }[]
       }
       has_role: {
@@ -2158,6 +2179,15 @@ export type Database = {
         Returns: undefined
       }
       promote_title_intents: { Args: { p_limit?: number }; Returns: number }
+      refresh_all_recommendation_caches: {
+        Args: never
+        Returns: {
+          duration_ms: number
+          rows_affected: number
+          status: string
+          step: string
+        }[]
+      }
       refresh_title_emotion_vectors: { Args: never; Returns: undefined }
       refresh_title_intent_alignment_scores: { Args: never; Returns: undefined }
       refresh_title_social_summary: { Args: never; Returns: undefined }
