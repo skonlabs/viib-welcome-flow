@@ -89,17 +89,33 @@ serve(async (req) => {
     // Extract genre names
     const genres = details.genres?.map((g: any) => GENRE_MAP[g.id] || g.name) || [];
 
-    // Extract streaming services (US providers)
+    // Extract streaming services (US providers) - include flatrate, ads, and free
     const usProviders = providers.results?.US;
-    const streaming_services = [];
+    const streaming_services: Array<{service_name: string; service_code: string; logo_url: string | null; type: string}> = [];
+    const addedProviderIds = new Set<number>();
     
-    if (usProviders?.flatrate) {
-      streaming_services.push(...usProviders.flatrate.map((p: any) => ({
-        service_name: p.provider_name,
-        service_code: p.provider_id.toString(),
-        logo_url: p.logo_path ? `https://image.tmdb.org/t/p/w92${p.logo_path}` : null
-      })));
-    }
+    // Helper to add providers without duplicates
+    const addProviders = (providerList: any[], type: string) => {
+      if (!providerList) return;
+      for (const p of providerList) {
+        if (!addedProviderIds.has(p.provider_id)) {
+          addedProviderIds.add(p.provider_id);
+          streaming_services.push({
+            service_name: p.provider_name,
+            service_code: p.provider_id.toString(),
+            logo_url: p.logo_path ? `https://image.tmdb.org/t/p/w92${p.logo_path}` : null,
+            type
+          });
+        }
+      }
+    };
+    
+    // Add streaming (subscription) services first
+    addProviders(usProviders?.flatrate, 'subscription');
+    // Add free with ads services
+    addProviders(usProviders?.ads, 'ads');
+    // Add free services
+    addProviders(usProviders?.free, 'free');
 
     // Runtime
     const runtime_minutes = type === 'movie' ? details.runtime : null;
