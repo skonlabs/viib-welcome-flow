@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft, Sparkles } from 'lucide-react';
 
 interface MoodMapProps {
+  userId: string;
   onMoodSaved: () => void;
   onBack: () => void;
 }
@@ -77,7 +78,7 @@ const getMoodLabel = (valence: number, arousal: number): string => {
   return 'Sad';
 };
 
-export const MoodMap = ({ onMoodSaved, onBack }: MoodMapProps) => {
+export const MoodMap = ({ userId, onMoodSaved, onBack }: MoodMapProps) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState({ x: 50, y: 50 });
   const [isDragging, setIsDragging] = useState(false);
@@ -104,9 +105,6 @@ export const MoodMap = ({ onMoodSaved, onBack }: MoodMapProps) => {
   // Load user's last mood
   useEffect(() => {
     const loadLastMood = async () => {
-      const userId = localStorage.getItem('viib_user_id');
-      if (!userId) return;
-
       const { data } = await supabase
         .from('user_emotion_states')
         .select('valence, arousal')
@@ -121,7 +119,7 @@ export const MoodMap = ({ onMoodSaved, onBack }: MoodMapProps) => {
       }
     };
     loadLastMood();
-  }, []);
+  }, [userId]);
 
   const { valence, arousal } = useMemo(
     () => positionToEmotion(position.x, position.y),
@@ -186,12 +184,6 @@ export const MoodMap = ({ onMoodSaved, onBack }: MoodMapProps) => {
   };
 
   const handleSaveMood = async () => {
-    const userId = localStorage.getItem('viib_user_id');
-    if (!userId) {
-      toast.error('Please log in to save your mood');
-      return;
-    }
-
     setIsSaving(true);
     try {
       // Find the closest emotion
