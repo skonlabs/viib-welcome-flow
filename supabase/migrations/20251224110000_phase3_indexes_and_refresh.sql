@@ -6,50 +6,50 @@
 -- 3. Utility function to check cache freshness
 -- ============================================================================
 
+-- Set longer timeout for index creation (10 minutes)
+SET statement_timeout TO '600s';
+
 -- ============================================================================
 -- PART 1: PERFORMANCE INDEXES
 -- These indexes dramatically improve recommendation query performance
+-- Using smaller tables first, then larger ones
 -- ============================================================================
 
--- Index for title_transformation_scores lookups by user emotion
-CREATE INDEX IF NOT EXISTS idx_tts_user_emotion_id
-ON public.title_transformation_scores(user_emotion_id);
-
--- Index for emotion_to_intent_map joins on intent_type
+-- Small tables first (emotion_to_intent_map, friend_connections)
 CREATE INDEX IF NOT EXISTS idx_e2i_intent_type
 ON public.emotion_to_intent_map(intent_type);
 
--- Index for user_emotion_states to quickly get latest emotion
-CREATE INDEX IF NOT EXISTS idx_ues_user_created
-ON public.user_emotion_states(user_id, created_at DESC);
-
--- Index for viib_emotion_classified_titles emotion lookups
-CREATE INDEX IF NOT EXISTS idx_vect_emotion_id
-ON public.viib_emotion_classified_titles(emotion_id);
-
--- Index for viib_emotion_classified_titles title lookups
-CREATE INDEX IF NOT EXISTS idx_vect_title_id
-ON public.viib_emotion_classified_titles(title_id);
-
--- Index for viib_intent_classified_titles intent lookups
-CREATE INDEX IF NOT EXISTS idx_vict_intent_type
-ON public.viib_intent_classified_titles(intent_type);
-
--- Index for viib_intent_classified_titles title lookups
-CREATE INDEX IF NOT EXISTS idx_vict_title_id
-ON public.viib_intent_classified_titles(title_id);
-
--- Index for friend_connections user lookups
 CREATE INDEX IF NOT EXISTS idx_fc_user_id
 ON public.friend_connections(user_id);
 
--- Index for user_title_interactions for history lookups
+-- Medium tables (user_emotion_states, user_title_interactions)
+CREATE INDEX IF NOT EXISTS idx_ues_user_created
+ON public.user_emotion_states(user_id, created_at DESC);
+
 CREATE INDEX IF NOT EXISTS idx_uti_user_title
 ON public.user_title_interactions(user_id, title_id);
 
--- Index for title_user_emotion_match_cache
+-- Larger tables (title_transformation_scores, classified_titles, cache)
+CREATE INDEX IF NOT EXISTS idx_tts_user_emotion_id
+ON public.title_transformation_scores(user_emotion_id);
+
+CREATE INDEX IF NOT EXISTS idx_vect_emotion_id
+ON public.viib_emotion_classified_titles(emotion_id);
+
+CREATE INDEX IF NOT EXISTS idx_vect_title_id
+ON public.viib_emotion_classified_titles(title_id);
+
+CREATE INDEX IF NOT EXISTS idx_vict_intent_type
+ON public.viib_intent_classified_titles(intent_type);
+
+CREATE INDEX IF NOT EXISTS idx_vict_title_id
+ON public.viib_intent_classified_titles(title_id);
+
 CREATE INDEX IF NOT EXISTS idx_tuemc_user_emotion
 ON public.title_user_emotion_match_cache(user_emotion_id);
+
+-- Reset to default timeout
+RESET statement_timeout;
 
 
 -- ============================================================================
@@ -281,31 +281,7 @@ $function$;
 
 
 -- ============================================================================
--- PART 4: IMMEDIATE CACHE REFRESH
--- Run this once after migration to populate caches with new weights
--- ============================================================================
-
--- Wrap in DO block to execute immediately
-DO $$
-DECLARE
-    v_result RECORD;
-BEGIN
-    RAISE NOTICE 'Starting recommendation cache refresh...';
-
-    FOR v_result IN SELECT * FROM refresh_all_recommendation_caches() LOOP
-        RAISE NOTICE 'Step: %, Status: %, Rows: %, Duration: %ms',
-            v_result.step,
-            v_result.status,
-            v_result.rows_affected,
-            v_result.duration_ms;
-    END LOOP;
-
-    RAISE NOTICE 'Cache refresh complete!';
-END $$;
-
-
--- ============================================================================
--- PART 5: GRANT PERMISSIONS
+-- PART 4: GRANT PERMISSIONS
 -- ============================================================================
 
 GRANT EXECUTE ON FUNCTION public.refresh_all_recommendation_caches() TO service_role;
@@ -315,8 +291,10 @@ GRANT EXECUTE ON FUNCTION public.check_recommendation_cache_freshness() TO authe
 -- ============================================================================
 -- PHASE 3 COMPLETE
 -- Summary:
--- 1. Added 11 performance indexes for recommendation queries
+-- 1. Added 10 performance indexes for recommendation queries (with 10min timeout)
 -- 2. Created refresh_all_recommendation_caches() master refresh function
 -- 3. Created check_recommendation_cache_freshness() monitoring function
--- 4. Executed immediate cache refresh with Phase 1/2 weights
+--
+-- NOTE: After migration, run the cache refresh manually:
+--   SELECT * FROM refresh_all_recommendation_caches();
 -- ============================================================================
