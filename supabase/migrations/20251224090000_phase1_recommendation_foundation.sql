@@ -13,27 +13,11 @@
 -- PAD Model: Pleasure (Valence), Arousal, Dominance
 -- Values range from -1.0 to 1.0
 -- Categories: 'user_state' (what user feels), 'content_state' (what content evokes)
+-- Using INSERT ON CONFLICT to avoid DELETE/TRUNCATE timeout issues
 -- ============================================================================
-
--- Clear existing data to avoid duplicates
--- Using TRUNCATE CASCADE for performance (DELETE is too slow with FK constraints)
--- Order matters: truncate child tables first, then parent
-
--- First, clear tables that reference emotion_master
-TRUNCATE TABLE title_transformation_scores CASCADE;
-TRUNCATE TABLE title_intent_alignment_scores CASCADE;
-TRUNCATE TABLE title_user_emotion_match_cache CASCADE;
-TRUNCATE TABLE emotion_display_phrases CASCADE;
-TRUNCATE TABLE emotion_to_intent_map CASCADE;
-TRUNCATE TABLE emotion_transformation_map CASCADE;
-TRUNCATE TABLE user_emotion_states CASCADE;
-
--- Now safe to truncate emotion_master
-TRUNCATE TABLE emotion_master CASCADE;
 
 -- Insert USER_STATE emotions (emotions users can feel)
 INSERT INTO emotion_master (id, emotion_label, category, valence, arousal, dominance, intensity_multiplier, description) VALUES
--- Primary emotions users report
 ('11111111-0001-0001-0001-000000000001', 'happy', 'user_state', 0.8, 0.5, 0.6, 1.0, 'Feeling joyful, content, and positive'),
 ('11111111-0001-0001-0001-000000000002', 'sad', 'user_state', -0.7, -0.3, -0.5, 1.2, 'Feeling down, melancholic, or blue'),
 ('11111111-0001-0001-0001-000000000003', 'angry', 'user_state', -0.6, 0.8, 0.5, 1.3, 'Feeling frustrated, irritated, or furious'),
@@ -53,7 +37,15 @@ INSERT INTO emotion_master (id, emotion_label, category, valence, arousal, domin
 ('11111111-0001-0001-0001-000000000017', 'content', 'user_state', 0.6, -0.3, 0.4, 0.9, 'Feeling satisfied and at peace'),
 ('11111111-0001-0001-0001-000000000018', 'frustrated', 'user_state', -0.5, 0.5, -0.2, 1.2, 'Feeling blocked or hindered'),
 ('11111111-0001-0001-0001-000000000019', 'inspired', 'user_state', 0.7, 0.6, 0.5, 1.1, 'Feeling motivated and creative'),
-('11111111-0001-0001-0001-000000000020', 'overwhelmed', 'user_state', -0.5, 0.4, -0.6, 1.3, 'Feeling like too much is happening');
+('11111111-0001-0001-0001-000000000020', 'overwhelmed', 'user_state', -0.5, 0.4, -0.6, 1.3, 'Feeling like too much is happening')
+ON CONFLICT (id) DO UPDATE SET
+    emotion_label = EXCLUDED.emotion_label,
+    category = EXCLUDED.category,
+    valence = EXCLUDED.valence,
+    arousal = EXCLUDED.arousal,
+    dominance = EXCLUDED.dominance,
+    intensity_multiplier = EXCLUDED.intensity_multiplier,
+    description = EXCLUDED.description;
 
 -- Insert CONTENT_STATE emotions (emotions content can evoke)
 INSERT INTO emotion_master (id, emotion_label, category, valence, arousal, dominance, intensity_multiplier, description) VALUES
@@ -94,14 +86,36 @@ INSERT INTO emotion_master (id, emotion_label, category, valence, arousal, domin
 -- Light/Fun
 ('22222222-0002-0002-0002-000000000028', 'quirky', 'content_state', 0.5, 0.3, 0.2, 0.9, 'Content that is charmingly odd'),
 ('22222222-0002-0002-0002-000000000029', 'lighthearted', 'content_state', 0.6, 0.2, 0.3, 0.8, 'Content that is easy and fun'),
-('22222222-0002-0002-0002-000000000030', 'escapist', 'content_state', 0.5, 0.1, 0.2, 0.9, 'Content for mental getaway');
+('22222222-0002-0002-0002-000000000030', 'escapist', 'content_state', 0.5, 0.1, 0.2, 0.9, 'Content for mental getaway')
+ON CONFLICT (id) DO UPDATE SET
+    emotion_label = EXCLUDED.emotion_label,
+    category = EXCLUDED.category,
+    valence = EXCLUDED.valence,
+    arousal = EXCLUDED.arousal,
+    dominance = EXCLUDED.dominance,
+    intensity_multiplier = EXCLUDED.intensity_multiplier,
+    description = EXCLUDED.description;
 
 
 -- ============================================================================
 -- PART 2: SEED EMOTION_TO_INTENT_MAP
 -- Maps user emotions to content intents with weights (0-1)
 -- Higher weight = stronger association
+-- Using INSERT ON CONFLICT to avoid DELETE/TRUNCATE timeout issues
 -- ============================================================================
+
+-- Create unique constraint if not exists (for ON CONFLICT to work)
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'emotion_to_intent_map_emotion_intent_unique'
+    ) THEN
+        ALTER TABLE emotion_to_intent_map
+        ADD CONSTRAINT emotion_to_intent_map_emotion_intent_unique
+        UNIQUE (emotion_id, intent_type);
+    END IF;
+END $$;
 
 -- HAPPY user → what intents match?
 INSERT INTO emotion_to_intent_map (emotion_id, intent_type, weight) VALUES
@@ -109,28 +123,32 @@ INSERT INTO emotion_to_intent_map (emotion_id, intent_type, weight) VALUES
 ('11111111-0001-0001-0001-000000000001', 'family_bonding', 0.8),
 ('11111111-0001-0001-0001-000000000001', 'adrenaline_rush', 0.7),
 ('11111111-0001-0001-0001-000000000001', 'comfort_escape', 0.6),
-('11111111-0001-0001-0001-000000000001', 'discovery', 0.5);
+('11111111-0001-0001-0001-000000000001', 'discovery', 0.5)
+ON CONFLICT (emotion_id, intent_type) DO UPDATE SET weight = EXCLUDED.weight;
 
 -- SAD user → what intents match?
 INSERT INTO emotion_to_intent_map (emotion_id, intent_type, weight) VALUES
 ('11111111-0001-0001-0001-000000000002', 'comfort_escape', 0.95),
 ('11111111-0001-0001-0001-000000000002', 'emotional_release', 0.9),
 ('11111111-0001-0001-0001-000000000002', 'light_entertainment', 0.7),
-('11111111-0001-0001-0001-000000000002', 'family_bonding', 0.5);
+('11111111-0001-0001-0001-000000000002', 'family_bonding', 0.5)
+ON CONFLICT (emotion_id, intent_type) DO UPDATE SET weight = EXCLUDED.weight;
 
 -- ANGRY user → what intents match?
 INSERT INTO emotion_to_intent_map (emotion_id, intent_type, weight) VALUES
 ('11111111-0001-0001-0001-000000000003', 'adrenaline_rush', 0.9),
 ('11111111-0001-0001-0001-000000000003', 'emotional_release', 0.85),
 ('11111111-0001-0001-0001-000000000003', 'comfort_escape', 0.6),
-('11111111-0001-0001-0001-000000000003', 'deep_thought', 0.4);
+('11111111-0001-0001-0001-000000000003', 'deep_thought', 0.4)
+ON CONFLICT (emotion_id, intent_type) DO UPDATE SET weight = EXCLUDED.weight;
 
 -- ANXIOUS user → what intents match?
 INSERT INTO emotion_to_intent_map (emotion_id, intent_type, weight) VALUES
 ('11111111-0001-0001-0001-000000000004', 'comfort_escape', 0.95),
 ('11111111-0001-0001-0001-000000000004', 'light_entertainment', 0.85),
 ('11111111-0001-0001-0001-000000000004', 'background_passive', 0.8),
-('11111111-0001-0001-0001-000000000004', 'family_bonding', 0.6);
+('11111111-0001-0001-0001-000000000004', 'family_bonding', 0.6)
+ON CONFLICT (emotion_id, intent_type) DO UPDATE SET weight = EXCLUDED.weight;
 
 -- CALM user → what intents match?
 INSERT INTO emotion_to_intent_map (emotion_id, intent_type, weight) VALUES
@@ -138,116 +156,143 @@ INSERT INTO emotion_to_intent_map (emotion_id, intent_type, weight) VALUES
 ('11111111-0001-0001-0001-000000000005', 'deep_thought', 0.85),
 ('11111111-0001-0001-0001-000000000005', 'discovery', 0.8),
 ('11111111-0001-0001-0001-000000000005', 'background_passive', 0.75),
-('11111111-0001-0001-0001-000000000005', 'family_bonding', 0.7);
+('11111111-0001-0001-0001-000000000005', 'family_bonding', 0.7)
+ON CONFLICT (emotion_id, intent_type) DO UPDATE SET weight = EXCLUDED.weight;
 
 -- EXCITED user → what intents match?
 INSERT INTO emotion_to_intent_map (emotion_id, intent_type, weight) VALUES
 ('11111111-0001-0001-0001-000000000006', 'adrenaline_rush', 0.95),
 ('11111111-0001-0001-0001-000000000006', 'discovery', 0.8),
 ('11111111-0001-0001-0001-000000000006', 'light_entertainment', 0.75),
-('11111111-0001-0001-0001-000000000006', 'deep_thought', 0.5);
+('11111111-0001-0001-0001-000000000006', 'deep_thought', 0.5)
+ON CONFLICT (emotion_id, intent_type) DO UPDATE SET weight = EXCLUDED.weight;
 
 -- BORED user → what intents match?
 INSERT INTO emotion_to_intent_map (emotion_id, intent_type, weight) VALUES
 ('11111111-0001-0001-0001-000000000007', 'adrenaline_rush', 0.9),
 ('11111111-0001-0001-0001-000000000007', 'discovery', 0.85),
 ('11111111-0001-0001-0001-000000000007', 'deep_thought', 0.8),
-('11111111-0001-0001-0001-000000000007', 'light_entertainment', 0.7);
+('11111111-0001-0001-0001-000000000007', 'light_entertainment', 0.7)
+ON CONFLICT (emotion_id, intent_type) DO UPDATE SET weight = EXCLUDED.weight;
 
 -- STRESSED user → what intents match?
 INSERT INTO emotion_to_intent_map (emotion_id, intent_type, weight) VALUES
 ('11111111-0001-0001-0001-000000000008', 'comfort_escape', 0.95),
 ('11111111-0001-0001-0001-000000000008', 'light_entertainment', 0.9),
 ('11111111-0001-0001-0001-000000000008', 'background_passive', 0.85),
-('11111111-0001-0001-0001-000000000008', 'emotional_release', 0.6);
+('11111111-0001-0001-0001-000000000008', 'emotional_release', 0.6)
+ON CONFLICT (emotion_id, intent_type) DO UPDATE SET weight = EXCLUDED.weight;
 
 -- LONELY user → what intents match?
 INSERT INTO emotion_to_intent_map (emotion_id, intent_type, weight) VALUES
 ('11111111-0001-0001-0001-000000000009', 'comfort_escape', 0.95),
 ('11111111-0001-0001-0001-000000000009', 'family_bonding', 0.9),
 ('11111111-0001-0001-0001-000000000009', 'emotional_release', 0.8),
-('11111111-0001-0001-0001-000000000009', 'light_entertainment', 0.7);
+('11111111-0001-0001-0001-000000000009', 'light_entertainment', 0.7)
+ON CONFLICT (emotion_id, intent_type) DO UPDATE SET weight = EXCLUDED.weight;
 
 -- HOPEFUL user → what intents match?
 INSERT INTO emotion_to_intent_map (emotion_id, intent_type, weight) VALUES
 ('11111111-0001-0001-0001-000000000010', 'discovery', 0.9),
 ('11111111-0001-0001-0001-000000000010', 'deep_thought', 0.85),
 ('11111111-0001-0001-0001-000000000010', 'light_entertainment', 0.7),
-('11111111-0001-0001-0001-000000000010', 'family_bonding', 0.65);
+('11111111-0001-0001-0001-000000000010', 'family_bonding', 0.65)
+ON CONFLICT (emotion_id, intent_type) DO UPDATE SET weight = EXCLUDED.weight;
 
 -- NOSTALGIC user → what intents match?
 INSERT INTO emotion_to_intent_map (emotion_id, intent_type, weight) VALUES
 ('11111111-0001-0001-0001-000000000011', 'comfort_escape', 0.95),
 ('11111111-0001-0001-0001-000000000011', 'emotional_release', 0.8),
 ('11111111-0001-0001-0001-000000000011', 'family_bonding', 0.75),
-('11111111-0001-0001-0001-000000000011', 'light_entertainment', 0.6);
+('11111111-0001-0001-0001-000000000011', 'light_entertainment', 0.6)
+ON CONFLICT (emotion_id, intent_type) DO UPDATE SET weight = EXCLUDED.weight;
 
 -- CURIOUS user → what intents match?
 INSERT INTO emotion_to_intent_map (emotion_id, intent_type, weight) VALUES
 ('11111111-0001-0001-0001-000000000012', 'discovery', 0.95),
 ('11111111-0001-0001-0001-000000000012', 'deep_thought', 0.9),
-('11111111-0001-0001-0001-000000000012', 'adrenaline_rush', 0.6);
+('11111111-0001-0001-0001-000000000012', 'adrenaline_rush', 0.6)
+ON CONFLICT (emotion_id, intent_type) DO UPDATE SET weight = EXCLUDED.weight;
 
 -- TIRED user → what intents match?
 INSERT INTO emotion_to_intent_map (emotion_id, intent_type, weight) VALUES
 ('11111111-0001-0001-0001-000000000013', 'background_passive', 0.95),
 ('11111111-0001-0001-0001-000000000013', 'comfort_escape', 0.9),
 ('11111111-0001-0001-0001-000000000013', 'light_entertainment', 0.85),
-('11111111-0001-0001-0001-000000000013', 'family_bonding', 0.6);
+('11111111-0001-0001-0001-000000000013', 'family_bonding', 0.6)
+ON CONFLICT (emotion_id, intent_type) DO UPDATE SET weight = EXCLUDED.weight;
 
 -- ROMANTIC user → what intents match?
 INSERT INTO emotion_to_intent_map (emotion_id, intent_type, weight) VALUES
 ('11111111-0001-0001-0001-000000000014', 'emotional_release', 0.9),
 ('11111111-0001-0001-0001-000000000014', 'comfort_escape', 0.85),
-('11111111-0001-0001-0001-000000000014', 'light_entertainment', 0.7);
+('11111111-0001-0001-0001-000000000014', 'light_entertainment', 0.7)
+ON CONFLICT (emotion_id, intent_type) DO UPDATE SET weight = EXCLUDED.weight;
 
 -- ADVENTUROUS user → what intents match?
 INSERT INTO emotion_to_intent_map (emotion_id, intent_type, weight) VALUES
 ('11111111-0001-0001-0001-000000000015', 'adrenaline_rush', 0.95),
 ('11111111-0001-0001-0001-000000000015', 'discovery', 0.9),
-('11111111-0001-0001-0001-000000000015', 'deep_thought', 0.6);
+('11111111-0001-0001-0001-000000000015', 'deep_thought', 0.6)
+ON CONFLICT (emotion_id, intent_type) DO UPDATE SET weight = EXCLUDED.weight;
 
 -- MELANCHOLIC user → what intents match?
 INSERT INTO emotion_to_intent_map (emotion_id, intent_type, weight) VALUES
 ('11111111-0001-0001-0001-000000000016', 'emotional_release', 0.95),
 ('11111111-0001-0001-0001-000000000016', 'comfort_escape', 0.85),
-('11111111-0001-0001-0001-000000000016', 'deep_thought', 0.8);
+('11111111-0001-0001-0001-000000000016', 'deep_thought', 0.8)
+ON CONFLICT (emotion_id, intent_type) DO UPDATE SET weight = EXCLUDED.weight;
 
 -- CONTENT user → what intents match?
 INSERT INTO emotion_to_intent_map (emotion_id, intent_type, weight) VALUES
 ('11111111-0001-0001-0001-000000000017', 'comfort_escape', 0.9),
 ('11111111-0001-0001-0001-000000000017', 'background_passive', 0.85),
 ('11111111-0001-0001-0001-000000000017', 'family_bonding', 0.8),
-('11111111-0001-0001-0001-000000000017', 'discovery', 0.7);
+('11111111-0001-0001-0001-000000000017', 'discovery', 0.7)
+ON CONFLICT (emotion_id, intent_type) DO UPDATE SET weight = EXCLUDED.weight;
 
 -- FRUSTRATED user → what intents match?
 INSERT INTO emotion_to_intent_map (emotion_id, intent_type, weight) VALUES
 ('11111111-0001-0001-0001-000000000018', 'emotional_release', 0.9),
 ('11111111-0001-0001-0001-000000000018', 'adrenaline_rush', 0.85),
 ('11111111-0001-0001-0001-000000000018', 'light_entertainment', 0.75),
-('11111111-0001-0001-0001-000000000018', 'comfort_escape', 0.7);
+('11111111-0001-0001-0001-000000000018', 'comfort_escape', 0.7)
+ON CONFLICT (emotion_id, intent_type) DO UPDATE SET weight = EXCLUDED.weight;
 
 -- INSPIRED user → what intents match?
 INSERT INTO emotion_to_intent_map (emotion_id, intent_type, weight) VALUES
 ('11111111-0001-0001-0001-000000000019', 'discovery', 0.95),
 ('11111111-0001-0001-0001-000000000019', 'deep_thought', 0.9),
-('11111111-0001-0001-0001-000000000019', 'adrenaline_rush', 0.7);
+('11111111-0001-0001-0001-000000000019', 'adrenaline_rush', 0.7)
+ON CONFLICT (emotion_id, intent_type) DO UPDATE SET weight = EXCLUDED.weight;
 
 -- OVERWHELMED user → what intents match?
 INSERT INTO emotion_to_intent_map (emotion_id, intent_type, weight) VALUES
 ('11111111-0001-0001-0001-000000000020', 'comfort_escape', 0.95),
 ('11111111-0001-0001-0001-000000000020', 'background_passive', 0.9),
-('11111111-0001-0001-0001-000000000020', 'light_entertainment', 0.85);
+('11111111-0001-0001-0001-000000000020', 'light_entertainment', 0.85)
+ON CONFLICT (emotion_id, intent_type) DO UPDATE SET weight = EXCLUDED.weight;
 
 
 -- ============================================================================
 -- PART 3: SEED EMOTION_TRANSFORMATION_MAP
 -- Defines how content emotions can transform user emotions
 -- transformation_type: soothe, stabilize, validate, amplify, complementary, reinforcing, neutral_balancing
+-- Using INSERT ON CONFLICT to avoid DELETE/TRUNCATE timeout issues
 -- ============================================================================
 
--- Helper function to generate transformation mappings
--- For each user_state emotion, we define what content_state emotions help
+-- Create unique constraint if not exists (for ON CONFLICT to work)
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'emotion_transformation_map_user_content_unique'
+    ) THEN
+        ALTER TABLE emotion_transformation_map
+        ADD CONSTRAINT emotion_transformation_map_user_content_unique
+        UNIQUE (user_emotion_id, content_emotion_id);
+    END IF;
+END $$;
 
 -- HAPPY user transformations (already positive - can amplify, validate, or go adventurous)
 INSERT INTO emotion_transformation_map (user_emotion_id, content_emotion_id, transformation_type, confidence_score, priority_rank) VALUES
@@ -255,7 +300,11 @@ INSERT INTO emotion_transformation_map (user_emotion_id, content_emotion_id, tra
 ('11111111-0001-0001-0001-000000000001', '22222222-0002-0002-0002-000000000024', 'reinforcing', 0.95, 2),    -- feel-good reinforces
 ('11111111-0001-0001-0001-000000000001', '22222222-0002-0002-0002-000000000001', 'amplify', 0.85, 3),        -- thrilling can amplify excitement
 ('11111111-0001-0001-0001-000000000001', '22222222-0002-0002-0002-000000000004', 'reinforcing', 0.9, 4),     -- uplifting reinforces
-('11111111-0001-0001-0001-000000000001', '22222222-0002-0002-0002-000000000029', 'reinforcing', 0.85, 5);    -- lighthearted reinforces
+('11111111-0001-0001-0001-000000000001', '22222222-0002-0002-0002-000000000029', 'reinforcing', 0.85, 5)     -- lighthearted reinforces
+ON CONFLICT (user_emotion_id, content_emotion_id) DO UPDATE SET
+    transformation_type = EXCLUDED.transformation_type,
+    confidence_score = EXCLUDED.confidence_score,
+    priority_rank = EXCLUDED.priority_rank;
 
 -- SAD user transformations (need comfort, uplift, or cathartic release)
 INSERT INTO emotion_transformation_map (user_emotion_id, content_emotion_id, transformation_type, confidence_score, priority_rank) VALUES
@@ -264,7 +313,11 @@ INSERT INTO emotion_transformation_map (user_emotion_id, content_emotion_id, tra
 ('11111111-0001-0001-0001-000000000002', '22222222-0002-0002-0002-000000000026', 'validate', 0.85, 3),       -- tear-jerker validates (catharsis)
 ('11111111-0001-0001-0001-000000000002', '22222222-0002-0002-0002-000000000004', 'complementary', 0.9, 4),   -- uplifting transforms mood
 ('11111111-0001-0001-0001-000000000002', '22222222-0002-0002-0002-000000000013', 'validate', 0.8, 5),        -- melancholic content validates
-('11111111-0001-0001-0001-000000000002', '22222222-0002-0002-0002-000000000003', 'complementary', 0.75, 6);  -- hilarious can lift mood
+('11111111-0001-0001-0001-000000000002', '22222222-0002-0002-0002-000000000003', 'complementary', 0.75, 6)   -- hilarious can lift mood
+ON CONFLICT (user_emotion_id, content_emotion_id) DO UPDATE SET
+    transformation_type = EXCLUDED.transformation_type,
+    confidence_score = EXCLUDED.confidence_score,
+    priority_rank = EXCLUDED.priority_rank;
 
 -- ANGRY user transformations (need release, validation, or calming)
 INSERT INTO emotion_transformation_map (user_emotion_id, content_emotion_id, transformation_type, confidence_score, priority_rank) VALUES
@@ -272,7 +325,11 @@ INSERT INTO emotion_transformation_map (user_emotion_id, content_emotion_id, tra
 ('11111111-0001-0001-0001-000000000003', '22222222-0002-0002-0002-000000000010', 'validate', 0.85, 2),       -- intense validates
 ('11111111-0001-0001-0001-000000000003', '22222222-0002-0002-0002-000000000025', 'soothe', 0.8, 3),          -- cathartic provides release
 ('11111111-0001-0001-0001-000000000003', '22222222-0002-0002-0002-000000000027', 'complementary', 0.85, 4),  -- empowering transforms anger to power
-('11111111-0001-0001-0001-000000000003', '22222222-0002-0002-0002-000000000007', 'soothe', 0.7, 5);          -- peaceful soothes eventually
+('11111111-0001-0001-0001-000000000003', '22222222-0002-0002-0002-000000000007', 'soothe', 0.7, 5)           -- peaceful soothes eventually
+ON CONFLICT (user_emotion_id, content_emotion_id) DO UPDATE SET
+    transformation_type = EXCLUDED.transformation_type,
+    confidence_score = EXCLUDED.confidence_score,
+    priority_rank = EXCLUDED.priority_rank;
 
 -- ANXIOUS user transformations (need calming, comfort, distraction)
 INSERT INTO emotion_transformation_map (user_emotion_id, content_emotion_id, transformation_type, confidence_score, priority_rank) VALUES
@@ -281,7 +338,11 @@ INSERT INTO emotion_transformation_map (user_emotion_id, content_emotion_id, tra
 ('11111111-0001-0001-0001-000000000004', '22222222-0002-0002-0002-000000000008', 'soothe', 0.9, 3),          -- cozy soothes
 ('11111111-0001-0001-0001-000000000004', '22222222-0002-0002-0002-000000000029', 'soothe', 0.85, 4),         -- lighthearted distracts
 ('11111111-0001-0001-0001-000000000004', '22222222-0002-0002-0002-000000000030', 'complementary', 0.8, 5),   -- escapist provides escape
-('11111111-0001-0001-0001-000000000004', '22222222-0002-0002-0002-000000000023', 'soothe', 0.85, 6);         -- wholesome soothes
+('11111111-0001-0001-0001-000000000004', '22222222-0002-0002-0002-000000000023', 'soothe', 0.85, 6)          -- wholesome soothes
+ON CONFLICT (user_emotion_id, content_emotion_id) DO UPDATE SET
+    transformation_type = EXCLUDED.transformation_type,
+    confidence_score = EXCLUDED.confidence_score,
+    priority_rank = EXCLUDED.priority_rank;
 
 -- CALM user transformations (can go anywhere - stable base)
 INSERT INTO emotion_transformation_map (user_emotion_id, content_emotion_id, transformation_type, confidence_score, priority_rank) VALUES
@@ -289,7 +350,11 @@ INSERT INTO emotion_transformation_map (user_emotion_id, content_emotion_id, tra
 ('11111111-0001-0001-0001-000000000005', '22222222-0002-0002-0002-000000000017', 'complementary', 0.9, 2),   -- thought-provoking engages mind
 ('11111111-0001-0001-0001-000000000005', '22222222-0002-0002-0002-000000000019', 'complementary', 0.85, 3),  -- educational is engaging
 ('11111111-0001-0001-0001-000000000005', '22222222-0002-0002-0002-000000000008', 'reinforcing', 0.9, 4),     -- cozy reinforces
-('11111111-0001-0001-0001-000000000005', '22222222-0002-0002-0002-000000000018', 'amplify', 0.75, 5);        -- mind-bending can stimulate
+('11111111-0001-0001-0001-000000000005', '22222222-0002-0002-0002-000000000018', 'amplify', 0.75, 5)         -- mind-bending can stimulate
+ON CONFLICT (user_emotion_id, content_emotion_id) DO UPDATE SET
+    transformation_type = EXCLUDED.transformation_type,
+    confidence_score = EXCLUDED.confidence_score,
+    priority_rank = EXCLUDED.priority_rank;
 
 -- EXCITED user transformations (can amplify or channel)
 INSERT INTO emotion_transformation_map (user_emotion_id, content_emotion_id, transformation_type, confidence_score, priority_rank) VALUES
@@ -297,7 +362,11 @@ INSERT INTO emotion_transformation_map (user_emotion_id, content_emotion_id, tra
 ('11111111-0001-0001-0001-000000000006', '22222222-0002-0002-0002-000000000002', 'amplify', 0.95, 2),        -- exhilarating amplifies
 ('11111111-0001-0001-0001-000000000006', '22222222-0002-0002-0002-000000000010', 'reinforcing', 0.9, 3),     -- intense reinforces
 ('11111111-0001-0001-0001-000000000006', '22222222-0002-0002-0002-000000000003', 'amplify', 0.85, 4),        -- hilarious adds joy
-('11111111-0001-0001-0001-000000000006', '22222222-0002-0002-0002-000000000018', 'complementary', 0.8, 5);   -- mind-bending channels
+('11111111-0001-0001-0001-000000000006', '22222222-0002-0002-0002-000000000018', 'complementary', 0.8, 5)    -- mind-bending channels
+ON CONFLICT (user_emotion_id, content_emotion_id) DO UPDATE SET
+    transformation_type = EXCLUDED.transformation_type,
+    confidence_score = EXCLUDED.confidence_score,
+    priority_rank = EXCLUDED.priority_rank;
 
 -- BORED user transformations (need stimulation)
 INSERT INTO emotion_transformation_map (user_emotion_id, content_emotion_id, transformation_type, confidence_score, priority_rank) VALUES
@@ -305,7 +374,11 @@ INSERT INTO emotion_transformation_map (user_emotion_id, content_emotion_id, tra
 ('11111111-0001-0001-0001-000000000007', '22222222-0002-0002-0002-000000000011', 'complementary', 0.9, 2),   -- suspenseful engages
 ('11111111-0001-0001-0001-000000000007', '22222222-0002-0002-0002-000000000018', 'complementary', 0.9, 3),   -- mind-bending stimulates
 ('11111111-0001-0001-0001-000000000007', '22222222-0002-0002-0002-000000000012', 'complementary', 0.85, 4),  -- shocking wakes up
-('11111111-0001-0001-0001-000000000007', '22222222-0002-0002-0002-000000000017', 'complementary', 0.85, 5);  -- thought-provoking engages
+('11111111-0001-0001-0001-000000000007', '22222222-0002-0002-0002-000000000017', 'complementary', 0.85, 5)   -- thought-provoking engages
+ON CONFLICT (user_emotion_id, content_emotion_id) DO UPDATE SET
+    transformation_type = EXCLUDED.transformation_type,
+    confidence_score = EXCLUDED.confidence_score,
+    priority_rank = EXCLUDED.priority_rank;
 
 -- STRESSED user transformations (need relief)
 INSERT INTO emotion_transformation_map (user_emotion_id, content_emotion_id, transformation_type, confidence_score, priority_rank) VALUES
@@ -313,7 +386,11 @@ INSERT INTO emotion_transformation_map (user_emotion_id, content_emotion_id, tra
 ('11111111-0001-0001-0001-000000000008', '22222222-0002-0002-0002-000000000007', 'soothe', 0.95, 2),         -- peaceful soothes
 ('11111111-0001-0001-0001-000000000008', '22222222-0002-0002-0002-000000000029', 'soothe', 0.9, 3),          -- lighthearted relieves
 ('11111111-0001-0001-0001-000000000008', '22222222-0002-0002-0002-000000000003', 'soothe', 0.85, 4),         -- hilarious relieves through laughter
-('11111111-0001-0001-0001-000000000008', '22222222-0002-0002-0002-000000000030', 'complementary', 0.85, 5);  -- escapist provides escape
+('11111111-0001-0001-0001-000000000008', '22222222-0002-0002-0002-000000000030', 'complementary', 0.85, 5)   -- escapist provides escape
+ON CONFLICT (user_emotion_id, content_emotion_id) DO UPDATE SET
+    transformation_type = EXCLUDED.transformation_type,
+    confidence_score = EXCLUDED.confidence_score,
+    priority_rank = EXCLUDED.priority_rank;
 
 -- LONELY user transformations (need connection, warmth)
 INSERT INTO emotion_transformation_map (user_emotion_id, content_emotion_id, transformation_type, confidence_score, priority_rank) VALUES
@@ -321,7 +398,11 @@ INSERT INTO emotion_transformation_map (user_emotion_id, content_emotion_id, tra
 ('11111111-0001-0001-0001-000000000009', '22222222-0002-0002-0002-000000000023', 'soothe', 0.9, 2),          -- wholesome provides warmth
 ('11111111-0001-0001-0001-000000000009', '22222222-0002-0002-0002-000000000021', 'validate', 0.85, 3),       -- romantic validates feelings
 ('11111111-0001-0001-0001-000000000009', '22222222-0002-0002-0002-000000000024', 'complementary', 0.9, 4),   -- feel-good lifts spirits
-('11111111-0001-0001-0001-000000000009', '22222222-0002-0002-0002-000000000022', 'validate', 0.8, 5);        -- nostalgic validates
+('11111111-0001-0001-0001-000000000009', '22222222-0002-0002-0002-000000000022', 'validate', 0.8, 5)         -- nostalgic validates
+ON CONFLICT (user_emotion_id, content_emotion_id) DO UPDATE SET
+    transformation_type = EXCLUDED.transformation_type,
+    confidence_score = EXCLUDED.confidence_score,
+    priority_rank = EXCLUDED.priority_rank;
 
 -- HOPEFUL user transformations (can build on hope)
 INSERT INTO emotion_transformation_map (user_emotion_id, content_emotion_id, transformation_type, confidence_score, priority_rank) VALUES
@@ -329,21 +410,33 @@ INSERT INTO emotion_transformation_map (user_emotion_id, content_emotion_id, tra
 ('11111111-0001-0001-0001-000000000010', '22222222-0002-0002-0002-000000000004', 'amplify', 0.9, 2),         -- uplifting amplifies
 ('11111111-0001-0001-0001-000000000010', '22222222-0002-0002-0002-000000000027', 'reinforcing', 0.9, 3),     -- empowering reinforces
 ('11111111-0001-0001-0001-000000000010', '22222222-0002-0002-0002-000000000017', 'complementary', 0.85, 4),  -- thought-provoking deepens
-('11111111-0001-0001-0001-000000000010', '22222222-0002-0002-0002-000000000024', 'reinforcing', 0.85, 5);    -- feel-good reinforces
+('11111111-0001-0001-0001-000000000010', '22222222-0002-0002-0002-000000000024', 'reinforcing', 0.85, 5)     -- feel-good reinforces
+ON CONFLICT (user_emotion_id, content_emotion_id) DO UPDATE SET
+    transformation_type = EXCLUDED.transformation_type,
+    confidence_score = EXCLUDED.confidence_score,
+    priority_rank = EXCLUDED.priority_rank;
 
 -- NOSTALGIC user transformations
 INSERT INTO emotion_transformation_map (user_emotion_id, content_emotion_id, transformation_type, confidence_score, priority_rank) VALUES
 ('11111111-0001-0001-0001-000000000011', '22222222-0002-0002-0002-000000000022', 'validate', 0.95, 1),       -- nostalgic content validates
 ('11111111-0001-0001-0001-000000000011', '22222222-0002-0002-0002-000000000005', 'reinforcing', 0.9, 2),     -- heartwarming reinforces
 ('11111111-0001-0001-0001-000000000011', '22222222-0002-0002-0002-000000000014', 'validate', 0.85, 3),       -- bittersweet validates
-('11111111-0001-0001-0001-000000000011', '22222222-0002-0002-0002-000000000008', 'reinforcing', 0.85, 4);    -- cozy reinforces
+('11111111-0001-0001-0001-000000000011', '22222222-0002-0002-0002-000000000008', 'reinforcing', 0.85, 4)     -- cozy reinforces
+ON CONFLICT (user_emotion_id, content_emotion_id) DO UPDATE SET
+    transformation_type = EXCLUDED.transformation_type,
+    confidence_score = EXCLUDED.confidence_score,
+    priority_rank = EXCLUDED.priority_rank;
 
 -- CURIOUS user transformations
 INSERT INTO emotion_transformation_map (user_emotion_id, content_emotion_id, transformation_type, confidence_score, priority_rank) VALUES
 ('11111111-0001-0001-0001-000000000012', '22222222-0002-0002-0002-000000000017', 'amplify', 0.95, 1),        -- thought-provoking amplifies curiosity
 ('11111111-0001-0001-0001-000000000012', '22222222-0002-0002-0002-000000000018', 'amplify', 0.95, 2),        -- mind-bending amplifies
 ('11111111-0001-0001-0001-000000000012', '22222222-0002-0002-0002-000000000019', 'reinforcing', 0.9, 3),     -- educational satisfies
-('11111111-0001-0001-0001-000000000012', '22222222-0002-0002-0002-000000000011', 'amplify', 0.8, 4);         -- suspenseful builds intrigue
+('11111111-0001-0001-0001-000000000012', '22222222-0002-0002-0002-000000000011', 'amplify', 0.8, 4)          -- suspenseful builds intrigue
+ON CONFLICT (user_emotion_id, content_emotion_id) DO UPDATE SET
+    transformation_type = EXCLUDED.transformation_type,
+    confidence_score = EXCLUDED.confidence_score,
+    priority_rank = EXCLUDED.priority_rank;
 
 -- TIRED user transformations
 INSERT INTO emotion_transformation_map (user_emotion_id, content_emotion_id, transformation_type, confidence_score, priority_rank) VALUES
@@ -351,21 +444,33 @@ INSERT INTO emotion_transformation_map (user_emotion_id, content_emotion_id, tra
 ('11111111-0001-0001-0001-000000000013', '22222222-0002-0002-0002-000000000008', 'validate', 0.95, 2),       -- cozy matches
 ('11111111-0001-0001-0001-000000000013', '22222222-0002-0002-0002-000000000029', 'validate', 0.9, 3),        -- lighthearted easy watch
 ('11111111-0001-0001-0001-000000000013', '22222222-0002-0002-0002-000000000007', 'validate', 0.9, 4),        -- peaceful matches
-('11111111-0001-0001-0001-000000000013', '22222222-0002-0002-0002-000000000030', 'validate', 0.85, 5);       -- escapist easy watch
+('11111111-0001-0001-0001-000000000013', '22222222-0002-0002-0002-000000000030', 'validate', 0.85, 5)        -- escapist easy watch
+ON CONFLICT (user_emotion_id, content_emotion_id) DO UPDATE SET
+    transformation_type = EXCLUDED.transformation_type,
+    confidence_score = EXCLUDED.confidence_score,
+    priority_rank = EXCLUDED.priority_rank;
 
 -- ROMANTIC user transformations
 INSERT INTO emotion_transformation_map (user_emotion_id, content_emotion_id, transformation_type, confidence_score, priority_rank) VALUES
 ('11111111-0001-0001-0001-000000000014', '22222222-0002-0002-0002-000000000021', 'amplify', 0.95, 1),        -- romantic amplifies
 ('11111111-0001-0001-0001-000000000014', '22222222-0002-0002-0002-000000000005', 'reinforcing', 0.9, 2),     -- heartwarming reinforces
 ('11111111-0001-0001-0001-000000000014', '22222222-0002-0002-0002-000000000014', 'validate', 0.85, 3),       -- bittersweet validates
-('11111111-0001-0001-0001-000000000014', '22222222-0002-0002-0002-000000000015', 'validate', 0.85, 4);       -- poignant validates
+('11111111-0001-0001-0001-000000000014', '22222222-0002-0002-0002-000000000015', 'validate', 0.85, 4)        -- poignant validates
+ON CONFLICT (user_emotion_id, content_emotion_id) DO UPDATE SET
+    transformation_type = EXCLUDED.transformation_type,
+    confidence_score = EXCLUDED.confidence_score,
+    priority_rank = EXCLUDED.priority_rank;
 
 -- ADVENTUROUS user transformations
 INSERT INTO emotion_transformation_map (user_emotion_id, content_emotion_id, transformation_type, confidence_score, priority_rank) VALUES
 ('11111111-0001-0001-0001-000000000015', '22222222-0002-0002-0002-000000000001', 'amplify', 0.95, 1),        -- thrilling amplifies
 ('11111111-0001-0001-0001-000000000015', '22222222-0002-0002-0002-000000000002', 'amplify', 0.95, 2),        -- exhilarating amplifies
 ('11111111-0001-0001-0001-000000000015', '22222222-0002-0002-0002-000000000018', 'complementary', 0.85, 3),  -- mind-bending adds mental adventure
-('11111111-0001-0001-0001-000000000015', '22222222-0002-0002-0002-000000000010', 'reinforcing', 0.9, 4);     -- intense reinforces
+('11111111-0001-0001-0001-000000000015', '22222222-0002-0002-0002-000000000010', 'reinforcing', 0.9, 4)      -- intense reinforces
+ON CONFLICT (user_emotion_id, content_emotion_id) DO UPDATE SET
+    transformation_type = EXCLUDED.transformation_type,
+    confidence_score = EXCLUDED.confidence_score,
+    priority_rank = EXCLUDED.priority_rank;
 
 -- MELANCHOLIC user transformations
 INSERT INTO emotion_transformation_map (user_emotion_id, content_emotion_id, transformation_type, confidence_score, priority_rank) VALUES
@@ -373,28 +478,44 @@ INSERT INTO emotion_transformation_map (user_emotion_id, content_emotion_id, tra
 ('11111111-0001-0001-0001-000000000016', '22222222-0002-0002-0002-000000000015', 'validate', 0.9, 2),        -- poignant validates
 ('11111111-0001-0001-0001-000000000016', '22222222-0002-0002-0002-000000000025', 'soothe', 0.85, 3),         -- cathartic provides release
 ('11111111-0001-0001-0001-000000000016', '22222222-0002-0002-0002-000000000014', 'validate', 0.85, 4),       -- bittersweet validates
-('11111111-0001-0001-0001-000000000016', '22222222-0002-0002-0002-000000000004', 'complementary', 0.75, 5);  -- uplifting can help lift
+('11111111-0001-0001-0001-000000000016', '22222222-0002-0002-0002-000000000004', 'complementary', 0.75, 5)   -- uplifting can help lift
+ON CONFLICT (user_emotion_id, content_emotion_id) DO UPDATE SET
+    transformation_type = EXCLUDED.transformation_type,
+    confidence_score = EXCLUDED.confidence_score,
+    priority_rank = EXCLUDED.priority_rank;
 
 -- CONTENT user transformations
 INSERT INTO emotion_transformation_map (user_emotion_id, content_emotion_id, transformation_type, confidence_score, priority_rank) VALUES
 ('11111111-0001-0001-0001-000000000017', '22222222-0002-0002-0002-000000000008', 'reinforcing', 0.95, 1),    -- cozy reinforces contentment
 ('11111111-0001-0001-0001-000000000017', '22222222-0002-0002-0002-000000000023', 'reinforcing', 0.9, 2),     -- wholesome reinforces
 ('11111111-0001-0001-0001-000000000017', '22222222-0002-0002-0002-000000000007', 'reinforcing', 0.9, 3),     -- peaceful reinforces
-('11111111-0001-0001-0001-000000000017', '22222222-0002-0002-0002-000000000017', 'complementary', 0.8, 4);   -- thought-provoking gently engages
+('11111111-0001-0001-0001-000000000017', '22222222-0002-0002-0002-000000000017', 'complementary', 0.8, 4)    -- thought-provoking gently engages
+ON CONFLICT (user_emotion_id, content_emotion_id) DO UPDATE SET
+    transformation_type = EXCLUDED.transformation_type,
+    confidence_score = EXCLUDED.confidence_score,
+    priority_rank = EXCLUDED.priority_rank;
 
 -- FRUSTRATED user transformations
 INSERT INTO emotion_transformation_map (user_emotion_id, content_emotion_id, transformation_type, confidence_score, priority_rank) VALUES
 ('11111111-0001-0001-0001-000000000018', '22222222-0002-0002-0002-000000000025', 'soothe', 0.9, 1),          -- cathartic releases frustration
 ('11111111-0001-0001-0001-000000000018', '22222222-0002-0002-0002-000000000027', 'complementary', 0.9, 2),   -- empowering transforms
 ('11111111-0001-0001-0001-000000000018', '22222222-0002-0002-0002-000000000003', 'soothe', 0.85, 3),         -- hilarious relieves
-('11111111-0001-0001-0001-000000000018', '22222222-0002-0002-0002-000000000001', 'validate', 0.8, 4);        -- thrilling validates energy
+('11111111-0001-0001-0001-000000000018', '22222222-0002-0002-0002-000000000001', 'validate', 0.8, 4)         -- thrilling validates energy
+ON CONFLICT (user_emotion_id, content_emotion_id) DO UPDATE SET
+    transformation_type = EXCLUDED.transformation_type,
+    confidence_score = EXCLUDED.confidence_score,
+    priority_rank = EXCLUDED.priority_rank;
 
 -- INSPIRED user transformations
 INSERT INTO emotion_transformation_map (user_emotion_id, content_emotion_id, transformation_type, confidence_score, priority_rank) VALUES
 ('11111111-0001-0001-0001-000000000019', '22222222-0002-0002-0002-000000000020', 'amplify', 0.95, 1),        -- inspiring amplifies
 ('11111111-0001-0001-0001-000000000019', '22222222-0002-0002-0002-000000000027', 'amplify', 0.9, 2),         -- empowering amplifies
 ('11111111-0001-0001-0001-000000000019', '22222222-0002-0002-0002-000000000017', 'reinforcing', 0.9, 3),     -- thought-provoking reinforces
-('11111111-0001-0001-0001-000000000019', '22222222-0002-0002-0002-000000000019', 'reinforcing', 0.85, 4);    -- educational reinforces
+('11111111-0001-0001-0001-000000000019', '22222222-0002-0002-0002-000000000019', 'reinforcing', 0.85, 4)     -- educational reinforces
+ON CONFLICT (user_emotion_id, content_emotion_id) DO UPDATE SET
+    transformation_type = EXCLUDED.transformation_type,
+    confidence_score = EXCLUDED.confidence_score,
+    priority_rank = EXCLUDED.priority_rank;
 
 -- OVERWHELMED user transformations
 INSERT INTO emotion_transformation_map (user_emotion_id, content_emotion_id, transformation_type, confidence_score, priority_rank) VALUES
@@ -402,13 +523,31 @@ INSERT INTO emotion_transformation_map (user_emotion_id, content_emotion_id, tra
 ('11111111-0001-0001-0001-000000000020', '22222222-0002-0002-0002-000000000007', 'soothe', 0.95, 2),         -- peaceful soothes
 ('11111111-0001-0001-0001-000000000020', '22222222-0002-0002-0002-000000000008', 'soothe', 0.9, 3),          -- cozy soothes
 ('11111111-0001-0001-0001-000000000020', '22222222-0002-0002-0002-000000000029', 'soothe', 0.85, 4),         -- lighthearted provides relief
-('11111111-0001-0001-0001-000000000020', '22222222-0002-0002-0002-000000000030', 'complementary', 0.85, 5);  -- escapist helps escape
+('11111111-0001-0001-0001-000000000020', '22222222-0002-0002-0002-000000000030', 'complementary', 0.85, 5)   -- escapist helps escape
+ON CONFLICT (user_emotion_id, content_emotion_id) DO UPDATE SET
+    transformation_type = EXCLUDED.transformation_type,
+    confidence_score = EXCLUDED.confidence_score,
+    priority_rank = EXCLUDED.priority_rank;
 
 
 -- ============================================================================
 -- PART 4: SEED EMOTION_DISPLAY_PHRASES
 -- Phrases shown to users based on their emotion and intensity
+-- Using INSERT ON CONFLICT to avoid DELETE/TRUNCATE timeout issues
 -- ============================================================================
+
+-- Create unique constraint if not exists (for ON CONFLICT to work)
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'emotion_display_phrases_emotion_phrase_unique'
+    ) THEN
+        ALTER TABLE emotion_display_phrases
+        ADD CONSTRAINT emotion_display_phrases_emotion_phrase_unique
+        UNIQUE (emotion_id, display_phrase);
+    END IF;
+END $$;
 
 -- Happy phrases by intensity
 INSERT INTO emotion_display_phrases (emotion_id, display_phrase, min_intensity, max_intensity) VALUES
@@ -416,7 +555,10 @@ INSERT INTO emotion_display_phrases (emotion_id, display_phrase, min_intensity, 
 ('11111111-0001-0001-0001-000000000001', 'In a good mood', 0.3, 0.5),
 ('11111111-0001-0001-0001-000000000001', 'Feeling happy', 0.5, 0.7),
 ('11111111-0001-0001-0001-000000000001', 'Really happy', 0.7, 0.85),
-('11111111-0001-0001-0001-000000000001', 'On top of the world', 0.85, 1.0);
+('11111111-0001-0001-0001-000000000001', 'On top of the world', 0.85, 1.0)
+ON CONFLICT (emotion_id, display_phrase) DO UPDATE SET
+    min_intensity = EXCLUDED.min_intensity,
+    max_intensity = EXCLUDED.max_intensity;
 
 -- Sad phrases
 INSERT INTO emotion_display_phrases (emotion_id, display_phrase, min_intensity, max_intensity) VALUES
@@ -424,7 +566,10 @@ INSERT INTO emotion_display_phrases (emotion_id, display_phrase, min_intensity, 
 ('11111111-0001-0001-0001-000000000002', 'Feeling low', 0.3, 0.5),
 ('11111111-0001-0001-0001-000000000002', 'Feeling sad', 0.5, 0.7),
 ('11111111-0001-0001-0001-000000000002', 'Really sad', 0.7, 0.85),
-('11111111-0001-0001-0001-000000000002', 'Deeply sad', 0.85, 1.0);
+('11111111-0001-0001-0001-000000000002', 'Deeply sad', 0.85, 1.0)
+ON CONFLICT (emotion_id, display_phrase) DO UPDATE SET
+    min_intensity = EXCLUDED.min_intensity,
+    max_intensity = EXCLUDED.max_intensity;
 
 -- Angry phrases
 INSERT INTO emotion_display_phrases (emotion_id, display_phrase, min_intensity, max_intensity) VALUES
@@ -432,7 +577,10 @@ INSERT INTO emotion_display_phrases (emotion_id, display_phrase, min_intensity, 
 ('11111111-0001-0001-0001-000000000003', 'Frustrated', 0.3, 0.5),
 ('11111111-0001-0001-0001-000000000003', 'Angry', 0.5, 0.7),
 ('11111111-0001-0001-0001-000000000003', 'Really angry', 0.7, 0.85),
-('11111111-0001-0001-0001-000000000003', 'Furious', 0.85, 1.0);
+('11111111-0001-0001-0001-000000000003', 'Furious', 0.85, 1.0)
+ON CONFLICT (emotion_id, display_phrase) DO UPDATE SET
+    min_intensity = EXCLUDED.min_intensity,
+    max_intensity = EXCLUDED.max_intensity;
 
 -- Anxious phrases
 INSERT INTO emotion_display_phrases (emotion_id, display_phrase, min_intensity, max_intensity) VALUES
@@ -440,7 +588,10 @@ INSERT INTO emotion_display_phrases (emotion_id, display_phrase, min_intensity, 
 ('11111111-0001-0001-0001-000000000004', 'A bit anxious', 0.3, 0.5),
 ('11111111-0001-0001-0001-000000000004', 'Anxious', 0.5, 0.7),
 ('11111111-0001-0001-0001-000000000004', 'Very anxious', 0.7, 0.85),
-('11111111-0001-0001-0001-000000000004', 'Extremely anxious', 0.85, 1.0);
+('11111111-0001-0001-0001-000000000004', 'Extremely anxious', 0.85, 1.0)
+ON CONFLICT (emotion_id, display_phrase) DO UPDATE SET
+    min_intensity = EXCLUDED.min_intensity,
+    max_intensity = EXCLUDED.max_intensity;
 
 -- Calm phrases
 INSERT INTO emotion_display_phrases (emotion_id, display_phrase, min_intensity, max_intensity) VALUES
@@ -448,7 +599,10 @@ INSERT INTO emotion_display_phrases (emotion_id, display_phrase, min_intensity, 
 ('11111111-0001-0001-0001-000000000005', 'Relaxed', 0.3, 0.5),
 ('11111111-0001-0001-0001-000000000005', 'Calm and peaceful', 0.5, 0.7),
 ('11111111-0001-0001-0001-000000000005', 'Very calm', 0.7, 0.85),
-('11111111-0001-0001-0001-000000000005', 'Deeply serene', 0.85, 1.0);
+('11111111-0001-0001-0001-000000000005', 'Deeply serene', 0.85, 1.0)
+ON CONFLICT (emotion_id, display_phrase) DO UPDATE SET
+    min_intensity = EXCLUDED.min_intensity,
+    max_intensity = EXCLUDED.max_intensity;
 
 -- Excited phrases
 INSERT INTO emotion_display_phrases (emotion_id, display_phrase, min_intensity, max_intensity) VALUES
@@ -456,7 +610,10 @@ INSERT INTO emotion_display_phrases (emotion_id, display_phrase, min_intensity, 
 ('11111111-0001-0001-0001-000000000006', 'Excited', 0.3, 0.5),
 ('11111111-0001-0001-0001-000000000006', 'Really excited', 0.5, 0.7),
 ('11111111-0001-0001-0001-000000000006', 'Super excited', 0.7, 0.85),
-('11111111-0001-0001-0001-000000000006', 'Absolutely thrilled', 0.85, 1.0);
+('11111111-0001-0001-0001-000000000006', 'Absolutely thrilled', 0.85, 1.0)
+ON CONFLICT (emotion_id, display_phrase) DO UPDATE SET
+    min_intensity = EXCLUDED.min_intensity,
+    max_intensity = EXCLUDED.max_intensity;
 
 -- Bored phrases
 INSERT INTO emotion_display_phrases (emotion_id, display_phrase, min_intensity, max_intensity) VALUES
@@ -464,7 +621,10 @@ INSERT INTO emotion_display_phrases (emotion_id, display_phrase, min_intensity, 
 ('11111111-0001-0001-0001-000000000007', 'A bit bored', 0.3, 0.5),
 ('11111111-0001-0001-0001-000000000007', 'Bored', 0.5, 0.7),
 ('11111111-0001-0001-0001-000000000007', 'Really bored', 0.7, 0.85),
-('11111111-0001-0001-0001-000000000007', 'Extremely bored', 0.85, 1.0);
+('11111111-0001-0001-0001-000000000007', 'Extremely bored', 0.85, 1.0)
+ON CONFLICT (emotion_id, display_phrase) DO UPDATE SET
+    min_intensity = EXCLUDED.min_intensity,
+    max_intensity = EXCLUDED.max_intensity;
 
 -- Stressed phrases
 INSERT INTO emotion_display_phrases (emotion_id, display_phrase, min_intensity, max_intensity) VALUES
@@ -472,7 +632,10 @@ INSERT INTO emotion_display_phrases (emotion_id, display_phrase, min_intensity, 
 ('11111111-0001-0001-0001-000000000008', 'Stressed', 0.3, 0.5),
 ('11111111-0001-0001-0001-000000000008', 'Very stressed', 0.5, 0.7),
 ('11111111-0001-0001-0001-000000000008', 'Overwhelmed with stress', 0.7, 0.85),
-('11111111-0001-0001-0001-000000000008', 'Extremely stressed', 0.85, 1.0);
+('11111111-0001-0001-0001-000000000008', 'Extremely stressed', 0.85, 1.0)
+ON CONFLICT (emotion_id, display_phrase) DO UPDATE SET
+    min_intensity = EXCLUDED.min_intensity,
+    max_intensity = EXCLUDED.max_intensity;
 
 -- Lonely phrases
 INSERT INTO emotion_display_phrases (emotion_id, display_phrase, min_intensity, max_intensity) VALUES
@@ -480,7 +643,10 @@ INSERT INTO emotion_display_phrases (emotion_id, display_phrase, min_intensity, 
 ('11111111-0001-0001-0001-000000000009', 'Feeling alone', 0.3, 0.5),
 ('11111111-0001-0001-0001-000000000009', 'Lonely', 0.5, 0.7),
 ('11111111-0001-0001-0001-000000000009', 'Very lonely', 0.7, 0.85),
-('11111111-0001-0001-0001-000000000009', 'Deeply isolated', 0.85, 1.0);
+('11111111-0001-0001-0001-000000000009', 'Deeply isolated', 0.85, 1.0)
+ON CONFLICT (emotion_id, display_phrase) DO UPDATE SET
+    min_intensity = EXCLUDED.min_intensity,
+    max_intensity = EXCLUDED.max_intensity;
 
 -- Hopeful phrases
 INSERT INTO emotion_display_phrases (emotion_id, display_phrase, min_intensity, max_intensity) VALUES
@@ -488,7 +654,10 @@ INSERT INTO emotion_display_phrases (emotion_id, display_phrase, min_intensity, 
 ('11111111-0001-0001-0001-000000000010', 'Hopeful', 0.3, 0.5),
 ('11111111-0001-0001-0001-000000000010', 'Very hopeful', 0.5, 0.7),
 ('11111111-0001-0001-0001-000000000010', 'Highly optimistic', 0.7, 0.85),
-('11111111-0001-0001-0001-000000000010', 'Filled with hope', 0.85, 1.0);
+('11111111-0001-0001-0001-000000000010', 'Filled with hope', 0.85, 1.0)
+ON CONFLICT (emotion_id, display_phrase) DO UPDATE SET
+    min_intensity = EXCLUDED.min_intensity,
+    max_intensity = EXCLUDED.max_intensity;
 
 
 -- ============================================================================
