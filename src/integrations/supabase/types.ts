@@ -2192,6 +2192,13 @@ export type Database = {
       refresh_title_intent_alignment_scores: { Args: never; Returns: undefined }
       refresh_title_social_summary: { Args: never; Returns: undefined }
       refresh_title_transformation_scores: { Args: never; Returns: undefined }
+      refresh_title_transformation_scores_batch: {
+        Args: { p_batch_size?: number }
+        Returns: {
+          has_more: boolean
+          processed_count: number
+        }[]
+      }
       refresh_title_user_emotion_match_cache: {
         Args: never
         Returns: undefined
