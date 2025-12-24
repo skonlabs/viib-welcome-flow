@@ -23,8 +23,8 @@ interface RecommendedTitle {
   base_viib_score: number;
   intent_alignment_score: number;
   social_priority_score: number;
-  transformation_score?: number;
-  recommendation_reason?: string;
+  transformation_score: number;
+  recommendation_reason: string;
 }
 
 const Home = () => {

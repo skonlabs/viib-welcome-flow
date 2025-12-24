@@ -634,7 +634,7 @@ END $$;
 
 -- ============================================================================
 -- PART 9: ADD get_top_recommendations_v2
--- Improved version that properly uses all scores
+-- Optimized version using cached scores - no per-row function calls
 -- ============================================================================
 
 CREATE OR REPLACE FUNCTION public.get_top_recommendations_v2(
@@ -665,92 +665,111 @@ BEGIN
     LIMIT 1;
 
     RETURN QUERY
-    WITH candidate_titles AS (
-        -- Get titles available to user based on streaming subscriptions and language
-        SELECT t.id
+    WITH user_streaming AS (
+        -- Pre-fetch user's streaming services
+        SELECT uss.streaming_service_id
+        FROM user_streaming_subscriptions uss
+        WHERE uss.user_id = p_user_id AND uss.is_active = TRUE
+    ),
+    user_languages AS (
+        -- Pre-fetch user's language preferences
+        SELECT ulp.language_code
+        FROM user_language_preferences ulp
+        WHERE ulp.user_id = p_user_id
+    ),
+    user_excluded AS (
+        -- Pre-fetch titles to exclude
+        SELECT uti.title_id
+        FROM user_title_interactions uti
+        WHERE uti.user_id = p_user_id
+          AND uti.interaction_type IN ('completed', 'disliked')
+    ),
+    social_recs AS (
+        -- Pre-fetch social recommendations with priority
+        SELECT
+            usr.title_id,
+            MAX(
+                CASE
+                    WHEN fc.trust_score >= 0.8 THEN 1.0
+                    WHEN fc.trust_score >= 0.5 THEN 0.85
+                    ELSE 0.5
+                END
+            ) AS social_score
+        FROM user_social_recommendations usr
+        JOIN friend_connections fc
+          ON fc.friend_user_id = usr.sender_user_id
+         AND fc.user_id = p_user_id
+        WHERE usr.receiver_user_id = p_user_id
+        GROUP BY usr.title_id
+    ),
+    candidate_titles AS (
+        -- Get top 200 candidates by popularity to limit processing
+        SELECT t.id, t.popularity
         FROM titles t
-        WHERE t.id IN (
-            SELECT tsa.title_id
-            FROM title_streaming_availability tsa
-            JOIN user_streaming_subscriptions uss
-              ON tsa.streaming_service_id = uss.streaming_service_id
-             AND uss.user_id = p_user_id
-             AND uss.is_active = TRUE
-        )
-        AND t.original_language IN (
-            SELECT ulp.language_code
-            FROM user_language_preferences ulp
-            WHERE ulp.user_id = p_user_id
-        )
-        -- Exclude already watched/disliked
-        AND NOT EXISTS (
-            SELECT 1
-            FROM user_title_interactions uti
-            WHERE uti.user_id = p_user_id
-              AND uti.title_id = t.id
-              AND uti.interaction_type IN ('completed', 'disliked')
-        )
+        JOIN title_streaming_availability tsa ON tsa.title_id = t.id
+        WHERE tsa.streaming_service_id IN (SELECT streaming_service_id FROM user_streaming)
+          AND t.original_language IN (SELECT language_code FROM user_languages)
+          AND t.id NOT IN (SELECT ue.title_id FROM user_excluded ue)
+        ORDER BY t.popularity DESC
+        LIMIT 200
     ),
     scored AS (
         SELECT
-            ct.id AS title_id,
-            -- Base ViiB score from components
-            (
-                SELECT
-                    sc.emotional_component * 0.35 +
-                    sc.social_component * 0.20 +
-                    sc.historical_component * 0.25 +
-                    sc.context_component * 0.10 +
-                    sc.novelty_component * 0.10
-                FROM viib_score_components(p_user_id, ct.id) sc
-            )::real AS base_score,
-            -- Intent alignment
-            viib_intent_alignment_score(p_user_id, ct.id) AS intent_score,
-            -- Social priority
-            viib_social_priority_score(p_user_id, ct.id) AS social_score,
-            -- Transformation score from cache
-            COALESCE(
-                (SELECT tts.transformation_score
-                 FROM title_transformation_scores tts
-                 WHERE tts.title_id = ct.id
-                   AND tts.user_emotion_id = v_user_emotion_id),
-                0.5
-            )::real AS transform_score
+            ct.id AS s_title_id,
+            -- Use cached emotion match score or calculate simple fallback
+            COALESCE(tuemc.cosine_score, 0.5)::real AS base_score,
+            -- Use cached intent alignment or default
+            COALESCE(tias.alignment_score, 0.5)::real AS intent_score,
+            -- Use pre-fetched social score
+            COALESCE(sr.social_score, 0.0)::real AS social_score,
+            -- Use cached transformation score
+            COALESCE(tts.transformation_score, 0.5)::real AS transform_score
         FROM candidate_titles ct
+        LEFT JOIN title_user_emotion_match_cache tuemc
+            ON tuemc.title_id = ct.id
+           AND tuemc.user_emotion_id = v_user_emotion_id
+        LEFT JOIN title_intent_alignment_scores tias
+            ON tias.title_id = ct.id
+           AND tias.user_emotion_id = v_user_emotion_id
+        LEFT JOIN title_transformation_scores tts
+            ON tts.title_id = ct.id
+           AND tts.user_emotion_id = v_user_emotion_id
+        LEFT JOIN social_recs sr
+            ON sr.title_id = ct.id
     ),
     ranked AS (
         SELECT
-            s.title_id,
+            s.s_title_id,
             s.base_score,
             s.intent_score,
             s.social_score,
             s.transform_score,
-            -- Final score combines all factors
-            -- Prioritize social recommendations if high
+            -- Final score: combine base with transformation, or use social if higher
             GREATEST(
-                s.base_score * s.intent_score * (0.5 + 0.5 * s.transform_score),
+                s.base_score * 0.35 + s.intent_score * 0.25 + s.transform_score * 0.40,
                 s.social_score
-            )::real AS final_score,
+            )::real AS calc_final_score,
             -- Determine primary reason
             CASE
-                WHEN s.social_score > s.base_score * s.intent_score THEN 'friend_recommendation'
+                WHEN s.social_score > (s.base_score * 0.35 + s.intent_score * 0.25 + s.transform_score * 0.40)
+                    THEN 'friend_recommendation'
                 WHEN s.transform_score >= 0.8 THEN 'emotional_transformation'
                 WHEN s.intent_score >= 0.8 THEN 'intent_match'
                 WHEN s.base_score >= 0.7 THEN 'mood_match'
                 ELSE 'general_recommendation'
-            END AS recommendation_reason
+            END AS reason
         FROM scored s
     )
     SELECT
-        r.title_id,
-        r.base_score,
-        r.intent_score,
-        r.social_score,
-        r.transform_score,
-        r.final_score,
-        r.recommendation_reason
+        r.s_title_id AS title_id,
+        r.base_score AS base_viib_score,
+        r.intent_score AS intent_alignment_score,
+        r.social_score AS social_priority_score,
+        r.transform_score AS transformation_score,
+        r.calc_final_score AS final_score,
+        r.reason AS recommendation_reason
     FROM ranked r
-    ORDER BY r.final_score DESC
+    ORDER BY r.calc_final_score DESC
     LIMIT p_limit;
 END;
 $function$;
