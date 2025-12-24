@@ -15,12 +15,21 @@
 -- Categories: 'user_state' (what user feels), 'content_state' (what content evokes)
 -- ============================================================================
 
--- Clear existing data to avoid duplicates (cascade will handle related tables)
-DELETE FROM emotion_display_phrases;
-DELETE FROM emotion_to_intent_map;
-DELETE FROM emotion_transformation_map;
-DELETE FROM user_emotion_states;
-DELETE FROM emotion_master;
+-- Clear existing data to avoid duplicates
+-- Using TRUNCATE CASCADE for performance (DELETE is too slow with FK constraints)
+-- Order matters: truncate child tables first, then parent
+
+-- First, clear tables that reference emotion_master
+TRUNCATE TABLE title_transformation_scores CASCADE;
+TRUNCATE TABLE title_intent_alignment_scores CASCADE;
+TRUNCATE TABLE title_user_emotion_match_cache CASCADE;
+TRUNCATE TABLE emotion_display_phrases CASCADE;
+TRUNCATE TABLE emotion_to_intent_map CASCADE;
+TRUNCATE TABLE emotion_transformation_map CASCADE;
+TRUNCATE TABLE user_emotion_states CASCADE;
+
+-- Now safe to truncate emotion_master
+TRUNCATE TABLE emotion_master CASCADE;
 
 -- Insert USER_STATE emotions (emotions users can feel)
 INSERT INTO emotion_master (id, emotion_label, category, valence, arousal, dominance, intensity_multiplier, description) VALUES
