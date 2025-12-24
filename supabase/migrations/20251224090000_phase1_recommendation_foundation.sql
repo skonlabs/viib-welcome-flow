@@ -11,34 +11,36 @@
 -- ============================================================================
 -- PART 1: SEED EMOTION_MASTER TABLE
 -- PAD Model: Pleasure (Valence), Arousal, Dominance
--- Values range from -1.0 to 1.0
+-- Values NORMALIZED to 0-1 range (database constraint requires 0-1, not -1 to +1)
+-- Formula: normalized = (original + 1) / 2
 -- Categories: 'user_state' (what user feels), 'content_state' (what content evokes)
 -- Using INSERT ON CONFLICT to avoid DELETE/TRUNCATE timeout issues
 -- ============================================================================
 
 -- Insert USER_STATE emotions (emotions users can feel)
 -- Using ON CONFLICT (emotion_label, category) because that's the existing unique constraint
+-- PAD values normalized from -1..+1 to 0..1 range
 INSERT INTO emotion_master (emotion_label, category, valence, arousal, dominance, intensity_multiplier, description) VALUES
-('happy', 'user_state', 0.8, 0.5, 0.6, 1.0, 'Feeling joyful, content, and positive'),
-('sad', 'user_state', -0.7, -0.3, -0.5, 1.2, 'Feeling down, melancholic, or blue'),
-('angry', 'user_state', -0.6, 0.8, 0.5, 1.3, 'Feeling frustrated, irritated, or furious'),
-('anxious', 'user_state', -0.5, 0.7, -0.6, 1.2, 'Feeling worried, nervous, or uneasy'),
-('calm', 'user_state', 0.4, -0.6, 0.3, 0.8, 'Feeling peaceful, relaxed, and centered'),
-('excited', 'user_state', 0.7, 0.8, 0.5, 1.1, 'Feeling enthusiastic, energized, and eager'),
-('bored', 'user_state', -0.3, -0.7, -0.2, 0.9, 'Feeling unstimulated, disengaged, or restless'),
-('stressed', 'user_state', -0.6, 0.6, -0.4, 1.3, 'Feeling overwhelmed, pressured, or tense'),
-('lonely', 'user_state', -0.6, -0.4, -0.5, 1.1, 'Feeling isolated, disconnected, or alone'),
-('hopeful', 'user_state', 0.5, 0.3, 0.4, 1.0, 'Feeling optimistic about the future'),
-('nostalgic', 'user_state', 0.2, -0.2, 0.0, 0.9, 'Feeling wistful about the past'),
-('curious', 'user_state', 0.4, 0.4, 0.3, 1.0, 'Feeling inquisitive and wanting to learn'),
-('tired', 'user_state', -0.2, -0.8, -0.3, 0.7, 'Feeling fatigued, low energy'),
-('romantic', 'user_state', 0.7, 0.4, 0.2, 1.0, 'Feeling loving, affectionate'),
-('adventurous', 'user_state', 0.6, 0.7, 0.6, 1.1, 'Feeling bold, ready for new experiences'),
-('melancholic', 'user_state', -0.4, -0.4, -0.3, 1.0, 'Feeling pensive sadness'),
-('content', 'user_state', 0.6, -0.3, 0.4, 0.9, 'Feeling satisfied and at peace'),
-('frustrated', 'user_state', -0.5, 0.5, -0.2, 1.2, 'Feeling blocked or hindered'),
-('inspired', 'user_state', 0.7, 0.6, 0.5, 1.1, 'Feeling motivated and creative'),
-('overwhelmed', 'user_state', -0.5, 0.4, -0.6, 1.3, 'Feeling like too much is happening')
+('happy', 'user_state', 0.9, 0.75, 0.8, 1.0, 'Feeling joyful, content, and positive'),
+('sad', 'user_state', 0.15, 0.35, 0.25, 1.2, 'Feeling down, melancholic, or blue'),
+('angry', 'user_state', 0.2, 0.9, 0.75, 1.3, 'Feeling frustrated, irritated, or furious'),
+('anxious', 'user_state', 0.25, 0.85, 0.2, 1.2, 'Feeling worried, nervous, or uneasy'),
+('calm', 'user_state', 0.7, 0.2, 0.65, 0.8, 'Feeling peaceful, relaxed, and centered'),
+('excited', 'user_state', 0.85, 0.9, 0.75, 1.1, 'Feeling enthusiastic, energized, and eager'),
+('bored', 'user_state', 0.35, 0.15, 0.4, 0.9, 'Feeling unstimulated, disengaged, or restless'),
+('stressed', 'user_state', 0.2, 0.8, 0.3, 1.3, 'Feeling overwhelmed, pressured, or tense'),
+('lonely', 'user_state', 0.2, 0.3, 0.25, 1.1, 'Feeling isolated, disconnected, or alone'),
+('hopeful', 'user_state', 0.75, 0.65, 0.7, 1.0, 'Feeling optimistic about the future'),
+('nostalgic', 'user_state', 0.6, 0.4, 0.5, 0.9, 'Feeling wistful about the past'),
+('curious', 'user_state', 0.7, 0.7, 0.65, 1.0, 'Feeling inquisitive and wanting to learn'),
+('tired', 'user_state', 0.4, 0.1, 0.35, 0.7, 'Feeling fatigued, low energy'),
+('romantic', 'user_state', 0.85, 0.7, 0.6, 1.0, 'Feeling loving, affectionate'),
+('adventurous', 'user_state', 0.8, 0.85, 0.8, 1.1, 'Feeling bold, ready for new experiences'),
+('melancholic', 'user_state', 0.3, 0.3, 0.35, 1.0, 'Feeling pensive sadness'),
+('content', 'user_state', 0.8, 0.35, 0.7, 0.9, 'Feeling satisfied and at peace'),
+('frustrated', 'user_state', 0.25, 0.75, 0.4, 1.2, 'Feeling blocked or hindered'),
+('inspired', 'user_state', 0.85, 0.8, 0.75, 1.1, 'Feeling motivated and creative'),
+('overwhelmed', 'user_state', 0.25, 0.7, 0.2, 1.3, 'Feeling like too much is happening')
 ON CONFLICT (emotion_label, category) DO UPDATE SET
     valence = EXCLUDED.valence,
     arousal = EXCLUDED.arousal,
@@ -48,45 +50,46 @@ ON CONFLICT (emotion_label, category) DO UPDATE SET
 
 -- Insert CONTENT_STATE emotions (emotions content can evoke)
 -- Using ON CONFLICT (emotion_label, category) because that's the existing unique constraint
+-- PAD values normalized from -1..+1 to 0..1 range
 INSERT INTO emotion_master (emotion_label, category, valence, arousal, dominance, intensity_multiplier, description) VALUES
 -- Positive high-arousal
-('thrilling', 'content_state', 0.6, 0.9, 0.4, 1.2, 'Content that creates excitement and suspense'),
-('exhilarating', 'content_state', 0.8, 0.9, 0.6, 1.3, 'Content that produces intense excitement'),
-('hilarious', 'content_state', 0.9, 0.7, 0.5, 1.1, 'Content that makes you laugh hard'),
-('uplifting', 'content_state', 0.8, 0.5, 0.5, 1.0, 'Content that elevates mood and spirits'),
+('thrilling', 'content_state', 0.8, 0.95, 0.7, 1.2, 'Content that creates excitement and suspense'),
+('exhilarating', 'content_state', 0.9, 0.95, 0.8, 1.3, 'Content that produces intense excitement'),
+('hilarious', 'content_state', 0.95, 0.85, 0.75, 1.1, 'Content that makes you laugh hard'),
+('uplifting', 'content_state', 0.9, 0.75, 0.75, 1.0, 'Content that elevates mood and spirits'),
 -- Positive low-arousal
-('heartwarming', 'content_state', 0.8, 0.2, 0.3, 0.9, 'Content that creates warm, fuzzy feelings'),
-('comforting', 'content_state', 0.6, -0.4, 0.3, 0.8, 'Content that soothes and relaxes'),
-('peaceful', 'content_state', 0.5, -0.6, 0.4, 0.7, 'Content that creates tranquility'),
-('cozy', 'content_state', 0.6, -0.5, 0.3, 0.8, 'Content that feels like a warm blanket'),
--- Negative high-arousal
-('terrifying', 'content_state', -0.6, 0.9, -0.5, 1.4, 'Content that creates intense fear'),
-('intense', 'content_state', 0.0, 0.9, 0.3, 1.3, 'Content with high emotional stakes'),
-('suspenseful', 'content_state', 0.1, 0.8, -0.2, 1.2, 'Content that keeps you on edge'),
-('shocking', 'content_state', -0.2, 0.9, -0.3, 1.4, 'Content with unexpected twists'),
+('heartwarming', 'content_state', 0.9, 0.6, 0.65, 0.9, 'Content that creates warm, fuzzy feelings'),
+('comforting', 'content_state', 0.8, 0.3, 0.65, 0.8, 'Content that soothes and relaxes'),
+('peaceful', 'content_state', 0.75, 0.2, 0.7, 0.7, 'Content that creates tranquility'),
+('cozy', 'content_state', 0.8, 0.25, 0.65, 0.8, 'Content that feels like a warm blanket'),
+-- Negative high-arousal (negative valence = low normalized valence)
+('terrifying', 'content_state', 0.2, 0.95, 0.25, 1.4, 'Content that creates intense fear'),
+('intense', 'content_state', 0.5, 0.95, 0.65, 1.3, 'Content with high emotional stakes'),
+('suspenseful', 'content_state', 0.55, 0.9, 0.4, 1.2, 'Content that keeps you on edge'),
+('shocking', 'content_state', 0.4, 0.95, 0.35, 1.4, 'Content with unexpected twists'),
 -- Negative low-arousal
-('melancholic', 'content_state', -0.4, -0.3, -0.2, 1.0, 'Content with beautiful sadness'),
-('bittersweet', 'content_state', 0.1, -0.1, 0.0, 1.0, 'Content mixing joy and sorrow'),
-('poignant', 'content_state', -0.2, 0.2, 0.1, 1.1, 'Content that touches deeply'),
-('somber', 'content_state', -0.5, -0.4, -0.1, 1.0, 'Content with serious, dark tone'),
+('melancholic', 'content_state', 0.3, 0.35, 0.4, 1.0, 'Content with beautiful sadness'),
+('bittersweet', 'content_state', 0.55, 0.45, 0.5, 1.0, 'Content mixing joy and sorrow'),
+('poignant', 'content_state', 0.4, 0.6, 0.55, 1.1, 'Content that touches deeply'),
+('somber', 'content_state', 0.25, 0.3, 0.45, 1.0, 'Content with serious, dark tone'),
 -- Cognitive/Intellectual
-('thought-provoking', 'content_state', 0.3, 0.4, 0.4, 1.1, 'Content that makes you think'),
-('mind-bending', 'content_state', 0.4, 0.6, 0.2, 1.2, 'Content that challenges perception'),
-('educational', 'content_state', 0.4, 0.3, 0.5, 0.9, 'Content that teaches and informs'),
-('inspiring', 'content_state', 0.7, 0.5, 0.6, 1.1, 'Content that motivates action'),
+('thought-provoking', 'content_state', 0.65, 0.7, 0.7, 1.1, 'Content that makes you think'),
+('mind-bending', 'content_state', 0.7, 0.8, 0.6, 1.2, 'Content that challenges perception'),
+('educational', 'content_state', 0.7, 0.65, 0.75, 0.9, 'Content that teaches and informs'),
+('inspiring', 'content_state', 0.85, 0.75, 0.8, 1.1, 'Content that motivates action'),
 -- Social/Connection
-('romantic', 'content_state', 0.7, 0.4, 0.2, 1.0, 'Content about love and relationships'),
-('nostalgic', 'content_state', 0.3, -0.2, 0.1, 0.9, 'Content that evokes fond memories'),
-('wholesome', 'content_state', 0.7, 0.1, 0.4, 0.9, 'Content that is pure and good'),
-('feel-good', 'content_state', 0.8, 0.3, 0.4, 1.0, 'Content designed to make you happy'),
+('romantic', 'content_state', 0.85, 0.7, 0.6, 1.0, 'Content about love and relationships'),
+('nostalgic', 'content_state', 0.65, 0.4, 0.55, 0.9, 'Content that evokes fond memories'),
+('wholesome', 'content_state', 0.85, 0.55, 0.7, 0.9, 'Content that is pure and good'),
+('feel-good', 'content_state', 0.9, 0.65, 0.7, 1.0, 'Content designed to make you happy'),
 -- Cathartic
-('cathartic', 'content_state', 0.2, 0.5, 0.3, 1.2, 'Content that provides emotional release'),
-('tear-jerker', 'content_state', -0.3, 0.4, -0.1, 1.2, 'Content that makes you cry'),
-('empowering', 'content_state', 0.6, 0.6, 0.8, 1.1, 'Content that makes you feel strong'),
+('cathartic', 'content_state', 0.6, 0.75, 0.65, 1.2, 'Content that provides emotional release'),
+('tear-jerker', 'content_state', 0.35, 0.7, 0.45, 1.2, 'Content that makes you cry'),
+('empowering', 'content_state', 0.8, 0.8, 0.9, 1.1, 'Content that makes you feel strong'),
 -- Light/Fun
-('quirky', 'content_state', 0.5, 0.3, 0.2, 0.9, 'Content that is charmingly odd'),
-('lighthearted', 'content_state', 0.6, 0.2, 0.3, 0.8, 'Content that is easy and fun'),
-('escapist', 'content_state', 0.5, 0.1, 0.2, 0.9, 'Content for mental getaway')
+('quirky', 'content_state', 0.75, 0.65, 0.6, 0.9, 'Content that is charmingly odd'),
+('lighthearted', 'content_state', 0.8, 0.6, 0.65, 0.8, 'Content that is easy and fun'),
+('escapist', 'content_state', 0.75, 0.55, 0.6, 0.9, 'Content for mental getaway')
 ON CONFLICT (emotion_label, category) DO UPDATE SET
     valence = EXCLUDED.valence,
     arousal = EXCLUDED.arousal,
