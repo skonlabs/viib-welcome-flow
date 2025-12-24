@@ -750,8 +750,9 @@ BEGIN
 
             -- Combine: 50% direct similarity + 50% transformation potential
             -- Weight transformation more if user is in negative emotional state
-            IF v_user_valence < 0 THEN
-                -- User is in negative state, transformation matters more
+            -- Note: valence is normalized to 0-1 range, so 0.5 is neutral
+            IF v_user_valence < 0.5 THEN
+                -- User is in negative state (below neutral), transformation matters more
                 v_emotional_score := 0.35 * v_direct_cosine + 0.65 * COALESCE(v_transformation_score, 0.5);
             ELSE
                 -- User is positive, balance between matching and transformation
