@@ -103,12 +103,13 @@ BEGIN
     RETURN NEXT;
 
     -- Step 2: Refresh title transformation scores with Phase 1/2 weights
+    -- Use MAX to aggregate when multiple content emotions map to same user emotion
     v_step_start := clock_timestamp();
     INSERT INTO public.title_transformation_scores (title_id, user_emotion_id, transformation_score, updated_at)
     SELECT
         vect.title_id,
         etm.user_emotion_id,
-        (
+        MAX(
             etm.confidence_score *
             CASE etm.transformation_type
                 WHEN 'amplify' THEN 1.0
@@ -129,6 +130,7 @@ BEGIN
        AND em_content.category = 'content_state'
     JOIN emotion_transformation_map etm
         ON etm.content_emotion_id = vect.emotion_id
+    GROUP BY vect.title_id, etm.user_emotion_id
     ON CONFLICT (title_id, user_emotion_id)
     DO UPDATE SET
         transformation_score = EXCLUDED.transformation_score,

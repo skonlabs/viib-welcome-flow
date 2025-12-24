@@ -430,6 +430,7 @@ SET statement_timeout TO '300s'
 AS $function$
 BEGIN
     -- Insert or update transformation scores for all title-emotion combinations
+    -- Use MAX to aggregate when a title has multiple content emotions mapping to same user emotion
     INSERT INTO public.title_transformation_scores (
         title_id,
         user_emotion_id,
@@ -439,9 +440,8 @@ BEGIN
     SELECT
         vect.title_id,
         etm.user_emotion_id,
-        -- Calculate weighted transformation score
-        -- Use consistent weights from Phase 1
-        (
+        -- Use MAX of weighted transformation scores when multiple content emotions map to same user emotion
+        MAX(
             etm.confidence_score *
             CASE etm.transformation_type
                 WHEN 'amplify' THEN 1.0           -- Best: amplifies positive emotions
@@ -462,6 +462,7 @@ BEGIN
        AND em_content.category = 'content_state'
     JOIN emotion_transformation_map etm
         ON etm.content_emotion_id = vect.emotion_id
+    GROUP BY vect.title_id, etm.user_emotion_id
     ON CONFLICT (title_id, user_emotion_id)
     DO UPDATE SET
         transformation_score = EXCLUDED.transformation_score,
@@ -543,11 +544,12 @@ BEGIN
         updated_at = now();
 
     -- Refresh transformation scores for the affected title
+    -- Use MAX to aggregate when multiple content emotions map to same user emotion
     INSERT INTO public.title_transformation_scores (title_id, user_emotion_id, transformation_score, updated_at)
     SELECT
         vect.title_id,
         etm.user_emotion_id,
-        (
+        MAX(
             etm.confidence_score *
             CASE etm.transformation_type
                 WHEN 'amplify' THEN 1.0
@@ -569,6 +571,7 @@ BEGIN
     JOIN emotion_transformation_map etm
         ON etm.content_emotion_id = vect.emotion_id
     WHERE vect.title_id = COALESCE(NEW.title_id, OLD.title_id)
+    GROUP BY vect.title_id, etm.user_emotion_id
     ON CONFLICT (title_id, user_emotion_id)
     DO UPDATE SET
         transformation_score = EXCLUDED.transformation_score,
