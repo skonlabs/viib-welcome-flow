@@ -229,6 +229,10 @@ export const MoodMap = ({ onMoodSaved, onBack }: MoodMapProps) => {
       if (rpcError) throw rpcError;
 
       toast.success(`Mood set to ${moodLabel}!`);
+      
+      // Dispatch event to notify other components (like Home) to refresh recommendations
+      window.dispatchEvent(new CustomEvent('viib-mood-changed'));
+      
       onMoodSaved();
     } catch (error) {
       console.error('Error saving mood:', error);
