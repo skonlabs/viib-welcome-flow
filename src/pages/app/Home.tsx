@@ -41,6 +41,15 @@ const Home = () => {
   useEffect(() => {
     fetchRecommendations();
     fetchUserWatchlist();
+    
+    // Listen for mood changes to refresh recommendations
+    const handleMoodChange = () => {
+      setLoading(true);
+      fetchRecommendations();
+    };
+    
+    window.addEventListener('viib-mood-changed', handleMoodChange);
+    return () => window.removeEventListener('viib-mood-changed', handleMoodChange);
   }, []);
 
   const fetchUserWatchlist = async () => {
