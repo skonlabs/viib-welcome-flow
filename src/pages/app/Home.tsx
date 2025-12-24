@@ -67,10 +67,13 @@ const Home = () => {
       }
 
       // Call the ViiB recommendation engine (v2 with transformation scoring)
+      console.log('Fetching recommendations for user:', userId);
       const { data: recData, error: recError } = await supabase.rpc(
         'get_top_recommendations_v2',
         { p_user_id: userId, p_limit: 10 }
       );
+
+      console.log('Recommendation response:', { recData, recError });
 
       if (recError) {
         console.error('Recommendation function error:', recError);
@@ -80,10 +83,13 @@ const Home = () => {
       }
 
       if (!recData || recData.length === 0) {
+        console.log('No recommendations returned');
         setRecommendations([]);
         setLoading(false);
         return;
       }
+
+      console.log('Got recommendation data:', recData.length, 'titles');
 
       // Fetch title details for recommended titles (genres now in title_genres column)
       const titleIds = recData.map((r: any) => r.title_id);
