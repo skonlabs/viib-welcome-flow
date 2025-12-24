@@ -23,6 +23,8 @@ interface RecommendedTitle {
   base_viib_score: number;
   intent_alignment_score: number;
   social_priority_score: number;
+  transformation_score?: number;
+  recommendation_reason?: string;
 }
 
 const Home = () => {
@@ -64,9 +66,9 @@ const Home = () => {
         return;
       }
 
-      // Call the ViiB recommendation engine
+      // Call the ViiB recommendation engine (v2 with transformation scoring)
       const { data: recData, error: recError } = await supabase.rpc(
-        'get_top_recommendations',
+        'get_top_recommendations_v2',
         { p_user_id: userId, p_limit: 10 }
       );
 
@@ -142,6 +144,8 @@ const Home = () => {
             base_viib_score: rec.base_viib_score,
             intent_alignment_score: rec.intent_alignment_score,
             social_priority_score: rec.social_priority_score,
+            transformation_score: rec.transformation_score,
+            recommendation_reason: rec.recommendation_reason,
           };
         })
         .filter(Boolean) as RecommendedTitle[];

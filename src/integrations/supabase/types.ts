@@ -2124,6 +2124,18 @@ export type Database = {
           title_id: string
         }[]
       }
+      get_top_recommendations_v2: {
+        Args: { p_user_id: string; p_limit?: number }
+        Returns: {
+          title_id: string
+          base_viib_score: number
+          intent_alignment_score: number
+          social_priority_score: number
+          transformation_score: number
+          final_score: number
+          recommendation_reason: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
