@@ -24,58 +24,78 @@ const emotionToPosition = (valence: number, arousal: number) => ({
   y: ((1 - arousal) / 2) * 100, // Invert Y so high energy is at top
 });
 
-// Get color based on emotion position
-const getEmotionColor = (valence: number, arousal: number): string => {
-  // Map to hue: negative=red/orange, positive=green/blue
-  // High arousal = more saturated
-  const hue = ((valence + 1) / 2) * 120; // 0-120 (red to green)
-  const saturation = 60 + arousal * 20;
-  const lightness = 45 + (1 - arousal) * 10;
+// Map x,y percentages (0-100) to valence and arousal (-1 to 1)
+const positionToEmotion = (x: number, y: number) => ({
+  valence: (x / 100) * 2 - 1,
+  arousal: 1 - (y / 100) * 2,
+});
+
+// Get color based on position
+const getColorFromPosition = (x: number, y: number): string => {
+  // x: 0-100 (left=negative, right=positive)
+  // y: 0-100 (top=high energy, bottom=low energy)
+  
+  const hue = x * 1.2; // 0-120 (red to green)
+  const saturation = 70 + (100 - y) * 0.3; // More saturated at top
+  const lightness = 50 + y * 0.15; // Slightly lighter at bottom
+  
   return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
 };
 
-// Emoji mapping for emotions
-const emotionEmojis: Record<string, string> = {
-  happy: '😊',
-  excited: '🤩',
-  calm: '😌',
-  content: '🙂',
-  sad: '😢',
-  tired: '😴',
-  anxious: '😰',
-  angry: '😠',
-  frustrated: '😤',
-  bored: '😑',
-  curious: '🤔',
-  inspired: '✨',
-  hopeful: '🌟',
-  nostalgic: '🥹',
-  romantic: '🥰',
-  adventurous: '🚀',
-  stressed: '😫',
-  overwhelmed: '🤯',
-  lonely: '🥺',
-  melancholic: '😔',
+// Get emoji based on quadrant
+const getQuadrantEmoji = (valence: number, arousal: number): string => {
+  if (arousal > 0 && valence > 0) return '🤩'; // High energy, positive
+  if (arousal > 0 && valence <= 0) return '😤'; // High energy, negative
+  if (arousal <= 0 && valence > 0) return '😌'; // Low energy, positive
+  return '😔'; // Low energy, negative
+};
+
+// Get mood label based on position
+const getMoodLabel = (valence: number, arousal: number): string => {
+  const v = valence;
+  const a = arousal;
+  
+  // Define mood zones
+  if (a > 0.5 && v > 0.5) return 'Excited';
+  if (a > 0.5 && v > 0) return 'Happy';
+  if (a > 0.5 && v > -0.5) return 'Tense';
+  if (a > 0.5) return 'Angry';
+  
+  if (a > 0 && v > 0.5) return 'Delighted';
+  if (a > 0 && v > 0) return 'Cheerful';
+  if (a > 0 && v > -0.5) return 'Frustrated';
+  if (a > 0) return 'Annoyed';
+  
+  if (a > -0.5 && v > 0.5) return 'Peaceful';
+  if (a > -0.5 && v > 0) return 'Content';
+  if (a > -0.5 && v > -0.5) return 'Bored';
+  if (a > -0.5) return 'Melancholic';
+  
+  if (v > 0.5) return 'Calm';
+  if (v > 0) return 'Relaxed';
+  if (v > -0.5) return 'Tired';
+  return 'Sad';
 };
 
 export const MoodMap = ({ onMoodSaved, onBack }: MoodMapProps) => {
   const mapRef = useRef<HTMLDivElement>(null);
-  const [selectedEmotion, setSelectedEmotion] = useState<EmotionState | null>(null);
+  const [position, setPosition] = useState({ x: 50, y: 50 });
+  const [isDragging, setIsDragging] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [emotions, setEmotions] = useState<EmotionState[]>([]);
+  const [showEmotionDots, setShowEmotionDots] = useState(true);
 
-  // Fetch emotions
+  // Fetch emotions for reference points
   useEffect(() => {
     const fetchEmotions = async () => {
       const { data } = await supabase
         .from('emotion_master')
         .select('id, emotion_label, valence, arousal, category')
-        .eq('category', 'user_state')
         .not('valence', 'is', null)
         .not('arousal', 'is', null);
       
       if (data) {
-        setEmotions(data as EmotionState[]);
+        setEmotions(data);
       }
     };
     fetchEmotions();
@@ -85,36 +105,87 @@ export const MoodMap = ({ onMoodSaved, onBack }: MoodMapProps) => {
   useEffect(() => {
     const loadLastMood = async () => {
       const userId = localStorage.getItem('viib_user_id');
-      if (!userId || emotions.length === 0) return;
+      if (!userId) return;
 
       const { data } = await supabase
         .from('user_emotion_states')
-        .select('emotion_id')
+        .select('valence, arousal')
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
 
-      if (data?.emotion_id) {
-        const lastEmotion = emotions.find(e => e.id === data.emotion_id);
-        if (lastEmotion) {
-          setSelectedEmotion(lastEmotion);
-        }
+      if (data?.valence !== null && data?.arousal !== null) {
+        const pos = emotionToPosition(data.valence, data.arousal);
+        setPosition(pos);
       }
     };
     loadLastMood();
-  }, [emotions]);
+  }, []);
 
-  const handleSelectEmotion = (emotion: EmotionState) => {
-    setSelectedEmotion(emotion);
+  const { valence, arousal } = useMemo(
+    () => positionToEmotion(position.x, position.y),
+    [position.x, position.y]
+  );
+
+  const moodLabel = useMemo(
+    () => getMoodLabel(valence, arousal),
+    [valence, arousal]
+  );
+
+  const moodEmoji = useMemo(
+    () => getQuadrantEmoji(valence, arousal),
+    [valence, arousal]
+  );
+
+  const positionColor = useMemo(
+    () => getColorFromPosition(position.x, position.y),
+    [position.x, position.y]
+  );
+
+  const handleMapInteraction = (clientX: number, clientY: number) => {
+    if (!mapRef.current) return;
+    
+    const rect = mapRef.current.getBoundingClientRect();
+    const x = Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100));
+    const y = Math.max(0, Math.min(100, ((clientY - rect.top) / rect.height) * 100));
+    
+    setPosition({ x, y });
+  };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    setIsDragging(true);
+    handleMapInteraction(e.clientX, e.clientY);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (isDragging) {
+      handleMapInteraction(e.clientX, e.clientY);
+    }
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setIsDragging(true);
+    const touch = e.touches[0];
+    handleMapInteraction(touch.clientX, touch.clientY);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (isDragging) {
+      const touch = e.touches[0];
+      handleMapInteraction(touch.clientX, touch.clientY);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    setIsDragging(false);
   };
 
   const handleSaveMood = async () => {
-    if (!selectedEmotion) {
-      toast.error('Please select a mood first');
-      return;
-    }
-
     const userId = localStorage.getItem('viib_user_id');
     if (!userId) {
       toast.error('Please log in to save your mood');
@@ -123,17 +194,41 @@ export const MoodMap = ({ onMoodSaved, onBack }: MoodMapProps) => {
 
     setIsSaving(true);
     try {
-      const energyPercentage = Math.round(((selectedEmotion.arousal! + 1) / 2) * 100);
+      // Find the closest emotion
+      let closestEmotion = emotions[0];
+      let minDistance = Infinity;
 
+      for (const emotion of emotions) {
+        if (emotion.valence === null || emotion.arousal === null) continue;
+        const distance = Math.sqrt(
+          Math.pow(emotion.valence - valence, 2) +
+          Math.pow(emotion.arousal - arousal, 2)
+        );
+        if (distance < minDistance) {
+          minDistance = distance;
+          closestEmotion = emotion;
+        }
+      }
+
+      if (!closestEmotion) {
+        toast.error('Could not determine mood');
+        return;
+      }
+
+      // Calculate intensity based on distance from center
+      const intensity = Math.sqrt(valence * valence + arousal * arousal);
+      const energyPercentage = Math.round(((arousal + 1) / 2) * 100);
+
+      // Call the translate_mood_to_emotion RPC
       const { error: rpcError } = await supabase.rpc('translate_mood_to_emotion', {
         p_user_id: userId,
-        p_mood_text: selectedEmotion.emotion_label,
+        p_mood_text: closestEmotion.emotion_label,
         p_energy_percentage: energyPercentage
       });
 
       if (rpcError) throw rpcError;
 
-      toast.success(`Mood set to ${selectedEmotion.emotion_label}!`);
+      toast.success(`Mood set to ${moodLabel}!`);
       onMoodSaved();
     } catch (error) {
       console.error('Error saving mood:', error);
@@ -157,63 +252,51 @@ export const MoodMap = ({ onMoodSaved, onBack }: MoodMapProps) => {
         </Button>
         <div>
           <h1 className="text-xl font-bold text-foreground">How are you feeling?</h1>
-          <p className="text-sm text-muted-foreground">Tap an emotion that matches your mood</p>
+          <p className="text-sm text-muted-foreground">Tap or drag to select your mood</p>
         </div>
       </div>
 
-      {/* Selected emotion display */}
-      <div className="px-4 py-2">
+      {/* Main content */}
+      <div className="flex-1 flex flex-col items-center justify-center p-4 gap-6">
+        {/* Current mood display */}
         <AnimatePresence mode="wait">
-          {selectedEmotion ? (
-            <motion.div
-              key={selectedEmotion.id}
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              className="flex items-center justify-center gap-3 p-4 rounded-xl"
-              style={{
-                backgroundColor: `${getEmotionColor(selectedEmotion.valence!, selectedEmotion.arousal!)}20`,
-                borderColor: getEmotionColor(selectedEmotion.valence!, selectedEmotion.arousal!),
-                borderWidth: 2,
-              }}
+          <motion.div
+            key={moodLabel}
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 10 }}
+            className="text-center"
+          >
+            <span className="text-5xl mb-2 block">{moodEmoji}</span>
+            <span 
+              className="text-2xl font-bold"
+              style={{ color: positionColor }}
             >
-              <span className="text-4xl">
-                {emotionEmojis[selectedEmotion.emotion_label] || '🎭'}
-              </span>
-              <span 
-                className="text-2xl font-bold capitalize"
-                style={{ color: getEmotionColor(selectedEmotion.valence!, selectedEmotion.arousal!) }}
-              >
-                {selectedEmotion.emotion_label}
-              </span>
-            </motion.div>
-          ) : (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="flex items-center justify-center gap-3 p-4 rounded-xl bg-muted/30 border-2 border-dashed border-muted-foreground/30"
-            >
-              <span className="text-4xl opacity-50">🎭</span>
-              <span className="text-lg text-muted-foreground">Tap an emotion below</span>
-            </motion.div>
-          )}
+              {moodLabel}
+            </span>
+          </motion.div>
         </AnimatePresence>
-      </div>
 
-      {/* 2D Mood Map with Emotion Bubbles */}
-      <div className="flex-1 p-4">
+        {/* 2D Mood Map */}
         <div 
           ref={mapRef}
-          className="relative w-full h-full min-h-[400px] max-h-[500px] rounded-2xl overflow-hidden"
+          className="relative w-full max-w-sm aspect-square rounded-2xl cursor-crosshair touch-none select-none overflow-hidden"
           style={{
             background: `
-              radial-gradient(ellipse at 100% 0%, hsl(120 70% 50% / 0.15), transparent 50%),
-              radial-gradient(ellipse at 0% 0%, hsl(0 70% 50% / 0.15), transparent 50%),
-              radial-gradient(ellipse at 100% 100%, hsl(180 50% 50% / 0.15), transparent 50%),
-              radial-gradient(ellipse at 0% 100%, hsl(240 50% 50% / 0.15), transparent 50%),
+              radial-gradient(ellipse at 100% 0%, hsl(120 70% 50% / 0.3), transparent 50%),
+              radial-gradient(ellipse at 0% 0%, hsl(0 70% 50% / 0.3), transparent 50%),
+              radial-gradient(ellipse at 100% 100%, hsl(180 50% 50% / 0.3), transparent 50%),
+              radial-gradient(ellipse at 0% 100%, hsl(240 50% 50% / 0.3), transparent 50%),
               hsl(var(--card))
             `
           }}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
         >
           {/* Grid lines */}
           <div className="absolute inset-0 pointer-events-none">
@@ -222,98 +305,91 @@ export const MoodMap = ({ onMoodSaved, onBack }: MoodMapProps) => {
           </div>
 
           {/* Axis labels */}
-          <div className="absolute top-2 left-1/2 -translate-x-1/2 text-xs text-foreground/40 font-medium">
-            ⚡ High Energy
+          <div className="absolute top-2 left-1/2 -translate-x-1/2 text-xs text-foreground/50 font-medium">
+            High Energy
           </div>
-          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-xs text-foreground/40 font-medium">
-            😴 Low Energy
+          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-xs text-foreground/50 font-medium">
+            Low Energy
           </div>
-          <div className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-foreground/40 font-medium">
-            😔
+          <div className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-foreground/50 font-medium writing-mode-vertical">
+            Negative
           </div>
-          <div className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-foreground/40 font-medium">
-            😊
+          <div className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-foreground/50 font-medium writing-mode-vertical">
+            Positive
           </div>
 
-          {/* Emotion Bubbles */}
-          {emotions.map((emotion) => {
+          {/* Emotion reference dots */}
+          {showEmotionDots && emotions.slice(0, 12).map((emotion) => {
             if (emotion.valence === null || emotion.arousal === null) return null;
             const pos = emotionToPosition(emotion.valence, emotion.arousal);
-            const color = getEmotionColor(emotion.valence, emotion.arousal);
-            const isSelected = selectedEmotion?.id === emotion.id;
-            const emoji = emotionEmojis[emotion.emotion_label] || '🎭';
-            
             return (
-              <motion.button
+              <div
                 key={emotion.id}
-                className="absolute flex flex-col items-center gap-0.5 cursor-pointer group"
+                className="absolute w-2 h-2 rounded-full bg-foreground/20 pointer-events-none"
                 style={{
                   left: `${pos.x}%`,
                   top: `${pos.y}%`,
                   transform: 'translate(-50%, -50%)',
                 }}
-                onClick={() => handleSelectEmotion(emotion)}
-                whileHover={{ scale: 1.15 }}
-                whileTap={{ scale: 0.95 }}
-                animate={{
-                  scale: isSelected ? 1.2 : 1,
-                }}
-                transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-              >
-                {/* Bubble background */}
-                <motion.div
-                  className="relative flex items-center justify-center w-12 h-12 rounded-full shadow-lg"
-                  style={{
-                    backgroundColor: isSelected ? color : `${color}cc`,
-                    boxShadow: isSelected 
-                      ? `0 0 20px ${color}, 0 4px 12px rgba(0,0,0,0.3)` 
-                      : `0 2px 8px rgba(0,0,0,0.2)`,
-                  }}
-                  animate={{
-                    boxShadow: isSelected 
-                      ? `0 0 25px ${color}, 0 4px 12px rgba(0,0,0,0.3)` 
-                      : `0 2px 8px rgba(0,0,0,0.2)`,
-                  }}
-                >
-                  <span className="text-2xl">{emoji}</span>
-                  
-                  {/* Selection ring */}
-                  {isSelected && (
-                    <motion.div
-                      className="absolute inset-0 rounded-full border-2 border-white"
-                      initial={{ scale: 0.8, opacity: 0 }}
-                      animate={{ scale: 1.1, opacity: 1 }}
-                      transition={{ duration: 0.2 }}
-                    />
-                  )}
-                </motion.div>
-                
-                {/* Label */}
-                <span 
-                  className="text-[10px] font-medium capitalize px-1.5 py-0.5 rounded bg-background/80 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap"
-                  style={{ 
-                    color: color,
-                    opacity: isSelected ? 1 : undefined,
-                  }}
-                >
-                  {emotion.emotion_label}
-                </span>
-              </motion.button>
+                title={emotion.emotion_label}
+              />
             );
           })}
-        </div>
-      </div>
 
-      {/* Save button */}
-      <div className="p-4">
+          {/* Current position marker */}
+          <motion.div
+            className="absolute pointer-events-none"
+            style={{
+              left: `${position.x}%`,
+              top: `${position.y}%`,
+            }}
+            animate={{
+              left: `${position.x}%`,
+              top: `${position.y}%`,
+            }}
+            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+          >
+            {/* Outer glow */}
+            <div 
+              className="absolute w-16 h-16 rounded-full opacity-30 blur-md"
+              style={{ 
+                backgroundColor: positionColor,
+                transform: 'translate(-50%, -50%)',
+              }} 
+            />
+            {/* Main marker */}
+            <div 
+              className="absolute w-8 h-8 rounded-full border-4 border-white shadow-lg"
+              style={{ 
+                backgroundColor: positionColor,
+                transform: 'translate(-50%, -50%)',
+              }}
+            />
+            {/* Inner dot */}
+            <div 
+              className="absolute w-2 h-2 rounded-full bg-white"
+              style={{ transform: 'translate(-50%, -50%)' }}
+            />
+          </motion.div>
+        </div>
+
+        {/* Quadrant hints */}
+        <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground max-w-sm w-full">
+          <div className="text-left">😤 Tense / Angry</div>
+          <div className="text-right">🤩 Excited / Happy</div>
+          <div className="text-left">😔 Sad / Tired</div>
+          <div className="text-right">😌 Calm / Peaceful</div>
+        </div>
+
+        {/* Save button */}
         <Button
           onClick={handleSaveMood}
-          disabled={isSaving || !selectedEmotion}
-          className="w-full gap-2"
+          disabled={isSaving}
+          className="w-full max-w-sm gap-2"
           size="lg"
         >
           <Sparkles className="h-4 w-4" />
-          {isSaving ? 'Saving...' : selectedEmotion ? `Set Mood: ${selectedEmotion.emotion_label}` : 'Select a Mood'}
+          {isSaving ? 'Saving...' : 'Set My Mood'}
         </Button>
       </div>
     </div>
