@@ -429,12 +429,18 @@ serve(async (req) => {
           totalProcessed++;
           moviesProcessed++;
 
+          // Streaming availability - delete old and insert fresh
+          await supabase.from('title_streaming_availability')
+            .delete()
+            .eq('title_id', upsertedTitle.id)
+            .eq('region_code', 'US');
+          
           for (const provider of providers) {
-            await supabase.from('title_streaming_availability').upsert({
+            await supabase.from('title_streaming_availability').insert({
               title_id: upsertedTitle.id,
               streaming_service_id: provider.serviceId,
               region_code: 'US'
-            }, { onConflict: 'title_id,streaming_service_id,region_code' });
+            });
           }
 
           if (details?.spoken_languages) {
@@ -647,12 +653,18 @@ serve(async (req) => {
             totalProcessed++;
             seriesProcessed++;
 
+            // Streaming availability - delete old and insert fresh
+            await supabase.from('title_streaming_availability')
+              .delete()
+              .eq('title_id', upsertedTitle.id)
+              .eq('region_code', 'US');
+            
             for (const provider of providers) {
-              await supabase.from('title_streaming_availability').upsert({
+              await supabase.from('title_streaming_availability').insert({
                 title_id: upsertedTitle.id,
                 streaming_service_id: provider.serviceId,
                 region_code: 'US'
-              }, { onConflict: 'title_id,streaming_service_id,region_code' });
+              });
             }
 
             if (details?.spoken_languages) {
@@ -947,12 +959,18 @@ serve(async (req) => {
                   totalProcessed++;
                   seriesProcessed++;
                   
+                  // Streaming availability - delete old and insert fresh
+                  await supabase.from('title_streaming_availability')
+                    .delete()
+                    .eq('title_id', upsertedTitle.id)
+                    .eq('region_code', 'US');
+                  
                   for (const provider of providers) {
-                    await supabase.from('title_streaming_availability').upsert({
+                    await supabase.from('title_streaming_availability').insert({
                       title_id: upsertedTitle.id,
                       streaming_service_id: provider.serviceId,
                       region_code: 'US'
-                    }, { onConflict: 'title_id,streaming_service_id,region_code' });
+                    });
                   }
                   
                   // Map languages
@@ -1066,12 +1084,18 @@ serve(async (req) => {
                     totalProcessed++;
                     seriesProcessed++;
                     
+                    // Streaming availability - delete old and insert fresh
+                    await supabase.from('title_streaming_availability')
+                      .delete()
+                      .eq('title_id', upsertedTitle.id)
+                      .eq('region_code', 'US');
+                    
                     for (const provider of providers) {
-                      await supabase.from('title_streaming_availability').upsert({
+                      await supabase.from('title_streaming_availability').insert({
                         title_id: upsertedTitle.id,
                         streaming_service_id: provider.serviceId,
                         region_code: 'US'
-                      }, { onConflict: 'title_id,streaming_service_id,region_code' });
+                      });
                     }
                     
                     if (details?.spoken_languages) {
