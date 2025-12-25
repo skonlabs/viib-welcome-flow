@@ -85,6 +85,11 @@ interface EnrichMetrics {
   totalPending: number;
 }
 
+interface StreamingMetrics {
+  pendingFix: number;
+  totalFixed: number;
+}
+
 export const Jobs = () => {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [cronJobs, setCronJobs] = useState<CronJob[]>([]);
@@ -96,6 +101,7 @@ export const Jobs = () => {
   const [parallelProgress, setParallelProgress] = useState<ParallelProgress | null>(null);
   const [jobMetrics, setJobMetrics] = useState<JobMetrics | null>(null);
   const [enrichMetrics, setEnrichMetrics] = useState<EnrichMetrics | null>(null);
+  const [streamingMetrics, setStreamingMetrics] = useState<StreamingMetrics | null>(null);
   const [jobToStop, setJobToStop] = useState<Job | null>(null);
   const { toast } = useToast();
 
@@ -191,6 +197,51 @@ export const Jobs = () => {
       });
     } catch (error) {
       console.error('Error fetching enrich metrics:', error);
+    }
+  };
+
+  const fetchStreamingMetrics = async () => {
+    try {
+      // Get count of titles with all streaming services (corrupted data)
+      const { data: allServices } = await supabase
+        .from('streaming_services')
+        .select('id')
+        .eq('is_active', true);
+      
+      const totalServices = allServices?.length || 6;
+      
+      // Get title IDs with streaming availability
+      const { data: streamingData } = await supabase
+        .from('title_streaming_availability')
+        .select('title_id')
+        .eq('region_code', 'US');
+      
+      if (streamingData) {
+        // Count services per title
+        const titleServiceCount: Record<string, number> = {};
+        for (const row of streamingData) {
+          titleServiceCount[row.title_id] = (titleServiceCount[row.title_id] || 0) + 1;
+        }
+        
+        // Count titles with all services (corrupted)
+        const corruptedCount = Object.values(titleServiceCount)
+          .filter(count => count >= totalServices - 1)
+          .length;
+        
+        // Get total fixed from job's total_titles_processed
+        const { data: fixJob } = await supabase
+          .from('jobs')
+          .select('total_titles_processed')
+          .eq('job_type', 'fix_streaming')
+          .single();
+        
+        setStreamingMetrics({
+          pendingFix: corruptedCount,
+          totalFixed: fixJob?.total_titles_processed || 0,
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching streaming metrics:', error);
     }
   };
 
@@ -424,11 +475,13 @@ export const Jobs = () => {
     fetchCronJobs();
     fetchJobMetrics();
     fetchEnrichMetrics();
+    fetchStreamingMetrics();
     // Refresh every 10 seconds
     const interval = setInterval(() => {
       fetchJobs();
       fetchJobMetrics();
       fetchEnrichMetrics();
+      fetchStreamingMetrics();
     }, 10000);
     return () => clearInterval(interval);
   }, []);
@@ -1434,8 +1487,42 @@ export const Jobs = () => {
                 </div>
               )}
 
+              {/* Fix Streaming Job Stats */}
+              {job.job_type === 'fix_streaming' && (
+                <div className="space-y-4">
+                  {/* Streaming fix metrics */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="text-center p-3 bg-muted/50 rounded-lg">
+                      <div className="text-2xl font-bold text-orange-500">{(streamingMetrics?.pendingFix ?? 0).toLocaleString()}</div>
+                      <div className="text-xs text-muted-foreground">Pending Fix</div>
+                    </div>
+                    <div className="text-center p-3 bg-muted/50 rounded-lg">
+                      <div className="text-2xl font-bold text-green-500">{(streamingMetrics?.totalFixed ?? 0).toLocaleString()}</div>
+                      <div className="text-xs text-muted-foreground">Total Fixed</div>
+                    </div>
+                  </div>
+                  {/* Last run info */}
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div className="space-y-1">
+                      <div className="flex items-center text-muted-foreground">
+                        <CalendarIcon className="w-4 h-4 mr-2" />
+                        Last Run
+                      </div>
+                      <div className="font-medium">{formatDate(job.last_run_at)}</div>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center text-muted-foreground">
+                        <Clock className="w-4 h-4 mr-2" />
+                        Duration
+                      </div>
+                      <div className="font-medium">{formatDuration(job.last_run_duration_seconds)}</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Standard Job Stats for other job types */}
-              {job.job_type !== 'classify_ai' && job.job_type !== 'promote_ai' && job.job_type !== 'enrich_details' && (
+              {job.job_type !== 'classify_ai' && job.job_type !== 'promote_ai' && job.job_type !== 'enrich_details' && job.job_type !== 'fix_streaming' && (
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div className="space-y-1">
                     <div className="flex items-center text-muted-foreground">
