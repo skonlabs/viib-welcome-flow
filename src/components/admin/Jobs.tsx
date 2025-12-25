@@ -471,6 +471,13 @@ export const Jobs = () => {
       } else if (job.job_type === 'enrich_details') {
         functionName = 'enrich-title-details-batch';
         functionBody = { jobId: job.id };
+      } else if (job.job_type === 'fix_streaming') {
+        functionName = 'fix-streaming-availability';
+        const config = job.configuration || {};
+        functionBody = { 
+          dryRun: false, 
+          batchSize: config.batch_size || 100 
+        };
       } else {
         throw new Error(`Unknown job type: ${job.job_type}`);
       }
