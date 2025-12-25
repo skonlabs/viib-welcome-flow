@@ -226,6 +226,37 @@ serve(async (req) => {
     
     console.log(`Completed: processed=${processed}, fixed=${fixed}, noProviders=${noProviders}, errors=${errors}, duration=${duration}s`);
 
+    // Update job record with processed count
+    const jobId = (await req.clone().json().catch(() => ({})))?.jobId;
+    if (jobId) {
+      await supabase
+        .from('jobs')
+        .update({ 
+          total_titles_processed: processed,
+          status: titlesToFix.length < batchSize ? 'completed' : 'idle',
+          last_run_at: new Date().toISOString(),
+          last_run_duration_seconds: duration
+        })
+        .eq('id', jobId);
+    } else {
+      // Update by job_type if no jobId provided - increment the count
+      const { data: fixJob } = await supabase
+        .from('jobs')
+        .select('total_titles_processed')
+        .eq('job_type', 'fix_streaming')
+        .single();
+      
+      await supabase
+        .from('jobs')
+        .update({ 
+          total_titles_processed: (fixJob?.total_titles_processed || 0) + processed,
+          status: titlesToFix.length < batchSize ? 'completed' : 'idle',
+          last_run_at: new Date().toISOString(),
+          last_run_duration_seconds: duration
+        })
+        .eq('job_type', 'fix_streaming');
+    }
+
     // Log to system_logs
     await supabase.from('system_logs').insert({
       severity: 'info',
