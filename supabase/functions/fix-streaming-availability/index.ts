@@ -158,6 +158,7 @@ serve(async (req) => {
     
     for (let i = 0; i < titlesToFix.length; i += PARALLEL_BATCH_SIZE) {
       const batch = titlesToFix.slice(i, i + PARALLEL_BATCH_SIZE);
+      let batchFixed = 0;
       
       // Fetch all providers in parallel
       const providerResults = await Promise.all(
@@ -182,11 +183,12 @@ serve(async (req) => {
         }
 
         const { title, providers } = result;
-        console.log(`${title.name} (${title.title_type}): ${providers.length} actual providers [${providers.map(p => p.name).join(', ')}]`);
+        console.log(`${title.name} (${title.title_type}): ${providers.length} providers [${providers.map(p => p.name).join(', ')}]`);
 
         if (dryRun) {
           if (providers.length > 0 && providers.length < 5) {
             fixed++;
+            batchFixed++;
           } else if (providers.length === 0) {
             noProviders++;
           }
@@ -223,15 +225,24 @@ serve(async (req) => {
             errors++;
           } else {
             fixed++;
+            batchFixed++;
           }
         } else {
           noProviders++;
         }
       }
       
+      // Increment job count after each batch (so progress is saved even if stopped)
+      if (batchFixed > 0 && !dryRun) {
+        await supabase.rpc('increment_job_titles', { 
+          p_job_type: 'fix_streaming', 
+          p_increment: batchFixed 
+        });
+      }
+      
       // Small delay between batches to respect TMDB rate limits (40 req/10s)
       if (i + PARALLEL_BATCH_SIZE < titlesToFix.length) {
-        await new Promise(resolve => setTimeout(resolve, 300));
+        await new Promise(resolve => setTimeout(resolve, 250));
       }
     }
 
@@ -239,17 +250,10 @@ serve(async (req) => {
     
     console.log(`Completed: processed=${processed}, fixed=${fixed}, noProviders=${noProviders}, errors=${errors}, duration=${duration}s`);
 
-    // Update job record - increment the FIXED count, not processed
-    const { data: fixJob } = await supabase
-      .from('jobs')
-      .select('total_titles_processed')
-      .eq('job_type', 'fix_streaming')
-      .maybeSingle();
-    
+    // Update job status and duration (count already incremented per batch)
     await supabase
       .from('jobs')
       .update({ 
-        total_titles_processed: (fixJob?.total_titles_processed || 0) + fixed,
         status: titlesToFix.length < batchSize ? 'completed' : 'idle',
         last_run_at: new Date().toISOString(),
         last_run_duration_seconds: duration
