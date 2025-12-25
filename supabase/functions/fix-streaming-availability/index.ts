@@ -57,72 +57,6 @@ serve(async (req) => {
 
     console.log(`Loaded ${Object.keys(serviceNameToId).length} streaming services`);
 
-    // Use RPC to find corrupted titles
-    const { data: corruptedTitles, error: queryError } = await supabase
-      .rpc('get_titles_with_all_streaming_services', { p_limit: batchSize });
-
-    // If RPC doesn't exist, use a direct query approach
-    let titlesToFix: Array<{ id: string; tmdb_id: number; title_type: string; name: string }> = [];
-    
-    if (queryError || !corruptedTitles) {
-      console.log('RPC not available, using direct query...');
-      
-      const { data: allServiceCount } = await supabase
-        .from('streaming_services')
-        .select('id')
-        .eq('is_active', true);
-      
-      const totalServices = allServiceCount?.length || 6;
-      
-      const { data: corruptedIds } = await supabase
-        .from('title_streaming_availability')
-        .select('title_id')
-        .eq('region_code', 'US');
-      
-      if (corruptedIds) {
-        const titleServiceCount: Record<string, number> = {};
-        for (const row of corruptedIds) {
-          titleServiceCount[row.title_id] = (titleServiceCount[row.title_id] || 0) + 1;
-        }
-        
-        const corruptedTitleIds = Object.entries(titleServiceCount)
-          .filter(([_, count]) => count >= totalServices - 1)
-          .map(([id]) => id)
-          .slice(0, batchSize);
-        
-        if (corruptedTitleIds.length > 0) {
-          const { data: titleDetails } = await supabase
-            .from('titles')
-            .select('id, tmdb_id, title_type, name')
-            .in('id', corruptedTitleIds)
-            .not('tmdb_id', 'is', null);
-          
-          titlesToFix = titleDetails || [];
-        }
-      }
-    } else {
-      titlesToFix = corruptedTitles;
-    }
-
-    console.log(`Found ${titlesToFix.length} titles with corrupted streaming data`);
-
-    if (titlesToFix.length === 0) {
-      return new Response(
-        JSON.stringify({ 
-          success: true, 
-          message: 'No corrupted titles found',
-          processed: 0,
-          fixed: 0
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    let processed = 0;
-    let fixed = 0;
-    let noProviders = 0;
-    let errors = 0;
-
     // Helper function to fetch watch providers from TMDB
     async function fetchWatchProviders(tmdbId: number, titleType: string): Promise<Array<{ name: string; serviceId: string }>> {
       try {
@@ -153,108 +87,222 @@ serve(async (req) => {
       }
     }
 
-    // Process titles in parallel batches for speed
-    const PARALLEL_BATCH_SIZE = 10; // Process 10 at a time
-    
-    for (let i = 0; i < titlesToFix.length; i += PARALLEL_BATCH_SIZE) {
-      const batch = titlesToFix.slice(i, i + PARALLEL_BATCH_SIZE);
-      let batchFixed = 0;
-      
-      // Fetch all providers in parallel
-      const providerResults = await Promise.all(
-        batch.map(async (title) => {
-          const tmdbId = Math.floor(Number(title.tmdb_id));
-          if (!tmdbId || isNaN(tmdbId)) {
-            return { title, providers: null, error: true };
-          }
-          const providers = await fetchWatchProviders(tmdbId, title.title_type);
-          return { title, providers, error: false };
-        })
-      );
+    // Helper function to check if job was stopped
+    async function isJobStopped(): Promise<boolean> {
+      const { data } = await supabase
+        .from('jobs')
+        .select('is_active')
+        .eq('job_type', 'fix_streaming')
+        .single();
+      return data?.is_active === false;
+    }
 
-      // Process results
-      for (const result of providerResults) {
-        processed++;
+    let totalProcessed = 0;
+    let totalFixed = 0;
+    let totalNoProviders = 0;
+    let totalErrors = 0;
+    let batchNumber = 0;
+
+    // MAIN LOOP: Keep processing batches until no more corrupted titles
+    while (true) {
+      batchNumber++;
+      
+      // Check if job was stopped by user
+      if (await isJobStopped()) {
+        console.log('Job stopped by user');
+        break;
+      }
+
+      // Use RPC to find corrupted titles
+      const { data: corruptedTitles, error: queryError } = await supabase
+        .rpc('get_titles_with_all_streaming_services', { p_limit: batchSize });
+
+      let titlesToFix: Array<{ id: string; tmdb_id: number; title_type: string; name: string }> = [];
+      
+      if (queryError || !corruptedTitles) {
+        console.log('RPC not available, using direct query...');
         
-        if (result.error || result.providers === null) {
-          console.error(`Invalid tmdb_id for ${result.title.name}`);
-          errors++;
-          continue;
-        }
-
-        const { title, providers } = result;
-        console.log(`${title.name} (${title.title_type}): ${providers.length} providers [${providers.map(p => p.name).join(', ')}]`);
-
-        if (dryRun) {
-          if (providers.length > 0 && providers.length < 5) {
-            fixed++;
-            batchFixed++;
-          } else if (providers.length === 0) {
-            noProviders++;
-          }
-          continue;
-        }
-
-        // Delete existing corrupted data
-        const { error: deleteError } = await supabase
+        const { data: allServiceCount } = await supabase
+          .from('streaming_services')
+          .select('id')
+          .eq('is_active', true);
+        
+        const totalServices = allServiceCount?.length || 6;
+        
+        const { data: corruptedIds } = await supabase
           .from('title_streaming_availability')
-          .delete()
-          .eq('title_id', title.id)
+          .select('title_id')
           .eq('region_code', 'US');
-
-        if (deleteError) {
-          console.error(`Error deleting for ${title.name}:`, deleteError);
-          errors++;
-          continue;
-        }
-
-        // Insert correct providers (batch insert for speed)
-        if (providers.length > 0) {
-          const insertData = providers.map(provider => ({
-            title_id: title.id,
-            streaming_service_id: provider.serviceId,
-            region_code: 'US'
-          }));
-          
-          const { error: insertError } = await supabase
-            .from('title_streaming_availability')
-            .insert(insertData);
-          
-          if (insertError) {
-            console.error(`Error inserting for ${title.name}:`, insertError);
-            errors++;
-          } else {
-            fixed++;
-            batchFixed++;
+        
+        if (corruptedIds) {
+          const titleServiceCount: Record<string, number> = {};
+          for (const row of corruptedIds) {
+            titleServiceCount[row.title_id] = (titleServiceCount[row.title_id] || 0) + 1;
           }
-        } else {
-          noProviders++;
+          
+          const corruptedTitleIds = Object.entries(titleServiceCount)
+            .filter(([_, count]) => count >= totalServices - 1)
+            .map(([id]) => id)
+            .slice(0, batchSize);
+          
+          if (corruptedTitleIds.length > 0) {
+            const { data: titleDetails } = await supabase
+              .from('titles')
+              .select('id, tmdb_id, title_type, name')
+              .in('id', corruptedTitleIds)
+              .not('tmdb_id', 'is', null);
+            
+            titlesToFix = titleDetails || [];
+          }
         }
+      } else {
+        titlesToFix = corruptedTitles;
       }
-      
-      // Increment job count after each batch (so progress is saved even if stopped)
-      if (batchFixed > 0 && !dryRun) {
-        await supabase.rpc('increment_job_titles', { 
-          p_job_type: 'fix_streaming', 
-          p_increment: batchFixed 
-        });
+
+      console.log(`Batch ${batchNumber}: Found ${titlesToFix.length} titles with corrupted streaming data`);
+
+      // No more corrupted titles - we're done!
+      if (titlesToFix.length === 0) {
+        console.log('All corrupted titles have been processed!');
+        break;
       }
+
+      let batchProcessed = 0;
+      let batchFixed = 0;
+      let batchNoProviders = 0;
+      let batchErrors = 0;
+
+      // Process titles in parallel batches for speed
+      const PARALLEL_BATCH_SIZE = 10; // Process 10 at a time
       
-      // Small delay between batches to respect TMDB rate limits (40 req/10s)
-      if (i + PARALLEL_BATCH_SIZE < titlesToFix.length) {
+      for (let i = 0; i < titlesToFix.length; i += PARALLEL_BATCH_SIZE) {
+        // Check if job was stopped mid-batch
+        if (i > 0 && i % 50 === 0) {
+          if (await isJobStopped()) {
+            console.log('Job stopped by user mid-batch');
+            break;
+          }
+        }
+
+        const batch = titlesToFix.slice(i, i + PARALLEL_BATCH_SIZE);
+        let parallelFixed = 0;
+        
+        // Fetch all providers in parallel
+        const providerResults = await Promise.all(
+          batch.map(async (title) => {
+            const tmdbId = Math.floor(Number(title.tmdb_id));
+            if (!tmdbId || isNaN(tmdbId)) {
+              return { title, providers: null, error: true };
+            }
+            const providers = await fetchWatchProviders(tmdbId, title.title_type);
+            return { title, providers, error: false };
+          })
+        );
+
+        // Process results
+        for (const result of providerResults) {
+          batchProcessed++;
+          
+          if (result.error || result.providers === null) {
+            console.error(`Invalid tmdb_id for ${result.title.name}`);
+            batchErrors++;
+            continue;
+          }
+
+          const { title, providers } = result;
+          console.log(`${title.name} (${title.title_type}): ${providers.length} providers [${providers.map(p => p.name).join(', ')}]`);
+
+          if (dryRun) {
+            if (providers.length > 0 && providers.length < 5) {
+              batchFixed++;
+              parallelFixed++;
+            } else if (providers.length === 0) {
+              batchNoProviders++;
+            }
+            continue;
+          }
+
+          // Delete existing corrupted data
+          const { error: deleteError } = await supabase
+            .from('title_streaming_availability')
+            .delete()
+            .eq('title_id', title.id)
+            .eq('region_code', 'US');
+
+          if (deleteError) {
+            console.error(`Error deleting for ${title.name}:`, deleteError);
+            batchErrors++;
+            continue;
+          }
+
+          // Insert correct providers (batch insert for speed)
+          if (providers.length > 0) {
+            const insertData = providers.map(provider => ({
+              title_id: title.id,
+              streaming_service_id: provider.serviceId,
+              region_code: 'US'
+            }));
+            
+            const { error: insertError } = await supabase
+              .from('title_streaming_availability')
+              .insert(insertData);
+            
+            if (insertError) {
+              console.error(`Error inserting for ${title.name}:`, insertError);
+              batchErrors++;
+            } else {
+              batchFixed++;
+              parallelFixed++;
+            }
+          } else {
+            batchNoProviders++;
+          }
+        }
+        
+        // Increment job count after each parallel batch (so progress is saved even if stopped)
+        if (parallelFixed > 0 && !dryRun) {
+          await supabase.rpc('increment_job_titles', { 
+            p_job_type: 'fix_streaming', 
+            p_increment: parallelFixed 
+          });
+        }
+        
+        // Small delay between parallel batches to respect TMDB rate limits (40 req/10s)
         await new Promise(resolve => setTimeout(resolve, 250));
       }
+
+      // Update totals
+      totalProcessed += batchProcessed;
+      totalFixed += batchFixed;
+      totalNoProviders += batchNoProviders;
+      totalErrors += batchErrors;
+
+      console.log(`Batch ${batchNumber} complete: processed=${batchProcessed}, fixed=${batchFixed}, noProviders=${batchNoProviders}, errors=${batchErrors}`);
+      console.log(`Running totals: processed=${totalProcessed}, fixed=${totalFixed}, noProviders=${totalNoProviders}, errors=${totalErrors}`);
+
+      // Update job status periodically
+      const duration = Math.round((Date.now() - startTime) / 1000);
+      await supabase
+        .from('jobs')
+        .update({ 
+          status: 'running',
+          last_run_duration_seconds: duration
+        })
+        .eq('job_type', 'fix_streaming');
+
+      // Small delay between main batches
+      await new Promise(resolve => setTimeout(resolve, 500));
     }
 
     const duration = Math.round((Date.now() - startTime) / 1000);
     
-    console.log(`Completed: processed=${processed}, fixed=${fixed}, noProviders=${noProviders}, errors=${errors}, duration=${duration}s`);
+    console.log(`COMPLETED: processed=${totalProcessed}, fixed=${totalFixed}, noProviders=${totalNoProviders}, errors=${totalErrors}, duration=${duration}s`);
 
-    // Update job status and duration (count already incremented per batch)
+    // Update job status to completed
     await supabase
       .from('jobs')
       .update({ 
-        status: titlesToFix.length < batchSize ? 'completed' : 'idle',
+        status: 'completed',
         last_run_at: new Date().toISOString(),
         last_run_duration_seconds: duration
       })
@@ -264,20 +312,20 @@ serve(async (req) => {
     await supabase.from('system_logs').insert({
       severity: 'info',
       operation: 'fix-streaming-availability',
-      error_message: `Fixed ${fixed} titles, ${noProviders} with no providers, ${errors} errors`,
-      context: { processed, fixed, noProviders, errors, duration, dryRun, batchSize }
+      error_message: `Completed: Fixed ${totalFixed} titles, ${totalNoProviders} with no providers, ${totalErrors} errors`,
+      context: { totalProcessed, totalFixed, totalNoProviders, totalErrors, duration, dryRun, batchSize, batchesRun: batchNumber }
     });
 
     return new Response(
       JSON.stringify({
         success: true,
-        processed,
-        fixed,
-        noProviders,
-        errors,
+        processed: totalProcessed,
+        fixed: totalFixed,
+        noProviders: totalNoProviders,
+        errors: totalErrors,
         duration,
         dryRun,
-        hasMore: titlesToFix.length >= batchSize
+        batchesRun: batchNumber
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
@@ -294,6 +342,15 @@ serve(async (req) => {
       error_message: errorMessage,
       error_stack: errorStack
     });
+
+    // Mark job as failed
+    await supabase
+      .from('jobs')
+      .update({ 
+        status: 'failed',
+        error_message: errorMessage
+      })
+      .eq('job_type', 'fix_streaming');
 
     return new Response(
       JSON.stringify({ error: errorMessage }),
