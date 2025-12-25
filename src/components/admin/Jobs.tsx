@@ -570,12 +570,13 @@ export const Jobs = () => {
   };
 
   // Special handler for fix_streaming that loops until all batches are processed
+  // Uses cursor-based pagination to ensure no titles are skipped or reprocessed
   const handleFixStreamingJob = async (job: Job) => {
     try {
       const config = job.configuration || {};
-      const batchSize = config.batch_size || 100;
+      const batchSize = config.batch_size || 50;
       
-      // Reset job status and counter before starting
+      // Reset job status and counter before starting (clear cursor for fresh start)
       await supabase
         .from('jobs')
         .update({
@@ -583,7 +584,8 @@ export const Jobs = () => {
           is_active: true,
           error_message: null,
           total_titles_processed: 0,
-          last_run_at: new Date().toISOString()
+          last_run_at: new Date().toISOString(),
+          configuration: { ...config, last_cursor: null }
         })
         .eq('id', job.id);
       
@@ -595,9 +597,13 @@ export const Jobs = () => {
       let batchCount = 0;
       let totalFixed = 0;
       let totalProcessed = 0;
+      let cursor: string | null = null;
+      let consecutiveEmptyBatches = 0;
+      const MAX_EMPTY_BATCHES = 3;
+      const MAX_BATCHES = 10000; // Safety limit
       
       // Loop until all batches are processed
-      while (true) {
+      while (batchCount < MAX_BATCHES) {
         batchCount++;
         
         // Check if job was stopped
@@ -615,13 +621,16 @@ export const Jobs = () => {
           break;
         }
 
-        console.log(`[fix_streaming] Running batch ${batchCount}...`);
+        console.log(`[fix_streaming] Running batch ${batchCount} with cursor: ${cursor || 'start'}...`);
         
         const { data, error } = await supabase.functions.invoke('fix-streaming-availability', {
-          body: { dryRun: false, batchSize }
+          body: { dryRun: false, batchSize, cursor }
         });
 
-        if (error) throw error;
+        if (error) {
+          console.error(`[fix_streaming] Batch ${batchCount} error:`, error);
+          throw error;
+        }
 
         if (data?.stopped) {
           toast({
@@ -631,10 +640,27 @@ export const Jobs = () => {
           break;
         }
 
-        totalFixed += data?.fixed || 0;
-        totalProcessed += data?.processed || 0;
+        const batchFixed = data?.fixed || 0;
+        const batchProcessed = data?.processed || 0;
         
-        console.log(`[fix_streaming] Batch ${batchCount} complete: fixed=${data?.fixed}, remaining=${data?.remaining}`);
+        totalFixed += batchFixed;
+        totalProcessed += batchProcessed;
+        
+        // Update cursor for next batch
+        cursor = data?.nextCursor || null;
+        
+        console.log(`[fix_streaming] Batch ${batchCount} complete: fixed=${batchFixed}, processed=${batchProcessed}, remaining=${data?.remaining}, nextCursor=${cursor}`);
+
+        // Track empty batches - if we get too many in a row, something is wrong
+        if (batchProcessed === 0) {
+          consecutiveEmptyBatches++;
+          if (consecutiveEmptyBatches >= MAX_EMPTY_BATCHES) {
+            console.log(`[fix_streaming] ${MAX_EMPTY_BATCHES} consecutive empty batches, stopping`);
+            break;
+          }
+        } else {
+          consecutiveEmptyBatches = 0;
+        }
 
         // If done, break out of loop
         if (data?.done) {
@@ -650,11 +676,36 @@ export const Jobs = () => {
           break;
         }
 
-        // Small delay between batches
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // If remaining is 0, we're done
+        if (data?.remaining === 0) {
+          await supabase
+            .from('jobs')
+            .update({ status: 'completed' })
+            .eq('id', job.id);
+          
+          toast({
+            title: "Job Completed",
+            description: `${job.job_name} completed! Fixed ${totalFixed} titles across ${batchCount} batches.`,
+          });
+          break;
+        }
+
+        // Small delay between batches (2 seconds to be safe with TMDB rate limits)
+        await new Promise(resolve => setTimeout(resolve, 2000));
         
-        // Refresh job list to show progress
-        await fetchJobs();
+        // Refresh job list every 5 batches to show progress
+        if (batchCount % 5 === 0) {
+          await fetchJobs();
+          await fetchStreamingMetrics();
+        }
+      }
+
+      if (batchCount >= MAX_BATCHES) {
+        console.warn(`[fix_streaming] Hit max batch limit of ${MAX_BATCHES}`);
+        toast({
+          title: "Job Paused",
+          description: `Processed ${MAX_BATCHES} batches. Run again to continue.`,
+        });
       }
 
       await fetchJobs();
