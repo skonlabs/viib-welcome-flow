@@ -112,15 +112,18 @@ const TV_ONLY_GENRE_NAMES: Record<number, string> = {
 };
 
 // TMDB Provider ID to service name mapping (US region)
+// Names must EXACTLY match streaming_services.service_name in database
 const TMDB_PROVIDER_MAP: Record<number, string> = {
   8: 'Netflix',
   9: 'Prime Video',
   119: 'Prime Video',
   15: 'Hulu',
-  350: 'Apple TV',
-  2: 'Apple TV',
-  337: 'DisneyPlus',
-  390: 'DisneyPlus',
+  350: 'Apple TV+',
+  2: 'Apple TV+',
+  337: 'Disney+',
+  390: 'Disney+',
+  1899: 'HBO Max',
+  384: 'HBO Max',
 };
 
 serve(async (req) => {
