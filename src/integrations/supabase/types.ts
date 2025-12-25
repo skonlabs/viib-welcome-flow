@@ -2071,6 +2071,7 @@ export type Database = {
         Args: { p_title_id: string; p_user_id: string }
         Returns: Json
       }
+      get_corrupted_streaming_count: { Args: never; Returns: number }
       get_cron_job_progress: {
         Args: never
         Returns: {

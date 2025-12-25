@@ -202,44 +202,25 @@ export const Jobs = () => {
 
   const fetchStreamingMetrics = async () => {
     try {
-      // Get count of titles with all streaming services (corrupted data)
-      const { data: allServices } = await supabase
-        .from('streaming_services')
-        .select('id')
-        .eq('is_active', true);
+      // Use the RPC function to get accurate count of corrupted titles
+      const { data: corruptedCount, error } = await supabase.rpc('get_corrupted_streaming_count' as any);
       
-      const totalServices = allServices?.length || 6;
-      
-      // Get title IDs with streaming availability
-      const { data: streamingData } = await supabase
-        .from('title_streaming_availability')
-        .select('title_id')
-        .eq('region_code', 'US');
-      
-      if (streamingData) {
-        // Count services per title
-        const titleServiceCount: Record<string, number> = {};
-        for (const row of streamingData) {
-          titleServiceCount[row.title_id] = (titleServiceCount[row.title_id] || 0) + 1;
-        }
-        
-        // Count titles with all services (corrupted)
-        const corruptedCount = Object.values(titleServiceCount)
-          .filter(count => count >= totalServices - 1)
-          .length;
-        
-        // Get total fixed from job's total_titles_processed
-        const { data: fixJob } = await supabase
-          .from('jobs')
-          .select('total_titles_processed')
-          .eq('job_type', 'fix_streaming')
-          .single();
-        
-        setStreamingMetrics({
-          pendingFix: corruptedCount,
-          totalFixed: fixJob?.total_titles_processed || 0,
-        });
+      if (error) {
+        console.error('Error calling get_corrupted_streaming_count:', error);
+        return;
       }
+      
+      // Get total fixed from job's total_titles_processed
+      const { data: fixJob } = await supabase
+        .from('jobs')
+        .select('total_titles_processed')
+        .eq('job_type', 'fix_streaming')
+        .maybeSingle();
+      
+      setStreamingMetrics({
+        pendingFix: corruptedCount || 0,
+        totalFixed: fixJob?.total_titles_processed || 0,
+      });
     } catch (error) {
       console.error('Error fetching streaming metrics:', error);
     }
