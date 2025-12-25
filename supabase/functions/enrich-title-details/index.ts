@@ -44,7 +44,7 @@ serve(async (req) => {
   }
 
   try {
-    const { tmdb_id, type, region } = await req.json();
+    const { tmdb_id, type } = await req.json();
 
     if (!TMDB_API_KEY) {
       throw new Error('TMDB_API_KEY not configured');
@@ -53,9 +53,6 @@ serve(async (req) => {
     if (!tmdb_id || !type) {
       throw new Error('tmdb_id and type are required');
     }
-    
-    // Use provided region or default to US
-    const userRegion = region || 'US';
 
     // Ensure tmdb_id is an integer (handles scientific notation from DB)
     const tmdbIdInt = Math.floor(Number(tmdb_id));
@@ -92,9 +89,8 @@ serve(async (req) => {
     // Extract genre names
     const genres = details.genres?.map((g: any) => GENRE_MAP[g.id] || g.name) || [];
 
-    // Extract streaming services for user's region - include flatrate, ads, and free
-    const regionProviders = providers.results?.[userRegion];
-    console.log(`Fetching streaming providers for region: ${userRegion}, found: ${regionProviders ? 'yes' : 'no'}`);
+    // Extract streaming services (US providers) - include flatrate, ads, and free
+    const usProviders = providers.results?.US;
     const streaming_services: Array<{service_name: string; service_code: string; logo_url: string | null; type: string}> = [];
     const addedProviderIds = new Set<number>();
     
@@ -115,13 +111,11 @@ serve(async (req) => {
     };
     
     // Add streaming (subscription) services first
-    addProviders(regionProviders?.flatrate, 'subscription');
+    addProviders(usProviders?.flatrate, 'subscription');
     // Add free with ads services
-    addProviders(regionProviders?.ads, 'ads');
+    addProviders(usProviders?.ads, 'ads');
     // Add free services
-    addProviders(regionProviders?.free, 'free');
-    
-    console.log(`Total streaming services found: ${streaming_services.length}`);
+    addProviders(usProviders?.free, 'free');
 
     // Runtime
     const runtime_minutes = type === 'movie' ? details.runtime : null;
