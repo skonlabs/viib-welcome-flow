@@ -43,7 +43,6 @@ serve(async (req) => {
     
     console.log(`Starting streaming availability fix job (batchSize: ${batchSize}, dryRun: ${dryRun})`);
     const startTime = Date.now();
-    const MAX_RUNTIME_MS = 55000;
 
     // Fetch streaming services for lookup
     const { data: streamingServices } = await supabase
@@ -58,8 +57,7 @@ serve(async (req) => {
 
     console.log(`Loaded ${Object.keys(serviceNameToId).length} streaming services`);
 
-    // Find titles with all 5 services (corrupted data)
-    // These are titles where streaming data was incorrectly populated
+    // Use RPC to find corrupted titles
     const { data: corruptedTitles, error: queryError } = await supabase
       .rpc('get_titles_with_all_streaming_services', { p_limit: batchSize });
 
@@ -69,7 +67,6 @@ serve(async (req) => {
     if (queryError || !corruptedTitles) {
       console.log('RPC not available, using direct query...');
       
-      // Get titles that have exactly 5 streaming services (all of them = corrupted)
       const { data: allServiceCount } = await supabase
         .from('streaming_services')
         .select('id')
@@ -77,22 +74,19 @@ serve(async (req) => {
       
       const totalServices = allServiceCount?.length || 6;
       
-      // Find title IDs with all services
       const { data: corruptedIds } = await supabase
         .from('title_streaming_availability')
         .select('title_id')
         .eq('region_code', 'US');
       
       if (corruptedIds) {
-        // Count services per title
         const titleServiceCount: Record<string, number> = {};
         for (const row of corruptedIds) {
           titleServiceCount[row.title_id] = (titleServiceCount[row.title_id] || 0) + 1;
         }
         
-        // Get titles with all services (corrupted)
         const corruptedTitleIds = Object.entries(titleServiceCount)
-          .filter(([_, count]) => count >= totalServices - 1) // 5 or more services = likely corrupted
+          .filter(([_, count]) => count >= totalServices - 1)
           .map(([id]) => id)
           .slice(0, batchSize);
         
@@ -145,7 +139,6 @@ serve(async (req) => {
           if (mappedName) {
             const serviceId = serviceNameToId[mappedName.toLowerCase()];
             if (serviceId) {
-              // Avoid duplicates (e.g., provider_id 9 and 119 both map to Prime Video)
               if (!matchedProviders.some(p => p.serviceId === serviceId)) {
                 matchedProviders.push({ name: mappedName, serviceId });
               }
@@ -160,65 +153,85 @@ serve(async (req) => {
       }
     }
 
-    for (const title of titlesToFix) {
-      if (Date.now() - startTime > MAX_RUNTIME_MS) {
-        console.log(`Runtime limit reached at ${processed} titles`);
-        break;
-      }
-
-      processed++;
-      const tmdbId = Math.floor(Number(title.tmdb_id));
+    // Process titles in parallel batches for speed
+    const PARALLEL_BATCH_SIZE = 10; // Process 10 at a time
+    
+    for (let i = 0; i < titlesToFix.length; i += PARALLEL_BATCH_SIZE) {
+      const batch = titlesToFix.slice(i, i + PARALLEL_BATCH_SIZE);
       
-      if (!tmdbId || isNaN(tmdbId)) {
-        console.error(`Invalid tmdb_id for ${title.name}`);
-        errors++;
-        continue;
-      }
+      // Fetch all providers in parallel
+      const providerResults = await Promise.all(
+        batch.map(async (title) => {
+          const tmdbId = Math.floor(Number(title.tmdb_id));
+          if (!tmdbId || isNaN(tmdbId)) {
+            return { title, providers: null, error: true };
+          }
+          const providers = await fetchWatchProviders(tmdbId, title.title_type);
+          return { title, providers, error: false };
+        })
+      );
 
-      // Fetch correct providers from TMDB
-      const providers = await fetchWatchProviders(tmdbId, title.title_type);
-      
-      console.log(`${title.name} (${title.title_type}): ${providers.length} actual providers [${providers.map(p => p.name).join(', ')}]`);
-
-      if (dryRun) {
-        if (providers.length > 0 && providers.length < 5) {
-          fixed++;
-        } else if (providers.length === 0) {
-          noProviders++;
+      // Process results
+      for (const result of providerResults) {
+        processed++;
+        
+        if (result.error || result.providers === null) {
+          console.error(`Invalid tmdb_id for ${result.title.name}`);
+          errors++;
+          continue;
         }
-        continue;
-      }
 
-      // Delete existing corrupted data
-      const { error: deleteError } = await supabase
-        .from('title_streaming_availability')
-        .delete()
-        .eq('title_id', title.id)
-        .eq('region_code', 'US');
+        const { title, providers } = result;
+        console.log(`${title.name} (${title.title_type}): ${providers.length} actual providers [${providers.map(p => p.name).join(', ')}]`);
 
-      if (deleteError) {
-        console.error(`Error deleting for ${title.name}:`, deleteError);
-        errors++;
-        continue;
-      }
+        if (dryRun) {
+          if (providers.length > 0 && providers.length < 5) {
+            fixed++;
+          } else if (providers.length === 0) {
+            noProviders++;
+          }
+          continue;
+        }
 
-      // Insert correct providers (if any)
-      if (providers.length > 0) {
-        for (const provider of providers) {
-          await supabase.from('title_streaming_availability').insert({
+        // Delete existing corrupted data
+        const { error: deleteError } = await supabase
+          .from('title_streaming_availability')
+          .delete()
+          .eq('title_id', title.id)
+          .eq('region_code', 'US');
+
+        if (deleteError) {
+          console.error(`Error deleting for ${title.name}:`, deleteError);
+          errors++;
+          continue;
+        }
+
+        // Insert correct providers (batch insert for speed)
+        if (providers.length > 0) {
+          const insertData = providers.map(provider => ({
             title_id: title.id,
             streaming_service_id: provider.serviceId,
             region_code: 'US'
-          });
+          }));
+          
+          const { error: insertError } = await supabase
+            .from('title_streaming_availability')
+            .insert(insertData);
+          
+          if (insertError) {
+            console.error(`Error inserting for ${title.name}:`, insertError);
+            errors++;
+          } else {
+            fixed++;
+          }
+        } else {
+          noProviders++;
         }
-        fixed++;
-      } else {
-        noProviders++;
       }
-
-      // Rate limit to avoid TMDB API limits
-      if (processed % 40 === 0) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Small delay between batches to respect TMDB rate limits (40 req/10s)
+      if (i + PARALLEL_BATCH_SIZE < titlesToFix.length) {
+        await new Promise(resolve => setTimeout(resolve, 300));
       }
     }
 
@@ -226,36 +239,22 @@ serve(async (req) => {
     
     console.log(`Completed: processed=${processed}, fixed=${fixed}, noProviders=${noProviders}, errors=${errors}, duration=${duration}s`);
 
-    // Update job record with processed count
-    const jobId = (await req.clone().json().catch(() => ({})))?.jobId;
-    if (jobId) {
-      await supabase
-        .from('jobs')
-        .update({ 
-          total_titles_processed: processed,
-          status: titlesToFix.length < batchSize ? 'completed' : 'idle',
-          last_run_at: new Date().toISOString(),
-          last_run_duration_seconds: duration
-        })
-        .eq('id', jobId);
-    } else {
-      // Update by job_type if no jobId provided - increment the count
-      const { data: fixJob } = await supabase
-        .from('jobs')
-        .select('total_titles_processed')
-        .eq('job_type', 'fix_streaming')
-        .single();
-      
-      await supabase
-        .from('jobs')
-        .update({ 
-          total_titles_processed: (fixJob?.total_titles_processed || 0) + processed,
-          status: titlesToFix.length < batchSize ? 'completed' : 'idle',
-          last_run_at: new Date().toISOString(),
-          last_run_duration_seconds: duration
-        })
-        .eq('job_type', 'fix_streaming');
-    }
+    // Update job record - increment the FIXED count, not processed
+    const { data: fixJob } = await supabase
+      .from('jobs')
+      .select('total_titles_processed')
+      .eq('job_type', 'fix_streaming')
+      .maybeSingle();
+    
+    await supabase
+      .from('jobs')
+      .update({ 
+        total_titles_processed: (fixJob?.total_titles_processed || 0) + fixed,
+        status: titlesToFix.length < batchSize ? 'completed' : 'idle',
+        last_run_at: new Date().toISOString(),
+        last_run_duration_seconds: duration
+      })
+      .eq('job_type', 'fix_streaming');
 
     // Log to system_logs
     await supabase.from('system_logs').insert({
