@@ -39,15 +39,15 @@ serve(async (req) => {
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
   try {
-    const { batchSize = 100, dryRun = false } = await req.json().catch(() => ({}));
+    const { batchSize = 50, dryRun = false, cursor = null } = await req.json().catch(() => ({}));
     
-    console.log(`Processing ONE batch of ${batchSize} titles (dryRun: ${dryRun})`);
+    console.log(`Processing batch of ${batchSize} titles (dryRun: ${dryRun}, cursor: ${cursor || 'start'})`);
     const startTime = Date.now();
 
     // Check if job is active
     const { data: jobData } = await supabase
       .from('jobs')
-      .select('is_active')
+      .select('is_active, configuration')
       .eq('job_type', 'fix_streaming')
       .single();
 
@@ -100,9 +100,12 @@ serve(async (req) => {
       }
     }
 
-    // Get ONE batch of corrupted titles using RPC
+    // Get ONE batch of corrupted titles using RPC with cursor
     const { data: corruptedTitles, error: queryError } = await supabase
-      .rpc('get_titles_with_all_streaming_services', { p_limit: batchSize });
+      .rpc('get_titles_with_all_streaming_services', { 
+        p_limit: batchSize,
+        p_cursor: cursor 
+      });
 
     let titlesToFix: Array<{ id: string; tmdb_id: number; title_type: string; name: string }> = [];
     
@@ -116,10 +119,13 @@ serve(async (req) => {
       
       const totalServices = allServiceCount?.length || 6;
       
-      const { data: corruptedIds } = await supabase
+      // Fallback: use cursor-based query on title_streaming_availability
+      let query = supabase
         .from('title_streaming_availability')
         .select('title_id')
         .eq('region_code', 'US');
+      
+      const { data: corruptedIds } = await query;
       
       if (corruptedIds) {
         const titleServiceCount: Record<string, number> = {};
@@ -127,17 +133,25 @@ serve(async (req) => {
           titleServiceCount[row.title_id] = (titleServiceCount[row.title_id] || 0) + 1;
         }
         
-        const corruptedTitleIds = Object.entries(titleServiceCount)
+        let corruptedTitleIds = Object.entries(titleServiceCount)
           .filter(([_, count]) => count >= totalServices - 1)
           .map(([id]) => id)
-          .slice(0, batchSize);
+          .sort(); // Sort for consistent cursor behavior
+        
+        // Apply cursor filter
+        if (cursor) {
+          corruptedTitleIds = corruptedTitleIds.filter(id => id > cursor);
+        }
+        
+        corruptedTitleIds = corruptedTitleIds.slice(0, batchSize);
         
         if (corruptedTitleIds.length > 0) {
           const { data: titleDetails } = await supabase
             .from('titles')
             .select('id, tmdb_id, title_type, name')
             .in('id', corruptedTitleIds)
-            .not('tmdb_id', 'is', null);
+            .not('tmdb_id', 'is', null)
+            .order('id', { ascending: true });
           
           titlesToFix = titleDetails || [];
         }
@@ -156,7 +170,8 @@ serve(async (req) => {
         .from('jobs')
         .update({ 
           status: 'completed',
-          last_run_at: new Date().toISOString()
+          last_run_at: new Date().toISOString(),
+          configuration: { ...jobData.configuration, last_cursor: null }
         })
         .eq('job_type', 'fix_streaming');
 
@@ -165,7 +180,8 @@ serve(async (req) => {
           success: true, 
           done: true, 
           message: 'All corrupted titles have been processed',
-          remaining: 0
+          remaining: 0,
+          nextCursor: null
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -175,9 +191,10 @@ serve(async (req) => {
     let fixed = 0;
     let noProviders = 0;
     let errors = 0;
+    let lastProcessedId: string | null = null;
 
     // Process titles in parallel batches for speed
-    const PARALLEL_BATCH_SIZE = 10;
+    const PARALLEL_BATCH_SIZE = 5; // Reduced to avoid TMDB rate limits
     
     for (let i = 0; i < titlesToFix.length; i += PARALLEL_BATCH_SIZE) {
       const batch = titlesToFix.slice(i, i + PARALLEL_BATCH_SIZE);
@@ -197,6 +214,7 @@ serve(async (req) => {
       // Process results
       for (const result of providerResults) {
         processed++;
+        lastProcessedId = result.title.id;
         
         if (result.error || result.providers === null) {
           console.error(`Invalid tmdb_id for ${result.title.name}`);
@@ -253,7 +271,7 @@ serve(async (req) => {
       }
       
       // Small delay between parallel batches to respect TMDB rate limits
-      await new Promise(resolve => setTimeout(resolve, 250));
+      await new Promise(resolve => setTimeout(resolve, 300));
     }
 
     const duration = Math.round((Date.now() - startTime) / 1000);
@@ -266,17 +284,22 @@ serve(async (req) => {
       });
     }
 
-    // Update job status (still running since there may be more batches)
+    // Save cursor in job configuration for resume capability
     await supabase
       .from('jobs')
       .update({ 
         status: 'running',
         last_run_at: new Date().toISOString(),
-        last_run_duration_seconds: duration
+        last_run_duration_seconds: duration,
+        configuration: { 
+          ...jobData.configuration, 
+          last_cursor: lastProcessedId,
+          batch_size: batchSize
+        }
       })
       .eq('job_type', 'fix_streaming');
 
-    console.log(`Batch complete: processed=${processed}, fixed=${fixed}, noProviders=${noProviders}, errors=${errors}, duration=${duration}s`);
+    console.log(`Batch complete: processed=${processed}, fixed=${fixed}, noProviders=${noProviders}, errors=${errors}, duration=${duration}s, nextCursor=${lastProcessedId}`);
 
     // Get remaining count for frontend
     const { data: remainingCount } = await supabase.rpc('get_corrupted_streaming_count');
@@ -291,7 +314,8 @@ serve(async (req) => {
         errors,
         duration,
         dryRun,
-        remaining: remainingCount || 0
+        remaining: remainingCount || 0,
+        nextCursor: lastProcessedId
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

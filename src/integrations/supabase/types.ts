@@ -2126,15 +2126,25 @@ export type Database = {
           trailer_transcript: string
         }[]
       }
-      get_titles_with_all_streaming_services: {
-        Args: { p_limit?: number }
-        Returns: {
-          id: string
-          name: string
-          title_type: string
-          tmdb_id: number
-        }[]
-      }
+      get_titles_with_all_streaming_services:
+        | {
+            Args: { p_limit?: number }
+            Returns: {
+              id: string
+              name: string
+              title_type: string
+              tmdb_id: number
+            }[]
+          }
+        | {
+            Args: { p_cursor?: string; p_limit?: number }
+            Returns: {
+              id: string
+              name: string
+              title_type: string
+              tmdb_id: number
+            }[]
+          }
       get_top_recommendations: {
         Args: { p_limit?: number; p_user_id: string }
         Returns: {
