@@ -85,10 +85,15 @@ export function TitleDetailsModal({ title, open, onOpenChange, onAddToWatchlist,
     
     setLoading(true);
     try {
+      // Detect user's region from browser locale or timezone
+      const userLocale = navigator.language || 'en-US';
+      const regionCode = userLocale.split('-')[1]?.toUpperCase() || 'US';
+      
       const { data, error } = await supabase.functions.invoke('enrich-title-details', {
         body: {
           tmdb_id: title.tmdb_id,
-          type: title.type
+          type: title.type,
+          region: regionCode
         }
       });
       
