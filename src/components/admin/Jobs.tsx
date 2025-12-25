@@ -572,32 +572,75 @@ export const Jobs = () => {
   // Special handler for fix_streaming that loops until all batches are processed
   // Uses cursor-based pagination to ensure no titles are skipped or reprocessed
   const handleFixStreamingJob = async (job: Job) => {
+    const MAX_RETRIES = 3;
+    const RETRY_DELAY = 5000; // 5 seconds
+
+    // Helper to invoke edge function with retry logic
+    const invokeWithRetry = async (cursor: string | null, batchSize: number): Promise<any> => {
+      let lastError: any = null;
+      
+      for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        try {
+          const { data, error } = await supabase.functions.invoke('fix-streaming-availability', {
+            body: { dryRun: false, batchSize, cursor }
+          });
+          
+          if (error) throw error;
+          return data;
+        } catch (err: any) {
+          lastError = err;
+          console.warn(`[fix_streaming] Attempt ${attempt}/${MAX_RETRIES} failed:`, err.message || err);
+          
+          // Only retry on network/fetch errors
+          if (attempt < MAX_RETRIES && (
+            err.name === 'FunctionsFetchError' || 
+            err.message?.includes('Failed to fetch') ||
+            err.message?.includes('network') ||
+            err.message?.includes('timeout')
+          )) {
+            console.log(`[fix_streaming] Retrying in ${RETRY_DELAY / 1000}s...`);
+            await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+            continue;
+          }
+          throw err;
+        }
+      }
+      throw lastError;
+    };
+
     try {
       const config = job.configuration || {};
       const batchSize = config.batch_size || 50;
       
-      // Reset job status and counter before starting (clear cursor for fresh start)
+      // Check if we should resume from a saved cursor
+      const savedCursor = config.last_cursor || null;
+      const isResuming = !!savedCursor;
+      
+      // Reset job status and counter before starting
       await supabase
         .from('jobs')
         .update({
           status: 'running',
           is_active: true,
           error_message: null,
-          total_titles_processed: 0,
+          total_titles_processed: isResuming ? (job.total_titles_processed || 0) : 0,
           last_run_at: new Date().toISOString(),
-          configuration: { ...config, last_cursor: null }
+          // Only clear cursor if not resuming
+          configuration: isResuming ? config : { ...config, last_cursor: null }
         })
         .eq('id', job.id);
       
       toast({
-        title: "Job Started",
-        description: `${job.job_name} is now running. Processing in batches of ${batchSize}...`,
+        title: isResuming ? "Job Resuming" : "Job Started",
+        description: isResuming 
+          ? `${job.job_name} resuming from saved position...`
+          : `${job.job_name} is now running. Processing in batches of ${batchSize}...`,
       });
 
       let batchCount = 0;
       let totalFixed = 0;
       let totalProcessed = 0;
-      let cursor: string | null = null;
+      let cursor: string | null = savedCursor;
       let consecutiveEmptyBatches = 0;
       const MAX_EMPTY_BATCHES = 3;
       const MAX_BATCHES = 10000; // Safety limit
@@ -614,23 +657,25 @@ export const Jobs = () => {
           .single();
         
         if (!jobStatus?.is_active) {
+          // Save current cursor so we can resume later
+          await supabase
+            .from('jobs')
+            .update({ 
+              configuration: { ...config, last_cursor: cursor },
+              status: 'idle'
+            })
+            .eq('id', job.id);
+          
           toast({
             title: "Job Stopped",
-            description: `${job.job_name} was stopped after ${batchCount - 1} batches. Fixed ${totalFixed} titles.`,
+            description: `${job.job_name} was stopped after ${batchCount - 1} batches. Fixed ${totalFixed} titles. Can resume from this point.`,
           });
           break;
         }
 
         console.log(`[fix_streaming] Running batch ${batchCount} with cursor: ${cursor || 'start'}...`);
         
-        const { data, error } = await supabase.functions.invoke('fix-streaming-availability', {
-          body: { dryRun: false, batchSize, cursor }
-        });
-
-        if (error) {
-          console.error(`[fix_streaming] Batch ${batchCount} error:`, error);
-          throw error;
-        }
+        const data = await invokeWithRetry(cursor, batchSize);
 
         if (data?.stopped) {
           toast({
@@ -651,6 +696,15 @@ export const Jobs = () => {
         
         console.log(`[fix_streaming] Batch ${batchCount} complete: fixed=${batchFixed}, processed=${batchProcessed}, remaining=${data?.remaining}, nextCursor=${cursor}`);
 
+        // Save cursor to job config every batch so we can resume on failure
+        await supabase
+          .from('jobs')
+          .update({ 
+            configuration: { ...config, last_cursor: cursor },
+            total_titles_processed: (job.total_titles_processed || 0) + totalProcessed
+          })
+          .eq('id', job.id);
+
         // Track empty batches - if we get too many in a row, something is wrong
         if (batchProcessed === 0) {
           consecutiveEmptyBatches++;
@@ -666,7 +720,10 @@ export const Jobs = () => {
         if (data?.done) {
           await supabase
             .from('jobs')
-            .update({ status: 'completed' })
+            .update({ 
+              status: 'completed',
+              configuration: { ...config, last_cursor: null } // Clear cursor on completion
+            })
             .eq('id', job.id);
           
           toast({
@@ -680,7 +737,10 @@ export const Jobs = () => {
         if (data?.remaining === 0) {
           await supabase
             .from('jobs')
-            .update({ status: 'completed' })
+            .update({ 
+              status: 'completed',
+              configuration: { ...config, last_cursor: null } // Clear cursor on completion
+            })
             .eq('id', job.id);
           
           toast({
@@ -710,21 +770,28 @@ export const Jobs = () => {
 
       await fetchJobs();
       await fetchStreamingMetrics();
-    } catch (error) {
+    } catch (error: any) {
+      // Save cursor so we can resume from where we left off
+      const config = job.configuration || {};
       await errorLogger.log(error, { 
         operation: 'run_fix_streaming_job',
         jobId: job.id
       });
+      
       toast({
         title: "Job Failed",
-        description: "Failed to run the job. Please check the logs.",
+        description: `Error: ${error.message || 'Unknown error'}. Job can be resumed.`,
         variant: "destructive",
       });
       
-      // Mark as failed
+      // Mark as failed but keep the cursor so it can resume
       await supabase
         .from('jobs')
-        .update({ status: 'failed', error_message: String(error) })
+        .update({ 
+          status: 'failed', 
+          error_message: String(error),
+          // Keep the cursor in config so we can resume
+        })
         .eq('id', job.id);
     } finally {
       setRunningJobs(prev => {
