@@ -1792,7 +1792,40 @@ export const Jobs = () => {
 
               {/* Actions */}
               <div className="flex gap-2 pt-2">
-                {job.status === 'running' ? (
+                {/* Detect orphaned job: status is 'running' in DB but frontend loop isn't running */}
+                {job.status === 'running' && !runningJobs.has(job.id) ? (
+                  <>
+                    {/* Orphaned running job - show Resume button */}
+                    <Button
+                      onClick={async () => {
+                        // Reset status to idle first, then run
+                        await supabase
+                          .from('jobs')
+                          .update({ status: 'idle' })
+                          .eq('id', job.id);
+                        await fetchJobs();
+                        handleRunJob({...job, status: 'idle'});
+                      }}
+                      className="flex-1 bg-orange-500 hover:bg-orange-600"
+                    >
+                      <Play className="w-4 h-4 mr-2" />
+                      Resume (orphaned)
+                    </Button>
+                    <Button
+                      onClick={async () => {
+                        await supabase
+                          .from('jobs')
+                          .update({ status: 'idle' })
+                          .eq('id', job.id);
+                        await fetchJobs();
+                      }}
+                      variant="outline"
+                    >
+                      <XCircle className="w-4 h-4 mr-2" />
+                      Reset
+                    </Button>
+                  </>
+                ) : job.status === 'running' ? (
                   <Button
                     onClick={() => confirmStopJob(job)}
                     variant="destructive"
@@ -1821,6 +1854,24 @@ export const Jobs = () => {
                           <>
                             <Play className="w-4 h-4 mr-2" />
                             Resume ({job.configuration.completed_work_units.length} done)
+                          </>
+                        )}
+                      </Button>
+                    ) : job.job_type === 'fix_streaming' && job.configuration?.last_cursor ? (
+                      <Button
+                        onClick={() => handleRunJob(job)}
+                        disabled={runningJobs.has(job.id)}
+                        className="flex-1"
+                      >
+                        {runningJobs.has(job.id) ? (
+                          <>
+                            <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                            Resuming...
+                          </>
+                        ) : (
+                          <>
+                            <Play className="w-4 h-4 mr-2" />
+                            Resume (from cursor)
                           </>
                         )}
                       </Button>
