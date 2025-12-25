@@ -506,12 +506,9 @@ export const Jobs = () => {
         functionName = 'enrich-title-details-batch';
         functionBody = { jobId: job.id };
       } else if (job.job_type === 'fix_streaming') {
-        functionName = 'fix-streaming-availability';
-        const config = job.configuration || {};
-        functionBody = { 
-          dryRun: false, 
-          batchSize: config.batch_size || 100 
-        };
+        // Fix streaming uses a loop-based approach - handle separately
+        await handleFixStreamingJob(job);
+        return;
       } else {
         throw new Error(`Unknown job type: ${job.job_type}`);
       }
@@ -563,6 +560,121 @@ export const Jobs = () => {
         description: "Failed to run the job. Please check the logs.",
         variant: "destructive",
       });
+    } finally {
+      setRunningJobs(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(job.id);
+        return newSet;
+      });
+    }
+  };
+
+  // Special handler for fix_streaming that loops until all batches are processed
+  const handleFixStreamingJob = async (job: Job) => {
+    try {
+      const config = job.configuration || {};
+      const batchSize = config.batch_size || 100;
+      
+      // Reset job status and counter before starting
+      await supabase
+        .from('jobs')
+        .update({
+          status: 'running',
+          is_active: true,
+          error_message: null,
+          total_titles_processed: 0,
+          last_run_at: new Date().toISOString()
+        })
+        .eq('id', job.id);
+      
+      toast({
+        title: "Job Started",
+        description: `${job.job_name} is now running. Processing in batches of ${batchSize}...`,
+      });
+
+      let batchCount = 0;
+      let totalFixed = 0;
+      let totalProcessed = 0;
+      
+      // Loop until all batches are processed
+      while (true) {
+        batchCount++;
+        
+        // Check if job was stopped
+        const { data: jobStatus } = await supabase
+          .from('jobs')
+          .select('is_active')
+          .eq('id', job.id)
+          .single();
+        
+        if (!jobStatus?.is_active) {
+          toast({
+            title: "Job Stopped",
+            description: `${job.job_name} was stopped after ${batchCount - 1} batches. Fixed ${totalFixed} titles.`,
+          });
+          break;
+        }
+
+        console.log(`[fix_streaming] Running batch ${batchCount}...`);
+        
+        const { data, error } = await supabase.functions.invoke('fix-streaming-availability', {
+          body: { dryRun: false, batchSize }
+        });
+
+        if (error) throw error;
+
+        if (data?.stopped) {
+          toast({
+            title: "Job Stopped",
+            description: data.message || `${job.job_name} was stopped.`,
+          });
+          break;
+        }
+
+        totalFixed += data?.fixed || 0;
+        totalProcessed += data?.processed || 0;
+        
+        console.log(`[fix_streaming] Batch ${batchCount} complete: fixed=${data?.fixed}, remaining=${data?.remaining}`);
+
+        // If done, break out of loop
+        if (data?.done) {
+          await supabase
+            .from('jobs')
+            .update({ status: 'completed' })
+            .eq('id', job.id);
+          
+          toast({
+            title: "Job Completed",
+            description: `${job.job_name} completed! Fixed ${totalFixed} titles across ${batchCount} batches.`,
+          });
+          break;
+        }
+
+        // Small delay between batches
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Refresh job list to show progress
+        await fetchJobs();
+      }
+
+      await fetchJobs();
+      await fetchStreamingMetrics();
+    } catch (error) {
+      await errorLogger.log(error, { 
+        operation: 'run_fix_streaming_job',
+        jobId: job.id
+      });
+      toast({
+        title: "Job Failed",
+        description: "Failed to run the job. Please check the logs.",
+        variant: "destructive",
+      });
+      
+      // Mark as failed
+      await supabase
+        .from('jobs')
+        .update({ status: 'failed', error_message: String(error) })
+        .eq('id', job.id);
     } finally {
       setRunningJobs(prev => {
         const newSet = new Set(prev);
