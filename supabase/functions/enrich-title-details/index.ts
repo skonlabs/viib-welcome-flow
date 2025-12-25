@@ -1,7 +1,10 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const TMDB_API_KEY = Deno.env.get('TMDB_API_KEY');
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -62,19 +65,17 @@ serve(async (req) => {
 
     const endpoint = type === 'movie' ? 'movie' : 'tv';
     
-    // Fetch details, credits, videos, and watch providers in parallel
-    const [detailsRes, creditsRes, videosRes, providersRes] = await Promise.all([
+    // Fetch details, credits, and videos from TMDB in parallel
+    const [detailsRes, creditsRes, videosRes] = await Promise.all([
       fetch(`${TMDB_BASE_URL}/${endpoint}/${tmdbIdInt}?api_key=${TMDB_API_KEY}`),
       fetch(`${TMDB_BASE_URL}/${endpoint}/${tmdbIdInt}/credits?api_key=${TMDB_API_KEY}`),
-      fetch(`${TMDB_BASE_URL}/${endpoint}/${tmdbIdInt}/videos?api_key=${TMDB_API_KEY}`),
-      fetch(`${TMDB_BASE_URL}/${endpoint}/${tmdbIdInt}/watch/providers?api_key=${TMDB_API_KEY}`)
+      fetch(`${TMDB_BASE_URL}/${endpoint}/${tmdbIdInt}/videos?api_key=${TMDB_API_KEY}`)
     ]);
 
-    const [details, credits, videos, providers] = await Promise.all([
+    const [details, credits, videos] = await Promise.all([
       detailsRes.json(),
       creditsRes.json(),
-      videosRes.json(),
-      providersRes.json()
+      videosRes.json()
     ]);
 
     // Extract trailer URL
@@ -89,33 +90,54 @@ serve(async (req) => {
     // Extract genre names
     const genres = details.genres?.map((g: any) => GENRE_MAP[g.id] || g.name) || [];
 
-    // Extract streaming services (US providers) - include flatrate, ads, and free
-    const usProviders = providers.results?.US;
-    const streaming_services: Array<{service_name: string; service_code: string; logo_url: string | null; type: string}> = [];
-    const addedProviderIds = new Set<number>();
+    // Fetch streaming services from our database instead of TMDB API
+    let streaming_services: Array<{service_name: string; logo_url: string | null}> = [];
     
-    // Helper to add providers without duplicates
-    const addProviders = (providerList: any[], type: string) => {
-      if (!providerList) return;
-      for (const p of providerList) {
-        if (!addedProviderIds.has(p.provider_id)) {
-          addedProviderIds.add(p.provider_id);
-          streaming_services.push({
-            service_name: p.provider_name,
-            service_code: p.provider_id.toString(),
-            logo_url: p.logo_path ? `https://image.tmdb.org/t/p/w92${p.logo_path}` : null,
-            type
-          });
+    if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
+      const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+      
+      // First get the title_id from our titles table using tmdb_id
+      const titleType = type === 'movie' ? 'movie' : 'tv';
+      const { data: titleData, error: titleError } = await supabase
+        .from('titles')
+        .select('id')
+        .eq('tmdb_id', tmdbIdInt)
+        .eq('title_type', titleType)
+        .single();
+      
+      if (titleError) {
+        console.log(`Title not found in DB for tmdb_id ${tmdbIdInt}, type ${titleType}:`, titleError.message);
+      }
+      
+      if (titleData?.id) {
+        // Now get streaming services from title_streaming_availability
+        const { data: availabilityData, error: availabilityError } = await supabase
+          .from('title_streaming_availability')
+          .select(`
+            streaming_service_id,
+            streaming_services!inner (
+              service_name,
+              logo_url
+            )
+          `)
+          .eq('title_id', titleData.id)
+          .eq('region_code', 'US');
+        
+        if (availabilityError) {
+          console.error('Error fetching streaming availability:', availabilityError);
+        } else if (availabilityData && availabilityData.length > 0) {
+          streaming_services = availabilityData.map((item: any) => ({
+            service_name: item.streaming_services.service_name,
+            logo_url: item.streaming_services.logo_url
+          }));
+          console.log(`Found ${streaming_services.length} streaming services from DB for title ${titleData.id}`);
+        } else {
+          console.log(`No streaming services found in DB for title ${titleData.id}`);
         }
       }
-    };
-    
-    // Add streaming (subscription) services first
-    addProviders(usProviders?.flatrate, 'subscription');
-    // Add free with ads services
-    addProviders(usProviders?.ads, 'ads');
-    // Add free services
-    addProviders(usProviders?.free, 'free');
+    } else {
+      console.warn('Supabase credentials not configured, skipping DB streaming lookup');
+    }
 
     // Runtime
     const runtime_minutes = type === 'movie' ? details.runtime : null;
