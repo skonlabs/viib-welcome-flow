@@ -88,9 +88,15 @@ export function TitleCard({
 
   const handleScoreClick = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!user || !title.id) return;
+    e.preventDefault();
     
-    setExplanationOpen(true);
+    console.log('Score clicked', { userId: user?.id, titleId: title.id });
+    
+    if (!user || !title.id) {
+      console.log('Missing user or title.id', { user, titleId: title.id });
+      return;
+    }
+    
     if (explanation) return; // Already loaded
     
     setLoadingExplanation(true);
@@ -99,6 +105,8 @@ export function TitleCard({
         p_user_id: user.id,
         p_title_id: title.id
       });
+      
+      console.log('Explanation response:', { data, error });
       
       if (error) throw error;
       
@@ -160,11 +168,19 @@ export function TitleCard({
           )}
           {viibScore !== undefined && (
             <div className="absolute top-1.5 right-1.5 sm:top-2 sm:right-2 animate-fade-in z-20">
-              <Popover open={explanationOpen} onOpenChange={setExplanationOpen}>
+              <Popover open={explanationOpen} onOpenChange={(open) => {
+                setExplanationOpen(open);
+                if (open && !explanation && user && title.id) {
+                  handleScoreClick({ stopPropagation: () => {}, preventDefault: () => {} } as React.MouseEvent);
+                }
+              }}>
                 <PopoverTrigger asChild>
                   <Badge
                     className="font-bold backdrop-blur-sm shadow-lg text-xs sm:text-sm bg-gradient-to-br from-primary to-primary/80 text-primary-foreground border-2 border-primary-foreground/20 cursor-pointer hover:scale-105 transition-transform"
-                    onClick={handleScoreClick}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                    }}
                   >
                     {Math.round(viibScore)}%
                   </Badge>
