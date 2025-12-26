@@ -287,7 +287,7 @@ export default function Onboarding() {
       }
 
       if (insertedUser) {
-        console.log('User record created successfully:', insertedUser.id);
+        console.log('User record created successfully');
         localStorage.setItem('viib_user_id', insertedUser.id);
 
         // NOW mark the phone verification as complete in the database
@@ -331,7 +331,7 @@ export default function Onboarding() {
               .update({ ip_address: ipAddress, ip_country: ipCountry })
               .eq('id', insertedUser.id);
 
-            console.log('IP/geo data updated for user:', insertedUser.id);
+            console.log('IP/geo data updated for user');
           } catch (ipError) {
             console.error('Failed to fetch IP data:', ipError);
           }

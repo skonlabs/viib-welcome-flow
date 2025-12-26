@@ -87,7 +87,7 @@ const Home = () => {
 
     try {
       // Call the ViiB recommendation engine (v2 with transformation scoring)
-      console.log('Fetching recommendations for user:', user.id);
+      console.log('Fetching user recommendations');
       const { data: recData, error: recError } = await supabase.rpc(
         'get_top_recommendations_v2',
         { p_user_id: user.id, p_limit: 10 }

@@ -92,7 +92,7 @@ serve(async (req) => {
       console.error('Failed to invalidate old OTPs:', invalidateError);
     }
 
-    console.log('Phone OTP validated successfully:', normalizedPhone);
+    console.log('Phone OTP validated successfully');
 
     return new Response(
       JSON.stringify({

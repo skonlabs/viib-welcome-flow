@@ -14,7 +14,7 @@ serve(async (req) => {
 
   try {
     const { email } = await req.json();
-    console.log('Sending OTP to email:', email);
+    console.log('Processing email OTP request');
 
     if (!email) {
       throw new Error('Email is required');
@@ -44,7 +44,7 @@ serve(async (req) => {
       .gte('created_at', windowStart);
 
     if (recentOtpCount !== null && recentOtpCount >= rateLimit) {
-      console.log(`Rate limit exceeded for ${email}: ${recentOtpCount}/${rateLimit} in ${rateLimitWindow} minutes`);
+      console.log(`Rate limit exceeded: ${recentOtpCount}/${rateLimit} in ${rateLimitWindow} minutes`);
       return new Response(
         JSON.stringify({
           success: false,
@@ -59,7 +59,7 @@ serve(async (req) => {
 
     // Generate 6-digit OTP
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-    console.log('Generated OTP:', otpCode);
+    // OTP generated (not logging value for security)
 
     // Store OTP in database (expires in 5 minutes)
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();

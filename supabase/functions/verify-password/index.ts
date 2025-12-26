@@ -77,6 +77,34 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // Rate limiting: Check failed attempts in last 15 minutes
+    const identifier = email || phone;
+    const rateLimitWindow = 15; // minutes
+    const maxAttempts = 5;
+    const windowStart = new Date(Date.now() - rateLimitWindow * 60 * 1000).toISOString();
+
+    // Check recent failed attempts from system_logs
+    const { count: failedAttempts } = await supabase
+      .from('system_logs')
+      .select('*', { count: 'exact', head: true })
+      .eq('operation', 'password_verification_failed')
+      .eq('context->>identifier', identifier)
+      .gte('created_at', windowStart);
+
+    if (failedAttempts !== null && failedAttempts >= maxAttempts) {
+      console.log(`Rate limit exceeded for ${identifier}: ${failedAttempts}/${maxAttempts} failed attempts`);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: `Too many failed attempts. Please wait ${rateLimitWindow} minutes before trying again.`
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 429
+        }
+      );
+    }
+
     // Fetch user from database
     // Note: We don't check is_active here because accounts with incomplete onboarding
     // will have is_active: false. The frontend will handle onboarding redirect logic.
@@ -96,11 +124,18 @@ serve(async (req) => {
     const { data: userData, error: fetchError } = await query.maybeSingle();
 
     if (fetchError || !userData) {
-      console.log('User not found or fetch error:', fetchError);
+      // Log failed attempt for rate limiting
+      await supabase.from('system_logs').insert({
+        error_message: 'User not found',
+        operation: 'password_verification_failed',
+        context: { identifier },
+        severity: 'warning'
+      });
+
       return new Response(
-        JSON.stringify({ 
+        JSON.stringify({
           success: false,
-          error: 'Invalid credentials' 
+          error: 'Invalid credentials'
         }),
         {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -113,11 +148,18 @@ serve(async (req) => {
     const isValid = await verifyPassword(password, userData.password_hash);
 
     if (!isValid) {
-      console.log('Password verification failed');
+      // Log failed attempt for rate limiting
+      await supabase.from('system_logs').insert({
+        error_message: 'Invalid password',
+        operation: 'password_verification_failed',
+        context: { identifier },
+        severity: 'warning'
+      });
+
       return new Response(
-        JSON.stringify({ 
+        JSON.stringify({
           success: false,
-          error: 'Invalid credentials' 
+          error: 'Invalid credentials'
         }),
         {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -126,7 +168,7 @@ serve(async (req) => {
       );
     }
 
-    console.log('Password verified successfully for user:', userData.id);
+    console.log('Password verified successfully');
     return new Response(
       JSON.stringify({ 
         success: true,

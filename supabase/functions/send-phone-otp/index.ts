@@ -119,8 +119,11 @@ serve(async (req) => {
       );
     }
 
-    // ALWAYS use hardcoded OTP for testing to avoid SMS costs
-    const otpCode = "111111";
+    // Check if this is a test phone number (for development/testing only)
+    const isTestNumber = isTestPhoneNumber(normalizedPhone);
+
+    // Generate OTP - use test code for test numbers, random for production
+    const otpCode = isTestNumber ? "111111" : generateOTP();
 
     // Set expiry to 5 minutes from now
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
@@ -140,13 +143,23 @@ serve(async (req) => {
       throw new Error('Failed to create verification request');
     }
 
-    // SMS sending disabled - using hardcoded OTP for all numbers during testing
-    console.log('TEST MODE: OTP hardcoded as 111111 for', normalizedPhone);
+    // Send SMS for real phone numbers
+    if (!isTestNumber) {
+      const smsMessage = `Your ViiB verification code is: ${otpCode}. Valid for 5 minutes.`;
+      const smsSent = await sendTwilioSMS(normalizedPhone, smsMessage);
+
+      if (!smsSent) {
+        // Log warning but don't fail - OTP is still stored in database
+        console.warn('SMS delivery failed for', normalizedPhone.substring(0, 6) + '***');
+      }
+    } else {
+      console.log('Test phone number detected, skipping SMS');
+    }
 
     return new Response(
       JSON.stringify({
         success: true,
-        message: "Verification code sent successfully (TEST MODE: Use 111111)"
+        message: "Verification code sent successfully"
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },

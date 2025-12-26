@@ -38,7 +38,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const checkSession = async () => {
     try {
       const sessionData = localStorage.getItem('viib_session') || sessionStorage.getItem('viib_session');
-      
+
       if (!sessionData) {
         const userId = localStorage.getItem('viib_user_id');
         if (!userId) {
@@ -49,8 +49,32 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return;
       }
 
-      const { userId, rememberMe, timestamp } = JSON.parse(sessionData);
-      
+      // Safely parse and validate session data
+      let parsedSession: { userId?: unknown; rememberMe?: unknown; timestamp?: unknown };
+      try {
+        parsedSession = JSON.parse(sessionData);
+      } catch {
+        // Invalid JSON - clear corrupted session data
+        localStorage.removeItem('viib_session');
+        sessionStorage.removeItem('viib_session');
+        setLoading(false);
+        return;
+      }
+
+      // Validate required fields exist and have correct types
+      const { userId, rememberMe, timestamp } = parsedSession;
+      if (
+        typeof userId !== 'string' ||
+        !userId ||
+        typeof timestamp !== 'number'
+      ) {
+        // Invalid session structure - clear corrupted data
+        localStorage.removeItem('viib_session');
+        sessionStorage.removeItem('viib_session');
+        setLoading(false);
+        return;
+      }
+
       if (rememberMe) {
         const thirtyDays = 30 * 24 * 60 * 60 * 1000;
         if (Date.now() - timestamp > thirtyDays) {
@@ -64,6 +88,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       await fetchUserData(userId);
     } catch (error) {
       console.error('Error checking session:', error);
+      localStorage.removeItem('viib_session');
+      sessionStorage.removeItem('viib_session');
       setLoading(false);
     }
   };
