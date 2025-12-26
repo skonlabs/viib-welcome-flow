@@ -84,17 +84,48 @@ serve(async (req) => {
       );
     }
 
+    // Check IP-based rate limiting for OTP verification attempts
+    const { data: rateLimitCheck } = await supabase.rpc('check_ip_rate_limit', {
+      p_ip_address: ipAddress,
+      p_endpoint: 'verify_otp',
+      p_max_requests: 10,
+      p_window_seconds: 300  // 10 attempts per 5 minutes
+    });
+
+    if (rateLimitCheck && !rateLimitCheck[0]?.allowed) {
+      console.log('IP rate limit exceeded for OTP verification');
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'Too many verification attempts. Please wait a few minutes and try again.'
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 429,
+        }
+      );
+    }
+
     // Verify OTP - ensure both are strings and trimmed
     const dbOtp = String(verification.otp_code).trim();
     const userOtp = String(otp).trim();
-    console.log('Comparing OTPs - Database:', dbOtp, 'User entered:', userOtp, 'Match:', dbOtp === userOtp);
-    
-    if (dbOtp !== userOtp) {
-      console.error('Invalid OTP - Mismatch! DB:', dbOtp, 'User:', userOtp);
+    // Security: Do not log OTP values
+    const otpMatches = dbOtp === userOtp;
+
+    if (!otpMatches) {
+      // Record failed attempt for brute force protection
+      await supabase.rpc('record_login_attempt', {
+        p_identifier: email,
+        p_ip_address: ipAddress,
+        p_attempt_type: 'otp',
+        p_success: false
+      });
+
+      console.log('OTP verification failed - invalid code');
       return new Response(
-        JSON.stringify({ 
+        JSON.stringify({
           success: false,
-          error: 'Invalid code. Please check and try again.' 
+          error: 'Invalid code. Please check and try again.'
         }),
         {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },

@@ -89,35 +89,22 @@ export default function ForgotPassword() {
     setError("");
 
     try {
-      // Check if account exists
-      const { data: existingUser, error: checkError } = await supabase
-        .from('users')
-        .select('id, is_email_verified')
-        .eq('email', email)
-        .maybeSingle();
-
-      if (checkError || !existingUser) {
-        setError("No account found with this email address");
-        setLoading(false);
-        return;
-      }
-
-      if (!existingUser.is_email_verified) {
-        setError("This email is not verified. Please complete signup first.");
-        setLoading(false);
-        return;
-      }
-
-      // Send OTP
-      const { data, error: sendError } = await supabase.functions.invoke("send-email-otp", {
-        body: { email }
+      // Use the secure reset-password edge function
+      const { data, error: sendError } = await supabase.functions.invoke("reset-password", {
+        body: { email, action: 'request' }
       });
 
-      if (sendError || data?.error) {
+      if (sendError) {
         setError("Unable to send verification code. Please try again.");
         return;
       }
 
+      if (data?.error) {
+        setError(data.error);
+        return;
+      }
+
+      // Always proceed to OTP step (prevents email enumeration)
       setStep("otp");
       startResendTimer();
     } catch (err) {
@@ -217,24 +204,24 @@ export default function ForgotPassword() {
     setError("");
 
     try {
-      // Hash the new password
-      const { data: hashData, error: hashError } = await supabase.functions.invoke("hash-password", {
-        body: { password: newPassword },
+      // Use the secure reset-password edge function with OTP verification
+      const otpCode = otp.join("");
+      const { data, error: resetError } = await supabase.functions.invoke("reset-password", {
+        body: {
+          email,
+          otp: otpCode,
+          newPassword,
+          action: 'verify'
+        }
       });
 
-      if (hashError || !hashData?.success) {
-        setError("Unable to process password");
+      if (resetError) {
+        setError("Unable to reset password. Please try again.");
         return;
       }
 
-      // Update password in database
-      const { error: updateError } = await supabase
-        .from('users')
-        .update({ password_hash: hashData.hashedPassword })
-        .eq('email', email);
-
-      if (updateError) {
-        setError("Unable to update password");
+      if (data?.error) {
+        setError(data.error);
         return;
       }
 
