@@ -66,40 +66,41 @@ export default function Onboarding() {
     const loadSavedData = async () => {
       const userId = localStorage.getItem('viib_user_id');
       if (!userId) return;
-      
+
       try {
-        // Fetch user data
-        const { data: userData } = await supabase
-          .from('users')
-          .select('full_name, phone_number, email')
-          .eq('id', userId)
-          .single();
-        
-        // Fetch vibe preference
-        const { data: vibeData } = await supabase
-          .from('user_vibe_preferences')
-          .select('vibe_type')
-          .eq('user_id', userId)
-          .maybeSingle();
-        
-        if (userData) {
-          // Fetch platforms - use service IDs directly
-          const { data: platformsData } = await supabase
+        // Batch all queries in parallel for better performance
+        const [userResult, vibeResult, platformsResult, languagesResult] = await Promise.all([
+          supabase
+            .from('users')
+            .select('full_name, phone_number, email')
+            .eq('id', userId)
+            .single(),
+          supabase
+            .from('user_vibe_preferences')
+            .select('vibe_type')
+            .eq('user_id', userId)
+            .maybeSingle(),
+          supabase
             .from('user_streaming_subscriptions')
             .select('streaming_service_id')
             .eq('user_id', userId)
-            .eq('is_active', true);
-
-          // Fetch languages
-          const { data: languagesData } = await supabase
+            .eq('is_active', true),
+          supabase
             .from('user_language_preferences')
             .select('language_code')
             .eq('user_id', userId)
-            .order('priority_order');
+            .order('priority_order'),
+        ]);
 
-          // Note: Mood data is loaded directly by MoodCalibrationScreen from user_emotion_states
-          // No need to reverse-map here as the component handles its own restoration
+        const userData = userResult.data;
+        const vibeData = vibeResult.data;
+        const platformsData = platformsResult.data;
+        const languagesData = languagesResult.data;
 
+        // Note: Mood data is loaded directly by MoodCalibrationScreen from user_emotion_states
+        // No need to reverse-map here as the component handles its own restoration
+
+        if (userData) {
           setOnboardingData(prev => ({
             ...prev,
             name: userData.full_name || '',
@@ -114,7 +115,7 @@ export default function Onboarding() {
         console.error('Error loading saved data:', error);
       }
     };
-    
+
     loadSavedData();
   }, []);
   

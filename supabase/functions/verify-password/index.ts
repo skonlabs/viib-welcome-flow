@@ -77,10 +77,17 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Rate limiting: Check failed attempts in last 15 minutes
+    // Rate limiting: Check failed attempts
     const identifier = email || phone;
-    const rateLimitWindow = 15; // minutes
-    const maxAttempts = 5;
+
+    // Get rate limit settings from app_settings
+    const [maxAttemptsResult, windowResult] = await Promise.all([
+      supabase.from('app_settings').select('value').eq('key', 'password_max_attempts').single(),
+      supabase.from('app_settings').select('value').eq('key', 'password_rate_limit_window').single(),
+    ]);
+
+    const maxAttempts = maxAttemptsResult.data?.value ? parseInt(maxAttemptsResult.data.value, 10) : 5;
+    const rateLimitWindow = windowResult.data?.value ? parseInt(windowResult.data.value, 10) : 15;
     const windowStart = new Date(Date.now() - rateLimitWindow * 60 * 1000).toISOString();
 
     // Check recent failed attempts from system_logs

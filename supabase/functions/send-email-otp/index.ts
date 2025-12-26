@@ -26,14 +26,13 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Get rate limit settings from app_settings
-    const { data: rateLimitSetting } = await supabase
-      .from('app_settings')
-      .select('value')
-      .eq('key', 'otp_rate_limit')
-      .single();
+    const [rateLimitResult, windowResult] = await Promise.all([
+      supabase.from('app_settings').select('value').eq('key', 'otp_rate_limit').single(),
+      supabase.from('app_settings').select('value').eq('key', 'otp_rate_limit_window').single(),
+    ]);
 
-    const rateLimit = rateLimitSetting?.value ? parseInt(rateLimitSetting.value, 10) : 5;
-    const rateLimitWindow = 15; // 15 minutes
+    const rateLimit = rateLimitResult.data?.value ? parseInt(rateLimitResult.data.value, 10) : 5;
+    const rateLimitWindow = windowResult.data?.value ? parseInt(windowResult.data.value, 10) : 15;
 
     // Check rate limit - count recent OTPs for this email
     const windowStart = new Date(Date.now() - rateLimitWindow * 60 * 1000).toISOString();
