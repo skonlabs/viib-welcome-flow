@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAdmin } from '@/hooks/useAdmin';
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider } from '@/components/ui/sidebar';
-import { BarChart3, Users, UserCheck, Clock, Heart, Eye, Send, Activity, UsersRound, HeadphonesIcon, Bug, Lightbulb, Mail, Settings as SettingsIcon, Shield, Key, FileText, Share2, Sliders } from '@/icons';
+import { BarChart3, Users, UserCheck, Clock, Heart, Eye, Send, Activity, UsersRound, HeadphonesIcon, Bug, Lightbulb, Mail, Settings as SettingsIcon, Shield, Key, FileText, Share2, SlidersHorizontal } from '@/icons';
 import ActiveUsers from '@/components/admin/ActiveUsers';
 import UserRetention from '@/components/admin/UserRetention';
 import Sessions from '@/components/admin/Sessions';
@@ -40,7 +40,7 @@ const metrics = [
   { id: 'bugs', title: 'Bugs', icon: Bug, component: Bugs, section: 'support' },
   { id: 'feature-requests', title: 'Feature Requests', icon: Lightbulb, component: FeatureRequests, section: 'support' },
   { id: 'system-logs', title: 'System Logs', icon: FileText, component: SystemLogs, section: 'support' },
-  { id: 'settings', title: 'Settings', icon: Sliders, component: Settings, section: 'configurations' },
+  { id: 'settings', title: 'Settings', icon: SlidersHorizontal, component: Settings, section: 'configurations' },
   { id: 'email-setup', title: 'Email Setup', icon: SettingsIcon, component: EmailSetup, section: 'configurations' },
   { id: 'emails', title: 'Email Templates', icon: Mail, component: EmailTemplates, section: 'configurations' },
   { id: 'rate-limiting', title: 'Rate Limiting', icon: Shield, component: RateLimiting, section: 'configurations' },

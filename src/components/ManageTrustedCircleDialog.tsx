@@ -51,13 +51,14 @@ export function ManageTrustedCircleDialog({ open, onOpenChange, listId }: Manage
     if (!user) return;
 
     try {
-      // Verify ownership before deleting
-      const { data: isOwner } = await supabase.rpc('check_list_ownership', {
-        p_list_id: listId,
-        p_user_id: user.id
-      });
+      // Verify ownership before deleting by checking the vibe_lists table directly
+      const { data: listData } = await supabase
+        .from('vibe_lists')
+        .select('user_id')
+        .eq('id', listId)
+        .single();
 
-      if (!isOwner) {
+      if (!listData || listData.user_id !== user.id) {
         toast.error('You do not have permission to modify this list');
         return;
       }

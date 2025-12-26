@@ -103,24 +103,53 @@ export default function ViiBList() {
     }
   }, [selectedList]);
 
-  // Helper function to batch fetch list stats using RPC
+  // Helper function to batch fetch list stats using direct queries
   const fetchListStats = async (listIds: string[]) => {
     if (listIds.length === 0) return new Map();
 
-    const { data: statsData } = await supabase.rpc('get_vibe_list_stats', {
-      p_list_ids: listIds
+    const statsMap = new Map<string, { itemCount: number; viewCount: number; followerCount: number }>();
+
+    // Fetch item counts
+    const { data: itemsData } = await supabase
+      .from('vibe_list_items')
+      .select('vibe_list_id')
+      .in('vibe_list_id', listIds);
+
+    // Fetch view counts  
+    const { data: viewsData } = await supabase
+      .from('vibe_list_views')
+      .select('vibe_list_id')
+      .in('vibe_list_id', listIds);
+
+    // Fetch follower counts
+    const { data: followersData } = await supabase
+      .from('vibe_list_followers')
+      .select('vibe_list_id')
+      .in('vibe_list_id', listIds);
+
+    // Initialize all lists with zero counts
+    listIds.forEach(id => {
+      statsMap.set(id, { itemCount: 0, viewCount: 0, followerCount: 0 });
     });
 
-    const statsMap = new Map<string, { itemCount: number; viewCount: number; followerCount: number }>();
-    if (statsData) {
-      statsData.forEach((stat: any) => {
-        statsMap.set(stat.list_id, {
-          itemCount: Number(stat.item_count) || 0,
-          viewCount: Number(stat.view_count) || 0,
-          followerCount: Number(stat.follower_count) || 0
-        });
-      });
-    }
+    // Count items per list
+    itemsData?.forEach((item: { vibe_list_id: string }) => {
+      const stats = statsMap.get(item.vibe_list_id);
+      if (stats) stats.itemCount++;
+    });
+
+    // Count views per list
+    viewsData?.forEach((view: { vibe_list_id: string }) => {
+      const stats = statsMap.get(view.vibe_list_id);
+      if (stats) stats.viewCount++;
+    });
+
+    // Count followers per list
+    followersData?.forEach((follower: { vibe_list_id: string }) => {
+      const stats = statsMap.get(follower.vibe_list_id);
+      if (stats) stats.followerCount++;
+    });
+
     return statsMap;
   };
 
