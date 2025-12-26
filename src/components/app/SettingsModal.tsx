@@ -9,6 +9,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Bell, Moon, Globe, Shield, Trash2, Tv, Check, ChevronRight } from 'lucide-react';
+import { DeleteAccountDialog } from '@/components/DeleteAccountDialog';
 
 interface SettingsModalProps {
   open: boolean;
@@ -501,9 +502,7 @@ export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
                 <p className="text-sm text-muted-foreground mb-3">
                   Once you delete your account, there is no going back. Please be certain.
                 </p>
-                <Button variant="destructive" className="w-full">
-                  Delete Account
-                </Button>
+                <DeleteAccountDialog onDeleted={() => onOpenChange(false)} />
               </div>
             </div>
           </div>

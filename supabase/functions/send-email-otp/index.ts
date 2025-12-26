@@ -20,10 +20,37 @@ serve(async (req) => {
       throw new Error('Email is required');
     }
 
+    // Capture IP address from request headers
+    const ipAddress = req.headers.get('x-forwarded-for')?.split(',')[0] ||
+                      req.headers.get('x-real-ip') ||
+                      'unknown';
+
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Check IP-based rate limiting first
+    const { data: ipRateLimitCheck } = await supabase.rpc('check_ip_rate_limit', {
+      p_ip_address: ipAddress,
+      p_endpoint: 'send_otp',
+      p_max_requests: 5,
+      p_window_seconds: 300  // 5 requests per 5 minutes per IP
+    });
+
+    if (ipRateLimitCheck && !ipRateLimitCheck[0]?.allowed) {
+      console.log('IP rate limit exceeded for OTP send');
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'Too many requests. Please wait a few minutes before trying again.'
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 429,
+        }
+      );
+    }
 
     // Get rate limit settings from app_settings
     const [rateLimitResult, windowResult] = await Promise.all([
