@@ -161,6 +161,8 @@ $$;
 -- ============================================================================
 
 -- Drop and recreate explain_recommendation with better explanations
+DROP FUNCTION IF EXISTS explain_recommendation(UUID, UUID);
+
 CREATE OR REPLACE FUNCTION explain_recommendation(p_user_id UUID, p_title_id UUID)
 RETURNS TABLE(
     title_id UUID,
@@ -357,6 +359,9 @@ $$;
 -- ============================================================================
 -- PART 4: Update get_top_recommendations_v2 to include explanation
 -- ============================================================================
+
+-- Drop existing function if return type differs
+DROP FUNCTION IF EXISTS get_top_recommendations_v2(UUID, INTEGER);
 
 CREATE OR REPLACE FUNCTION get_top_recommendations_v2(p_user_id UUID, p_limit INTEGER DEFAULT 10)
 RETURNS TABLE(
