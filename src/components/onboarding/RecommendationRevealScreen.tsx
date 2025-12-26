@@ -4,30 +4,43 @@ import { ArrowRight, Sparkles, Info } from "@/icons";
 import { BackButton } from "./BackButton";
 import { FloatingParticles } from "./FloatingParticles";
 
+interface Recommendation {
+  title: string;
+  reason: string;
+  mood: string;
+}
+
 interface RecommendationRevealScreenProps {
   userName: string;
+  recommendations?: Recommendation[];
   onContinue: () => void;
   onBack: () => void;
 }
 
-export const RecommendationRevealScreen = ({ userName, onContinue, onBack }: RecommendationRevealScreenProps) => {
-  const recommendations = [
-    {
-      title: "Cosmic Odyssey",
-      reason: "Matches your love for expansive sci-fi",
-      mood: "🚀 Adventurous",
-    },
-    {
-      title: "Midnight Tales",
-      reason: "Perfect for your contemplative vibe",
-      mood: "🌙 Reflective",
-    },
-    {
-      title: "The Last Symphony",
-      reason: "Emotional depth you appreciate",
-      mood: "❤️ Moving",
-    },
-  ];
+// Default recommendations shown when no actual recommendations are available yet
+const DEFAULT_RECOMMENDATIONS: Recommendation[] = [
+  {
+    title: "Personalizing Your Experience",
+    reason: "We're curating content based on your preferences",
+    mood: "✨ Discovering",
+  },
+  {
+    title: "Matching Your Mood",
+    reason: "Analyzing your emotional profile for perfect matches",
+    mood: "🎯 Calibrating",
+  },
+  {
+    title: "Building Your ViiB",
+    reason: "Creating your unique recommendation engine",
+    mood: "🚀 Ready",
+  },
+];
+
+export const RecommendationRevealScreen = ({ userName, recommendations, onContinue, onBack }: RecommendationRevealScreenProps) => {
+  // Use provided recommendations or fallback to defaults
+  const displayRecommendations = recommendations && recommendations.length > 0
+    ? recommendations
+    : DEFAULT_RECOMMENDATIONS;
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-black">
@@ -104,7 +117,7 @@ export const RecommendationRevealScreen = ({ userName, onContinue, onBack }: Rec
 
           {/* Recommendations */}
           <div className="space-y-4">
-            {recommendations.map((rec, index) => (
+            {displayRecommendations.map((rec, index) => (
               <motion.div
                 key={index}
                 initial={{ opacity: 0, x: -50 }}
