@@ -86,18 +86,8 @@ export function TitleCard({
     }
   };
 
-  const handleScoreClick = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    e.preventDefault();
-    
-    console.log('Score clicked', { userId: user?.id, titleId: title.id });
-    
-    if (!user || !title.id) {
-      console.log('Missing user or title.id', { user, titleId: title.id });
-      return;
-    }
-    
-    if (explanation) return; // Already loaded
+  const fetchExplanation = async () => {
+    if (!user || !title.id || explanation) return;
     
     setLoadingExplanation(true);
     try {
@@ -106,18 +96,13 @@ export function TitleCard({
         p_title_id: title.id
       });
       
-      console.log('Explanation response:', { data, error });
-      
       if (error) throw error;
       
-      // Parse the response - it returns a JSONB object with reasons array and components
       const parsed = data as {
         reasons?: string[];
         components?: Record<string, { value: number; weight: number }>;
-        final_score?: number;
       };
       
-      // Extract scores from components
       const scores: Record<string, number> = {};
       if (parsed.components) {
         Object.entries(parsed.components).forEach(([key, val]) => {
@@ -170,18 +155,13 @@ export function TitleCard({
             <div className="absolute top-1.5 right-1.5 sm:top-2 sm:right-2 animate-fade-in z-20">
               <Popover open={explanationOpen} onOpenChange={(open) => {
                 setExplanationOpen(open);
-                if (open && !explanation && user && title.id) {
-                  handleScoreClick({ stopPropagation: () => {}, preventDefault: () => {} } as React.MouseEvent);
-                }
+                if (open) fetchExplanation();
               }}>
                 <PopoverTrigger asChild>
                   <button
                     type="button"
                     className="font-bold backdrop-blur-sm shadow-lg text-xs sm:text-sm bg-gradient-to-br from-primary to-primary/80 text-primary-foreground border-2 border-primary-foreground/20 cursor-pointer hover:scale-105 transition-transform rounded-full px-2 py-0.5"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      e.preventDefault();
-                    }}
+                    onClick={(e) => e.stopPropagation()}
                   >
                     {Math.round(viibScore)}%
                   </button>
