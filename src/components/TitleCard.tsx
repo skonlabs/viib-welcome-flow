@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { getPosterUrl } from "@/lib/services/TitleCatalogService";
-import { Play, Share2, Eye, Plus, X, Trash2, Check } from "lucide-react";
+import { Play, Share2, Eye, Plus, X, Trash2, Check, Heart, ThumbsUp, ThumbsDown } from "lucide-react";
 import { TrailerDialog } from "./TrailerDialog";
 
 // Flexible title type to handle both database and TMDB API formats
@@ -46,6 +46,8 @@ interface TitleCardProps {
   recommendationNote?: string;
   viibScore?: number;
   isInWatchlist?: boolean;
+  compactRecommend?: boolean;
+  userRating?: 'love_it' | 'like_it' | 'ok' | 'dislike_it' | 'not_rated' | null;
   actions?: {
     onWatched?: () => void;
     onWatchlist?: () => void;
@@ -63,6 +65,8 @@ export function TitleCard({
   recommendationNote, 
   viibScore, 
   isInWatchlist = false,
+  compactRecommend = false,
+  userRating,
   actions 
 }: TitleCardProps) {
   const [trailerOpen, setTrailerOpen] = useState(false);
@@ -200,14 +204,14 @@ export function TitleCard({
                   <Button
                     size="sm"
                     variant="outline"
-                    className="flex-1 gap-1 text-[9px] sm:text-xs bg-black/70 backdrop-blur-sm hover:bg-purple-500/30 hover:text-purple-300 hover:border-purple-500/50 border-white/30 h-7 sm:h-8"
+                    className={`gap-1 text-[9px] sm:text-xs bg-black/70 backdrop-blur-sm hover:bg-purple-500/30 hover:text-purple-300 hover:border-purple-500/50 border-white/30 h-7 sm:h-8 ${compactRecommend ? 'px-2' : 'flex-1'}`}
                     onClick={(e) => {
                       e.stopPropagation();
                       actions.onRecommend?.();
                     }}
                   >
                     <Share2 className="h-3 w-3" />
-                    <span>Recommend</span>
+                    {!compactRecommend && <span>Recommend</span>}
                   </Button>
                 )}
               </div>
@@ -215,7 +219,22 @@ export function TitleCard({
           </div>
         </div>
         <div className="p-3 sm:p-4 space-y-1.5 sm:space-y-2">
-          <h3 className="font-semibold line-clamp-1 text-sm sm:text-base">{title.title}</h3>
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="font-semibold line-clamp-1 text-sm sm:text-base flex-1">{title.title}</h3>
+            {userRating && userRating !== 'not_rated' && (
+              <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                userRating === 'love_it' ? 'bg-pink-500/20 text-pink-400' :
+                userRating === 'like_it' ? 'bg-green-500/20 text-green-400' :
+                userRating === 'ok' ? 'bg-yellow-500/20 text-yellow-400' :
+                'bg-red-500/20 text-red-400'
+              }`}>
+                {userRating === 'love_it' && <Heart className="h-3 w-3 fill-current" />}
+                {userRating === 'like_it' && <ThumbsUp className="h-3 w-3" />}
+                {userRating === 'ok' && <span>OK</span>}
+                {userRating === 'dislike_it' && <ThumbsDown className="h-3 w-3" />}
+              </div>
+            )}
+          </div>
           <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground flex-wrap">
             <span>{title.year}</span>
             {title.certification && (
