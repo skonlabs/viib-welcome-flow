@@ -117,12 +117,20 @@ serve(async (req) => {
     if (existingUser) {
       // User exists - this is a resume scenario
       console.log('Existing user found, resuming onboarding:', existingUser.id);
-      
+
       // Mark the OTP as verified
       await supabase
         .from('email_verifications')
         .update({ verified: true })
         .eq('id', verification.id);
+
+      // Invalidate all other unverified OTPs for this email (security best practice)
+      await supabase
+        .from('email_verifications')
+        .delete()
+        .eq('email', email)
+        .eq('verified', false)
+        .neq('id', verification.id);
 
       userId = existingUser.id;
     } else {
@@ -181,6 +189,14 @@ serve(async (req) => {
         .from('email_verifications')
         .update({ verified: true })
         .eq('id', verification.id);
+
+      // Invalidate all other unverified OTPs for this email (security best practice)
+      await supabase
+        .from('email_verifications')
+        .delete()
+        .eq('email', email)
+        .eq('verified', false)
+        .neq('id', verification.id);
 
       userId = newUser.id;
       console.log('New user created successfully:', userId);

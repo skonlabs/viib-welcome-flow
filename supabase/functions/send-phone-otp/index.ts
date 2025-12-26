@@ -75,7 +75,7 @@ serve(async (req) => {
   try {
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_ANON_KEY") ?? ""
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
     const { phoneNumber } = await req.json();
@@ -86,6 +86,38 @@ serve(async (req) => {
 
     // Normalize phone number - remove all spaces and keep only digits and +
     const normalizedPhone = phoneNumber.replace(/\s+/g, '');
+
+    // Get rate limit settings from app_settings
+    const { data: rateLimitSetting } = await supabaseClient
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'otp_rate_limit')
+      .single();
+
+    const rateLimit = rateLimitSetting?.value ? parseInt(rateLimitSetting.value, 10) : 5;
+    const rateLimitWindow = 15; // 15 minutes
+
+    // Check rate limit - count recent OTPs for this phone number
+    const windowStart = new Date(Date.now() - rateLimitWindow * 60 * 1000).toISOString();
+    const { count: recentOtpCount } = await supabaseClient
+      .from('phone_verifications')
+      .select('*', { count: 'exact', head: true })
+      .eq('phone_number', normalizedPhone)
+      .gte('created_at', windowStart);
+
+    if (recentOtpCount !== null && recentOtpCount >= rateLimit) {
+      console.log(`Rate limit exceeded for ${normalizedPhone}: ${recentOtpCount}/${rateLimit} in ${rateLimitWindow} minutes`);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: `Too many verification attempts. Please wait ${rateLimitWindow} minutes before trying again.`
+        }),
+        {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 429
+        }
+      );
+    }
 
     // ALWAYS use hardcoded OTP for testing to avoid SMS costs
     const otpCode = "111111";

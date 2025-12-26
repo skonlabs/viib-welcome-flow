@@ -25,6 +25,38 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // Get rate limit settings from app_settings
+    const { data: rateLimitSetting } = await supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'otp_rate_limit')
+      .single();
+
+    const rateLimit = rateLimitSetting?.value ? parseInt(rateLimitSetting.value, 10) : 5;
+    const rateLimitWindow = 15; // 15 minutes
+
+    // Check rate limit - count recent OTPs for this email
+    const windowStart = new Date(Date.now() - rateLimitWindow * 60 * 1000).toISOString();
+    const { count: recentOtpCount } = await supabase
+      .from('email_verifications')
+      .select('*', { count: 'exact', head: true })
+      .eq('email', email)
+      .gte('created_at', windowStart);
+
+    if (recentOtpCount !== null && recentOtpCount >= rateLimit) {
+      console.log(`Rate limit exceeded for ${email}: ${recentOtpCount}/${rateLimit} in ${rateLimitWindow} minutes`);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: `Too many verification attempts. Please wait ${rateLimitWindow} minutes before trying again.`
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 429,
+        }
+      );
+    }
+
     // Generate 6-digit OTP
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
     console.log('Generated OTP:', otpCode);

@@ -70,16 +70,35 @@ serve(async (req) => {
       );
     }
 
-    // DO NOT mark as verified here - let the calling code do it after user creation succeeds
-    // This prevents users from being stuck if user creation fails after OTP verification
-    
+    // Mark the current OTP as verified
+    const { error: updateError } = await supabaseClient
+      .from('phone_verifications')
+      .update({ verified: true })
+      .eq('id', verification.id);
+
+    if (updateError) {
+      console.error('Failed to mark OTP as verified:', updateError);
+    }
+
+    // Invalidate all other unverified OTPs for this phone number (security best practice)
+    const { error: invalidateError } = await supabaseClient
+      .from('phone_verifications')
+      .delete()
+      .eq('phone_number', normalizedPhone)
+      .eq('verified', false)
+      .neq('id', verification.id);
+
+    if (invalidateError) {
+      console.error('Failed to invalidate old OTPs:', invalidateError);
+    }
+
     console.log('Phone OTP validated successfully:', normalizedPhone);
 
     return new Response(
       JSON.stringify({
         success: true,
         message: "Phone number verified successfully",
-        verificationId: verification.id // Return the verification ID so caller can mark it verified
+        verificationId: verification.id
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
