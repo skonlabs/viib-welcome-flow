@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { MessageSquare, Bug, Lightbulb, CheckCircle } from '@/icons';
 import { z } from 'zod';
@@ -19,6 +20,7 @@ const feedbackSchema = z.object({
 type FeedbackType = 'support' | 'bug' | 'feature';
 
 export default function SendFeedback() {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<FeedbackType>('support');
   const [title, setTitle] = useState('');
   const [message, setMessage] = useState('');
@@ -45,7 +47,12 @@ export default function SendFeedback() {
     setIsSubmitting(true);
 
     try {
-      const userId = localStorage.getItem('viib_user_id');
+      // Use authenticated user ID - more secure than localStorage
+      const userId = user?.id;
+      if (!userId) {
+        toast.error('Please log in to submit feedback');
+        return;
+      }
 
       const { error } = await supabase
         .from('feedback')
@@ -61,20 +68,19 @@ export default function SendFeedback() {
 
       setSubmitted(true);
       toast.success('Feedback submitted successfully!');
-      
-      // Reset form after 3 seconds
-      setTimeout(() => {
-        setTitle('');
-        setMessage('');
-        setSubmitted(false);
-        setActiveTab('support');
-      }, 3000);
     } catch (error) {
       console.error('Error submitting feedback:', error);
       toast.error('Failed to submit feedback. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleSubmitAnother = () => {
+    setTitle('');
+    setMessage('');
+    setSubmitted(false);
+    setActiveTab('support');
   };
 
   if (submitted) {
@@ -90,6 +96,9 @@ export default function SendFeedback() {
               <p className="text-muted-foreground">
                 Your feedback has been submitted successfully. We'll review it and get back to you if needed.
               </p>
+              <Button onClick={handleSubmitAnother} variant="outline" className="mt-4">
+                Submit Another Feedback
+              </Button>
             </div>
           </CardContent>
         </Card>
