@@ -101,7 +101,28 @@ export function TitleCard({
       });
       
       if (error) throw error;
-      setExplanation(data as { reasons: string[]; scores: Record<string, number> });
+      
+      // Parse the response - it returns a JSONB object with reasons array and components
+      const parsed = data as {
+        reasons?: string[];
+        components?: Record<string, { value: number; weight: number }>;
+        final_score?: number;
+      };
+      
+      // Extract scores from components
+      const scores: Record<string, number> = {};
+      if (parsed.components) {
+        Object.entries(parsed.components).forEach(([key, val]) => {
+          if (val && typeof val.value === 'number') {
+            scores[key] = val.value;
+          }
+        });
+      }
+      
+      setExplanation({ 
+        reasons: parsed.reasons || ['Recommended based on your preferences.'], 
+        scores 
+      });
     } catch (err) {
       console.error('Failed to load explanation:', err);
       setExplanation({ reasons: ['Unable to load explanation'], scores: {} });
