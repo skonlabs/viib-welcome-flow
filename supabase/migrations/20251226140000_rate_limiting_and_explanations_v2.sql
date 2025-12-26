@@ -161,7 +161,7 @@ $$;
 -- ============================================================================
 
 -- Drop and recreate explain_recommendation with better explanations
-DROP FUNCTION IF EXISTS public.explain_recommendation(uuid, uuid);
+DROP FUNCTION IF EXISTS public.explain_recommendation(uuid, uuid) CASCADE;
 
 CREATE OR REPLACE FUNCTION public.explain_recommendation(p_user_id UUID, p_title_id UUID)
 RETURNS TABLE(
@@ -361,7 +361,7 @@ $$;
 -- ============================================================================
 
 -- Drop existing function if return type differs
-DROP FUNCTION IF EXISTS public.get_top_recommendations_v2(uuid, integer);
+DROP FUNCTION IF EXISTS public.get_top_recommendations_v2(uuid, integer) CASCADE;
 
 CREATE OR REPLACE FUNCTION public.get_top_recommendations_v2(p_user_id UUID, p_limit INTEGER DEFAULT 10)
 RETURNS TABLE(
