@@ -13,7 +13,7 @@ serve(async (req) => {
 
   try {
     const { email, otp, password, name } = await req.json();
-    console.log('Verifying OTP for email:', email);
+    console.log('Verifying email OTP');
 
     if (!email || !otp) {
       throw new Error('Email and OTP are required');
@@ -49,8 +49,8 @@ serve(async (req) => {
       .order('created_at', { ascending: false })
       .limit(5); // Get last 5 to see what's there
 
-    console.log('All verifications for', email, ':', JSON.stringify(verifications));
-    console.log('Fetch error:', fetchError);
+    // Debug logging removed - contained sensitive email data
+    if (fetchError) console.log('Verification fetch error:', fetchError);
 
     // Find the first unverified one
     const verification = verifications?.find(v => !v.verified);
@@ -116,13 +116,21 @@ serve(async (req) => {
 
     if (existingUser) {
       // User exists - this is a resume scenario
-      console.log('Existing user found, resuming onboarding:', existingUser.id);
-      
+      console.log('Existing user found, resuming onboarding');
+
       // Mark the OTP as verified
       await supabase
         .from('email_verifications')
         .update({ verified: true })
         .eq('id', verification.id);
+
+      // Invalidate all other unverified OTPs for this email (security best practice)
+      await supabase
+        .from('email_verifications')
+        .delete()
+        .eq('email', email)
+        .eq('verified', false)
+        .neq('id', verification.id);
 
       userId = existingUser.id;
     } else {
@@ -182,8 +190,16 @@ serve(async (req) => {
         .update({ verified: true })
         .eq('id', verification.id);
 
+      // Invalidate all other unverified OTPs for this email (security best practice)
+      await supabase
+        .from('email_verifications')
+        .delete()
+        .eq('email', email)
+        .eq('verified', false)
+        .neq('id', verification.id);
+
       userId = newUser.id;
-      console.log('New user created successfully:', userId);
+      console.log('New user created successfully');
     }
 
     return new Response(

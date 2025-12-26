@@ -1,10 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -15,20 +16,73 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { UserPlus, Check, X, Users } from "@/icons";
+import { UserPlus, Check, X, Users, Loader2 } from "@/icons";
 import { toast } from "sonner";
 import { InviteFriendDialog } from "@/components/InviteFriendDialog";
 import UserSocialGraph from "@/components/UserSocialGraph";
 
+const ACTIVITY_PAGE_SIZE = 20;
+
+interface UserInfo {
+  id: string;
+  full_name?: string;
+  username?: string;
+}
+
+interface EnrichedConnection {
+  id: string;
+  user_id: string;
+  friend_user_id: string;
+  relationship_type: string;
+  created_at: string;
+  friend_name: string;
+  friend_initials: string;
+}
+
+interface EnrichedActivity {
+  id: string;
+  sender_user_id: string;
+  title_id: string;
+  message?: string;
+  created_at: string;
+  sender_name: string;
+  sender_initials: string;
+}
+
 export default function Social() {
   const { user } = useAuth();
-  const [connections, setConnections] = useState<any[]>([]);
-  const [pendingReceived, setPendingReceived] = useState<any[]>([]);
-  const [activityFeed, setActivityFeed] = useState<any[]>([]);
+  const [connections, setConnections] = useState<EnrichedConnection[]>([]);
+  const [pendingReceived, setPendingReceived] = useState<EnrichedConnection[]>([]);
+  const [activityFeed, setActivityFeed] = useState<EnrichedActivity[]>([]);
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("feed");
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [requestToReject, setRequestToReject] = useState<string | null>(null);
+  const [loadingConnections, setLoadingConnections] = useState(true);
+  const [loadingActivity, setLoadingActivity] = useState(true);
+  const [activityPage, setActivityPage] = useState(1);
+  const [hasMoreActivity, setHasMoreActivity] = useState(true);
+  const [loadingMoreActivity, setLoadingMoreActivity] = useState(false);
+
+  // Helper to get user display name and initials
+  const getUserDisplayInfo = (userData: UserInfo | null, fallbackId: string) => {
+    if (userData?.full_name) {
+      return {
+        name: userData.full_name,
+        initials: userData.full_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+      };
+    }
+    if (userData?.username) {
+      return {
+        name: userData.username,
+        initials: userData.username.slice(0, 2).toUpperCase()
+      };
+    }
+    return {
+      name: 'User',
+      initials: fallbackId.slice(0, 2).toUpperCase()
+    };
+  };
 
   useEffect(() => {
     if (user) {
@@ -39,44 +93,141 @@ export default function Social() {
 
   const loadConnections = async () => {
     if (!user) return;
+    setLoadingConnections(true);
 
     try {
-      const { data: accepted, error: acceptedError } = await supabase
-        .from('friend_connections')
-        .select('*')
-        .eq('user_id', user.id);
+      // Fetch both connection types in parallel
+      const [acceptedResult, mutualResult] = await Promise.all([
+        supabase
+          .from('friend_connections')
+          .select('*')
+          .eq('user_id', user.id),
+        supabase
+          .from('friend_connections')
+          .select('*')
+          .eq('friend_user_id', user.id)
+      ]);
 
-      if (acceptedError) throw acceptedError;
-      setConnections(accepted || []);
+      if (acceptedResult.error) throw acceptedResult.error;
 
-      // Load mutual connections
-      const { data: mutual } = await supabase
-        .from('friend_connections')
-        .select('*')
-        .eq('friend_user_id', user.id);
+      const acceptedConnections = acceptedResult.data || [];
+      const pendingConnections = (mutualResult.data || []).filter(c => c.relationship_type === 'pending_invite');
 
-      setPendingReceived(mutual?.filter(c => c.relationship_type === 'pending_invite') || []);
+      // Get all unique user IDs to fetch names
+      const allUserIds = [
+        ...acceptedConnections.map(c => c.friend_user_id),
+        ...pendingConnections.map(c => c.user_id)
+      ];
+      const uniqueUserIds = [...new Set(allUserIds)];
+
+      // Fetch user info for all connections
+      let userMap = new Map<string, UserInfo>();
+      if (uniqueUserIds.length > 0) {
+        const { data: usersData } = await supabase
+          .from('users')
+          .select('id, full_name, username')
+          .in('id', uniqueUserIds);
+
+        userMap = new Map((usersData || []).map(u => [u.id, u]));
+      }
+
+      // Enrich accepted connections with friend names
+      const enrichedAccepted: EnrichedConnection[] = acceptedConnections.map(conn => {
+        const friendInfo = getUserDisplayInfo(userMap.get(conn.friend_user_id) || null, conn.friend_user_id);
+        return {
+          ...conn,
+          friend_name: friendInfo.name,
+          friend_initials: friendInfo.initials
+        };
+      });
+
+      // Enrich pending connections with sender names
+      const enrichedPending: EnrichedConnection[] = pendingConnections.map(conn => {
+        const senderInfo = getUserDisplayInfo(userMap.get(conn.user_id) || null, conn.user_id);
+        return {
+          ...conn,
+          friend_name: senderInfo.name,
+          friend_initials: senderInfo.initials
+        };
+      });
+
+      setConnections(enrichedAccepted);
+      setPendingReceived(enrichedPending);
     } catch (error) {
       console.error('Failed to load connections:', error);
       toast.error("Failed to load connections");
+    } finally {
+      setLoadingConnections(false);
     }
   };
 
-  const loadActivityFeed = async () => {
+  const loadActivityFeed = async (reset = true) => {
     if (!user) return;
+    if (reset) {
+      setLoadingActivity(true);
+      setActivityPage(1);
+    } else {
+      setLoadingMoreActivity(true);
+    }
 
     try {
-      const { data } = await supabase
+      const page = reset ? 1 : activityPage;
+      const { data, error } = await supabase
         .from('user_social_recommendations')
         .select('*')
         .eq('receiver_user_id', user.id)
         .order('created_at', { ascending: false })
-        .limit(20);
+        .range((page - 1) * ACTIVITY_PAGE_SIZE, page * ACTIVITY_PAGE_SIZE - 1);
 
-      setActivityFeed(data || []);
+      if (error) throw error;
+
+      const activities = data || [];
+
+      // Get sender user info
+      const senderIds = [...new Set(activities.map(a => a.sender_user_id))];
+      let userMap = new Map<string, UserInfo>();
+
+      if (senderIds.length > 0) {
+        const { data: usersData } = await supabase
+          .from('users')
+          .select('id, full_name, username')
+          .in('id', senderIds);
+
+        userMap = new Map((usersData || []).map(u => [u.id, u]));
+      }
+
+      // Enrich activities with sender names
+      const enrichedActivities: EnrichedActivity[] = activities.map(activity => {
+        const senderInfo = getUserDisplayInfo(userMap.get(activity.sender_user_id) || null, activity.sender_user_id);
+        return {
+          ...activity,
+          sender_name: senderInfo.name,
+          sender_initials: senderInfo.initials
+        };
+      });
+
+      if (reset) {
+        setActivityFeed(enrichedActivities);
+      } else {
+        setActivityFeed(prev => [...prev, ...enrichedActivities]);
+      }
+
+      setHasMoreActivity(activities.length >= ACTIVITY_PAGE_SIZE);
+      if (!reset) {
+        setActivityPage(page + 1);
+      }
     } catch (error) {
       console.error('Failed to load activity feed:', error);
       toast.error("Failed to load activity");
+    } finally {
+      setLoadingActivity(false);
+      setLoadingMoreActivity(false);
+    }
+  };
+
+  const loadMoreActivity = () => {
+    if (!loadingMoreActivity && hasMoreActivity) {
+      loadActivityFeed(false);
     }
   };
 
@@ -160,7 +311,24 @@ export default function Social() {
           </TabsList>
 
           <TabsContent value="feed" className="space-y-4">
-            {activityFeed.length === 0 ? (
+            {loadingActivity ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map(i => (
+                  <Card key={i}>
+                    <CardContent className="p-4">
+                      <div className="flex items-start gap-3">
+                        <Skeleton className="h-10 w-10 rounded-full" />
+                        <div className="flex-1 space-y-2">
+                          <Skeleton className="h-4 w-48" />
+                          <Skeleton className="h-3 w-64" />
+                          <Skeleton className="h-3 w-24" />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : activityFeed.length === 0 ? (
               <Card className="p-12 text-center">
                 <Users className="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-50" />
                 <h3 className="text-lg font-semibold mb-2">No activity yet</h3>
@@ -174,11 +342,11 @@ export default function Social() {
                       <div className="flex items-start gap-3">
                         <Avatar>
                           <AvatarFallback>
-                            {activity.sender_user_id ? activity.sender_user_id.substring(0, 2).toUpperCase() : '??'}
+                            {activity.sender_initials}
                           </AvatarFallback>
                         </Avatar>
                         <div className="flex-1">
-                          <p className="font-medium">Friend recommended a title</p>
+                          <p className="font-medium">{activity.sender_name} recommended a title</p>
                           <p className="text-sm text-muted-foreground">{activity.message || 'Check this out!'}</p>
                           <p className="text-xs text-muted-foreground mt-1">
                             {new Date(activity.created_at).toLocaleDateString()}
@@ -188,12 +356,49 @@ export default function Social() {
                     </CardContent>
                   </Card>
                 ))}
+                {hasMoreActivity && (
+                  <div className="flex justify-center pt-2">
+                    <Button
+                      variant="outline"
+                      onClick={loadMoreActivity}
+                      disabled={loadingMoreActivity}
+                    >
+                      {loadingMoreActivity ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Loading...
+                        </>
+                      ) : (
+                        'Load More'
+                      )}
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
           </TabsContent>
 
           <TabsContent value="connections" className="space-y-4">
-            {connections.length === 0 ? (
+            {loadingConnections ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map(i => (
+                  <Card key={i}>
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <Skeleton className="h-10 w-10 rounded-full" />
+                          <div className="space-y-2">
+                            <Skeleton className="h-4 w-32" />
+                            <Skeleton className="h-3 w-24" />
+                          </div>
+                        </div>
+                        <Skeleton className="h-8 w-20" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : connections.length === 0 ? (
               <Card className="p-12 text-center">
                 <Users className="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-50" />
                 <h3 className="text-lg font-semibold mb-2">No connections yet</h3>
@@ -212,11 +417,11 @@ export default function Social() {
                         <div className="flex items-center gap-3">
                           <Avatar>
                             <AvatarFallback>
-                              {connection.friend_user_id.substring(0, 2).toUpperCase()}
+                              {connection.friend_initials}
                             </AvatarFallback>
                           </Avatar>
                           <div>
-                            <p className="font-medium">Friend</p>
+                            <p className="font-medium">{connection.friend_name}</p>
                             <p className="text-sm text-muted-foreground">
                               Connected {new Date(connection.created_at).toLocaleDateString()}
                             </p>
@@ -238,7 +443,29 @@ export default function Social() {
           </TabsContent>
 
           <TabsContent value="requests" className="space-y-4">
-            {pendingReceived.length === 0 ? (
+            {loadingConnections ? (
+              <div className="space-y-3">
+                {[1, 2].map(i => (
+                  <Card key={i}>
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <Skeleton className="h-10 w-10 rounded-full" />
+                          <div className="space-y-2">
+                            <Skeleton className="h-4 w-32" />
+                            <Skeleton className="h-3 w-24" />
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Skeleton className="h-8 w-20" />
+                          <Skeleton className="h-8 w-20" />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : pendingReceived.length === 0 ? (
               <Card className="p-12 text-center">
                 <UserPlus className="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-50" />
                 <h3 className="text-lg font-semibold mb-2">No pending requests</h3>
@@ -253,11 +480,11 @@ export default function Social() {
                         <div className="flex items-center gap-3">
                           <Avatar>
                             <AvatarFallback>
-                              {request.user_id.substring(0, 2).toUpperCase()}
+                              {request.friend_initials}
                             </AvatarFallback>
                           </Avatar>
                           <div>
-                            <p className="font-medium">Friend Request</p>
+                            <p className="font-medium">{request.friend_name}</p>
                             <p className="text-sm text-muted-foreground">Sent {new Date(request.created_at).toLocaleDateString()}</p>
                           </div>
                         </div>

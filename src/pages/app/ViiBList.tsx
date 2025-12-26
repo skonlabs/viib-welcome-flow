@@ -103,6 +103,27 @@ export default function ViiBList() {
     }
   }, [selectedList]);
 
+  // Helper function to batch fetch list stats using RPC
+  const fetchListStats = async (listIds: string[]) => {
+    if (listIds.length === 0) return new Map();
+
+    const { data: statsData } = await supabase.rpc('get_vibe_list_stats', {
+      p_list_ids: listIds
+    });
+
+    const statsMap = new Map<string, { itemCount: number; viewCount: number; followerCount: number }>();
+    if (statsData) {
+      statsData.forEach((stat: any) => {
+        statsMap.set(stat.list_id, {
+          itemCount: Number(stat.item_count) || 0,
+          viewCount: Number(stat.view_count) || 0,
+          followerCount: Number(stat.follower_count) || 0
+        });
+      });
+    }
+    return statsMap;
+  };
+
   const loadLists = async () => {
     if (!user) return;
 
@@ -117,32 +138,16 @@ export default function ViiBList() {
       return;
     }
 
-    // Get item counts, view counts, and follower counts for each list
-    const listsWithCounts = await Promise.all(
-      listsData.map(async (list) => {
-        const { count: itemCount } = await supabase
-          .from('vibe_list_items')
-          .select('*', { count: 'exact', head: true })
-          .eq('vibe_list_id', list.id);
+    // Batch fetch all counts using RPC function
+    const listIds = listsData.map(list => list.id);
+    const statsMap = await fetchListStats(listIds);
 
-        const { count: viewCount } = await supabase
-          .from('vibe_list_views')
-          .select('*', { count: 'exact', head: true })
-          .eq('vibe_list_id', list.id);
-
-        const { count: followerCount } = await supabase
-          .from('vibe_list_followers')
-          .select('*', { count: 'exact', head: true })
-          .eq('vibe_list_id', list.id);
-
-        return {
-          ...list,
-          itemCount: itemCount || 0,
-          viewCount: viewCount || 0,
-          followerCount: followerCount || 0
-        };
-      })
-    );
+    const listsWithCounts = listsData.map(list => ({
+      ...list,
+      itemCount: statsMap.get(list.id)?.itemCount || 0,
+      viewCount: statsMap.get(list.id)?.viewCount || 0,
+      followerCount: statsMap.get(list.id)?.followerCount || 0
+    }));
 
     setLists(listsWithCounts);
   };
@@ -158,15 +163,50 @@ export default function ViiBList() {
       return;
     }
 
-    const mockTitles = data.map(item => ({
-      external_id: item.title_id,
-      title: `Title ${item.title_id.substring(0, 8)}`,
-      type: 'movie' as const,
-      year: 2024,
-      poster_path: null
-    }));
+    // Get the title IDs
+    const titleIds = data.map(item => item.title_id);
 
-    setListTitles(mockTitles);
+    // Fetch actual title data from titles table
+    const { data: titlesData } = await supabase
+      .from('titles')
+      .select('id, name, title_type, poster_path, release_date, first_air_date, tmdb_id, overview, runtime')
+      .in('id', titleIds);
+
+    const titlesMap = new Map((titlesData || []).map(t => [t.id, t]));
+
+    // Map list items to enriched title data
+    const enrichedTitles = data.map(item => {
+      const titleData = titlesMap.get(item.title_id);
+      if (titleData) {
+        const releaseYear = titleData.release_date
+          ? new Date(titleData.release_date).getFullYear()
+          : titleData.first_air_date
+            ? new Date(titleData.first_air_date).getFullYear()
+            : undefined;
+
+        return {
+          external_id: item.title_id,
+          tmdb_id: titleData.tmdb_id,
+          title: titleData.name || 'Unknown Title',
+          type: titleData.title_type === 'tv' ? 'series' as const : 'movie' as const,
+          year: releaseYear,
+          poster_url: titleData.poster_path
+            ? `https://image.tmdb.org/t/p/w500${titleData.poster_path}`
+            : undefined,
+          overview: titleData.overview,
+          runtime_minutes: titleData.runtime
+        };
+      }
+      return {
+        external_id: item.title_id,
+        title: 'Unknown Title',
+        type: 'movie' as const,
+        year: undefined,
+        poster_url: undefined
+      };
+    });
+
+    setListTitles(enrichedTitles);
   };
 
   const loadPublicLists = async () => {
@@ -183,31 +223,16 @@ export default function ViiBList() {
       return;
     }
 
-    const listsWithCounts = await Promise.all(
-      listsData.map(async (list) => {
-        const { count: itemCount } = await supabase
-          .from('vibe_list_items')
-          .select('*', { count: 'exact', head: true })
-          .eq('vibe_list_id', list.id);
+    // Batch fetch all counts using RPC function
+    const listIds = listsData.map(list => list.id);
+    const statsMap = await fetchListStats(listIds);
 
-        const { count: viewCount } = await supabase
-          .from('vibe_list_views')
-          .select('*', { count: 'exact', head: true })
-          .eq('vibe_list_id', list.id);
-
-        const { count: followerCount } = await supabase
-          .from('vibe_list_followers')
-          .select('*', { count: 'exact', head: true })
-          .eq('vibe_list_id', list.id);
-
-        return {
-          ...list,
-          itemCount: itemCount || 0,
-          viewCount: viewCount || 0,
-          followerCount: followerCount || 0
-        };
-      })
-    );
+    const listsWithCounts = listsData.map(list => ({
+      ...list,
+      itemCount: statsMap.get(list.id)?.itemCount || 0,
+      viewCount: statsMap.get(list.id)?.viewCount || 0,
+      followerCount: statsMap.get(list.id)?.followerCount || 0
+    }));
 
     setPublicLists(listsWithCounts);
   };
@@ -238,31 +263,15 @@ export default function ViiBList() {
       return;
     }
 
-    const listsWithCounts = await Promise.all(
-      listsData.map(async (list) => {
-        const { count: itemCount } = await supabase
-          .from('vibe_list_items')
-          .select('*', { count: 'exact', head: true })
-          .eq('vibe_list_id', list.id);
+    // Batch fetch all counts using RPC function
+    const statsMap = await fetchListStats(listIds);
 
-        const { count: viewCount } = await supabase
-          .from('vibe_list_views')
-          .select('*', { count: 'exact', head: true })
-          .eq('vibe_list_id', list.id);
-
-        const { count: followerCount } = await supabase
-          .from('vibe_list_followers')
-          .select('*', { count: 'exact', head: true })
-          .eq('vibe_list_id', list.id);
-
-        return {
-          ...list,
-          itemCount: itemCount || 0,
-          viewCount: viewCount || 0,
-          followerCount: followerCount || 0
-        };
-      })
-    );
+    const listsWithCounts = listsData.map(list => ({
+      ...list,
+      itemCount: statsMap.get(list.id)?.itemCount || 0,
+      viewCount: statsMap.get(list.id)?.viewCount || 0,
+      followerCount: statsMap.get(list.id)?.followerCount || 0
+    }));
 
     setSharedWithMeLists(listsWithCounts);
   };

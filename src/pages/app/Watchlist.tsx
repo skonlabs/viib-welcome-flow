@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { TitleCard } from "@/components/TitleCard";
 import { RatingDialog } from "@/components/RatingDialog";
 import { WatchlistStats } from "@/components/WatchlistStats";
@@ -12,6 +12,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { TitleDetailsModal } from "@/components/TitleDetailsModal";
 import { RecommendTitleDialog } from "@/components/RecommendTitleDialog";
+
+const DEFAULT_RUNTIME_MINUTES = 120; // Default runtime if not available
+const ITEMS_PER_PAGE = 20;
 import {
   AlertDialog,
   AlertDialogAction,
@@ -283,22 +286,36 @@ export default function Watchlist() {
     if (!user) return;
 
     try {
+      // Get watched items with their title IDs
       const { data: watchedItems } = await supabase
         .from('user_title_interactions')
-        .select('watch_duration_percentage, rating_value')
+        .select('title_id, watch_duration_percentage, rating_value')
         .eq('user_id', user.id)
         .eq('interaction_type', 'completed');
 
       if (watchedItems && watchedItems.length > 0) {
-        const totalTime = watchedItems.reduce((sum, item) => 
-          sum + (item.watch_duration_percentage || 0) * 120, 0
-        );
-        setTotalWatchTime(Math.round(totalTime / 60));
+        // Get actual runtimes for the titles
+        const titleIds = [...new Set(watchedItems.map(i => i.title_id))];
+        const { data: titlesData } = await supabase
+          .from('titles')
+          .select('id, runtime')
+          .in('id', titleIds);
 
+        const runtimeMap = new Map((titlesData || []).map(t => [t.id, t.runtime || DEFAULT_RUNTIME_MINUTES]));
+
+        // Calculate total watch time using actual runtimes
+        const totalTime = watchedItems.reduce((sum, item) => {
+          const runtime = runtimeMap.get(item.title_id) || DEFAULT_RUNTIME_MINUTES;
+          const percentage = item.watch_duration_percentage || 1; // Default to 100% if not set
+          return sum + (runtime * percentage);
+        }, 0);
+        setTotalWatchTime(Math.round(totalTime / 60)); // Convert to hours
+
+        // Calculate average rating
         const ratings = watchedItems
           .map(item => item.rating_value === 'love_it' ? 5 : item.rating_value === 'like_it' ? 4 : item.rating_value === 'ok' ? 3 : 2)
           .filter(r => r > 0);
-        
+
         if (ratings.length > 0) {
           setAvgRating(ratings.reduce((a, b) => a + b, 0) / ratings.length);
         }
@@ -450,15 +467,23 @@ export default function Watchlist() {
     }
   };
 
-  const sortTitles = (titles: EnrichedTitle[]) => {
+  const sortTitles = useCallback((titles: EnrichedTitle[]) => {
     const sorted = [...titles];
     if (sortBy === "date") {
       sorted.sort((a, b) => new Date(b.added_at).getTime() - new Date(a.added_at).getTime());
     } else if (sortBy === "alpha") {
       sorted.sort((a, b) => a.title.localeCompare(b.title));
+    } else if (sortBy === "rating") {
+      const ratingOrder = { 'love_it': 4, 'like_it': 3, 'ok': 2, 'dislike_it': 1, 'not_rated': 0, null: 0 };
+      sorted.sort((a, b) => (ratingOrder[b.rating_value || null] || 0) - (ratingOrder[a.rating_value || null] || 0));
     }
     return sorted;
-  };
+  }, [sortBy]);
+
+  // Memoized sorted lists
+  const sortedPendingTitles = useMemo(() => sortTitles(pendingTitles), [pendingTitles, sortTitles]);
+  const sortedWatchedTitles = useMemo(() => sortTitles(watchedTitles), [watchedTitles, sortTitles]);
+  const sortedRecommendedTitles = useMemo(() => sortTitles(recommendedTitles), [recommendedTitles, sortTitles]);
 
   return (
     <div className="bg-gradient-to-br from-background to-accent/10 min-h-screen">
@@ -523,7 +548,7 @@ export default function Watchlist() {
               </Card>
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
-                {sortTitles(pendingTitles).map((item) => (
+                {sortedPendingTitles.map((item) => (
                   <TitleCard
                     key={item.id}
                     title={item}
@@ -558,7 +583,7 @@ export default function Watchlist() {
               </Card>
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
-                {sortTitles(watchedTitles).map((item) => (
+                {sortedWatchedTitles.map((item) => (
                   <TitleCard
                     key={item.id}
                     title={item}
@@ -594,7 +619,7 @@ export default function Watchlist() {
               </Card>
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
-                {sortTitles(recommendedTitles).map((item) => (
+                {sortedRecommendedTitles.map((item) => (
                   <TitleCard
                     key={item.id}
                     title={item}

@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, ArrowRight } from "@/icons";
+import { Check, ArrowRight, AlertCircle, RefreshCw } from "@/icons";
 import { BackButton } from "./BackButton";
 import { FloatingParticles } from "./FloatingParticles";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface StreamingPlatformsScreenProps {
   onContinue: (platforms: string[]) => void;
@@ -33,6 +34,7 @@ export const StreamingPlatformsScreen = ({ onContinue, onBack, initialPlatforms 
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(initialPlatforms);
   const [platforms, setPlatforms] = useState<StreamingService[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchStreamingServices();
@@ -44,19 +46,33 @@ export const StreamingPlatformsScreen = ({ onContinue, onBack, initialPlatforms 
   }, [initialPlatforms]);
 
   const fetchStreamingServices = async () => {
-    const { data, error } = await supabase
-      .from('streaming_services')
-      .select('id, service_name, logo_url')
-      .eq('is_active', true)
-      .order('service_name');
+    setLoading(true);
+    setError(null);
 
-    if (!error && data) {
-      setPlatforms(data.map(s => ({
-        ...s,
-        color: SERVICE_COLORS[s.service_name] || '#6B7280'
-      })));
+    try {
+      const { data, error: fetchError } = await supabase
+        .from('streaming_services')
+        .select('id, service_name, logo_url')
+        .eq('is_active', true)
+        .order('service_name');
+
+      if (fetchError) {
+        throw fetchError;
+      }
+
+      if (data) {
+        setPlatforms(data.map(s => ({
+          ...s,
+          color: SERVICE_COLORS[s.service_name] || '#6B7280'
+        })));
+      }
+    } catch (err) {
+      console.error('Failed to fetch streaming services:', err);
+      setError('Unable to load streaming platforms. Please try again.');
+      toast.error('Failed to load streaming platforms');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const togglePlatform = (platformId: string) => {
@@ -157,6 +173,21 @@ export const StreamingPlatformsScreen = ({ onContinue, onBack, initialPlatforms 
           >
             {loading ? (
               <div className="col-span-full text-center text-muted-foreground">Loading platforms...</div>
+            ) : error ? (
+              <div className="col-span-full text-center space-y-4">
+                <div className="flex items-center justify-center gap-2 text-red-400">
+                  <AlertCircle className="w-5 h-5" />
+                  <span>{error}</span>
+                </div>
+                <Button
+                  variant="outline"
+                  onClick={fetchStreamingServices}
+                  className="mx-auto"
+                >
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Retry
+                </Button>
+              </div>
             ) : (
               platforms.map((platform, index) => {
                 const isSelected = selectedPlatforms.includes(platform.id);

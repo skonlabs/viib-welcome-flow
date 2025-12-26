@@ -58,6 +58,17 @@ export function AddTitlesToListDialog({ open, onOpenChange, listId, onTitlesAdde
     if (!user) return;
 
     try {
+      // Verify ownership before adding
+      const { data: isOwner } = await supabase.rpc('check_list_ownership', {
+        p_list_id: listId,
+        p_user_id: user.id
+      });
+
+      if (!isOwner) {
+        toast.error('You do not have permission to modify this list');
+        return;
+      }
+
       const { error } = await supabase
         .from('vibe_list_items')
         .insert({
@@ -76,7 +87,7 @@ export function AddTitlesToListDialog({ open, onOpenChange, listId, onTitlesAdde
 
       toast.success('Title added to list');
       onTitlesAdded();
-      
+
       setSearchResults(prev => prev.filter(t => t.external_id !== title.external_id));
     } catch (error) {
       await errorLogger.log(error, {

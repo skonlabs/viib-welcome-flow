@@ -66,73 +66,41 @@ export default function Onboarding() {
     const loadSavedData = async () => {
       const userId = localStorage.getItem('viib_user_id');
       if (!userId) return;
-      
+
       try {
-        // Fetch user data
-        const { data: userData } = await supabase
-          .from('users')
-          .select('full_name, phone_number, email')
-          .eq('id', userId)
-          .single();
-        
-        // Fetch vibe preference
-        const { data: vibeData } = await supabase
-          .from('user_vibe_preferences')
-          .select('vibe_type')
-          .eq('user_id', userId)
-          .maybeSingle();
-        
-        // Fetch mood/emotion state
-        const { data: emotionData } = await supabase
-          .from('user_emotion_states')
-          .select('intensity, emotion_master(emotion_label)')
-          .eq('user_id', userId)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        
-        if (userData) {
-          // Fetch platforms - use service IDs directly
-          const { data: platformsData } = await supabase
+        // Batch all queries in parallel for better performance
+        const [userResult, vibeResult, platformsResult, languagesResult] = await Promise.all([
+          supabase
+            .from('users')
+            .select('full_name, phone_number, email')
+            .eq('id', userId)
+            .single(),
+          supabase
+            .from('user_vibe_preferences')
+            .select('vibe_type')
+            .eq('user_id', userId)
+            .maybeSingle(),
+          supabase
             .from('user_streaming_subscriptions')
             .select('streaming_service_id')
             .eq('user_id', userId)
-            .eq('is_active', true);
-          
-          // Fetch languages
-          const { data: languagesData } = await supabase
+            .eq('is_active', true),
+          supabase
             .from('user_language_preferences')
             .select('language_code')
             .eq('user_id', userId)
-            .order('priority_order');
+            .order('priority_order'),
+        ]);
 
-          // Map emotion back to energy/positivity values
-          let moodData = { energy: 50, positivity: 50 }; // Default
-          if (emotionData) {
-            const emotionLabel = (emotionData.emotion_master as any)?.emotion_label;
-            
-            // Reverse the mapping from handleMood
-            switch (emotionLabel) {
-              case 'excited':
-                moodData = { energy: 75, positivity: 75 };
-                break;
-              case 'calm':
-                moodData = { energy: 25, positivity: 75 };
-                break;
-              case 'stressed':
-                moodData = { energy: 75, positivity: 25 };
-                break;
-              case 'sad':
-                moodData = { energy: 25, positivity: 25 };
-                break;
-              case 'hopeful':
-                moodData = { energy: 50, positivity: 50 };
-                break;
-              default:
-                moodData = { energy: 50, positivity: 50 };
-            }
-          }
+        const userData = userResult.data;
+        const vibeData = vibeResult.data;
+        const platformsData = platformsResult.data;
+        const languagesData = languagesResult.data;
 
+        // Note: Mood data is loaded directly by MoodCalibrationScreen from user_emotion_states
+        // No need to reverse-map here as the component handles its own restoration
+
+        if (userData) {
           setOnboardingData(prev => ({
             ...prev,
             name: userData.full_name || '',
@@ -141,14 +109,13 @@ export default function Onboarding() {
             email: userData.email || '',
             platforms: platformsData?.map(p => p.streaming_service_id) || [],
             languages: languagesData?.map(l => l.language_code) || [],
-            mood: moodData,
           }));
         }
       } catch (error) {
         console.error('Error loading saved data:', error);
       }
     };
-    
+
     loadSavedData();
   }, []);
   
@@ -299,26 +266,7 @@ export default function Onboarding() {
     
     // New user - create user record in database AFTER successful OTP verification
     try {
-      // Capture IP address and country
-      let ipAddress = 'unknown';
-      let ipCountry = 'Unknown';
-      try {
-        const ipResponse = await fetch('https://api.ipify.org?format=json');
-        if (ipResponse.ok) {
-          const ipData = await ipResponse.json();
-          ipAddress = ipData.ip;
-          
-          // Get country from IP
-          const geoResponse = await fetch(`https://ipapi.co/${ipAddress}/json/`);
-          if (geoResponse.ok) {
-            const geoData = await geoResponse.json();
-            ipCountry = geoData.country_name || 'Unknown';
-          }
-        }
-      } catch (ipError) {
-        console.error('Failed to fetch IP/geo data:', ipError);
-      }
-
+      // Create user immediately without waiting for IP lookup
       const { data: insertedUser, error } = await supabase
         .from('users')
         .insert({
@@ -328,21 +276,21 @@ export default function Onboarding() {
           is_age_over_18: true,
           onboarding_completed: false,
           is_active: false,
-          ip_address: ipAddress,
-          ip_country: ipCountry,
+          ip_address: 'pending',
+          ip_country: 'pending',
         })
         .select()
         .single();
-      
+
       if (error && error.code !== '23505') {
         console.error('Error creating user record:', error);
         throw error;
       }
 
       if (insertedUser) {
-        console.log('User record created successfully:', insertedUser.id);
+        console.log('User record created successfully');
         localStorage.setItem('viib_user_id', insertedUser.id);
-        
+
         // NOW mark the phone verification as complete in the database
         // This must happen AFTER user creation succeeds to prevent retry issues
         await supabase
@@ -351,6 +299,44 @@ export default function Onboarding() {
           .eq('phone_number', fullPhone)
           .eq('otp_code', otp)
           .eq('verified', false);
+
+        // Fetch IP and geo data asynchronously (non-blocking)
+        // This runs in the background and updates the user record when complete
+        (async () => {
+          try {
+            const ipResponse = await fetch('https://api.ipify.org?format=json', {
+              signal: AbortSignal.timeout(5000)
+            });
+            if (!ipResponse.ok) return;
+
+            const ipData = await ipResponse.json();
+            const ipAddress = ipData.ip;
+
+            // Get country from IP
+            let ipCountry = 'Unknown';
+            try {
+              const geoResponse = await fetch(`https://ipapi.co/${ipAddress}/json/`, {
+                signal: AbortSignal.timeout(5000)
+              });
+              if (geoResponse.ok) {
+                const geoData = await geoResponse.json();
+                ipCountry = geoData.country_name || 'Unknown';
+              }
+            } catch (geoError) {
+              console.error('Failed to fetch geo data:', geoError);
+            }
+
+            // Update user with IP data
+            await supabase
+              .from('users')
+              .update({ ip_address: ipAddress, ip_country: ipCountry })
+              .eq('id', insertedUser.id);
+
+            console.log('IP/geo data updated for user');
+          } catch (ipError) {
+            console.error('Failed to fetch IP data:', ipError);
+          }
+        })();
       }
     } catch (error) {
       console.error('Error in handleOTPVerify:', error);

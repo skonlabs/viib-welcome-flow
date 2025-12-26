@@ -75,7 +75,7 @@ serve(async (req) => {
   try {
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_ANON_KEY") ?? ""
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
     const { phoneNumber } = await req.json();
@@ -87,8 +87,42 @@ serve(async (req) => {
     // Normalize phone number - remove all spaces and keep only digits and +
     const normalizedPhone = phoneNumber.replace(/\s+/g, '');
 
-    // ALWAYS use hardcoded OTP for testing to avoid SMS costs
-    const otpCode = "111111";
+    // Get rate limit settings from app_settings
+    const [rateLimitResult, windowResult] = await Promise.all([
+      supabaseClient.from('app_settings').select('value').eq('key', 'otp_rate_limit').single(),
+      supabaseClient.from('app_settings').select('value').eq('key', 'otp_rate_limit_window').single(),
+    ]);
+
+    const rateLimit = rateLimitResult.data?.value ? parseInt(rateLimitResult.data.value, 10) : 5;
+    const rateLimitWindow = windowResult.data?.value ? parseInt(windowResult.data.value, 10) : 15;
+
+    // Check rate limit - count recent OTPs for this phone number
+    const windowStart = new Date(Date.now() - rateLimitWindow * 60 * 1000).toISOString();
+    const { count: recentOtpCount } = await supabaseClient
+      .from('phone_verifications')
+      .select('*', { count: 'exact', head: true })
+      .eq('phone_number', normalizedPhone)
+      .gte('created_at', windowStart);
+
+    if (recentOtpCount !== null && recentOtpCount >= rateLimit) {
+      console.log(`Rate limit exceeded for ${normalizedPhone}: ${recentOtpCount}/${rateLimit} in ${rateLimitWindow} minutes`);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: `Too many verification attempts. Please wait ${rateLimitWindow} minutes before trying again.`
+        }),
+        {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 429
+        }
+      );
+    }
+
+    // Check if this is a test phone number (for development/testing only)
+    const isTestNumber = isTestPhoneNumber(normalizedPhone);
+
+    // Generate OTP - use test code for test numbers, random for production
+    const otpCode = isTestNumber ? "111111" : generateOTP();
 
     // Set expiry to 5 minutes from now
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
@@ -108,13 +142,23 @@ serve(async (req) => {
       throw new Error('Failed to create verification request');
     }
 
-    // SMS sending disabled - using hardcoded OTP for all numbers during testing
-    console.log('TEST MODE: OTP hardcoded as 111111 for', normalizedPhone);
+    // Send SMS for real phone numbers
+    if (!isTestNumber) {
+      const smsMessage = `Your ViiB verification code is: ${otpCode}. Valid for 5 minutes.`;
+      const smsSent = await sendTwilioSMS(normalizedPhone, smsMessage);
+
+      if (!smsSent) {
+        // Log warning but don't fail - OTP is still stored in database
+        console.warn('SMS delivery failed for', normalizedPhone.substring(0, 6) + '***');
+      }
+    } else {
+      console.log('Test phone number detected, skipping SMS');
+    }
 
     return new Response(
       JSON.stringify({
         success: true,
-        message: "Verification code sent successfully (TEST MODE: Use 111111)"
+        message: "Verification code sent successfully"
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },

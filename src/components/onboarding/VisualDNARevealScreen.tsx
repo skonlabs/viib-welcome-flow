@@ -84,24 +84,46 @@ export const VisualDNARevealScreen = ({ selections, onContinue, onBack }: Visual
             </p>
           </motion.div>
 
-          {/* Mosaic Grid */}
+          {/* Mosaic Grid - Show actual selections */}
           <motion.div
             className="grid grid-cols-3 gap-4 max-w-3xl mx-auto"
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.6, type: "spring", stiffness: 100 }}
           >
-            {selections.slice(0, 3).map((_, index) => (
+            {selections.slice(0, 3).map((selection, index) => (
               <motion.div
-                key={index}
-                className="aspect-video rounded-2xl bg-gradient-to-br from-primary/20 to-accent/20 border border-white/10"
+                key={selection || index}
+                className="aspect-video rounded-2xl bg-gradient-to-br from-primary/20 to-accent/20 border border-white/10 overflow-hidden"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.8 + index * 0.1 }}
                 whileHover={{ scale: 1.05 }}
               >
-                <div className="w-full h-full flex items-center justify-center text-4xl">
-                  {["🎬", "✨", "🎭"][index]}
+                <div className="w-full h-full flex items-center justify-center p-2">
+                  {selection ? (
+                    <span className="text-sm font-medium text-center text-white/80 truncate">
+                      {selection}
+                    </span>
+                  ) : (
+                    <span className="text-4xl">
+                      {["🎬", "✨", "🎭"][index]}
+                    </span>
+                  )}
+                </div>
+              </motion.div>
+            ))}
+            {/* Fill remaining slots with placeholder if less than 3 selections */}
+            {selections.length < 3 && [...Array(3 - Math.min(selections.length, 3))].map((_, index) => (
+              <motion.div
+                key={`placeholder-${index}`}
+                className="aspect-video rounded-2xl bg-gradient-to-br from-primary/10 to-accent/10 border border-white/5"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 0.5, y: 0 }}
+                transition={{ delay: 0.8 + (selections.length + index) * 0.1 }}
+              >
+                <div className="w-full h-full flex items-center justify-center text-4xl opacity-30">
+                  {["🎬", "✨", "🎭"][selections.length + index]}
                 </div>
               </motion.div>
             ))}

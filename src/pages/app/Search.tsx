@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { TitleCard } from "@/components/TitleCard";
 import { RatingDialog } from "@/components/RatingDialog";
 import { Input } from "@/components/ui/input";
@@ -75,64 +75,76 @@ export default function Search() {
     };
   }, []);
 
-  // Infinite scroll observer
+  // Store loadMoreResults in a ref to avoid recreating observer
+  const loadMoreCallbackRef = useRef(loadMoreResults);
+  loadMoreCallbackRef.current = loadMoreResults;
+
+  // Store state refs for observer callback
+  const stateRef = useRef({ hasMore, loadingMore, loading, resultsLength: results.length });
+  stateRef.current = { hasMore, loadingMore, loading, resultsLength: results.length };
+
+  // Infinite scroll observer - stable, doesn't recreate on state changes
   useEffect(() => {
-    if (!loadMoreRef.current) return;
+    const loadMoreElement = loadMoreRef.current;
+    if (!loadMoreElement) return;
 
     observerRef.current = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && hasMore && !loadingMore && !loading && results.length > 0) {
-          loadMoreResults();
+        const state = stateRef.current;
+        if (entries[0].isIntersecting && state.hasMore && !state.loadingMore && !state.loading && state.resultsLength > 0) {
+          loadMoreCallbackRef.current();
         }
       },
       { threshold: 0.1 }
     );
 
-    observerRef.current.observe(loadMoreRef.current);
+    observerRef.current.observe(loadMoreElement);
 
     return () => {
       if (observerRef.current) {
         observerRef.current.disconnect();
       }
     };
-  }, [hasMore, loadingMore, loading, results.length]);
+  }, []); // Empty dependency - observer is created once
 
-  const loadUserPreferences = async () => {
+  const loadUserPreferences = useCallback(async () => {
     if (!user) return;
 
-    // Load user's language preference
-    const { data: userData } = await supabase
-      .from('users')
-      .select('language_preference')
-      .eq('id', user.id)
-      .single();
+    try {
+      // Batch all user preference queries in parallel
+      const [userResult, subscriptionsResult, watchlistResult] = await Promise.all([
+        supabase
+          .from('users')
+          .select('language_preference')
+          .eq('id', user.id)
+          .single(),
+        supabase
+          .from('user_streaming_subscriptions')
+          .select('streaming_service_id')
+          .eq('user_id', user.id)
+          .eq('is_active', true),
+        supabase
+          .from('user_title_interactions')
+          .select('title_id')
+          .eq('user_id', user.id)
+          .in('interaction_type', ['wishlisted', 'completed'])
+      ]);
 
-    if (userData?.language_preference) {
-      setUserLanguage(userData.language_preference);
+      if (userResult.data?.language_preference) {
+        setUserLanguage(userResult.data.language_preference);
+      }
+
+      if (subscriptionsResult.data) {
+        setUserServices(subscriptionsResult.data.map(sub => sub.streaming_service_id));
+      }
+
+      if (watchlistResult.data) {
+        setUserWatchlist(new Set(watchlistResult.data.map(d => d.title_id)));
+      }
+    } catch (error) {
+      console.error('Failed to load user preferences:', error);
     }
-
-    // Load user's streaming subscriptions
-    const { data: userSubscriptions } = await supabase
-      .from('user_streaming_subscriptions')
-      .select('streaming_service_id')
-      .eq('user_id', user.id)
-      .eq('is_active', true);
-
-    if (userSubscriptions) {
-      setUserServices(userSubscriptions.map(sub => sub.streaming_service_id));
-    }
-
-    // Load user's watchlist
-    const { data: watchlistData } = await supabase
-      .from('user_title_interactions')
-      .select('title_id')
-      .eq('user_id', user.id)
-      .in('interaction_type', ['wishlisted', 'completed']);
-
-    if (watchlistData) {
-      setUserWatchlist(new Set(watchlistData.map(d => d.title_id)));
-    }
-  };
+  }, [user]);
 
   const loadServices = async () => {
     if (!user) return;
@@ -219,7 +231,7 @@ export default function Search() {
     setDetailsOpen(true);
   };
 
-  const sortResults = (titles: TitleWithAvailability[]) => {
+  const sortResults = useCallback((titles: TitleWithAvailability[]) => {
     return [...titles].sort((a, b) => {
       // 1. Sort by release date (newest first)
       const dateA = a.year || 0;
@@ -238,14 +250,14 @@ export default function Search() {
       // 3. Sort by streaming service availability (user's services first)
       const aServices = (a as any).streaming_services || [];
       const bServices = (b as any).streaming_services || [];
-      const hasServiceA = aServices.some((s: any) => 
-        userServices.some(userService => 
+      const hasServiceA = aServices.some((s: any) =>
+        userServices.some(userService =>
           s.service_name?.toLowerCase().includes(userService.toLowerCase()) ||
           userService.toLowerCase().includes(s.service_name?.toLowerCase())
         )
       ) ? 1 : 0;
-      const hasServiceB = bServices.some((s: any) => 
-        userServices.some(userService => 
+      const hasServiceB = bServices.some((s: any) =>
+        userServices.some(userService =>
           s.service_name?.toLowerCase().includes(userService.toLowerCase()) ||
           userService.toLowerCase().includes(s.service_name?.toLowerCase())
         )
@@ -257,14 +269,14 @@ export default function Search() {
       // 4. Finally, sort by popularity as tiebreaker
       return ((b as any).popularity || 0) - ((a as any).popularity || 0);
     });
-  };
+  }, [userLanguage, userServices]);
 
   const handleSearchButtonClick = () => {
     setShowDropdown(false);
     handleSearch();
   };
 
-  const handleSearch = async () => {
+  const handleSearch = useCallback(async () => {
     if (!user) return;
 
     setShowDropdown(false);
@@ -278,11 +290,13 @@ export default function Search() {
           query: query || 'popular',
           genres: selectedGenres.length > 0 ? selectedGenres : undefined,
           years: selectedYears.length > 0 ? selectedYears : undefined,
+          moods: selectedMoods.length > 0 ? selectedMoods : undefined,
+          mood_intensity: selectedMoods.length > 0 ? moodIntensity : undefined,
           language: 'en',
           limit: 20
         }
       });
-      
+
       if (error) throw error;
       const sortedResults = sortResults(data.titles || []);
       setResults(sortedResults);
@@ -292,9 +306,9 @@ export default function Search() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, query, selectedGenres, selectedYears, selectedMoods, moodIntensity, sortResults]);
 
-  const loadMoreResults = async () => {
+  const loadMoreResults = useCallback(async () => {
     if (!user || loadingMore || !hasMore) return;
 
     setLoadingMore(true);
@@ -305,12 +319,14 @@ export default function Search() {
           query: query || 'popular',
           genres: selectedGenres.length > 0 ? selectedGenres : undefined,
           years: selectedYears.length > 0 ? selectedYears : undefined,
+          moods: selectedMoods.length > 0 ? selectedMoods : undefined,
+          mood_intensity: selectedMoods.length > 0 ? moodIntensity : undefined,
           language: 'en',
           limit: 20,
           page: nextPage
         }
       });
-      
+
       if (error) throw error;
       const newTitles = data.titles || [];
       const sortedNewTitles = sortResults(newTitles);
@@ -322,7 +338,7 @@ export default function Search() {
     } finally {
       setLoadingMore(false);
     }
-  };
+  }, [user, loadingMore, hasMore, page, query, selectedGenres, selectedYears, selectedMoods, moodIntensity, sortResults]);
 
   const toggleGenre = (genre: string) => {
     setSelectedGenres(prev =>

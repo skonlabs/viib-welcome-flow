@@ -48,14 +48,27 @@ export function ManageTrustedCircleDialog({ open, onOpenChange, listId }: Manage
   };
 
   const removeUser = async (sharedWithId: string) => {
+    if (!user) return;
+
     try {
+      // Verify ownership before deleting
+      const { data: isOwner } = await supabase.rpc('check_list_ownership', {
+        p_list_id: listId,
+        p_user_id: user.id
+      });
+
+      if (!isOwner) {
+        toast.error('You do not have permission to modify this list');
+        return;
+      }
+
       const { error } = await supabase
         .from('vibe_list_shared_with')
         .delete()
         .eq('id', sharedWithId);
 
       if (error) throw error;
-      
+
       toast.success('User removed from trusted circle');
       loadSharedWith();
     } catch (error) {
