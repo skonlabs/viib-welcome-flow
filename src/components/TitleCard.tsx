@@ -3,8 +3,11 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { getPosterUrl } from "@/lib/services/TitleCatalogService";
-import { Play, Share2, Eye, Plus, X, Trash2, Check, Heart, ThumbsUp, ThumbsDown } from "lucide-react";
+import { Play, Share2, Eye, Plus, X, Trash2, Check, Heart, ThumbsUp, ThumbsDown, Sparkles, Loader2 } from "lucide-react";
 import { TrailerDialog } from "./TrailerDialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 
 // Flexible title type to handle both database and TMDB API formats
 type FlexibleTitle = {
@@ -70,12 +73,40 @@ export function TitleCard({
   actions 
 }: TitleCardProps) {
   const [trailerOpen, setTrailerOpen] = useState(false);
+  const [explanationOpen, setExplanationOpen] = useState(false);
+  const [explanation, setExplanation] = useState<{ reasons: string[]; scores: Record<string, number> } | null>(null);
+  const [loadingExplanation, setLoadingExplanation] = useState(false);
+  const { user } = useAuth();
   const trailerUrl = title.trailer_url;
 
   const handleTrailerClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (trailerUrl) {
       setTrailerOpen(true);
+    }
+  };
+
+  const handleScoreClick = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!user || !title.id) return;
+    
+    setExplanationOpen(true);
+    if (explanation) return; // Already loaded
+    
+    setLoadingExplanation(true);
+    try {
+      const { data, error } = await supabase.rpc('explain_recommendation', {
+        p_user_id: user.id,
+        p_title_id: title.id
+      });
+      
+      if (error) throw error;
+      setExplanation(data as { reasons: string[]; scores: Record<string, number> });
+    } catch (err) {
+      console.error('Failed to load explanation:', err);
+      setExplanation({ reasons: ['Unable to load explanation'], scores: {} });
+    } finally {
+      setLoadingExplanation(false);
     }
   };
 
@@ -108,11 +139,64 @@ export function TitleCard({
           )}
           {viibScore !== undefined && (
             <div className="absolute top-1.5 right-1.5 sm:top-2 sm:right-2 animate-fade-in z-20">
-              <Badge
-                className="font-bold backdrop-blur-sm shadow-lg text-xs sm:text-sm bg-gradient-to-br from-primary to-primary/80 text-primary-foreground border-2 border-primary-foreground/20"
-              >
-                {Math.round(viibScore)}%
-              </Badge>
+              <Popover open={explanationOpen} onOpenChange={setExplanationOpen}>
+                <PopoverTrigger asChild>
+                  <Badge
+                    className="font-bold backdrop-blur-sm shadow-lg text-xs sm:text-sm bg-gradient-to-br from-primary to-primary/80 text-primary-foreground border-2 border-primary-foreground/20 cursor-pointer hover:scale-105 transition-transform"
+                    onClick={handleScoreClick}
+                  >
+                    {Math.round(viibScore)}%
+                  </Badge>
+                </PopoverTrigger>
+                <PopoverContent 
+                  className="w-72 p-3" 
+                  side="left" 
+                  align="start"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-primary">
+                      <Sparkles className="h-4 w-4" />
+                      Why this recommendation?
+                    </div>
+                    {loadingExplanation ? (
+                      <div className="flex items-center justify-center py-4">
+                        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                      </div>
+                    ) : explanation ? (
+                      <div className="space-y-2">
+                        {explanation.reasons.length > 0 ? (
+                          <ul className="text-xs text-muted-foreground space-y-1.5">
+                            {explanation.reasons.map((reason, idx) => (
+                              <li key={idx} className="flex items-start gap-1.5">
+                                <span className="text-primary mt-0.5">•</span>
+                                <span>{reason}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="text-xs text-muted-foreground">
+                            This title matches your viewing preferences and mood.
+                          </p>
+                        )}
+                        {explanation.scores && Object.keys(explanation.scores).length > 0 && (
+                          <div className="pt-2 border-t border-border mt-2">
+                            <p className="text-[10px] font-medium text-muted-foreground mb-1">Score Breakdown</p>
+                            <div className="grid grid-cols-2 gap-1 text-[10px]">
+                              {Object.entries(explanation.scores).map(([key, val]) => (
+                                <div key={key} className="flex justify-between">
+                                  <span className="text-muted-foreground capitalize">{key.replace('_', ' ')}</span>
+                                  <span className="font-medium">{typeof val === 'number' ? Math.round(val * 100) : val}%</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : null}
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
           )}
           <div className={`absolute ${viibScore !== undefined ? 'top-10 sm:top-12' : (recommendedBy ? (recommendationNote ? 'top-24' : 'top-12') : 'top-1.5')} right-1.5 sm:right-2 animate-fade-in`}>
