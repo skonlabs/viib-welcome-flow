@@ -89,12 +89,12 @@ serve(async (req) => {
 
     // Get rate limit settings from app_settings
     const [rateLimitResult, windowResult] = await Promise.all([
-      supabaseClient.from('app_settings').select('value').eq('key', 'otp_rate_limit').single(),
-      supabaseClient.from('app_settings').select('value').eq('key', 'otp_rate_limit_window').single(),
+      supabaseClient.from('app_settings').select('setting_value').eq('setting_key', 'otp_rate_limit').single(),
+      supabaseClient.from('app_settings').select('setting_value').eq('setting_key', 'otp_rate_limit_window').single(),
     ]);
 
-    const rateLimit = rateLimitResult.data?.value ? parseInt(rateLimitResult.data.value, 10) : 5;
-    const rateLimitWindow = windowResult.data?.value ? parseInt(windowResult.data.value, 10) : 15;
+    const rateLimit = rateLimitResult.data?.setting_value ? Number(rateLimitResult.data.setting_value) : 5;
+    const rateLimitWindow = windowResult.data?.setting_value ? Number(windowResult.data.setting_value) : 15;
 
     // Check rate limit - count recent OTPs for this phone number
     const windowStart = new Date(Date.now() - rateLimitWindow * 60 * 1000).toISOString();
