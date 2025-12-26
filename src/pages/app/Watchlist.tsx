@@ -50,6 +50,7 @@ interface EnrichedTitle {
   added_at: string;
   recommended_by?: string;
   recommendation_note?: string;
+  rating_value?: 'love_it' | 'like_it' | 'ok' | 'dislike_it' | 'not_rated' | null;
 }
 
 export default function Watchlist() {
@@ -88,7 +89,7 @@ export default function Watchlist() {
       // Get all interactions for this user and status
       const { data: interactions, error } = await supabase
         .from('user_title_interactions')
-        .select('id, title_id, season_number, created_at')
+        .select('id, title_id, season_number, created_at, rating_value')
         .eq('user_id', user.id)
         .eq('interaction_type', status === 'pending' ? 'wishlisted' : 'completed')
         .order('created_at', { ascending: false });
@@ -130,6 +131,7 @@ export default function Watchlist() {
 
       const enrichedTitles: EnrichedTitle[] = interactions.map((item) => {
         const titleData = titlesMap.get(item.title_id);
+        const ratingValue = (item as any).rating_value as EnrichedTitle['rating_value'];
 
         if (item.season_number !== null) {
           // It's a season entry
@@ -151,6 +153,7 @@ export default function Watchlist() {
             overview: seasonData?.overview,
             runtime_minutes: undefined,
             added_at: item.created_at,
+            rating_value: ratingValue,
           };
         } else if (titleData) {
           // It's a title (movie or full series)
@@ -173,6 +176,7 @@ export default function Watchlist() {
             trailer_url: titleData.trailer_url,
             runtime_minutes: titleData.runtime,
             added_at: item.created_at,
+            rating_value: ratingValue,
           };
         } else {
           // Not found in either table
@@ -182,6 +186,7 @@ export default function Watchlist() {
             title: 'Unknown Title',
             type: 'movie' as const,
             added_at: item.created_at,
+            rating_value: ratingValue,
           };
         }
       });
@@ -517,13 +522,14 @@ export default function Watchlist() {
                 </Button>
               </Card>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
                 {sortTitles(pendingTitles).map((item) => (
                   <TitleCard
                     key={item.id}
                     title={item}
                     onClick={() => setSelectedTitle(item)}
                     showAvailability={true}
+                    compactRecommend
                     actions={{
                       onWatched: () => openRatingDialogForPending(item),
                       onRecommend: () => {
@@ -551,13 +557,15 @@ export default function Watchlist() {
                 <p className="text-muted-foreground">Mark titles as watched from your watchlist</p>
               </Card>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
                 {sortTitles(watchedTitles).map((item) => (
                   <TitleCard
                     key={item.id}
                     title={item}
                     onClick={() => setSelectedTitle(item)}
                     showAvailability={true}
+                    compactRecommend
+                    userRating={item.rating_value}
                     actions={{
                       onWatchlist: () => moveToWatchlistFromWatched(item.id),
                       onRecommend: () => {
@@ -585,13 +593,14 @@ export default function Watchlist() {
                 <p className="text-muted-foreground">Your friends haven't recommended anything yet</p>
               </Card>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
                 {sortTitles(recommendedTitles).map((item) => (
                   <TitleCard
                     key={item.id}
                     title={item}
                     onClick={() => setSelectedTitle(item)}
                     showAvailability={true}
+                    compactRecommend
                     recommendedBy={item.recommended_by}
                     recommendationNote={item.recommendation_note}
                     actions={{
