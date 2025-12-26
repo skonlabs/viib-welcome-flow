@@ -128,23 +128,23 @@ export default function Settings() {
   const loadSettings = async () => {
     setLoading(true);
     try {
-      // Load OTP rate limit from app_settings
-      const { data: otpData } = await supabase
-        .from('app_settings')
+      // Load OTP rate limit from app_settings using type assertion
+      const { data: otpData } = await (supabase
+        .from('app_settings' as any)
         .select('setting_value')
         .eq('setting_key', 'otp_rate_limit')
-        .single();
+        .single() as any);
 
       if (otpData?.setting_value) {
         setOtpRateLimit(otpData.setting_value as OtpRateLimit);
       }
 
-      // Load supported countries from app_settings
-      const { data: countriesData } = await supabase
-        .from('app_settings')
+      // Load supported countries from app_settings using type assertion
+      const { data: countriesData } = await (supabase
+        .from('app_settings' as any)
         .select('setting_value')
         .eq('setting_key', 'supported_countries')
-        .single();
+        .single() as any);
 
       if (countriesData?.setting_value) {
         setSelectedCountries(countriesData.setting_value as string[]);
@@ -181,15 +181,15 @@ export default function Settings() {
   const saveOtpRateLimit = async () => {
     setSaving(true);
     try {
-      const { error } = await supabase
-        .from('app_settings')
+      const { error } = await (supabase
+        .from('app_settings' as any)
         .upsert({
           setting_key: 'otp_rate_limit',
           setting_value: otpRateLimit,
           description: 'Rate limit for OTP requests per minute',
         }, {
           onConflict: 'setting_key',
-        });
+        }) as any);
 
       if (error) throw error;
       toast.success('OTP rate limit saved successfully');
@@ -204,15 +204,15 @@ export default function Settings() {
   const saveCountries = async () => {
     setSaving(true);
     try {
-      const { error } = await supabase
-        .from('app_settings')
+      const { error } = await (supabase
+        .from('app_settings' as any)
         .upsert({
           setting_key: 'supported_countries',
           setting_value: selectedCountries,
           description: 'List of supported country codes for the app',
         }, {
           onConflict: 'setting_key',
-        });
+        }) as any);
 
       if (error) throw error;
       toast.success('Supported countries saved successfully');

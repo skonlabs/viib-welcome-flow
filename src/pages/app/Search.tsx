@@ -76,8 +76,7 @@ export default function Search() {
   }, []);
 
   // Store loadMoreResults in a ref to avoid recreating observer
-  const loadMoreCallbackRef = useRef(loadMoreResults);
-  loadMoreCallbackRef.current = loadMoreResults;
+  const loadMoreCallbackRef = useRef<() => Promise<void>>();
 
   // Store state refs for observer callback
   const stateRef = useRef({ hasMore, loadingMore, loading, resultsLength: results.length });
@@ -339,6 +338,9 @@ export default function Search() {
       setLoadingMore(false);
     }
   }, [user, loadingMore, hasMore, page, query, selectedGenres, selectedYears, selectedMoods, moodIntensity, sortResults]);
+
+  // Update ref after function is defined
+  loadMoreCallbackRef.current = loadMoreResults;
 
   const toggleGenre = (genre: string) => {
     setSelectedGenres(prev =>

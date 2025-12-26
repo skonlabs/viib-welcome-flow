@@ -61,6 +61,33 @@ export type Database = {
           },
         ]
       }
+      app_settings: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: string
+          setting_key: string
+          setting_value: Json
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          setting_key: string
+          setting_value: Json
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          setting_key?: string
+          setting_value?: Json
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       email_config: {
         Row: {
           created_at: string | null
@@ -2056,6 +2083,10 @@ export type Database = {
         Args: { p_emotion_id: string; p_energy_percentage: number }
         Returns: number
       }
+      check_list_ownership: {
+        Args: { p_list_id: string; p_user_id: string }
+        Returns: boolean
+      }
       check_recommendation_cache_freshness: {
         Args: never
         Returns: {
@@ -2070,6 +2101,17 @@ export type Database = {
       explain_recommendation: {
         Args: { p_title_id: string; p_user_id: string }
         Returns: Json
+      }
+      get_active_viib_weights: {
+        Args: never
+        Returns: {
+          context_weight: number
+          emotional_weight: number
+          historical_weight: number
+          id: string
+          novelty_weight: number
+          social_weight: number
+        }[]
       }
       get_corrupted_streaming_count: { Args: never; Returns: number }
       get_cron_job_progress: {
@@ -2113,6 +2155,22 @@ export type Database = {
       get_result_emotion_label: {
         Args: { p_emotion_label: string; p_intensity: number }
         Returns: string
+      }
+      get_titles_by_ids: {
+        Args: { p_title_ids: string[] }
+        Returns: {
+          backdrop_path: string
+          first_air_date: string
+          id: string
+          name: string
+          overview: string
+          poster_path: string
+          release_date: string
+          runtime: number
+          title_type: string
+          tmdb_id: number
+          trailer_url: string
+        }[]
       }
       get_titles_needing_classification: {
         Args: { p_cursor?: string; p_limit?: number }
@@ -2177,6 +2235,15 @@ export type Database = {
           title_id: string
         }[]
       }
+      get_vibe_list_stats: {
+        Args: { p_list_ids: string[] }
+        Returns: {
+          follower_count: number
+          item_count: number
+          list_id: string
+          view_count: number
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -2186,6 +2253,11 @@ export type Database = {
       }
       increment_job_titles: {
         Args: { p_increment: number; p_job_type: string }
+        Returns: undefined
+      }
+      invalidate_old_otps: { Args: { p_email: string }; Returns: undefined }
+      invalidate_old_phone_otps: {
+        Args: { p_phone: string }
         Returns: undefined
       }
       log_recommendation_outcome: {
