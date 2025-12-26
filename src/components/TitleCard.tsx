@@ -175,15 +175,16 @@ export function TitleCard({
                 }
               }}>
                 <PopoverTrigger asChild>
-                  <Badge
-                    className="font-bold backdrop-blur-sm shadow-lg text-xs sm:text-sm bg-gradient-to-br from-primary to-primary/80 text-primary-foreground border-2 border-primary-foreground/20 cursor-pointer hover:scale-105 transition-transform"
+                  <button
+                    type="button"
+                    className="font-bold backdrop-blur-sm shadow-lg text-xs sm:text-sm bg-gradient-to-br from-primary to-primary/80 text-primary-foreground border-2 border-primary-foreground/20 cursor-pointer hover:scale-105 transition-transform rounded-full px-2 py-0.5"
                     onClick={(e) => {
                       e.stopPropagation();
                       e.preventDefault();
                     }}
                   >
                     {Math.round(viibScore)}%
-                  </Badge>
+                  </button>
                 </PopoverTrigger>
                 <PopoverContent 
                   className="w-72 p-3" 
