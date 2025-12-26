@@ -161,9 +161,9 @@ $$;
 -- ============================================================================
 
 -- Drop and recreate explain_recommendation with better explanations
-DROP FUNCTION IF EXISTS explain_recommendation(UUID, UUID);
+DROP FUNCTION IF EXISTS public.explain_recommendation(uuid, uuid);
 
-CREATE OR REPLACE FUNCTION explain_recommendation(p_user_id UUID, p_title_id UUID)
+CREATE OR REPLACE FUNCTION public.explain_recommendation(p_user_id UUID, p_title_id UUID)
 RETURNS TABLE(
     title_id UUID,
     emotional_match REAL,
@@ -361,9 +361,9 @@ $$;
 -- ============================================================================
 
 -- Drop existing function if return type differs
-DROP FUNCTION IF EXISTS get_top_recommendations_v2(UUID, INTEGER);
+DROP FUNCTION IF EXISTS public.get_top_recommendations_v2(uuid, integer);
 
-CREATE OR REPLACE FUNCTION get_top_recommendations_v2(p_user_id UUID, p_limit INTEGER DEFAULT 10)
+CREATE OR REPLACE FUNCTION public.get_top_recommendations_v2(p_user_id UUID, p_limit INTEGER DEFAULT 10)
 RETURNS TABLE(
     title_id UUID,
     base_viib_score REAL,
