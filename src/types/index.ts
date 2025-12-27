@@ -164,13 +164,20 @@ export interface FeedbackItem extends Feedback {
   user?: Pick<User, 'id' | 'email' | 'full_name' | 'username'>;
 }
 
-export interface SystemLogEntry extends SystemLog {
+export interface SystemLogEntry {
   id: string;
-  level: string;
-  message: string;
-  context: Record<string, unknown>;
+  severity: string;
+  error_message: string;
+  error_stack: string | null;
+  context: Record<string, unknown> | null;
   resolved: boolean;
-  error_trace: string | null;
+  resolved_at: string | null;
+  resolved_by: string | null;
+  notes: string | null;
+  operation: string | null;
+  screen: string | null;
+  http_status: number | null;
+  user_id: string | null;
   created_at: string;
 }
 

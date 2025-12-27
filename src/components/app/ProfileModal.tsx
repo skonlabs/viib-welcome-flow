@@ -15,17 +15,17 @@ interface ProfileModalProps {
 }
 
 export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
-  const { user } = useAuth();
+  const { profile } = useAuth();
   const [fullName, setFullName] = useState('');
   const [username, setUsername] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
 
   useEffect(() => {
-    if (user && open) {
-      setFullName(user.full_name || '');
-      setUsername(user.username || '');
+    if (profile && open) {
+      setFullName(profile.full_name || '');
+      setUsername(profile.username || '');
     }
-  }, [user, open]);
+  }, [profile, open]);
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,12 +59,12 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
   };
 
   const getUserInitials = () => {
-    if (!user) return 'U';
-    const name = user.full_name || user.email || user.phone_number || '';
+    if (!profile) return 'U';
+    const name = profile.full_name || profile.email || profile.phone_number || '';
     return name.charAt(0).toUpperCase();
   };
 
-  if (!user) return null;
+  if (!profile) return null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -80,17 +80,17 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
           {/* Avatar Section */}
           <div className="flex items-center gap-4">
             <Avatar className="w-20 h-20 border-4 border-primary/20">
-              <AvatarImage src={user.user_metadata?.avatar_url} />
+              <AvatarImage src={undefined} />
               <AvatarFallback className="bg-primary/20 text-primary text-2xl font-semibold">
                 {getUserInitials()}
               </AvatarFallback>
             </Avatar>
             <div>
               <h3 className="font-semibold text-lg">
-                {user.full_name || user.username || 'User'}
+                {profile.full_name || profile.username || 'User'}
               </h3>
               <p className="text-sm text-muted-foreground">
-                Member since {new Date(user.created_at).toLocaleDateString()}
+                Member since {new Date(profile.created_at).toLocaleDateString()}
               </p>
             </div>
           </div>
@@ -136,7 +136,7 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-icon-muted" />
                   <Input
-                    value={user.email || '-'}
+                    value={profile.email || '-'}
                     disabled
                     className="pl-10 bg-muted/50"
                   />
@@ -148,7 +148,7 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
                 <div className="relative">
                   <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-icon-muted" />
                   <Input
-                    value={user.phone_number || '-'}
+                    value={profile.phone_number || '-'}
                     disabled
                     className="pl-10 bg-muted/50"
                   />
@@ -160,7 +160,7 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
                 <div className="relative">
                   <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-icon-muted" />
                   <Input
-                    value={user.country || '-'}
+                    value={profile.country || '-'}
                     disabled
                     className="pl-10 bg-muted/50"
                   />
@@ -172,7 +172,7 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
                 <div className="relative">
                   <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-icon-muted" />
                   <Input
-                    value={new Date(user.created_at).toLocaleDateString()}
+                    value={new Date(profile.created_at).toLocaleDateString()}
                     disabled
                     className="pl-10 bg-muted/50"
                   />
