@@ -206,11 +206,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // Sign out function
   const signOut = useCallback(async () => {
-    await supabase.auth.signOut();
+    // Clear local state first to ensure UI updates immediately
     setUser(null);
     setProfile(null);
     setSession(null);
     setIsAdmin(false);
+    
+    // Try to sign out from Supabase, but don't block on errors
+    // (session might already be invalidated)
+    try {
+      await supabase.auth.signOut({ scope: 'local' });
+    } catch (error) {
+      console.log('Sign out completed (session may have been already invalidated)');
+    }
+    
+    // Always redirect to home
     window.location.replace('/');
   }, []);
 
