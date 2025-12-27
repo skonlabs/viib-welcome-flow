@@ -14,43 +14,31 @@ export const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
 
   useEffect(() => {
     const checkOnboardingStatus = async () => {
+      // Still loading auth state
       if (authLoading) return;
 
+      // No user - redirect to login
       if (!user) {
+        setCheckingOnboarding(false);
         navigate('/login');
         return;
       }
 
-      // Wait for profile to be loaded
+      // Auth done but no profile found - means user record doesn't exist
       if (!profile) {
-        // Profile is still loading, wait
+        console.warn('User authenticated but no profile found');
+        setCheckingOnboarding(false);
+        navigate('/login');
         return;
       }
 
-      try {
-        // Use profile.id (internal user ID) for querying users table
-        const { data, error } = await supabase
-          .from('users')
-          .select('onboarding_completed')
-          .eq('id', profile.id)
-          .single();
-
-        if (error) {
-          console.error('Error checking onboarding status:', error);
-          setCheckingOnboarding(false);
-          return;
-        }
-
-        if (!data?.onboarding_completed) {
-          localStorage.setItem('viib_resume_onboarding', 'true');
-          navigate('/app/onboarding');
-        } else {
-          setCheckingOnboarding(false);
-        }
-      } catch (error) {
-        console.error('Error checking onboarding:', error);
-        setCheckingOnboarding(false);
+      // Profile loaded - check onboarding status directly from profile
+      if (!profile.onboarding_completed) {
+        localStorage.setItem('viib_resume_onboarding', 'true');
+        navigate('/app/onboarding');
       }
+      
+      setCheckingOnboarding(false);
     };
 
     checkOnboardingStatus();
