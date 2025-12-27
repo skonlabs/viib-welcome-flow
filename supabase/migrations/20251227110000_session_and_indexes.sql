@@ -134,9 +134,9 @@ CREATE INDEX IF NOT EXISTS idx_social_recommendations_receiver
 -- Add CAPTCHA settings to app_settings
 INSERT INTO app_settings (setting_key, setting_value, description)
 VALUES
-    ('captcha_enabled', 'true', 'Enable CAPTCHA verification for OTP endpoints'),
-    ('captcha_provider', 'turnstile', 'CAPTCHA provider: turnstile (Cloudflare) or recaptcha'),
-    ('captcha_threshold', '3', 'Number of failed attempts before requiring CAPTCHA')
+    ('captcha_enabled', 'true'::jsonb, 'Enable CAPTCHA verification for OTP endpoints'),
+    ('captcha_provider', '"turnstile"'::jsonb, 'CAPTCHA provider: turnstile (Cloudflare) or recaptcha'),
+    ('captcha_threshold', '3'::jsonb, 'Number of failed attempts before requiring CAPTCHA')
 ON CONFLICT (setting_key) DO UPDATE SET
     description = EXCLUDED.description;
 

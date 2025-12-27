@@ -98,7 +98,7 @@ END $$;
 INSERT INTO app_settings (setting_key, setting_value, description)
 VALUES (
     'allow_test_phone_numbers',
-    'false',
+    'false'::jsonb,
     'Allow test phone numbers with fixed OTP. MUST be false in production.'
 )
 ON CONFLICT (setting_key) DO UPDATE SET
@@ -108,8 +108,8 @@ ON CONFLICT (setting_key) DO UPDATE SET
 INSERT INTO app_settings (setting_key, setting_value, description)
 VALUES (
     'allowed_cors_origins',
-    'https://viib.app,https://www.viib.app,https://app.viib.app',
-    'Comma-separated list of allowed CORS origins for edge functions'
+    '["https://viib.app","https://www.viib.app","https://app.viib.app"]'::jsonb,
+    'JSON array of allowed CORS origins for edge functions'
 )
 ON CONFLICT (setting_key) DO UPDATE SET
     description = EXCLUDED.description;
@@ -118,7 +118,7 @@ ON CONFLICT (setting_key) DO UPDATE SET
 INSERT INTO app_settings (setting_key, setting_value, description)
 VALUES (
     'environment',
-    'production',
+    '"production"'::jsonb,
     'Current environment: development, staging, or production'
 )
 ON CONFLICT (setting_key) DO UPDATE SET
