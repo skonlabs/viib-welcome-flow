@@ -17,7 +17,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { Users, X, Mail, Phone } from "@/icons";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { errorLogger } from "@/lib/services/ErrorLoggerService";
+import { errorLogger } from "@/lib/services/LoggerService";
 
 interface Friend {
   id: string;

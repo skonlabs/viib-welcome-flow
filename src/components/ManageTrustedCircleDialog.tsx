@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { errorLogger } from "@/lib/services/ErrorLoggerService";
+import { errorLogger } from "@/lib/services/LoggerService";
 import { UserPlus, X } from "lucide-react";
 
 interface ManageTrustedCircleDialogProps {

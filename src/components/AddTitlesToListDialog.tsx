@@ -6,7 +6,7 @@ import { Search, Plus, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import { errorLogger } from "@/lib/services/ErrorLoggerService";
+import { errorLogger } from "@/lib/services/LoggerService";
 import { getPosterUrl } from "@/lib/services/TitleCatalogService";
 
 interface AddTitlesToListDialogProps {

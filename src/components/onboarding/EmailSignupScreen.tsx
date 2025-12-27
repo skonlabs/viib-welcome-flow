@@ -7,7 +7,7 @@ import { BackButton } from "./BackButton";
 import { supabase } from "@/integrations/supabase/client";
 import { z } from "zod";
 import { FloatingParticles } from "./FloatingParticles";
-import { errorLogger } from "@/lib/services/ErrorLoggerService";
+import { errorLogger } from "@/lib/services/LoggerService";
 
 const emailSchema = z.object({
   email: z.string()

@@ -8,14 +8,16 @@ class LoggerService {
   private isDevelopment: boolean;
   private debugUserId: string | null = null;
   private isAdmin: boolean = false;
+  private initialized: boolean = false;
 
   constructor() {
-    // Check if we're in development mode
     this.isDevelopment = import.meta.env.DEV || import.meta.env.MODE === 'development';
     this.loadDebugSettings();
   }
 
   private async loadDebugSettings() {
+    if (this.initialized) return;
+    
     try {
       const { data } = await supabase
         .from('app_settings')
@@ -30,6 +32,7 @@ class LoggerService {
           this.debugUserId = userId;
         }
       }
+      this.initialized = true;
     } catch {
       // Silently fail - debug settings are optional
     }
@@ -67,7 +70,7 @@ class LoggerService {
     }
   }
 
-  // Error always logs to console in dev, but also logs to system_logs table
+  // Error always logs to system_logs table, console only in dev/admin mode
   async error(error: any, context?: LogContext) {
     if (this.shouldLog()) {
       console.error(error, context);
@@ -100,7 +103,7 @@ class LoggerService {
 
 export const logger = new LoggerService();
 
-// Re-export for backward compatibility
+// Backward compatibility - errorLogger.log maps to logger.error
 export const errorLogger = {
   log: (error: any, context?: LogContext) => logger.error(error, context)
 };

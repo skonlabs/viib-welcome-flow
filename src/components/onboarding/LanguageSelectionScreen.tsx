@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { BackButton } from "./BackButton";
 import { FloatingParticles } from "./FloatingParticles";
-import { errorLogger } from "@/lib/services/ErrorLoggerService";
+import { errorLogger } from "@/lib/services/LoggerService";
 
 interface LanguageSelectionScreenProps {
   onContinue: (languages: string[]) => void;
