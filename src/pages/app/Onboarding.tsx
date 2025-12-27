@@ -413,23 +413,25 @@ export default function Onboarding() {
     
     // Save platforms to database - platforms are now service IDs directly
     const userId = localStorage.getItem('viib_user_id');
-    if (userId && platforms.length > 0) {
-      // Delete existing subscriptions
+    if (userId) {
+      // Delete existing subscriptions first
       await supabase
         .from('user_streaming_subscriptions')
         .delete()
         .eq('user_id', userId);
       
-      // Insert new subscriptions - platforms are already streaming_service UUIDs
-      const subscriptions = platforms.map(serviceId => ({
-        user_id: userId,
-        streaming_service_id: serviceId,
-        is_active: true
-      }));
-      
-      await supabase
-        .from('user_streaming_subscriptions')
-        .insert(subscriptions);
+      // Insert new subscriptions if any selected
+      if (platforms.length > 0) {
+        const subscriptions = platforms.map(serviceId => ({
+          user_id: userId,
+          streaming_service_id: serviceId,
+          is_active: true
+        }));
+        
+        await supabase
+          .from('user_streaming_subscriptions')
+          .insert(subscriptions);
+      }
     }
     
     navigateToStep("languages");
@@ -440,23 +442,25 @@ export default function Onboarding() {
     
     // Save languages to database
     const userId = localStorage.getItem('viib_user_id');
-    if (userId && languages.length > 0) {
-      // Delete existing preferences
+    if (userId) {
+      // Delete existing preferences first
       await supabase
         .from('user_language_preferences')
         .delete()
         .eq('user_id', userId);
       
-      // Insert new preferences with priority order
-      const preferences = languages.map((language_code, index) => ({
-        user_id: userId,
-        language_code,
-        priority_order: index + 1
-      }));
-      
-      await supabase
-        .from('user_language_preferences')
-        .insert(preferences);
+      // Insert new preferences if any selected
+      if (languages.length > 0) {
+        const preferences = languages.map((language_code, index) => ({
+          user_id: userId,
+          language_code,
+          priority_order: index + 1
+        }));
+        
+        await supabase
+          .from('user_language_preferences')
+          .insert(preferences);
+      }
     }
     
     navigateToStep("mood");
