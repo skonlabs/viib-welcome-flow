@@ -6,11 +6,13 @@ import { BackButton } from "./BackButton";
 import { FloatingParticles } from "./FloatingParticles";
 import { supabase } from "@/integrations/supabase/client";
 
-interface TasteOption {
+interface GenreTitleOption {
   genre_id: string;
   genre_name: string;
+  title_id: string;
+  title_name: string;
   poster_path: string;
-  mood_description: string | null;
+  popularity: number;
 }
 
 interface VisualTasteScreenProps {
@@ -20,38 +22,102 @@ interface VisualTasteScreenProps {
 
 const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w500";
 
+// Kids content certifications to exclude
+const KIDS_CERTIFICATIONS = ['G', 'TV-Y', 'TV-Y7', 'TV-G', 'TV-PG'];
+
+// Genres to display (we'll match these against primary genre)
+const DISPLAY_GENRES = [
+  'Action', 'Adventure', 'Animation', 'Comedy', 'Crime', 'Documentary',
+  'Drama', 'Fantasy', 'History', 'Horror', 'Music', 'Mystery',
+  'Romance', 'Science Fiction', 'Thriller', 'War', 'Western'
+];
+
 export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps) => {
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
-  const [options, setOptions] = useState<TasteOption[]>([]);
+  const [options, setOptions] = useState<GenreTitleOption[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const loadOptions = async () => {
       try {
-        // Fetch curated visual taste options from the database
-        const { data: tasteOptions, error } = await supabase
-          .from('visual_taste_options')
-          .select('genre_id, genre_name, poster_path, mood_description')
-          .eq('is_active', true)
+        // Calculate date 3 years ago
+        const threeYearsAgo = new Date();
+        threeYearsAgo.setFullYear(threeYearsAgo.getFullYear() - 3);
+        const threeYearsAgoStr = threeYearsAgo.toISOString().split('T')[0];
+
+        // Fetch popular movies from past 3 years
+        const { data: movies, error } = await supabase
+          .from('titles')
+          .select('id, name, poster_path, popularity, title_genres, certification')
+          .eq('title_type', 'movie')
           .not('poster_path', 'is', null)
-          .order('display_order', { ascending: true });
+          .not('name', 'is', null)
+          .not('title_genres', 'is', null)
+          .gte('release_date', threeYearsAgoStr)
+          .order('popularity', { ascending: false })
+          .limit(500);
 
         if (error) {
-          console.error('Failed to load taste options:', error);
+          console.error('Failed to load movies:', error);
           setLoading(false);
           return;
         }
 
-        if (tasteOptions && tasteOptions.length > 0) {
-          setOptions(tasteOptions.map(opt => ({
-            genre_id: opt.genre_id,
-            genre_name: opt.genre_name,
-            poster_path: opt.poster_path!,
-            mood_description: opt.mood_description
-          })));
+        if (!movies || movies.length === 0) {
+          setLoading(false);
+          return;
         }
+
+        // Filter out kids content and build genre options
+        const genreToTopMovie = new Map<string, GenreTitleOption>();
+        const usedMovieIds = new Set<string>();
+
+        for (const movie of movies) {
+          // Skip kids content
+          if (movie.certification && KIDS_CERTIFICATIONS.includes(movie.certification)) {
+            continue;
+          }
+
+          // Parse title_genres - it's stored as JSON array of genre names
+          let genres: string[];
+          try {
+            genres = typeof movie.title_genres === 'string' 
+              ? JSON.parse(movie.title_genres) 
+              : movie.title_genres as string[];
+          } catch {
+            continue;
+          }
+
+          if (!genres || genres.length === 0) continue;
+
+          // Get primary genre (first in array)
+          const primaryGenre = genres[0];
+
+          // Only consider genres we want to display
+          if (!DISPLAY_GENRES.includes(primaryGenre)) continue;
+
+          // Skip if we already have a movie for this genre or this movie was used
+          if (genreToTopMovie.has(primaryGenre) || usedMovieIds.has(movie.id)) continue;
+
+          // This is the top movie for this primary genre
+          genreToTopMovie.set(primaryGenre, {
+            genre_id: primaryGenre.toLowerCase().replace(/\s+/g, '-'),
+            genre_name: primaryGenre,
+            title_id: movie.id,
+            title_name: movie.name!,
+            poster_path: movie.poster_path!,
+            popularity: movie.popularity || 0
+          });
+          usedMovieIds.add(movie.id);
+        }
+
+        // Convert to array and sort by popularity
+        const genreOptions = Array.from(genreToTopMovie.values())
+          .sort((a, b) => b.popularity - a.popularity);
+
+        setOptions(genreOptions);
       } catch (err) {
-        console.error('Failed to load taste options:', err);
+        console.error('Failed to load genre options:', err);
       } finally {
         setLoading(false);
       }
@@ -134,13 +200,13 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
           {/* Poster Grid */}
           {loading ? (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {[1, 2, 3, 4, 5, 6].map((i) => (
+              {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
                 <div key={i} className="aspect-[2/3] rounded-3xl bg-white/5 animate-pulse" />
               ))}
             </div>
           ) : options.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-muted-foreground">No options available. Please try again.</p>
+              <p className="text-muted-foreground">No movies available. Please try again.</p>
             </div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 max-h-[60vh] overflow-y-auto pr-2">
@@ -199,9 +265,7 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
                       
                       <div className="absolute bottom-0 left-0 right-0 p-4 space-y-0.5 text-white">
                         <p className="text-base font-bold">{option.genre_name}</p>
-                        {option.mood_description && (
-                          <p className="text-xs text-white/70">{option.mood_description}</p>
-                        )}
+                        <p className="text-xs text-white/70 truncate">{option.title_name}</p>
                       </div>
                       
                       {!isSelected && (
