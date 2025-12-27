@@ -12,12 +12,12 @@ const STEP_LABELS = [
   "Verify",       // 4: otp
   "Sign Up",      // 5: email
   "Verify",       // 6: email-otp
-  "Security",     // 7: biometric
-  "Profile",      // 8: identity
-  "Platforms",    // 9: platforms
-  "Languages",    // 10: languages
-  "Mood",         // 11: mood
-  "Taste",        // 12: taste
+  "Profile",      // 7: identity
+  "Platforms",    // 8: platforms
+  "Languages",    // 9: languages
+  "Mood",         // 10: mood
+  "Taste",        // 11: taste
+  "Social",       // 12: social
   "Complete"      // 13: completion
 ];
 
