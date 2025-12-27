@@ -1,5 +1,6 @@
 project_id = "ibrjwldvyuhwcfzdmimv"
 
+# Authentication functions - public (no JWT required for signup/login)
 [functions.send-phone-otp]
 verify_jwt = false
 
@@ -18,44 +19,52 @@ verify_jwt = false
 [functions.verify-password]
 verify_jwt = false
 
+[functions.reset-password]
+verify_jwt = false
+
+# Search - public (used before and after auth)
 [functions.search-tmdb]
 verify_jwt = false
 
+# Admin/internal functions - require JWT
 [functions.send-activation-invite]
-verify_jwt = false
+verify_jwt = true
 
 [functions.send-invites]
-verify_jwt = false
+verify_jwt = true
 
 [functions.enrich-title-details]
-verify_jwt = false
+verify_jwt = true
 
 [functions.enrich-title-details-batch]
-verify_jwt = false
+verify_jwt = true
 
 [functions.full-refresh-titles]
-verify_jwt = false
+verify_jwt = true
 
 [functions.sync-titles-delta]
-verify_jwt = false
+verify_jwt = true
 
 [functions.enrich-title-trailers]
-verify_jwt = false
+verify_jwt = true
 
 [functions.full-refresh-orchestrator]
-verify_jwt = false
+verify_jwt = true
 
 [functions.transcribe-trailers]
-verify_jwt = false
+verify_jwt = true
 
 [functions.classify-title-ai]
-verify_jwt = false
+verify_jwt = true
 
 [functions.promote-title-ai]
-verify_jwt = false
+verify_jwt = true
 
 [functions.get-analytics]
-verify_jwt = false
+verify_jwt = true
 
 [functions.fix-streaming-availability]
-verify_jwt = false
+verify_jwt = true
+
+[functions.delete-account]
+verify_jwt = true
