@@ -30,6 +30,55 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
   useEffect(() => {
     const loadOptions = async () => {
       try {
+        const userId = localStorage.getItem('viib_user_id');
+        if (!userId) {
+          setLoading(false);
+          return;
+        }
+
+        // Get user's streaming subscriptions
+        const { data: userStreaming } = await supabase
+          .from('user_streaming_subscriptions')
+          .select('streaming_service_id')
+          .eq('user_id', userId)
+          .eq('is_active', true);
+
+        const streamingServiceIds = userStreaming?.map(s => s.streaming_service_id) || [];
+
+        // Get user's language preferences
+        const { data: userLanguages } = await supabase
+          .from('user_language_preferences')
+          .select('language_code')
+          .eq('user_id', userId);
+
+        const languageCodes = userLanguages?.map(l => l.language_code) || [];
+        // Always include English as fallback
+        if (!languageCodes.includes('en')) {
+          languageCodes.push('en');
+        }
+
+        // Get user's region for streaming availability
+        const { data: userData } = await supabase
+          .from('users')
+          .select('ip_country')
+          .eq('id', userId)
+          .maybeSingle();
+
+        const userRegion = userData?.ip_country || 'US';
+
+        // Get titles available on user's streaming services
+        let availableTitleIds: string[] = [];
+        
+        if (streamingServiceIds.length > 0) {
+          const { data: streamingTitles } = await supabase
+            .from('title_streaming_availability')
+            .select('title_id')
+            .in('streaming_service_id', streamingServiceIds)
+            .eq('region_code', userRegion);
+
+          availableTitleIds = [...new Set(streamingTitles?.map(t => t.title_id) || [])];
+        }
+
         // Get all genres
         const { data: genres, error: genreError } = await supabase
           .from('genres')
@@ -42,34 +91,76 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
           return;
         }
 
-        // Get all title-genre mappings with title details, ordered by popularity
-        const { data: allTitleGenres, error: tgError } = await supabase
-          .from('title_genres')
-          .select('genre_id, title_id');
-
-        if (tgError) throw tgError;
-
-        // Get popular titles with posters
-        const { data: popularTitles, error: titlesError } = await supabase
+        // Build query for popular titles
+        let titlesQuery = supabase
           .from('titles')
-          .select('id, name, poster_path, popularity')
+          .select('id, name, poster_path, popularity, original_language')
           .not('poster_path', 'is', null)
           .not('name', 'is', null)
-          .order('popularity', { ascending: false })
-          .limit(500);
+          .in('original_language', languageCodes)
+          .order('popularity', { ascending: false });
+
+        // Filter by available titles if user has streaming preferences
+        if (availableTitleIds.length > 0) {
+          titlesQuery = titlesQuery.in('id', availableTitleIds.slice(0, 500));
+        } else {
+          titlesQuery = titlesQuery.limit(500);
+        }
+
+        const { data: popularTitles, error: titlesError } = await titlesQuery;
 
         if (titlesError) throw titlesError;
-        if (!popularTitles || !allTitleGenres) {
+        if (!popularTitles || popularTitles.length === 0) {
+          // Fallback: get any popular titles if filtered results are empty
+          const { data: fallbackTitles } = await supabase
+            .from('titles')
+            .select('id, name, poster_path, popularity, original_language')
+            .not('poster_path', 'is', null)
+            .not('name', 'is', null)
+            .order('popularity', { ascending: false })
+            .limit(300);
+
+          if (!fallbackTitles || fallbackTitles.length === 0) {
+            setLoading(false);
+            return;
+          }
+          
+          // Continue with fallback titles
+          await processGenreTitles(genres, fallbackTitles);
+          return;
+        }
+
+        await processGenreTitles(genres, popularTitles);
+
+      } catch (err) {
+        console.error('Failed to load genre titles:', err);
+        setLoading(false);
+      }
+    };
+
+    const processGenreTitles = async (
+      genres: { id: string; genre_name: string }[],
+      popularTitles: { id: string; name: string | null; poster_path: string | null; popularity: number | null }[]
+    ) => {
+      try {
+        // Get title-genre mappings for these titles
+        const titleIds = popularTitles.map(t => t.id);
+        
+        const { data: titleGenres } = await supabase
+          .from('title_genres')
+          .select('genre_id, title_id')
+          .in('title_id', titleIds);
+
+        if (!titleGenres) {
           setLoading(false);
           return;
         }
 
-        // Create a map of title_id -> title details
+        // Create maps
         const titleMap = new Map(popularTitles.map(t => [t.id, t]));
-
-        // Create a map of genre_id -> title_ids
         const genreToTitles = new Map<string, string[]>();
-        for (const tg of allTitleGenres) {
+        
+        for (const tg of titleGenres) {
           const existing = genreToTitles.get(tg.genre_id) || [];
           existing.push(tg.title_id);
           genreToTitles.set(tg.genre_id, existing);
@@ -81,13 +172,12 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
 
         // For each genre, find the most popular unused title
         for (const genre of genres) {
-          const titleIds = genreToTitles.get(genre.id) || [];
+          const genreTitleIds = genreToTitles.get(genre.id) || [];
           
-          // Find the most popular title for this genre that hasn't been used
           let bestTitle = null;
           let bestPopularity = -1;
 
-          for (const titleId of titleIds) {
+          for (const titleId of genreTitleIds) {
             if (usedTitleIds.has(titleId)) continue;
             
             const title = titleMap.get(titleId);
@@ -112,10 +202,9 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
 
         // Sort by popularity so most recognizable genres appear first
         genreTitles.sort((a, b) => b.popularity - a.popularity);
-
         setOptions(genreTitles);
       } catch (err) {
-        console.error('Failed to load genre titles:', err);
+        console.error('Failed to process genre titles:', err);
       } finally {
         setLoading(false);
       }
@@ -136,7 +225,6 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
     const userId = localStorage.getItem('viib_user_id');
     if (userId && selectedGenres.length > 0) {
       try {
-        // Store genre preferences
         await supabase.from('user_vibe_preferences').upsert({
           user_id: userId,
           vibe_type: selectedGenres.join(',')
@@ -203,6 +291,10 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
                 <div key={i} className="aspect-[2/3] rounded-3xl bg-white/5 animate-pulse" />
               ))}
             </div>
+          ) : options.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-muted-foreground">No titles available. Please try again.</p>
+            </div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 max-h-[60vh] overflow-y-auto pr-2">
               {options.map((option, index) => {
@@ -227,7 +319,6 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
                       whileTap={{ scale: 0.95 }}
                       className="relative w-full aspect-[2/3] rounded-3xl overflow-hidden"
                     >
-                      {/* Poster */}
                       <img
                         src={posterUrl}
                         alt={option.genre_name}
@@ -235,7 +326,6 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
                         loading="lazy"
                       />
                       
-                      {/* Selection indicators */}
                       <AnimatePresence>
                         {isSelected && (
                           <>
@@ -258,17 +348,11 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
                         )}
                       </AnimatePresence>
                       
-                      {/* Gradient overlay */}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
                       
-                      {/* Labels */}
                       <div className="absolute bottom-0 left-0 right-0 p-4 space-y-0.5 text-white">
-                        <p className="text-base font-bold">
-                          {option.genre_name}
-                        </p>
-                        <p className="text-xs text-white/70 truncate">
-                          {option.title_name}
-                        </p>
+                        <p className="text-base font-bold">{option.genre_name}</p>
+                        <p className="text-xs text-white/70 truncate">{option.title_name}</p>
                       </div>
                       
                       {!isSelected && (
