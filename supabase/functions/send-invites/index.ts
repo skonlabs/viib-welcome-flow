@@ -1,3 +1,6 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 import {
   getCorsHeaders,
   handleCorsPreflightRequest,
@@ -15,7 +18,7 @@ interface InviteRequest {
  * Send Invites Edge Function
  * REQUIRES: Valid Supabase Auth JWT
  */
-Deno.serve(async (req) => {
+serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return handleCorsPreflightRequest(req);
   }
@@ -84,7 +87,8 @@ Deno.serve(async (req) => {
     }
 
     const senderName = sender.full_name || 'A friend';
-    const inviteLink = `${Deno.env.get('APP_URL') || 'https://viib.app'}?invited_by=${userId}`;
+    const appUrl = Deno.env.get('APP_URL') || 'https://viib.app';
+    const inviteLink = `${appUrl}?invited_by=${userId}`;
 
     // Process invites based on method
     const results = [];
@@ -92,24 +96,28 @@ Deno.serve(async (req) => {
     for (const contact of contacts) {
       try {
         if (method === 'email') {
-          await sendEmailInvite(contact, senderName, inviteLink, note);
-          results.push({ contact, success: true, method: 'email' });
+          const success = await sendEmailInvite(contact, senderName, inviteLink, note);
+          results.push({ contact, success, method: 'email' });
         } else if (method === 'phone') {
-          await sendSMSInvite(contact, senderName, inviteLink, note);
-          results.push({ contact, success: true, method: 'sms' });
+          const success = await sendSMSInvite(contact, senderName, inviteLink, note);
+          results.push({ contact, success, method: 'sms' });
         }
 
-        // Store invitation record
-        await supabase
-          .from('friend_connections')
-          .upsert({
+        // Log invite for tracking (don't block on errors)
+        try {
+          await supabase.from('system_logs').insert({
+            error_message: `Invite sent to ${method === 'email' ? 'email' : 'phone'}`,
+            severity: 'info',
             user_id: userId,
-            friend_user_id: userId, // Placeholder until they sign up
-            relationship_type: 'pending_invite',
-            trust_score: 0.5,
-          }, { onConflict: 'user_id,friend_user_id' });
+            operation: 'send_invite',
+            context: { method, success: true }
+          });
+        } catch {
+          // Silent fail for logging
+        }
 
       } catch (error: any) {
+        console.error(`Failed to send invite to contact:`, error.message);
         results.push({ contact, success: false, error: 'Failed to send' });
       }
     }
@@ -129,7 +137,7 @@ Deno.serve(async (req) => {
     );
 
   } catch (error: any) {
-    console.error('Error in send-invites function');
+    console.error('Error in send-invites function:', error.message);
     return new Response(
       JSON.stringify({ error: 'Internal server error' }),
       {
@@ -141,15 +149,95 @@ Deno.serve(async (req) => {
 });
 
 async function sendEmailInvite(email: string, senderName: string, inviteLink: string, note?: string): Promise<boolean> {
-  // TODO: Implement actual email sending using Resend or similar
-  // For now, log without sensitive data
-  console.log(`Email invite sent to recipient from ${senderName}`);
-  return true;
+  const gmailUser = Deno.env.get('GMAIL_USER');
+  const gmailPassword = Deno.env.get('GMAIL_APP_PASSWORD');
+
+  if (!gmailUser || !gmailPassword) {
+    console.error('Email configuration not set');
+    return false;
+  }
+
+  try {
+    const client = new SMTPClient({
+      connection: {
+        hostname: "smtp.gmail.com",
+        port: 465,
+        tls: true,
+        auth: { username: gmailUser, password: gmailPassword },
+      },
+    });
+
+    const personalNote = note ? `<p style="font-style: italic; color: #6b7280; margin: 20px 0; padding: 15px; background-color: #f9fafb; border-radius: 8px;">"${note}"</p>` : '';
+
+    await client.send({
+      from: gmailUser,
+      to: email,
+      subject: `${senderName} invited you to join ViiB`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #0ea5e9;">You've Been Invited to ViiB! 🎬</h2>
+          <p><strong>${senderName}</strong> thinks you'd love ViiB - the app that helps you find your perfect movie or show based on your mood.</p>
+          ${personalNote}
+          <div style="margin: 30px 0;">
+            <a href="${inviteLink}" style="background: linear-gradient(135deg, #a855f7, #0ea5e9); color: white; padding: 15px 30px; text-decoration: none; border-radius: 25px; font-weight: bold; display: inline-block;">
+              Join ViiB Now
+            </a>
+          </div>
+          <p style="color: #6b7280; font-size: 14px;">Stop scrolling, start watching. Let your mood guide you to the perfect content.</p>
+        </div>
+      `,
+    });
+
+    await client.close();
+    console.log(`Email invite sent successfully`);
+    return true;
+  } catch (error) {
+    console.error('Failed to send email invite:', error);
+    return false;
+  }
 }
 
 async function sendSMSInvite(phone: string, senderName: string, inviteLink: string, note?: string): Promise<boolean> {
-  // TODO: Implement actual SMS sending using Twilio
-  // For now, log without sensitive data
-  console.log(`SMS invite sent to recipient from ${senderName}`);
-  return true;
+  const accountSid = Deno.env.get('TWILIO_ACCOUNT_SID');
+  const authToken = Deno.env.get('TWILIO_AUTH_TOKEN');
+  const twilioPhone = Deno.env.get('TWILIO_PHONE_NUMBER');
+
+  if (!accountSid || !authToken || !twilioPhone) {
+    console.error('Twilio configuration not set');
+    return false;
+  }
+
+  try {
+    const message = note 
+      ? `${senderName} invited you to ViiB: "${note}". Join now: ${inviteLink}`
+      : `${senderName} invited you to ViiB - find your perfect movie based on your mood! Join: ${inviteLink}`;
+
+    const response = await fetch(
+      `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Authorization': 'Basic ' + btoa(`${accountSid}:${authToken}`),
+        },
+        body: new URLSearchParams({
+          To: phone,
+          From: twilioPhone,
+          Body: message,
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('Twilio API error:', errorData);
+      return false;
+    }
+
+    console.log(`SMS invite sent successfully`);
+    return true;
+  } catch (error) {
+    console.error('Failed to send SMS invite:', error);
+    return false;
+  }
 }
