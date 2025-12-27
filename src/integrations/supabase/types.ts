@@ -1393,6 +1393,63 @@ export type Database = {
         }
         Relationships: []
       }
+      tmdb_genre_mappings: {
+        Row: {
+          created_at: string | null
+          genre_name: string
+          id: string
+          is_active: boolean
+          media_type: string
+          tmdb_genre_id: number
+          tv_equivalent_id: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          genre_name: string
+          id?: string
+          is_active?: boolean
+          media_type?: string
+          tmdb_genre_id: number
+          tv_equivalent_id?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          genre_name?: string
+          id?: string
+          is_active?: boolean
+          media_type?: string
+          tmdb_genre_id?: number
+          tv_equivalent_id?: number | null
+        }
+        Relationships: []
+      }
+      tmdb_provider_mappings: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_active: boolean
+          region_code: string
+          service_name: string
+          tmdb_provider_id: number
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean
+          region_code?: string
+          service_name: string
+          tmdb_provider_id: number
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean
+          region_code?: string
+          service_name?: string
+          tmdb_provider_id?: number
+        }
+        Relationships: []
+      }
       user_context_logs: {
         Row: {
           created_at: string
@@ -2304,6 +2361,10 @@ export type Database = {
           novelty_weight: number
           social_weight: number
         }[]
+      }
+      get_app_setting: {
+        Args: { p_default?: string; p_key: string }
+        Returns: string
       }
       get_corrupted_streaming_count: { Args: never; Returns: number }
       get_cron_job_progress: {
