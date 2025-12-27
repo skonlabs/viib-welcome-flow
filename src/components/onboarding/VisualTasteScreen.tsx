@@ -12,6 +12,7 @@ interface GenreTitleOption {
   title_name: string;
   poster_path: string;
   score: number;
+  orderIndex: number;
 }
 
 interface VisualTasteScreenProps {
@@ -133,7 +134,7 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
         }));
 
         // Build genre options - one movie per genre, respecting order from edge function
-        const genreToTopMovie = new Map<string, GenreTitleOption & { orderIndex: number }>();
+        const genreToTopMovie = new Map<string, GenreTitleOption>();
         const usedMovies = new Set<string>();
 
         for (const movie of scoredMovies) {
