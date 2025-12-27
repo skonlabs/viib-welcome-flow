@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
 import { WelcomeScreen } from "@/components/onboarding/WelcomeScreen";
 import { EntryMethodScreen } from "@/components/onboarding/EntryMethodScreen";
 import { PhoneEntryScreen } from "@/components/onboarding/PhoneEntryScreen";
@@ -52,6 +53,7 @@ export default function Onboarding() {
   });
   const navigate = useNavigate();
   const location = useLocation();
+  const { refreshProfile } = useAuth();
   
   // Load saved onboarding data on mount
   useEffect(() => {
@@ -587,6 +589,10 @@ export default function Onboarding() {
           }
         }
       }
+      
+      // Refresh the auth context profile before navigating
+      // This ensures ProtectedRoute sees the updated onboarding_completed status
+      await refreshProfile();
       
       // Navigate to home screen
       navigate("/app/home");
