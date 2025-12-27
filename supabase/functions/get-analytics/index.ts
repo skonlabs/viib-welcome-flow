@@ -1,9 +1,9 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import {
+  getCorsHeaders,
+  handleCorsPreflightRequest,
+  validateOrigin,
+} from '../_shared/cors.ts';
+import { requireAuth, createAdminClient } from '../_shared/auth.ts';
 
 interface AnalyticsResponse {
   activeUsers: {
@@ -54,23 +54,61 @@ interface AnalyticsResponse {
   };
 }
 
+/**
+ * Analytics Edge Function
+ * REQUIRES: Valid Supabase Auth JWT with admin role
+ */
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return handleCorsPreflightRequest(req);
   }
 
+  // Validate origin
+  const originError = validateOrigin(req);
+  if (originError) return originError;
+
+  const corsHeaders = getCorsHeaders(req);
+
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    // REQUIRE valid Supabase Auth JWT
+    const authResult = await requireAuth(req);
+    if (!authResult.authenticated) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const { userId } = authResult;
+    if (!userId) {
+      return new Response(
+        JSON.stringify({ error: 'User profile not found' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Use admin client for queries
+    const supabase = createAdminClient();
+
+    // Verify user has admin role
+    const { data: adminRole, error: roleError } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', userId)
+      .eq('role', 'admin')
+      .maybeSingle();
+
+    if (roleError || !adminRole) {
+      return new Response(
+        JSON.stringify({ error: 'Admin access required' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     const now = new Date();
-    const today = now.toISOString().split('T')[0];
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
     const oneDayAgo = new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000).toISOString();
-
-    console.log('Fetching analytics data...');
 
     // Parallel queries for efficiency
     const [
@@ -82,19 +120,12 @@ Deno.serve(async (req) => {
       connectionsResult,
       socialRecsResult,
     ] = await Promise.all([
-      // Total users
       supabase.from('users').select('id, created_at, is_active'),
-      // Session/context logs
       supabase.from('user_context_logs').select('*').gte('created_at', thirtyDaysAgo),
-      // Mood/emotion entries
       supabase.from('user_emotion_states').select('id, user_id, emotion_id, created_at').gte('created_at', thirtyDaysAgo),
-      // Recommendation outcomes
       supabase.from('recommendation_outcomes').select('*').gte('created_at', thirtyDaysAgo),
-      // Title interactions
       supabase.from('user_title_interactions').select('*, titles(name)').gte('created_at', thirtyDaysAgo),
-      // Friend connections
       supabase.from('friend_connections').select('*'),
-      // Social recommendations
       supabase.from('user_social_recommendations').select('*').gte('created_at', thirtyDaysAgo),
     ]);
 
@@ -141,7 +172,7 @@ Deno.serve(async (req) => {
       const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
       const dateStr = date.toISOString().split('T')[0];
       const nextDate = new Date(date.getTime() + 24 * 60 * 60 * 1000);
-      
+
       const count = new Set(
         [...contextLogs, ...emotionStates, ...interactions]
           .filter(l => {
@@ -150,7 +181,7 @@ Deno.serve(async (req) => {
           })
           .map(l => l.user_id)
       ).size;
-      
+
       dailyTrend.push({ date: dateStr, count });
     }
 
@@ -185,7 +216,7 @@ Deno.serve(async (req) => {
       count: recommendations.filter(r => r.rating_value === rating).length,
     }));
 
-    // Pass Rate (using interactions - wishlisted vs ignored)
+    // Pass Rate
     const wishlistedCount = interactions.filter(i => i.interaction_type === 'wishlisted').length;
     const ignoredCount = interactions.filter(i => i.interaction_type === 'ignored').length;
     const passRateValue = (wishlistedCount + ignoredCount) > 0
@@ -195,13 +226,13 @@ Deno.serve(async (req) => {
     // Title Watch
     const watchlistAdditions = interactions.filter(i => i.interaction_type === 'wishlisted').length;
     const titlesWatched = interactions.filter(i => ['started', 'completed'].includes(i.interaction_type)).length;
-    
+
     const titleCounts = interactions.reduce((acc, i) => {
       const name = (i as any).titles?.name || 'Unknown';
       acc[name] = (acc[name] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
-    
+
     const topTitles = Object.entries(titleCounts)
       .map(([name, count]) => ({ name, count: count as number }))
       .sort((a, b) => b.count - a.count)
@@ -218,7 +249,7 @@ Deno.serve(async (req) => {
     const day1Retention = users.filter(u => {
       const signupDate = new Date(u.created_at);
       const nextDay = new Date(signupDate.getTime() + 24 * 60 * 60 * 1000);
-      return [...contextLogs, ...emotionStates, ...interactions].some(l => 
+      return [...contextLogs, ...emotionStates, ...interactions].some(l =>
         l.user_id === u.id && new Date(l.created_at) >= nextDay
       );
     }).length;
@@ -226,7 +257,7 @@ Deno.serve(async (req) => {
     const day7Retention = users.filter(u => {
       const signupDate = new Date(u.created_at);
       const day7 = new Date(signupDate.getTime() + 7 * 24 * 60 * 60 * 1000);
-      return [...contextLogs, ...emotionStates, ...interactions].some(l => 
+      return [...contextLogs, ...emotionStates, ...interactions].some(l =>
         l.user_id === u.id && new Date(l.created_at) >= day7
       );
     }).length;
@@ -234,7 +265,7 @@ Deno.serve(async (req) => {
     const day30Retention = users.filter(u => {
       const signupDate = new Date(u.created_at);
       const day30 = new Date(signupDate.getTime() + 30 * 24 * 60 * 60 * 1000);
-      return [...contextLogs, ...emotionStates, ...interactions].some(l => 
+      return [...contextLogs, ...emotionStates, ...interactions].some(l =>
         l.user_id === u.id && new Date(l.created_at) >= day30
       );
     }).length;
@@ -261,8 +292,8 @@ Deno.serve(async (req) => {
       recommendations: {
         total: recommendations.length,
         accepted: acceptedRecs.length,
-        acceptanceRate: recommendations.length > 0 
-          ? Math.round((acceptedRecs.length / recommendations.length) * 100) 
+        acceptanceRate: recommendations.length > 0
+          ? Math.round((acceptedRecs.length / recommendations.length) * 100)
           : 0,
         ratingDistribution,
       },
@@ -290,16 +321,13 @@ Deno.serve(async (req) => {
       },
     };
 
-    console.log('Analytics data compiled successfully');
-
     return new Response(JSON.stringify(analytics), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
-    console.error('Error fetching analytics:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Error fetching analytics');
     return new Response(
-      JSON.stringify({ error: errorMessage }),
+      JSON.stringify({ error: 'Internal server error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

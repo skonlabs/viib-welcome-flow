@@ -1,73 +1,105 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.84.0';
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import {
+  getCorsHeaders,
+  handleCorsPreflightRequest,
+  validateOrigin,
+} from '../_shared/cors.ts';
+import { requireAuth, createAdminClient } from '../_shared/auth.ts';
 
 interface InviteRequest {
-  userId: string;
   method: 'email' | 'phone';
   contacts: string[];
   note?: string;
 }
 
+/**
+ * Send Invites Edge Function
+ * REQUIRES: Valid Supabase Auth JWT
+ */
 Deno.serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return handleCorsPreflightRequest(req);
   }
 
+  // Validate origin
+  const originError = validateOrigin(req);
+  if (originError) return originError;
+
+  const corsHeaders = getCorsHeaders(req);
+
   try {
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
-
-    const { userId, method, contacts, note } = await req.json() as InviteRequest;
-
-    console.log(`Processing ${contacts.length} ${method} invites from user ${userId}`);
-    if (note) {
-      console.log(`Personal note included: ${note.substring(0, 50)}...`);
+    // REQUIRE valid Supabase Auth JWT
+    const authResult = await requireAuth(req);
+    if (!authResult.authenticated) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
-    if (!userId || !contacts || contacts.length === 0) {
-      throw new Error('Missing required fields');
+    const { userId } = authResult;
+    if (!userId) {
+      return new Response(
+        JSON.stringify({ error: 'User profile not found' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const supabase = createAdminClient();
+
+    const { method, contacts, note } = await req.json() as InviteRequest;
+
+    if (!contacts || contacts.length === 0) {
+      return new Response(
+        JSON.stringify({ error: 'At least one contact is required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Rate limit invites
+    const { data: rateLimitCheck } = await supabase.rpc('check_rate_limit_fast', {
+      p_key: `invites:${userId}`,
+      p_max_count: 20,
+      p_window_seconds: 86400  // 20 per day
+    });
+
+    if (rateLimitCheck && !rateLimitCheck[0]?.allowed) {
+      return new Response(
+        JSON.stringify({ error: 'Daily invite limit reached. Please try again tomorrow.' }),
+        { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     // Get sender's information
     const { data: sender, error: senderError } = await supabase
       .from('users')
-      .select('full_name, email, phone_number')
+      .select('full_name')
       .eq('id', userId)
       .single();
 
-    if (senderError) {
-      console.error('Error fetching sender:', senderError);
-      throw senderError;
+    if (senderError || !sender) {
+      return new Response(
+        JSON.stringify({ error: 'User not found' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     const senderName = sender.full_name || 'A friend';
-    const inviteLink = `${Deno.env.get('SUPABASE_URL')?.replace('supabase.co', 'lovableproject.com')}?invited_by=${userId}`;
+    const inviteLink = `${Deno.env.get('APP_URL') || 'https://viib.app'}?invited_by=${userId}`;
 
     // Process invites based on method
     const results = [];
-    
+
     for (const contact of contacts) {
       try {
         if (method === 'email') {
-          // Send email invite
-          const emailResult = await sendEmailInvite(contact, senderName, inviteLink, note);
+          await sendEmailInvite(contact, senderName, inviteLink, note);
           results.push({ contact, success: true, method: 'email' });
-          console.log(`Email invite sent to ${contact}`);
         } else if (method === 'phone') {
-          // Send SMS invite
-          const smsResult = await sendSMSInvite(contact, senderName, inviteLink, note);
+          await sendSMSInvite(contact, senderName, inviteLink, note);
           results.push({ contact, success: true, method: 'sms' });
-          console.log(`SMS invite sent to ${contact}`);
         }
 
-        // Store invitation record (optional - for tracking)
+        // Store invitation record
         await supabase
           .from('friend_connections')
           .upsert({
@@ -76,67 +108,48 @@ Deno.serve(async (req) => {
             relationship_type: 'pending_invite',
             trust_score: 0.5,
           }, { onConflict: 'user_id,friend_user_id' });
-          
+
       } catch (error: any) {
-        console.error(`Failed to send invite to ${contact}:`, error);
-        results.push({ contact, success: false, error: error.message });
+        results.push({ contact, success: false, error: 'Failed to send' });
       }
     }
 
     const successCount = results.filter(r => r.success).length;
-    console.log(`Successfully sent ${successCount}/${contacts.length} invites`);
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
+      JSON.stringify({
+        success: true,
         results,
         message: `Sent ${successCount} invite${successCount !== 1 ? 's' : ''} successfully`
       }),
-      { 
+      {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200 
+        status: 200
       }
     );
 
   } catch (error: any) {
-    console.error('Error in send-invites function:', error);
+    console.error('Error in send-invites function');
     return new Response(
-      JSON.stringify({ error: error.message }),
-      { 
+      JSON.stringify({ error: 'Internal server error' }),
+      {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400 
+        status: 500
       }
     );
   }
 });
 
 async function sendEmailInvite(email: string, senderName: string, inviteLink: string, note?: string): Promise<boolean> {
-  // For testing: log the invite instead of sending
-  console.log(`[EMAIL INVITE] To: ${email}, From: ${senderName}, Link: ${inviteLink}`);
-  if (note) {
-    console.log(`[EMAIL INVITE] Personal Note: ${note}`);
-  }
-  
-  // TODO: Implement actual email sending using Resend or Gmail SMTP
-  // Email body should include:
-  // - Sender's name and personal note (if provided)
-  // - Invitation link
-  // - Brief description of ViiB
-  
+  // TODO: Implement actual email sending using Resend or similar
+  // For now, log without sensitive data
+  console.log(`Email invite sent to recipient from ${senderName}`);
   return true;
 }
 
 async function sendSMSInvite(phone: string, senderName: string, inviteLink: string, note?: string): Promise<boolean> {
-  // For testing: log the invite instead of sending
-  console.log(`[SMS INVITE] To: ${phone}, From: ${senderName}, Link: ${inviteLink}`);
-  if (note) {
-    console.log(`[SMS INVITE] Personal Note: ${note}`);
-  }
-  
   // TODO: Implement actual SMS sending using Twilio
-  // SMS should include:
-  // - Sender's name and personal note (if provided)
-  // - Shortened invitation link
-  
+  // For now, log without sensitive data
+  console.log(`SMS invite sent to recipient from ${senderName}`);
   return true;
 }

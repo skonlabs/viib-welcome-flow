@@ -17,18 +17,18 @@ const phoneSchema = z.string().trim().regex(/^\+?[1-9]\d{1,14}$/, { message: "Pl
 export default function Login() {
   const [searchParams] = useSearchParams();
   const loginMethod = searchParams.get('tab') || 'email'; // default to email
-  
+
   // Email login state
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
-  
+
   // Phone login state
   const [countryCode, setCountryCode] = useState("+1");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [otpSent, setOtpSent] = useState(false);
-  
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const navigate = useNavigate();
@@ -41,7 +41,46 @@ export default function Login() {
     return `(${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6, 10)}`;
   };
 
+  /**
+   * Navigate to appropriate page based on onboarding status
+   */
+  const navigateAfterLogin = async (authId: string) => {
+    // Fetch user profile linked to auth user
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('id, onboarding_completed, last_onboarding_step')
+      .eq('auth_id', authId)
+      .single();
 
+    if (userError || !user) {
+      console.error('Error fetching user profile:', userError);
+      // New auth user without linked profile - go to onboarding
+      navigate("/app/onboarding/welcome");
+      return;
+    }
+
+    if (!user.onboarding_completed) {
+      // Resume onboarding from appropriate step
+      const lastStep = user.last_onboarding_step;
+      if (lastStep === '/app/onboarding/email' ||
+          lastStep === '/app/onboarding/email-otp' ||
+          lastStep === '/app/onboarding/phone' ||
+          lastStep === '/app/onboarding/otp' ||
+          lastStep === '/app/onboarding/entry' ||
+          lastStep === '/app/onboarding/welcome' ||
+          !lastStep) {
+        navigate("/app/onboarding/biometric");
+      } else {
+        navigate(lastStep);
+      }
+    } else {
+      navigate("/app/home");
+    }
+  };
+
+  /**
+   * Email/Password login using Supabase Auth
+   */
   const handleEmailLogin = async () => {
     if (!email.trim() || !password.trim()) {
       setError("Please enter your email and password");
@@ -59,87 +98,44 @@ export default function Login() {
     setError("");
 
     try {
-      const { data, error: invokeError } = await supabase.functions.invoke("verify-password", {
-        body: { email, password },
+      // Use Supabase Auth for email/password login
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password: password,
       });
 
-      if (invokeError) {
-        setError("Unable to sign in. Please check your credentials.");
+      if (authError) {
+        // Map Supabase auth errors to user-friendly messages
+        if (authError.message.includes('Invalid login credentials')) {
+          setError("Invalid email or password");
+        } else if (authError.message.includes('Email not confirmed')) {
+          setError("Please verify your email address first");
+        } else if (authError.message.includes('Too many requests')) {
+          setError("Too many login attempts. Please try again later.");
+        } else {
+          setError("Unable to sign in. Please check your credentials.");
+        }
         return;
       }
 
-      if (data?.error) {
-        setError(data.error);
-        return;
-      }
-
-      if (data?.success && data?.userId) {
-        // Clear any old session data first
-        localStorage.removeItem('viib_user_id');
-        localStorage.removeItem('viib_session');
-        localStorage.removeItem('viib_resume_onboarding');
-        sessionStorage.removeItem('viib_session');
-        
-        const sessionData = {
-          userId: data.userId,
-          rememberMe,
-          timestamp: Date.now()
-        };
-
-        if (rememberMe) {
-          localStorage.setItem('viib_session', JSON.stringify(sessionData));
-        } else {
-          sessionStorage.setItem('viib_session', JSON.stringify(sessionData));
-        }
-        
-        localStorage.setItem('viib_user_id', data.userId);
-        
-        // Wait a moment to ensure localStorage is written
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
-        // Check onboarding status
-        const { data: user, error: userError } = await supabase
-          .from('users')
-          .select('onboarding_completed, last_onboarding_step')
-          .eq('id', data.userId)
-          .single();
-        
-        if (userError) {
-          console.error('Error checking onboarding:', userError);
-          navigate("/app/home");
-          return;
-        }
-        
-        if (!user.onboarding_completed) {
-          localStorage.setItem('viib_resume_onboarding', 'true');
-          
-          // If they're stuck on email/phone signup or OTP screens, skip to biometric
-          // since they've proven identity by logging in successfully
-          const lastStep = user.last_onboarding_step;
-          if (lastStep === '/app/onboarding/email' || 
-              lastStep === '/app/onboarding/email-otp' ||
-              lastStep === '/app/onboarding/phone' ||
-              lastStep === '/app/onboarding/otp' ||
-              lastStep === '/app/onboarding/entry' ||
-              lastStep === '/app/onboarding/welcome' ||
-              !lastStep) {
-            navigate("/app/onboarding/biometric");
-          } else {
-            navigate(lastStep);
-          }
-        } else {
-          navigate("/app/home");
-        }
-      } else {
+      if (!data.user || !data.session) {
         setError("Sign in failed. Please try again.");
+        return;
       }
+
+      // Supabase Auth session is now active - navigate based on profile
+      await navigateAfterLogin(data.user.id);
     } catch (err) {
+      console.error('Login error:', err);
       setError("Something went wrong. Please try again later.");
     } finally {
       setLoading(false);
     }
   };
 
+  /**
+   * Send phone OTP using Supabase Auth
+   */
   const handleSendPhoneOTP = async () => {
     if (!phoneNumber.trim()) {
       setError("Please enter your phone number");
@@ -159,10 +155,10 @@ export default function Login() {
     setError("");
 
     try {
-      // Check if user exists
+      // Check if user exists with this phone number
       const { data: user, error: userError } = await supabase
         .from("users")
-        .select("id, is_active, is_phone_verified, onboarding_completed")
+        .select("id, auth_id, is_active, is_phone_verified, onboarding_completed")
         .eq("phone_number", fullPhoneNumber)
         .maybeSingle();
 
@@ -181,111 +177,76 @@ export default function Login() {
         return;
       }
 
-      // Note: We don't check onboarding_completed here for phone login
-      // After OTP verification, we'll redirect to onboarding if needed
-      // This ensures security - OTP must be verified first for phone auth
-      
-      // Note: We also don't check is_active here because accounts with
-      // incomplete onboarding will have is_active: false by design.
-      // After OTP verification, we'll check onboarding and redirect appropriately.
-
-      // Send OTP
-      const { data, error: invokeError } = await supabase.functions.invoke("send-phone-otp", {
-        body: { phoneNumber: fullPhoneNumber },
+      // Send OTP via Supabase Auth
+      const { error: otpError } = await supabase.auth.signInWithOtp({
+        phone: fullPhoneNumber,
       });
 
-      if (invokeError || data?.error) {
-        setError("Unable to send verification code. Please try again.");
+      if (otpError) {
+        if (otpError.message.includes('Too many requests')) {
+          setError("Too many OTP requests. Please wait before trying again.");
+        } else {
+          setError("Unable to send verification code. Please try again.");
+        }
         return;
       }
 
       setOtpSent(true);
     } catch (err) {
+      console.error('Send OTP error:', err);
       setError("Something went wrong. Please try again later.");
     } finally {
       setLoading(false);
     }
   };
 
+  /**
+   * Verify phone OTP using Supabase Auth
+   */
   const handleVerifyPhoneOTP = async (code: string) => {
     const fullPhoneNumber = `${countryCode}${phoneNumber.replace(/\D/g, '')}`;
 
-    // Verify OTP
-    const { data, error: invokeError } = await supabase.functions.invoke("verify-phone-otp", {
-      body: { phoneNumber: fullPhoneNumber, otpCode: code },
+    // Verify OTP via Supabase Auth
+    const { data, error: verifyError } = await supabase.auth.verifyOtp({
+      phone: fullPhoneNumber,
+      token: code,
+      type: 'sms',
     });
 
-    if (invokeError) {
-      throw new Error("Unable to verify code. Please try again.");
-    }
-
-    if (!data?.success) {
-      throw new Error(data?.error || "Invalid verification code");
-    }
-
-    // Get user ID and status
-    const { data: user, error: userError } = await supabase
-      .from("users")
-      .select("id, onboarding_completed, is_active, last_onboarding_step")
-      .eq("phone_number", fullPhoneNumber)
-      .eq("is_phone_verified", true)
-      .maybeSingle();
-
-    if (userError || !user) {
-      throw new Error("Unable to complete sign in. Please try again.");
-    }
-
-    // Clear any old session data first
-    localStorage.removeItem('viib_user_id');
-    localStorage.removeItem('viib_session');
-    localStorage.removeItem('viib_resume_onboarding');
-    sessionStorage.removeItem('viib_session');
-    
-    // Store new session
-    const sessionData = {
-      userId: user.id,
-      rememberMe: false,
-      timestamp: Date.now()
-    };
-
-    sessionStorage.setItem('viib_session', JSON.stringify(sessionData));
-    localStorage.setItem('viib_user_id', user.id);
-    
-    // Wait a moment to ensure localStorage is written
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
-    // Check onboarding status
-    if (!user.onboarding_completed) {
-      localStorage.setItem('viib_resume_onboarding', 'true');
-      
-      // If they're stuck on email/phone signup or OTP screens, skip to biometric
-      // since they've proven identity by logging in successfully
-      const lastStep = user.last_onboarding_step;
-      if (lastStep === '/app/onboarding/email' || 
-          lastStep === '/app/onboarding/email-otp' ||
-          lastStep === '/app/onboarding/phone' ||
-          lastStep === '/app/onboarding/otp' ||
-          lastStep === '/app/onboarding/entry' ||
-          lastStep === '/app/onboarding/welcome' ||
-          !lastStep) {
-        navigate("/app/onboarding/biometric");
+    if (verifyError) {
+      if (verifyError.message.includes('Token has expired')) {
+        throw new Error("Code has expired. Please request a new one.");
+      } else if (verifyError.message.includes('Invalid')) {
+        throw new Error("Invalid verification code. Please try again.");
       } else {
-        navigate(lastStep);
+        throw new Error("Unable to verify code. Please try again.");
       }
-    } else {
-      navigate("/app/home");
     }
+
+    if (!data.user || !data.session) {
+      throw new Error("Verification failed. Please try again.");
+    }
+
+    // Supabase Auth session is now active - navigate based on profile
+    await navigateAfterLogin(data.user.id);
   };
 
+  /**
+   * Resend phone OTP using Supabase Auth
+   */
   const handleResendPhoneOTP = async () => {
     const fullPhoneNumber = `${countryCode}${phoneNumber.replace(/\D/g, '')}`;
-    
-    const { data, error: invokeError } = await supabase.functions.invoke("send-phone-otp", {
-      body: { phoneNumber: fullPhoneNumber },
+
+    const { error: otpError } = await supabase.auth.signInWithOtp({
+      phone: fullPhoneNumber,
     });
 
-    if (invokeError || data?.error) {
-      throw new Error("Unable to send verification code. Please try again.");
+    if (otpError) {
+      if (otpError.message.includes('Too many requests')) {
+        throw new Error("Too many OTP requests. Please wait before trying again.");
+      } else {
+        throw new Error("Unable to send verification code. Please try again.");
+      }
     }
   };
 
@@ -318,7 +279,7 @@ export default function Login() {
   }
 
   return (
-    <motion.div 
+    <motion.div
       className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-black"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -329,7 +290,7 @@ export default function Login() {
       <div className="fixed inset-0 overflow-hidden">
         <div className="absolute inset-0">
           <div className="absolute inset-0 gradient-ocean opacity-40" />
-          <motion.div 
+          <motion.div
             className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full blur-[80px] opacity-40"
             style={{
               background: "radial-gradient(circle, #06b6d4 0%, transparent 70%)"
@@ -344,7 +305,7 @@ export default function Login() {
               ease: "easeInOut"
             }}
           />
-          <motion.div 
+          <motion.div
             className="absolute bottom-1/4 right-1/4 w-96 h-96 rounded-full blur-[80px] opacity-30"
             style={{
               background: "radial-gradient(circle, #0ea5e9 0%, transparent 70%)"

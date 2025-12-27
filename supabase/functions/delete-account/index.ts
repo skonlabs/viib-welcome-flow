@@ -1,20 +1,21 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import {
   getCorsHeaders,
   handleCorsPreflightRequest,
   validateOrigin,
 } from "../_shared/cors.ts";
+import { requireAuth, createAdminClient } from "../_shared/auth.ts";
 import { verifyPasswordSecure } from "../_shared/crypto.ts";
 
 /**
  * Account Deletion Edge Function
  * GDPR compliant - permanently deletes all user data
  *
- * Required body:
- * - userId: string (the user's UUID)
+ * REQUIRES: Valid Supabase Auth JWT
+ * Body:
  * - password: string (for verification)
  * - confirmDeletion: boolean (must be true)
+ * - reason?: string (optional feedback)
  */
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -28,13 +29,33 @@ serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
 
   try {
-    const { userId, password, confirmDeletion, reason } = await req.json();
+    // REQUIRE valid Supabase Auth JWT
+    const authResult = await requireAuth(req);
+    if (!authResult.authenticated) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Unauthorized' }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 401
+        }
+      );
+    }
 
-    if (!userId || !password || confirmDeletion !== true) {
+    const { user, userId } = authResult;
+    if (!userId) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'User profile not found' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 404 }
+      );
+    }
+
+    const { password, confirmDeletion, reason } = await req.json();
+
+    if (!password || confirmDeletion !== true) {
       return new Response(
         JSON.stringify({
           success: false,
-          error: 'User ID, password, and deletion confirmation are required'
+          error: 'Password and deletion confirmation are required'
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
       );
@@ -45,16 +66,13 @@ serve(async (req) => {
                       req.headers.get('x-real-ip') ||
                       'unknown';
 
-    // Initialize Supabase client
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    // Initialize admin client for service operations
+    const supabase = createAdminClient();
 
     // Rate limit account deletion requests
-    const { data: rateLimitCheck } = await supabase.rpc('check_ip_rate_limit', {
-      p_ip_address: ipAddress,
-      p_endpoint: 'account_delete',
-      p_max_requests: 1,
+    const { data: rateLimitCheck } = await supabase.rpc('check_rate_limit_fast', {
+      p_key: `account_delete:${userId}`,
+      p_max_count: 1,
       p_window_seconds: 86400  // 1 per day
     });
 
@@ -68,14 +86,14 @@ serve(async (req) => {
       );
     }
 
-    // Get user data
-    const { data: user, error: userError } = await supabase
+    // Get user data (password_hash)
+    const { data: userData, error: userError } = await supabase
       .from('users')
       .select('id, email, password_hash')
       .eq('id', userId)
       .single();
 
-    if (userError || !user) {
+    if (userError || !userData) {
       return new Response(
         JSON.stringify({ success: false, error: 'User not found' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 404 }
@@ -83,17 +101,9 @@ serve(async (req) => {
     }
 
     // Verify password using constant-time comparison
-    const isPasswordValid = await verifyPasswordSecure(password, user.password_hash);
+    const isPasswordValid = await verifyPasswordSecure(password, userData.password_hash);
 
     if (!isPasswordValid) {
-      // Record failed attempt
-      await supabase.rpc('record_login_attempt', {
-        p_identifier: user.email,
-        p_ip_address: ipAddress,
-        p_attempt_type: 'account_delete',
-        p_success: false
-      });
-
       return new Response(
         JSON.stringify({ success: false, error: 'Invalid password' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
@@ -101,13 +111,12 @@ serve(async (req) => {
     }
 
     // Log the deletion request before proceeding (for audit purposes)
+    // Note: Don't log email, only user_id
     await supabase.from('system_logs').insert({
       level: 'info',
       message: 'Account deletion initiated',
       context: {
         user_id: userId,
-        email: user.email,
-        ip_address: ipAddress,
         reason: reason || 'Not specified',
         timestamp: new Date().toISOString()
       }
@@ -135,22 +144,18 @@ serve(async (req) => {
     if (userLists && userLists.length > 0) {
       const listIds = userLists.map(l => l.id);
 
-      // Delete list items
       await supabase.from('vibe_list_items')
         .delete()
         .in('vibe_list_id', listIds);
 
-      // Delete list followers
       await supabase.from('vibe_list_followers')
         .delete()
         .in('vibe_list_id', listIds);
 
-      // Delete list shares
       await supabase.from('vibe_list_shared_with')
         .delete()
         .in('vibe_list_id', listIds);
 
-      // Delete list views
       await supabase.from('vibe_list_views')
         .delete()
         .in('vibe_list_id', listIds);
@@ -231,25 +236,31 @@ serve(async (req) => {
       .eq('used_by', userId);
 
     // 17. Delete email verifications
-    if (user.email) {
+    if (userData.email) {
       await supabase.from('email_verifications')
         .delete()
-        .eq('email', user.email);
+        .eq('email', userData.email);
 
       await supabase.from('login_attempts')
         .delete()
-        .eq('identifier', user.email);
+        .eq('identifier', userData.email);
     }
 
-    // 18. Finally, delete the user record itself
+    // 18. Delete the user record itself
     const { error: deleteError } = await supabase
       .from('users')
       .delete()
       .eq('id', userId);
 
     if (deleteError) {
-      console.error('Failed to delete user record:', deleteError);
+      console.error('Failed to delete user record');
       throw new Error('Failed to complete account deletion');
+    }
+
+    // 19. Delete the Supabase Auth user
+    const { error: authDeleteError } = await supabase.auth.admin.deleteUser(user.id);
+    if (authDeleteError) {
+      console.error('Failed to delete auth user');
     }
 
     // Log successful deletion
@@ -258,7 +269,6 @@ serve(async (req) => {
       message: 'Account deletion completed',
       context: {
         deleted_user_id: userId,
-        ip_address: ipAddress,
         timestamp: new Date().toISOString()
       }
     });
@@ -272,7 +282,7 @@ serve(async (req) => {
     );
 
   } catch (error: unknown) {
-    console.error('Error in delete-account function:', error);
+    console.error('Error in delete-account function');
     return new Response(
       JSON.stringify({
         success: false,
