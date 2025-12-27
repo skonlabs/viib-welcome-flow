@@ -66,11 +66,14 @@ serve(async (req) => {
     
     console.log(`[discover-tmdb] Fetching movies: languages=${languages}, minDate=${minDate}, minRating=${minRating}, providers=${providerFilter || 'none'}, region=${region}`);
 
-    // Fetch multiple pages to get enough movies
+    // Fetch multiple pages to get enough movies - track language priority
     const allMovies: any[] = [];
     const pagesToFetch = Math.ceil(limit / 20); // TMDB returns 20 per page
 
-    for (const language of languages) {
+    for (let langIndex = 0; langIndex < languages.length; langIndex++) {
+      const language = languages[langIndex];
+      const languagePriority = languages.length - langIndex; // Higher priority for earlier languages
+      
       for (let page = 1; page <= Math.min(pagesToFetch, 5); page++) {
         const url = new URL(`${TMDB_BASE_URL}/discover/movie`);
         url.searchParams.set('api_key', TMDB_API_KEY);
@@ -93,26 +96,43 @@ serve(async (req) => {
         const data = await response.json();
 
         if (data.results) {
-          allMovies.push(...data.results.map((m: any) => ({ ...m, original_language: language })));
+          // Attach language priority to each movie
+          allMovies.push(...data.results.map((m: any) => ({ 
+            ...m, 
+            original_language: language,
+            language_priority: languagePriority
+          })));
         }
       }
     }
 
     console.log(`[discover-tmdb] Fetched ${allMovies.length} raw movies`);
 
-    // Deduplicate by TMDB ID
-    const uniqueMovies = Array.from(
-      new Map(allMovies.map(m => [m.id, m])).values()
-    );
+    // Deduplicate by TMDB ID - keep the one with highest language priority
+    const movieMap = new Map<number, any>();
+    for (const movie of allMovies) {
+      const existing = movieMap.get(movie.id);
+      if (!existing || movie.language_priority > existing.language_priority) {
+        movieMap.set(movie.id, movie);
+      }
+    }
+    const uniqueMovies = Array.from(movieMap.values());
 
     // Filter by popularity
     const filteredMovies = uniqueMovies.filter(m => (m.popularity || 0) >= minPopularity);
 
     console.log(`[discover-tmdb] After filtering: ${filteredMovies.length} movies`);
 
-    // Sort by popularity and limit
+    // Sort by language priority first, then by popularity
     const topMovies = filteredMovies
-      .sort((a, b) => (b.popularity || 0) - (a.popularity || 0))
+      .sort((a, b) => {
+        // Primary sort: language priority (descending)
+        if (b.language_priority !== a.language_priority) {
+          return b.language_priority - a.language_priority;
+        }
+        // Secondary sort: popularity (descending)
+        return (b.popularity || 0) - (a.popularity || 0);
+      })
       .slice(0, limit);
 
     // Format response
