@@ -37,11 +37,26 @@ const positionToEmotion = (x: number, y: number) => ({
   arousal: 1 - (y / 100) * 2,
 });
 
-// Get color based on position
+// Get color based on position - using app theme colors (purple/cyan/pink)
 const getColorFromPosition = (x: number, y: number): string => {
-  const hue = x * 1.2; // 0-120 (red to green)
-  const saturation = 70 + (100 - y) * 0.3;
-  const lightness = 50 + y * 0.15;
+  // Map x (0-100) to hue range: purple (280) -> cyan (200) -> pink (320)
+  // Map y (0-100) for saturation/lightness adjustments
+  const normalizedX = x / 100;
+  const normalizedY = y / 100;
+  
+  // Interpolate between purple (280), cyan (200), and pink (320) based on position
+  let hue: number;
+  if (normalizedX < 0.5) {
+    // Left side: interpolate from pink (320) to purple (280)
+    hue = 320 - (normalizedX * 2) * 40;
+  } else {
+    // Right side: interpolate from purple (280) to cyan (200)
+    hue = 280 - ((normalizedX - 0.5) * 2) * 80;
+  }
+  
+  const saturation = 80 + (1 - normalizedY) * 20; // 80-100%
+  const lightness = 50 + normalizedY * 15; // 50-65%
+  
   return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
 };
 
@@ -361,10 +376,10 @@ export const MoodCalibrationScreen = ({
               className="relative w-full max-w-sm mx-auto aspect-square rounded-2xl cursor-crosshair touch-none select-none overflow-hidden"
               style={{
                 background: `
-                  radial-gradient(ellipse at 100% 0%, hsl(120 70% 50% / 0.3), transparent 50%),
-                  radial-gradient(ellipse at 0% 0%, hsl(0 70% 50% / 0.3), transparent 50%),
-                  radial-gradient(ellipse at 100% 100%, hsl(180 50% 50% / 0.3), transparent 50%),
-                  radial-gradient(ellipse at 0% 100%, hsl(240 50% 50% / 0.3), transparent 50%),
+                  radial-gradient(ellipse at 100% 0%, hsl(200 100% 60% / 0.35), transparent 50%),
+                  radial-gradient(ellipse at 0% 0%, hsl(320 80% 55% / 0.35), transparent 50%),
+                  radial-gradient(ellipse at 100% 100%, hsl(200 80% 50% / 0.25), transparent 50%),
+                  radial-gradient(ellipse at 0% 100%, hsl(280 100% 70% / 0.3), transparent 50%),
                   hsl(var(--card))
                 `
               }}
