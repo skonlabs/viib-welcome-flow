@@ -5,6 +5,7 @@ import { Check, ArrowRight } from "@/icons";
 import { BackButton } from "./BackButton";
 import { FloatingParticles } from "./FloatingParticles";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuthContext } from "@/contexts/AuthContext";
 
 interface GenreTitleOption {
   genre_id: string;
@@ -33,6 +34,7 @@ const DISPLAY_GENRES = [
 ];
 
 export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps) => {
+  const { profile } = useAuthContext();
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
   const [options, setOptions] = useState<GenreTitleOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,8 +42,9 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
   useEffect(() => {
     const loadOptions = async () => {
       try {
-        const userId = localStorage.getItem('viib_user_id');
-        console.log('[VisualTaste] Loading for userId:', userId);
+        // Use profile.id from auth context - this ensures RLS works correctly
+        const userId = profile?.id || localStorage.getItem('viib_user_id');
+        console.log('[VisualTaste] Loading for userId:', userId, 'profile:', profile?.id);
         
         let streamingServiceIds: string[] = [];
         let languageCodes: string[] = ['en']; // Default to English
@@ -227,7 +230,7 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
     };
 
     loadOptions();
-  }, []);
+  }, [profile?.id]);
 
   const toggleGenre = (genreId: string) => {
     setSelectedGenres((prev) =>
@@ -238,7 +241,7 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
   };
 
   const handleContinue = async () => {
-    const userId = localStorage.getItem('viib_user_id');
+    const userId = profile?.id || localStorage.getItem('viib_user_id');
     if (userId && selectedGenres.length > 0) {
       try {
         await supabase.from('user_vibe_preferences').upsert({
