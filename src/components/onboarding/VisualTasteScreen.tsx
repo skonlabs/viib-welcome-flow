@@ -52,14 +52,60 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
         }
         console.log('[VisualTaste] Languages:', languageCodes);
 
+        // Get user's streaming subscriptions and map to TMDB provider IDs
+        const { data: userStreamingSubs } = await supabase
+          .from('user_streaming_subscriptions')
+          .select('streaming_service_id')
+          .eq('is_active', true);
+        
+        let tmdbProviderIds: number[] = [];
+        
+        if (userStreamingSubs && userStreamingSubs.length > 0) {
+          const serviceIds = userStreamingSubs.map(s => s.streaming_service_id);
+          
+          // Get TMDB provider IDs from mapping table
+          const { data: providerMappings } = await supabase
+            .from('tmdb_provider_mappings')
+            .select('tmdb_provider_id')
+            .in('service_name', serviceIds)
+            .eq('is_active', true);
+          
+          // If no mapping found by service_name, try fetching streaming service names first
+          if (!providerMappings || providerMappings.length === 0) {
+            const { data: streamingServices } = await supabase
+              .from('streaming_services')
+              .select('service_name')
+              .in('id', serviceIds);
+            
+            if (streamingServices && streamingServices.length > 0) {
+              const serviceNames = streamingServices.map(s => s.service_name);
+              const { data: mappings } = await supabase
+                .from('tmdb_provider_mappings')
+                .select('tmdb_provider_id')
+                .in('service_name', serviceNames)
+                .eq('is_active', true);
+              
+              if (mappings) {
+                tmdbProviderIds = mappings.map(m => m.tmdb_provider_id);
+              }
+            }
+          } else {
+            tmdbProviderIds = providerMappings.map(m => m.tmdb_provider_id);
+          }
+        }
+        
+        console.log('[VisualTaste] TMDB Provider IDs:', tmdbProviderIds);
+
         // Call TMDB discover edge function
         const { data, error } = await supabase.functions.invoke('discover-tmdb', {
           body: {
             languages: languageCodes,
+            streamingProviderIds: tmdbProviderIds,
             minRating: 6,
             minPopularity: 10,
             limit: 200,
-            excludeKids: true
+            excludeKids: true,
+            region: 'US'
           }
         });
 
