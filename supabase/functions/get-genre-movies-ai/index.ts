@@ -139,29 +139,14 @@ NO explanations, NO markdown, NO extra text. Start with [ and end with ]`;
       ai_recommendation: { title: string; language: string };
     }> = [];
 
-    // Query each movie title from the database
+    // Query each movie title from the database (exact match)
     for (const rec of movieRecommendations) {
-      // First try exact match, then fall back to partial match
-      let { data: titles, error } = await supabase
+      const { data: titles, error } = await supabase
         .from('titles')
         .select('id, name, poster_path, backdrop_path, overview, vote_average, release_date, original_language')
         .eq('name', rec.title)
         .eq('title_type', 'movie')
         .limit(1);
-
-      // If no exact match, try partial match
-      if ((!titles || titles.length === 0) && !error) {
-        const partialResult = await supabase
-          .from('titles')
-          .select('id, name, poster_path, backdrop_path, overview, vote_average, release_date, original_language')
-          .ilike('name', `%${rec.title}%`)
-          .eq('title_type', 'movie')
-          .order('popularity', { ascending: false })
-          .limit(1);
-        
-        titles = partialResult.data;
-        error = partialResult.error;
-      }
 
       if (error) {
         console.error(`[get-genre-movies-ai] Error querying title "${rec.title}":`, error);
@@ -173,7 +158,7 @@ NO explanations, NO markdown, NO extra text. Start with [ and end with ]`;
         ai_recommendation: { title: rec.title, language: rec.language }
       });
 
-      console.log(`[get-genre-movies-ai] ${rec.genre}: "${rec.title}" -> ${titles && titles.length > 0 ? `FOUND (${titles[0].name})` : 'NOT FOUND'}`);
+      console.log(`[get-genre-movies-ai] ${rec.genre}: "${rec.title}" -> ${titles && titles.length > 0 ? 'FOUND' : 'NOT FOUND'}`);
     }
 
     // Count found vs not found
