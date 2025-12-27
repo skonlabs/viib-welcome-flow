@@ -27,7 +27,7 @@ const KIDS_GENRES = ['Animation', 'Family'];
 
 // Genres to display
 const DISPLAY_GENRES = [
-  'Action', 'Adventure', 'Comedy', 'Crime', 'Documentary',
+  'Action', 'Adventure', 'Animation', 'Comedy', 'Crime', 'Documentary',
   'Drama', 'Fantasy', 'History', 'Horror', 'Music', 'Mystery',
   'Romance', 'Science Fiction', 'Thriller', 'War', 'Western'
 ];
