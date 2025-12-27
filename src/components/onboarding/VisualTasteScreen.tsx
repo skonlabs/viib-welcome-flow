@@ -25,7 +25,7 @@ const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w500";
 // Kids content certifications to exclude
 const KIDS_CERTIFICATIONS = ['G', 'TV-Y', 'TV-Y7', 'TV-G', 'TV-PG'];
 
-// Genres to display (we'll match these against primary genre)
+// Genres to display
 const DISPLAY_GENRES = [
   'Action', 'Adventure', 'Animation', 'Comedy', 'Crime', 'Documentary',
   'Drama', 'Fantasy', 'History', 'Horror', 'Music', 'Mystery',
@@ -40,16 +40,68 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
   useEffect(() => {
     const loadOptions = async () => {
       try {
+        const userId = localStorage.getItem('viib_user_id');
+        if (!userId) {
+          setLoading(false);
+          return;
+        }
+
+        // Get user's streaming subscriptions
+        const { data: userStreaming } = await supabase
+          .from('user_streaming_subscriptions')
+          .select('streaming_service_id')
+          .eq('user_id', userId)
+          .eq('is_active', true);
+
+        const streamingServiceIds = userStreaming?.map(s => s.streaming_service_id) || [];
+
+        // Get user's language preferences
+        const { data: userLanguages } = await supabase
+          .from('user_language_preferences')
+          .select('language_code')
+          .eq('user_id', userId);
+
+        const languageCodes = userLanguages?.map(l => l.language_code) || [];
+        // Default to English if no preferences
+        if (languageCodes.length === 0) {
+          languageCodes.push('en');
+        }
+
+        // Get user's region for streaming availability
+        const { data: userData } = await supabase
+          .from('users')
+          .select('ip_country')
+          .eq('id', userId)
+          .maybeSingle();
+
+        const userRegion = userData?.ip_country || 'US';
+
+        // Get available title IDs based on streaming services
+        let availableTitleIds: Set<string> | null = null;
+        
+        if (streamingServiceIds.length > 0) {
+          const { data: streamingTitles } = await supabase
+            .from('title_streaming_availability')
+            .select('title_id')
+            .in('streaming_service_id', streamingServiceIds)
+            .eq('region_code', userRegion);
+
+          if (streamingTitles && streamingTitles.length > 0) {
+            availableTitleIds = new Set(streamingTitles.map(t => t.title_id));
+          }
+        }
+
         // Calculate date 3 years ago
         const threeYearsAgo = new Date();
         threeYearsAgo.setFullYear(threeYearsAgo.getFullYear() - 3);
         const threeYearsAgoStr = threeYearsAgo.toISOString().split('T')[0];
 
-        // Fetch popular movies from past 3 years
+        // Fetch popular movies from past 3 years in user's languages
         const { data: movies, error } = await supabase
           .from('titles')
-          .select('id, name, poster_path, popularity, title_genres, certification')
+          .select('id, name, poster_path, popularity, title_genres, certification, original_language')
           .eq('title_type', 'movie')
+          .in('original_language', languageCodes)
           .not('poster_path', 'is', null)
           .not('name', 'is', null)
           .not('title_genres', 'is', null)
@@ -68,17 +120,22 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
           return;
         }
 
-        // Filter out kids content and build genre options
+        // Filter and build genre options
         const genreToTopMovie = new Map<string, GenreTitleOption>();
         const usedMovieIds = new Set<string>();
 
         for (const movie of movies) {
+          // Skip if not available on user's streaming services (when filter is active)
+          if (availableTitleIds !== null && !availableTitleIds.has(movie.id)) {
+            continue;
+          }
+
           // Skip kids content
           if (movie.certification && KIDS_CERTIFICATIONS.includes(movie.certification)) {
             continue;
           }
 
-          // Parse title_genres - it's stored as JSON array of genre names
+          // Parse title_genres
           let genres: string[];
           try {
             genres = typeof movie.title_genres === 'string' 
