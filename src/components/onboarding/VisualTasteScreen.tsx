@@ -75,71 +75,98 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
 
         const userRegion = userData?.ip_country || 'US';
 
-        // Get available title IDs based on streaming services (but don't require match)
-        let availableTitleIds: Set<string> | null = null;
+        // Step 1: Get title IDs available on user's streaming services
+        let availableTitleIds: string[] = [];
         
         if (streamingServiceIds.length > 0) {
-          const { data: streamingTitles } = await supabase
+          const { data: streamingTitles, error: streamingError } = await supabase
             .from('title_streaming_availability')
             .select('title_id')
             .in('streaming_service_id', streamingServiceIds)
             .eq('region_code', userRegion);
 
-          // Only use filter if we have actual matches
-          if (streamingTitles && streamingTitles.length > 0) {
-            availableTitleIds = new Set(streamingTitles.map(t => t.title_id));
+          if (streamingError) {
+            console.error('Failed to load streaming titles:', streamingError);
+          } else if (streamingTitles && streamingTitles.length > 0) {
+            availableTitleIds = streamingTitles.map(t => t.title_id);
           }
         }
 
-        // Calculate date range dynamically
-        const today = new Date();
-        const threeYearsAgo = new Date();
-        threeYearsAgo.setFullYear(today.getFullYear() - 3);
+        // If no streaming titles found, we'll query all popular movies
+        const hasStreamingFilter = availableTitleIds.length > 0;
         
-        const todayStr = today.toISOString().split('T')[0];
-        const threeYearsAgoStr = threeYearsAgo.toISOString().split('T')[0];
+        // Step 2: Query movies - filter by streaming availability if available
+        let movies: any[] = [];
+        
+        if (hasStreamingFilter) {
+          // Query movies that are on user's streaming services
+          // Supabase has a limit on IN clause, so chunk if needed
+          const chunkSize = 100;
+          const chunks = [];
+          for (let i = 0; i < availableTitleIds.length; i += chunkSize) {
+            chunks.push(availableTitleIds.slice(i, i + chunkSize));
+          }
+          
+          for (const chunk of chunks) {
+            const { data: chunkMovies, error } = await supabase
+              .from('titles')
+              .select('id, name, poster_path, popularity, vote_average, title_genres, certification, original_language')
+              .in('id', chunk)
+              .eq('title_type', 'movie')
+              .in('original_language', languageCodes)
+              .not('poster_path', 'is', null)
+              .not('name', 'is', null)
+              .not('title_genres', 'is', null)
+              .not('vote_average', 'is', null)
+              .gte('vote_average', 6)
+              .gte('popularity', 5)
+              .order('popularity', { ascending: false })
+              .limit(200);
 
-        // Fetch released movies with good ratings - no date filter initially
-        // because TMDB dates may be unreliable, filter by quality instead
-        const { data: movies, error } = await supabase
-          .from('titles')
-          .select('id, name, poster_path, popularity, vote_average, title_genres, certification, original_language')
-          .eq('title_type', 'movie')
-          .in('original_language', languageCodes)
-          .not('poster_path', 'is', null)
-          .not('name', 'is', null)
-          .not('title_genres', 'is', null)
-          .not('vote_average', 'is', null)
-          .gte('vote_average', 6)
-          .gte('popularity', 10) // Only reasonably popular movies
-          .order('popularity', { ascending: false })
-          .limit(500);
+            if (!error && chunkMovies) {
+              movies.push(...chunkMovies);
+            }
+          }
+        } else {
+          // Fallback: query all popular movies
+          const { data: allMovies, error } = await supabase
+            .from('titles')
+            .select('id, name, poster_path, popularity, vote_average, title_genres, certification, original_language')
+            .eq('title_type', 'movie')
+            .in('original_language', languageCodes)
+            .not('poster_path', 'is', null)
+            .not('name', 'is', null)
+            .not('title_genres', 'is', null)
+            .not('vote_average', 'is', null)
+            .gte('vote_average', 6)
+            .gte('popularity', 10)
+            .order('popularity', { ascending: false })
+            .limit(500);
 
-        if (error) {
-          console.error('Failed to load movies:', error);
+          if (!error && allMovies) {
+            movies = allMovies;
+          }
+        }
+
+        if (movies.length === 0) {
+          console.log('No movies found for user preferences');
           setLoading(false);
           return;
         }
 
-        if (!movies || movies.length === 0) {
-          setLoading(false);
-          return;
-        }
+        console.log(`Found ${movies.length} movies matching user preferences`);
 
-        // Calculate combined score and sort
+        // Calculate combined score and sort by blockbuster score
         const scoredMovies = movies.map(movie => ({
           ...movie,
           combinedScore: (movie.vote_average || 0) * (movie.popularity || 0)
         })).sort((a, b) => b.combinedScore - a.combinedScore);
 
-        // Filter and build genre options
+        // Build genre options - one movie per genre
         const genreToTopMovie = new Map<string, GenreTitleOption>();
         const usedMovieIds = new Set<string>();
 
         for (const movie of scoredMovies) {
-          // Prefer streaming service matches, but don't require it
-          // (We'll prioritize streaming matches in scoring later if needed)
-          
           // Skip kids content
           if (movie.certification && KIDS_CERTIFICATIONS.includes(movie.certification)) {
             continue;
@@ -166,17 +193,13 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
           // Skip if we already have a movie for this genre or this movie was used
           if (genreToTopMovie.has(primaryGenre) || usedMovieIds.has(movie.id)) continue;
 
-          // Boost score if available on user's streaming services
-          const isOnStreaming = availableTitleIds?.has(movie.id) ?? false;
-          const streamingBonus = isOnStreaming ? 1.5 : 1;
-
           genreToTopMovie.set(primaryGenre, {
             genre_id: primaryGenre.toLowerCase().replace(/\s+/g, '-'),
             genre_name: primaryGenre,
             title_id: movie.id,
             title_name: movie.name!,
             poster_path: movie.poster_path!,
-            score: movie.combinedScore * streamingBonus
+            score: movie.combinedScore
           });
           usedMovieIds.add(movie.id);
         }
