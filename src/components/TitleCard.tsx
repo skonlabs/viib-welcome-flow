@@ -76,7 +76,7 @@ export function TitleCard({
   const [explanationOpen, setExplanationOpen] = useState(false);
   const [explanation, setExplanation] = useState<{ reasons: string[]; scores: Record<string, number> } | null>(null);
   const [loadingExplanation, setLoadingExplanation] = useState(false);
-  const { user } = useAuth();
+  const { profile } = useAuth();
   const trailerUrl = title.trailer_url;
 
   const handleTrailerClick = (e: React.MouseEvent) => {
@@ -87,12 +87,12 @@ export function TitleCard({
   };
 
   const fetchExplanation = async () => {
-    if (!user || !title.id || explanation) return;
+    if (!profile || !title.id || explanation) return;
     
     setLoadingExplanation(true);
     try {
       const { data, error } = await supabase.rpc('explain_recommendation', {
-        p_user_id: user.id,
+        p_user_id: profile.id,
         p_title_id: title.id
       });
       

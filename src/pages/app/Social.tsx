@@ -50,7 +50,7 @@ interface EnrichedActivity {
 }
 
 export default function Social() {
-  const { user } = useAuth();
+  const { profile } = useAuth();
   const [connections, setConnections] = useState<EnrichedConnection[]>([]);
   const [pendingReceived, setPendingReceived] = useState<EnrichedConnection[]>([]);
   const [activityFeed, setActivityFeed] = useState<EnrichedActivity[]>([]);
@@ -85,14 +85,14 @@ export default function Social() {
   };
 
   useEffect(() => {
-    if (user) {
+    if (profile) {
       loadConnections();
       loadActivityFeed();
     }
-  }, [user]);
+  }, [profile]);
 
   const loadConnections = async () => {
-    if (!user) return;
+    if (!profile) return;
     setLoadingConnections(true);
 
     try {
@@ -101,11 +101,11 @@ export default function Social() {
         supabase
           .from('friend_connections')
           .select('*')
-          .eq('user_id', user.id),
+          .eq('user_id', profile.id),
         supabase
           .from('friend_connections')
           .select('*')
-          .eq('friend_user_id', user.id)
+          .eq('friend_user_id', profile.id)
       ]);
 
       if (acceptedResult.error) throw acceptedResult.error;
@@ -162,7 +162,7 @@ export default function Social() {
   };
 
   const loadActivityFeed = async (reset = true) => {
-    if (!user) return;
+    if (!profile) return;
     if (reset) {
       setLoadingActivity(true);
       setActivityPage(1);
@@ -175,7 +175,7 @@ export default function Social() {
       const { data, error } = await supabase
         .from('user_social_recommendations')
         .select('*')
-        .eq('receiver_user_id', user.id)
+        .eq('receiver_user_id', profile.id)
         .order('created_at', { ascending: false })
         .range((page - 1) * ACTIVITY_PAGE_SIZE, page * ACTIVITY_PAGE_SIZE - 1);
 

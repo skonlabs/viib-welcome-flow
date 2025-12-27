@@ -13,7 +13,7 @@ interface TitleForAction {
 }
 
 export function useTitleActions(onSuccess?: () => void) {
-  const { user } = useAuth();
+  const { profile } = useAuth();
   const [ratingDialogOpen, setRatingDialogOpen] = useState(false);
   const [titleToRate, setTitleToRate] = useState<TitleForAction | null>(null);
 
@@ -28,7 +28,7 @@ export function useTitleActions(onSuccess?: () => void) {
   };
 
   const addToWatchlist = async (titleId: string, seasonNumber?: number) => {
-    if (!user) {
+    if (!profile) {
       toast.error("Please sign in to add to watchlist");
       return false;
     }
@@ -38,7 +38,7 @@ export function useTitleActions(onSuccess?: () => void) {
       let existingQuery = supabase
         .from('user_title_interactions')
         .select('id')
-        .eq('user_id', user.id)
+        .eq('user_id', profile.id)
         .eq('title_id', titleId)
         .eq('interaction_type', 'wishlisted');
 
@@ -58,7 +58,7 @@ export function useTitleActions(onSuccess?: () => void) {
       const { error } = await supabase
         .from('user_title_interactions')
         .insert({
-          user_id: user.id,
+          user_id: profile.id,
           title_id: titleId,
           interaction_type: 'wishlisted',
           season_number: seasonNumber || null
@@ -90,7 +90,7 @@ export function useTitleActions(onSuccess?: () => void) {
   };
 
   const handleRating = async (rating: RatingValue) => {
-    if (!user || !titleToRate) return;
+    if (!profile || !titleToRate) return;
 
     const titleId = titleToRate.title_id || titleToRate.id;
     if (!titleId) {
@@ -103,7 +103,7 @@ export function useTitleActions(onSuccess?: () => void) {
       const { data: existingWishlisted } = await supabase
         .from('user_title_interactions')
         .select('id')
-        .eq('user_id', user.id)
+        .eq('user_id', profile.id)
         .eq('title_id', titleId)
         .eq('interaction_type', 'wishlisted')
         .maybeSingle();
@@ -112,7 +112,7 @@ export function useTitleActions(onSuccess?: () => void) {
       const { data: existingCompleted } = await supabase
         .from('user_title_interactions')
         .select('id')
-        .eq('user_id', user.id)
+        .eq('user_id', profile.id)
         .eq('title_id', titleId)
         .eq('interaction_type', 'completed')
         .maybeSingle();
@@ -137,7 +137,7 @@ export function useTitleActions(onSuccess?: () => void) {
         await supabase
           .from('user_title_interactions')
           .insert({
-            user_id: user.id,
+            user_id: profile.id,
             title_id: titleId,
             interaction_type: 'completed',
             rating_value: rating
