@@ -50,47 +50,29 @@ serve(async (req) => {
       return langMap[code] || code;
     });
 
-    const prompt = `List the top movies released in the past ${yearsBack} years that meet ALL of the following criteria:
+    const prompt = `You are a movie database expert. List exactly ONE movie per genre that meets ALL criteria:
 
-- Language must be one of: ${languageNames.join(', ')}
+STRICT CRITERIA:
+- Released in the past ${yearsBack} years (2022-2025)
+- Original language must be one of: ${languageNames.join(', ')}
+- Available on: ${streamingServices.join(' or ')}
+- Critically acclaimed OR widely popular
+- Each movie can only appear once (no duplicates)
 
-- Must be available to stream on ${streamingServices.join(' or ')}
+IMPORTANT GENRE RULES:
+- Animation: ONLY animated films (like Pixar, Disney, anime). NOT live-action films with animated elements.
+- Documentary: ONLY non-fiction documentaries
+- Each movie MUST be the PRIMARY genre listed - not secondary
 
-- Select ONLY ONE movie per genre
-
-- Movies should be critically well-received or widely popular
-
-- Avoid duplicates across genres (a movie can appear only once)
-
-Genres to cover (one movie per genre):
+GENRES (one movie each):
 ${GENRES.join('\n')}
 
-Output Requirements:
-- Return ONLY a JSON array
-- Each item in the array must have exactly these fields:
-  - "title" (string)
-  - "genre" (string)
-  - "language" (string)
+OUTPUT FORMAT - Return ONLY valid JSON array:
+[{"title": "Movie Name", "genre": "Action", "language": "English"}]
 
-Formatting Rules:
-- No explanations
-- No extra text
-- No markdown
-- No comments
-- Output must be valid JSON
+NO explanations, NO markdown, NO extra text. Start with [ and end with ]`;
 
-Example output format:
-[
-  {
-    "title": "Movie Name",
-    "genre": "Action",
-    "language": "English"
-  }
-]
-
-Begin now.`;
-
-    console.log('[get-genre-movies-ai] Calling OpenAI with prompt for', GENRES.length, 'genres');
+    console.log('[get-genre-movies-ai] Calling OpenAI for', GENRES.length, 'genres, languages:', languageNames, 'services:', streamingServices);
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
