@@ -6,11 +6,9 @@ import { BackButton } from "./BackButton";
 import { FloatingParticles } from "./FloatingParticles";
 import { supabase } from "@/integrations/supabase/client";
 
-interface GenreTitleOption {
-  genre_id: string;
-  genre_name: string;
-  title_id: string;
-  title_name: string;
+interface TitleOption {
+  id: string;
+  name: string;
   poster_path: string;
 }
 
@@ -22,103 +20,107 @@ interface VisualTasteScreenProps {
 const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w500";
 
 export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps) => {
-  const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
-  const [options, setOptions] = useState<GenreTitleOption[]>([]);
+  const [selectedTitles, setSelectedTitles] = useState<string[]>([]);
+  const [titles, setTitles] = useState<TitleOption[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const loadOptions = async () => {
+    const loadTitles = async () => {
       try {
-        // Get all genres first
-        const { data: genres, error: genreError } = await supabase
-          .from('genres')
-          .select('id, genre_name')
-          .order('genre_name');
-
-        if (genreError) throw genreError;
-
-        // Track used title IDs to ensure uniqueness across genres
-        const usedTitleIds = new Set<string>();
-        const genreTitles: GenreTitleOption[] = [];
-
-        for (const genre of genres || []) {
-          // Get multiple titles per genre so we can find an unused one
-          const { data: titleGenres, error: titleError } = await supabase
-            .from('title_genres')
-            .select('genre_id, title_id')
-            .eq('genre_id', genre.id);
-
-          if (titleError || !titleGenres || titleGenres.length === 0) continue;
-
-          // Get the title details for this genre's titles
-          const titleIds = titleGenres.map(tg => tg.title_id);
-          
-          const { data: titles, error: titlesError } = await supabase
-            .from('titles')
-            .select('id, name, poster_path, popularity')
-            .in('id', titleIds)
-            .not('poster_path', 'is', null)
-            .order('popularity', { ascending: false })
-            .limit(10);
-
-          if (titlesError || !titles) continue;
-
-          // Find the first title that hasn't been used yet
-          const uniqueTitle = titles.find(t => !usedTitleIds.has(t.id));
-          
-          if (uniqueTitle) {
-            usedTitleIds.add(uniqueTitle.id);
-            genreTitles.push({
-              genre_id: genre.id,
-              genre_name: genre.genre_name,
-              title_id: uniqueTitle.id,
-              title_name: uniqueTitle.name || 'Unknown',
-              poster_path: uniqueTitle.poster_path!,
+        const userId = localStorage.getItem('viib_user_id');
+        
+        // Try to get recommendations if user has preferences set up
+        if (userId) {
+          const { data: recData, error: recError } = await supabase
+            .rpc('get_top_recommendations_v2', {
+              p_user_id: userId,
+              p_limit: 12
             });
+
+          if (!recError && recData && recData.length > 0) {
+            // Get title details for recommendations
+            const titleIds = recData.map((r: any) => r.title_id);
+            const { data: titleDetails, error: titleError } = await supabase
+              .from('titles')
+              .select('id, name, poster_path')
+              .in('id', titleIds)
+              .not('poster_path', 'is', null);
+
+            if (!titleError && titleDetails && titleDetails.length > 0) {
+              setTitles(titleDetails.map(t => ({
+                id: t.id,
+                name: t.name || 'Unknown',
+                poster_path: t.poster_path!
+              })));
+              setLoading(false);
+              return;
+            }
           }
         }
 
-        setOptions(genreTitles);
+        // Fallback: Get popular titles with posters
+        const { data, error } = await supabase
+          .from('titles')
+          .select('id, name, poster_path')
+          .not('poster_path', 'is', null)
+          .not('name', 'is', null)
+          .order('popularity', { ascending: false })
+          .limit(12);
+
+        if (error) throw error;
+
+        if (data) {
+          setTitles(data.map(t => ({
+            id: t.id,
+            name: t.name || 'Unknown',
+            poster_path: t.poster_path!
+          })));
+        }
       } catch (err) {
-        console.error('Failed to load genre titles:', err);
+        console.error('Failed to load titles:', err);
       } finally {
         setLoading(false);
       }
     };
 
-    loadOptions();
+    loadTitles();
   }, []);
 
-  const toggleGenre = (genreId: string) => {
-    setSelectedGenres((prev) =>
-      prev.includes(genreId)
-        ? prev.filter((id) => id !== genreId)
-        : [...prev, genreId]
+  const toggleTitle = (titleId: string) => {
+    setSelectedTitles((prev) =>
+      prev.includes(titleId)
+        ? prev.filter((id) => id !== titleId)
+        : [...prev, titleId]
     );
   };
 
   const handleContinue = async () => {
-    // Save visual taste preferences to database
+    // Save selected titles as initial taste preferences
     const userId = localStorage.getItem('viib_user_id');
-    if (userId && selectedGenres.length > 0) {
+    if (userId && selectedTitles.length > 0) {
       try {
-        // Store as user preferences (can be used for recommendations)
-        await supabase.from('user_vibe_preferences').upsert({
+        // Add selected titles to watchlist as "wishlisted"
+        const interactions = selectedTitles.map(titleId => ({
           user_id: userId,
-          vibe_type: selectedGenres.join(',')
-        }, { onConflict: 'user_id' });
+          title_id: titleId,
+          interaction_type: 'wishlisted' as const
+        }));
+        
+        await supabase.from('user_title_interactions').upsert(interactions, {
+          onConflict: 'user_id,title_id'
+        });
       } catch (err) {
-        console.error('Failed to save visual taste:', err);
+        console.error('Failed to save taste preferences:', err);
       }
     }
-    onContinue(selectedGenres);
+    onContinue(selectedTitles);
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 pt-16 relative overflow-hidden bg-black">
       <BackButton onClick={onBack} />
       
-      {/* Background container - fixed positioning */}
+      {/* Background */}
       <div className="fixed inset-0 overflow-hidden">
         <div className="absolute inset-0">
           <div className="absolute inset-0 gradient-ocean opacity-40" />
@@ -155,17 +157,16 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
         </div>
       </div>
 
-      {/* Floating Particles */}
       <FloatingParticles />
 
       {/* Content */}
       <motion.div
-        className="relative z-10 w-full max-w-6xl"
+        className="relative z-10 w-full max-w-5xl"
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.8 }}
       >
-        <div className="space-y-8">
+        <div className="space-y-6">
           {/* Header */}
           <motion.div
             className="text-center space-y-3"
@@ -174,31 +175,31 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
             transition={{ delay: 0.2 }}
           >
             <h2 className="text-4xl font-bold">
-              <span className="text-gradient">What speaks to you?</span>
+              <span className="text-gradient">What catches your eye?</span>
             </h2>
             <p className="text-muted-foreground text-base">
-              Pick at least 2 genres that capture your attention
+              Select titles that appeal to you
             </p>
           </motion.div>
 
           {/* Poster Grid */}
           {loading ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-                <div key={i} className="aspect-[2/3] rounded-3xl bg-white/5 animate-pulse" />
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((i) => (
+                <div key={i} className="aspect-[2/3] rounded-2xl bg-white/5 animate-pulse" />
               ))}
             </div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 max-h-[60vh] overflow-y-auto pr-2">
-              {options.map((option, index) => {
-                const isSelected = selectedGenres.includes(option.genre_id);
-                const posterUrl = `${TMDB_IMAGE_BASE}${option.poster_path}`;
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
+              {titles.map((title, index) => {
+                const isSelected = selectedTitles.includes(title.id);
+                const posterUrl = `${TMDB_IMAGE_BASE}${title.poster_path}`;
                 
                 return (
                   <motion.div
-                    key={option.genre_id}
-                    initial={{ opacity: 0, y: 30 }}
-                    animate={{ opacity: 1, y: 0 }}
+                    key={title.id}
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
                     transition={{ 
                       delay: index * 0.05,
                       type: "spring",
@@ -207,19 +208,20 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
                     className="relative group"
                   >
                     <motion.button
-                      onClick={() => toggleGenre(option.genre_id)}
-                      whileHover={{ scale: 1.05, y: -10 }}
+                      onClick={() => toggleTitle(title.id)}
+                      whileHover={{ scale: 1.08, y: -8 }}
                       whileTap={{ scale: 0.95 }}
-                      className="relative w-full aspect-[2/3] rounded-3xl overflow-hidden"
+                      className="relative w-full aspect-[2/3] rounded-2xl overflow-hidden"
                     >
-                      {/* Background: Poster */}
+                      {/* Poster */}
                       <img
                         src={posterUrl}
-                        alt={option.genre_name}
+                        alt={title.name}
                         className="absolute inset-0 w-full h-full object-cover"
                         loading="lazy"
                       />
                       
+                      {/* Selection indicator */}
                       <AnimatePresence>
                         {isSelected && (
                           <>
@@ -227,34 +229,33 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
                               initial={{ scale: 0 }}
                               animate={{ scale: 1 }}
                               exit={{ scale: 0 }}
-                              className="absolute top-4 right-4 z-10 w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-2xl"
+                              className="absolute top-2 right-2 z-10 w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-xl"
                             >
-                              <Check className="w-6 h-6 text-black" />
+                              <Check className="w-5 h-5 text-black" />
                             </motion.div>
                             
                             <motion.div
                               initial={{ opacity: 0 }}
                               animate={{ opacity: 1 }}
                               exit={{ opacity: 0 }}
-                              className="absolute inset-0 ring-4 ring-white rounded-3xl"
+                              className="absolute inset-0 ring-3 ring-white rounded-2xl"
                             />
                           </>
                         )}
                       </AnimatePresence>
                       
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
+                      {/* Gradient overlay */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                       
-                      <div className="absolute bottom-0 left-0 right-0 p-4 space-y-0.5 text-white">
-                        <p className="text-base font-bold">
-                          {option.genre_name}
-                        </p>
-                        <p className="text-xs text-white/70 truncate">
-                          {option.title_name}
+                      {/* Title on hover */}
+                      <div className="absolute bottom-0 left-0 right-0 p-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <p className="text-xs font-medium text-white truncate text-center">
+                          {title.name}
                         </p>
                       </div>
                       
                       {!isSelected && (
-                        <div className="absolute inset-0 bg-black/20 group-hover:bg-black/0 transition-colors" />
+                        <div className="absolute inset-0 bg-black/10 group-hover:bg-black/0 transition-colors" />
                       )}
                     </motion.button>
                   </motion.div>
@@ -265,21 +266,21 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
 
           {/* Action */}
           <motion.div
-            className="flex justify-center pt-2"
+            className="flex justify-center pt-4"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.6 }}
           >
             <Button
               onClick={handleContinue}
-              disabled={selectedGenres.length < 2}
+              disabled={selectedTitles.length < 2}
               size="2xl"
               variant="gradient"
               className="group shadow-[0_20px_50px_-15px_rgba(168,85,247,0.4)]"
             >
-              {selectedGenres.length < 2 
-                ? `Select ${2 - selectedGenres.length} more to continue`
-                : `Continue with ${selectedGenres.length} selections`
+              {selectedTitles.length < 2 
+                ? `Select ${2 - selectedTitles.length} more`
+                : `Continue with ${selectedTitles.length} picks`
               }
               <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-2 transition-transform" />
             </Button>
