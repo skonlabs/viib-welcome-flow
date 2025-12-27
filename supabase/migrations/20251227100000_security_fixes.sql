@@ -373,14 +373,15 @@ $$;
 -- ============================================================================
 
 -- Index for efficient IP rate limit lookups
+-- Note: Cannot use NOW() in partial index predicate (not IMMUTABLE)
+-- Using regular index instead - query planner will filter at runtime
 CREATE INDEX IF NOT EXISTS idx_ip_rate_limits_active
-    ON ip_rate_limits(ip_address, endpoint)
-    WHERE window_start > NOW() - INTERVAL '1 hour';
+    ON ip_rate_limits(ip_address, endpoint, window_start DESC);
 
 -- Index for login attempts by identifier and time
+-- Note: Cannot use NOW() in partial index predicate (not IMMUTABLE)
 CREATE INDEX IF NOT EXISTS idx_login_attempts_recent
-    ON login_attempts(identifier, success, created_at DESC)
-    WHERE created_at > NOW() - INTERVAL '24 hours';
+    ON login_attempts(identifier, success, created_at DESC);
 
 -- Index for system_logs rate limit queries (if using system_logs for rate limiting)
 CREATE INDEX IF NOT EXISTS idx_system_logs_rate_limit
