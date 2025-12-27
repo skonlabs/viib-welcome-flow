@@ -75,7 +75,7 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
 
         const userRegion = userData?.ip_country || 'US';
 
-        // Get available title IDs based on streaming services
+        // Get available title IDs based on streaming services (but don't require match)
         let availableTitleIds: Set<string> | null = null;
         
         if (streamingServiceIds.length > 0) {
@@ -85,16 +85,22 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
             .in('streaming_service_id', streamingServiceIds)
             .eq('region_code', userRegion);
 
+          // Only use filter if we have actual matches
           if (streamingTitles && streamingTitles.length > 0) {
             availableTitleIds = new Set(streamingTitles.map(t => t.title_id));
           }
         }
 
-        // Calculate date range for past 3 years up to actual today
-        const threeYearsAgoStr = '2022-01-01';
-        const todayStr = '2024-12-27'; // Use actual current date
+        // Calculate date range dynamically
+        const today = new Date();
+        const threeYearsAgo = new Date();
+        threeYearsAgo.setFullYear(today.getFullYear() - 3);
+        
+        const todayStr = today.toISOString().split('T')[0];
+        const threeYearsAgoStr = threeYearsAgo.toISOString().split('T')[0];
 
-        // Fetch released movies with good ratings
+        // Fetch released movies with good ratings - no date filter initially
+        // because TMDB dates may be unreliable, filter by quality instead
         const { data: movies, error } = await supabase
           .from('titles')
           .select('id, name, poster_path, popularity, vote_average, title_genres, certification, original_language')
@@ -104,9 +110,8 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
           .not('name', 'is', null)
           .not('title_genres', 'is', null)
           .not('vote_average', 'is', null)
-          .gte('vote_average', 6) // Minimum rating of 6
-          .gte('release_date', threeYearsAgoStr)
-          .lte('release_date', todayStr)
+          .gte('vote_average', 6)
+          .gte('popularity', 10) // Only reasonably popular movies
           .order('popularity', { ascending: false })
           .limit(500);
 
@@ -132,11 +137,9 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
         const usedMovieIds = new Set<string>();
 
         for (const movie of scoredMovies) {
-          // Skip if not available on user's streaming services (when filter is active)
-          if (availableTitleIds !== null && !availableTitleIds.has(movie.id)) {
-            continue;
-          }
-
+          // Prefer streaming service matches, but don't require it
+          // (We'll prioritize streaming matches in scoring later if needed)
+          
           // Skip kids content
           if (movie.certification && KIDS_CERTIFICATIONS.includes(movie.certification)) {
             continue;
@@ -163,13 +166,17 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
           // Skip if we already have a movie for this genre or this movie was used
           if (genreToTopMovie.has(primaryGenre) || usedMovieIds.has(movie.id)) continue;
 
+          // Boost score if available on user's streaming services
+          const isOnStreaming = availableTitleIds?.has(movie.id) ?? false;
+          const streamingBonus = isOnStreaming ? 1.5 : 1;
+
           genreToTopMovie.set(primaryGenre, {
             genre_id: primaryGenre.toLowerCase().replace(/\s+/g, '-'),
             genre_name: primaryGenre,
             title_id: movie.id,
             title_name: movie.name!,
             poster_path: movie.poster_path!,
-            score: movie.combinedScore
+            score: movie.combinedScore * streamingBonus
           });
           usedMovieIds.add(movie.id);
         }
