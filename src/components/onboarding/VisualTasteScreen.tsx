@@ -6,13 +6,11 @@ import { BackButton } from "./BackButton";
 import { FloatingParticles } from "./FloatingParticles";
 import { supabase } from "@/integrations/supabase/client";
 
-interface GenreTitleOption {
+interface TasteOption {
   genre_id: string;
   genre_name: string;
-  title_id: string;
-  title_name: string;
   poster_path: string;
-  popularity: number;
+  mood_description: string | null;
 }
 
 interface VisualTasteScreenProps {
@@ -22,199 +20,38 @@ interface VisualTasteScreenProps {
 
 const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w500";
 
-// Kids content certifications to exclude
-const KIDS_CERTIFICATIONS = ['G', 'TV-Y', 'TV-Y7', 'TV-G', 'TV-PG'];
-
 export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps) => {
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
-  const [options, setOptions] = useState<GenreTitleOption[]>([]);
+  const [options, setOptions] = useState<TasteOption[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const loadOptions = async () => {
       try {
-        const userId = localStorage.getItem('viib_user_id');
-        if (!userId) {
-          setLoading(false);
-          return;
-        }
-
-        // Get user's streaming subscriptions
-        const { data: userStreaming } = await supabase
-          .from('user_streaming_subscriptions')
-          .select('streaming_service_id')
-          .eq('user_id', userId)
-          .eq('is_active', true);
-
-        const streamingServiceIds = userStreaming?.map(s => s.streaming_service_id) || [];
-
-        // Get user's language preferences
-        const { data: userLanguages } = await supabase
-          .from('user_language_preferences')
-          .select('language_code')
-          .eq('user_id', userId);
-
-        const languageCodes = userLanguages?.map(l => l.language_code) || [];
-        if (!languageCodes.includes('en')) {
-          languageCodes.push('en');
-        }
-
-        // Get user's region
-        const { data: userData } = await supabase
-          .from('users')
-          .select('ip_country')
-          .eq('id', userId)
-          .maybeSingle();
-
-        const userRegion = userData?.ip_country || 'US';
-
-        // Get available title IDs based on streaming
-        let availableTitleIds: Set<string> | null = null;
-        
-        if (streamingServiceIds.length > 0) {
-          const { data: streamingTitles } = await supabase
-            .from('title_streaming_availability')
-            .select('title_id')
-            .in('streaming_service_id', streamingServiceIds)
-            .eq('region_code', userRegion);
-
-          if (streamingTitles && streamingTitles.length > 0) {
-            availableTitleIds = new Set(streamingTitles.map(t => t.title_id));
-          }
-        }
-
-        // Get all title-genre mappings to find single-genre titles
-        const { data: allTitleGenres } = await supabase
-          .from('title_genres')
-          .select('title_id, genre_id');
-
-        if (!allTitleGenres) {
-          setLoading(false);
-          return;
-        }
-
-        // Count genres per title and find single-genre titles
-        const titleGenreCount = new Map<string, number>();
-        const titleToGenre = new Map<string, string>();
-        
-        for (const tg of allTitleGenres) {
-          titleGenreCount.set(tg.title_id, (titleGenreCount.get(tg.title_id) || 0) + 1);
-          titleToGenre.set(tg.title_id, tg.genre_id); // Will keep last genre, but we only care about single-genre titles
-        }
-
-        // Get single-genre title IDs
-        const singleGenreTitleIds: string[] = [];
-        for (const [titleId, count] of titleGenreCount.entries()) {
-          if (count === 1) {
-            // Check streaming availability if applicable
-            if (availableTitleIds === null || availableTitleIds.has(titleId)) {
-              singleGenreTitleIds.push(titleId);
-            }
-          }
-        }
-
-        if (singleGenreTitleIds.length === 0) {
-          setLoading(false);
-          return;
-        }
-
-        // Calculate date 3 years ago
-        const threeYearsAgo = new Date();
-        threeYearsAgo.setFullYear(threeYearsAgo.getFullYear() - 3);
-        const threeYearsAgoStr = threeYearsAgo.toISOString().split('T')[0];
-
-        // Get titles that are:
-        // - Single genre
-        // - Released in past 3 years
-        // - Not kids content
-        // - Have poster and name
-        // - In user's language preferences
-        const { data: eligibleTitles } = await supabase
-          .from('titles')
-          .select('id, name, poster_path, popularity, certification, release_date, first_air_date')
-          .in('id', singleGenreTitleIds.slice(0, 1000)) // Supabase limit
-          .in('original_language', languageCodes)
+        // Fetch curated visual taste options from the database
+        const { data: tasteOptions, error } = await supabase
+          .from('visual_taste_options')
+          .select('genre_id, genre_name, poster_path, mood_description')
+          .eq('is_active', true)
           .not('poster_path', 'is', null)
-          .not('name', 'is', null)
-          .order('popularity', { ascending: false });
+          .order('display_order', { ascending: true });
 
-        if (!eligibleTitles || eligibleTitles.length === 0) {
+        if (error) {
+          console.error('Failed to load taste options:', error);
           setLoading(false);
           return;
         }
 
-        // Filter for recent titles (past 3 years) and exclude kids content
-        const recentAdultTitles = eligibleTitles.filter(t => {
-          // Check date (release_date for movies, first_air_date for TV)
-          const releaseDate = t.release_date || t.first_air_date;
-          if (!releaseDate || releaseDate < threeYearsAgoStr) {
-            return false;
-          }
-          
-          // Exclude kids certifications
-          if (t.certification && KIDS_CERTIFICATIONS.includes(t.certification)) {
-            return false;
-          }
-          
-          return true;
-        });
-
-        // Get all genres
-        const { data: genres } = await supabase
-          .from('genres')
-          .select('id, genre_name')
-          .order('genre_name');
-
-        if (!genres || genres.length === 0) {
-          setLoading(false);
-          return;
+        if (tasteOptions && tasteOptions.length > 0) {
+          setOptions(tasteOptions.map(opt => ({
+            genre_id: opt.genre_id,
+            genre_name: opt.genre_name,
+            poster_path: opt.poster_path!,
+            mood_description: opt.mood_description
+          })));
         }
-
-        // Create genre map
-        const genreMap = new Map(genres.map(g => [g.id, g.genre_name]));
-
-        // For each genre, find the most popular single-genre title
-        const usedTitleIds = new Set<string>();
-        const genreTitles: GenreTitleOption[] = [];
-
-        // Group eligible titles by their genre
-        const genreToTitles = new Map<string, typeof recentAdultTitles>();
-        
-        for (const title of recentAdultTitles) {
-          const genreId = titleToGenre.get(title.id);
-          if (!genreId) continue;
-          
-          const existing = genreToTitles.get(genreId) || [];
-          existing.push(title);
-          genreToTitles.set(genreId, existing);
-        }
-
-        // For each genre, pick the most popular unused title
-        for (const genre of genres) {
-          const titlesForGenre = genreToTitles.get(genre.id) || [];
-          
-          // Titles are already sorted by popularity from query
-          const bestTitle = titlesForGenre.find(t => !usedTitleIds.has(t.id));
-          
-          if (bestTitle) {
-            usedTitleIds.add(bestTitle.id);
-            genreTitles.push({
-              genre_id: genre.id,
-              genre_name: genre.genre_name,
-              title_id: bestTitle.id,
-              title_name: bestTitle.name!,
-              poster_path: bestTitle.poster_path!,
-              popularity: bestTitle.popularity || 0
-            });
-          }
-        }
-
-        // Sort by popularity (most popular genres first)
-        genreTitles.sort((a, b) => b.popularity - a.popularity);
-        setOptions(genreTitles);
-
       } catch (err) {
-        console.error('Failed to load genre titles:', err);
+        console.error('Failed to load taste options:', err);
       } finally {
         setLoading(false);
       }
@@ -297,13 +134,13 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
           {/* Poster Grid */}
           {loading ? (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+              {[1, 2, 3, 4, 5, 6].map((i) => (
                 <div key={i} className="aspect-[2/3] rounded-3xl bg-white/5 animate-pulse" />
               ))}
             </div>
           ) : options.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-muted-foreground">No titles available. Please try again.</p>
+              <p className="text-muted-foreground">No options available. Please try again.</p>
             </div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 max-h-[60vh] overflow-y-auto pr-2">
@@ -362,7 +199,9 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
                       
                       <div className="absolute bottom-0 left-0 right-0 p-4 space-y-0.5 text-white">
                         <p className="text-base font-bold">{option.genre_name}</p>
-                        <p className="text-xs text-white/70 truncate">{option.title_name}</p>
+                        {option.mood_description && (
+                          <p className="text-xs text-white/70">{option.mood_description}</p>
+                        )}
                       </div>
                       
                       {!isSelected && (
