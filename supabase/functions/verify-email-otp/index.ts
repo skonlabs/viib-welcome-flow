@@ -7,8 +7,15 @@ import {
 } from "../_shared/cors.ts";
 import { hashOtp, constantTimeCompare } from "../_shared/crypto.ts";
 
-// Maximum verification attempts before lockout
-const MAX_ATTEMPTS = 5;
+/**
+ * Email OTP Verification Edge Function
+ *
+ * This function:
+ * 1. Verifies the OTP code
+ * 2. Creates a Supabase Auth account (for new users)
+ * 3. Creates/updates the user profile in the users table
+ * 4. Links the profile to the auth account via auth_id
+ */
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -22,18 +29,20 @@ serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
 
   try {
-    const { email, otp, password, name } = await req.json();
-    console.log('Verifying email OTP');
+    const { email, otp, password } = await req.json();
 
     if (!email || !otp) {
-      throw new Error('Email and OTP are required');
+      return new Response(
+        JSON.stringify({ success: false, error: 'Email and OTP are required' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      );
     }
 
     // Capture IP address from request headers
-    const ipAddress = req.headers.get('x-forwarded-for')?.split(',')[0] || 
-                      req.headers.get('x-real-ip') || 
+    const ipAddress = req.headers.get('x-forwarded-for')?.split(',')[0] ||
+                      req.headers.get('x-real-ip') ||
                       'unknown';
-    
+
     // Get country from IP using ipapi.co
     let ipCountry = 'Unknown';
     try {
@@ -42,85 +51,74 @@ serve(async (req) => {
         const geoData = await geoResponse.json();
         ipCountry = geoData.country_name || 'Unknown';
       }
-    } catch (geoError) {
-      console.error('Failed to fetch geo data:', geoError);
+    } catch {
+      // Ignore geo lookup errors
     }
 
-    // Initialize Supabase client
+    // Initialize Supabase client with service role
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const supabase = createClient(supabaseUrl, supabaseKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
 
-    // Get the latest OTP for this email
+    // Get the latest unverified OTP for this email
     const { data: verifications, error: fetchError } = await supabase
       .from('email_verifications')
       .select('*')
       .eq('email', email)
+      .eq('verified', false)
       .order('created_at', { ascending: false })
-      .limit(5); // Get last 5 to see what's there
+      .limit(1);
 
-    // Debug logging removed - contained sensitive email data
-    if (fetchError) console.log('Verification fetch error:', fetchError);
-
-    // Find the first unverified one
-    const verification = verifications?.find(v => !v.verified);
+    const verification = verifications?.[0];
 
     if (fetchError || !verification) {
-      console.error('Verification not found. Fetch error:', fetchError, 'Verifications:', verifications);
       return new Response(
-        JSON.stringify({ 
+        JSON.stringify({
           success: false,
-          error: 'No verification code found. Please request a new code.' 
+          error: 'No verification code found. Please request a new code.'
         }),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 200,
-        }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
       );
     }
 
     // Check if OTP has expired
     if (new Date(verification.expires_at) < new Date()) {
-      console.error('OTP expired');
       return new Response(
-        JSON.stringify({ 
+        JSON.stringify({
           success: false,
-          error: 'Your code has expired. Please request a new code.' 
+          error: 'Your code has expired. Please request a new code.'
         }),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 200,
-        }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
       );
     }
 
-    // Check IP-based rate limiting for OTP verification attempts
-    const { data: rateLimitCheck } = await supabase.rpc('check_ip_rate_limit', {
-      p_ip_address: ipAddress,
-      p_endpoint: 'verify_otp',
-      p_max_requests: 10,
-      p_window_seconds: 300  // 10 attempts per 5 minutes
+    // Check rate limiting
+    const { data: rateLimitCheck } = await supabase.rpc('check_rate_limit_fast', {
+      p_key: `verify_otp:${email}`,
+      p_max_count: 10,
+      p_window_seconds: 300
     });
 
     if (rateLimitCheck && !rateLimitCheck[0]?.allowed) {
-      console.log('IP rate limit exceeded for OTP verification');
       return new Response(
         JSON.stringify({
           success: false,
           error: 'Too many verification attempts. Please wait a few minutes and try again.'
         }),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 429,
-        }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 429 }
       );
     }
 
-    // Verify OTP using constant-time comparison (prevents timing attacks)
+    // Verify OTP using constant-time comparison
     const userOtp = String(otp).trim();
     const inputOtpHash = await hashOtp(userOtp, email);
 
-    // Support both hash-based and legacy plaintext comparison during migration
+    // Support both hash-based and legacy plaintext comparison
     const hashMatch = verification.otp_hash
       ? constantTimeCompare(verification.otp_hash, inputOtpHash)
       : false;
@@ -130,83 +128,110 @@ serve(async (req) => {
     const otpMatches = hashMatch || legacyMatch;
 
     if (!otpMatches) {
-      // Record failed attempt for brute force protection
-      await supabase.rpc('record_login_attempt', {
-        p_identifier: email,
-        p_ip_address: ipAddress,
-        p_attempt_type: 'otp',
-        p_success: false
-      });
-
-      console.log('OTP verification failed - invalid code');
       return new Response(
         JSON.stringify({
           success: false,
           error: 'Invalid code. Please check and try again.'
         }),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 200,
-        }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
       );
     }
 
-    console.log('OTP matched successfully!');
-
-    // Check if user already exists
+    // Check if user already exists in users table
     const { data: existingUser } = await supabase
       .from('users')
-      .select('id, onboarding_completed, is_email_verified')
+      .select('id, auth_id, onboarding_completed, is_email_verified')
       .eq('email', email)
       .maybeSingle();
 
     let userId: string;
+    let authId: string | null = null;
 
     if (existingUser) {
-      // User exists - this is a resume scenario
-      console.log('Existing user found, resuming onboarding');
-
-      // Mark the OTP as verified
-      await supabase
-        .from('email_verifications')
-        .update({ verified: true })
-        .eq('id', verification.id);
-
-      // Invalidate all other unverified OTPs for this email (security best practice)
-      await supabase
-        .from('email_verifications')
-        .delete()
-        .eq('email', email)
-        .eq('verified', false)
-        .neq('id', verification.id);
-
+      // User exists - check if they need an auth account
       userId = existingUser.id;
-    } else {
-      // New user - hash password and create account
-      const { data: hashData, error: hashError } = await supabase.functions.invoke('hash-password', {
-        body: { password }
-      });
+      authId = existingUser.auth_id;
 
-      if (hashError || !hashData?.success) {
-        console.error('Failed to hash password:', hashError || hashData?.error);
-        return new Response(
-          JSON.stringify({ 
-            success: false,
-            error: 'Unable to process request. Please try again.'
-          }),
-          {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            status: 200,
+      // If no auth_id, create Supabase Auth account and link it
+      if (!authId && password) {
+        const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
+          email: email,
+          password: password,
+          email_confirm: true, // Already verified via OTP
+        });
+
+        if (authError) {
+          // If user already exists in auth, try to get their ID
+          if (authError.message.includes('already registered')) {
+            const { data: existingAuthUsers } = await supabase.auth.admin.listUsers();
+            const existingAuthUser = existingAuthUsers?.users?.find(u => u.email === email);
+            if (existingAuthUser) {
+              authId = existingAuthUser.id;
+            }
+          } else {
+            console.error('Failed to create auth user:', authError.message);
           }
-        );
+        } else if (authUser?.user) {
+          authId = authUser.user.id;
+        }
+
+        // Link auth account to user profile
+        if (authId) {
+          await supabase
+            .from('users')
+            .update({ auth_id: authId, is_email_verified: true })
+            .eq('id', userId);
+        }
       }
 
-      // Create user record
+      // Mark email verified
+      if (!existingUser.is_email_verified) {
+        await supabase
+          .from('users')
+          .update({ is_email_verified: true })
+          .eq('id', userId);
+      }
+    } else {
+      // New user - create both auth account and profile
+
+      // First create Supabase Auth account
+      if (password) {
+        const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
+          email: email,
+          password: password,
+          email_confirm: true, // Already verified via OTP
+        });
+
+        if (authError) {
+          console.error('Failed to create auth user:', authError.message);
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: 'Unable to create account. Please try again.'
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+          );
+        }
+
+        authId = authUser?.user?.id || null;
+      }
+
+      // Hash password for users table (backup, Supabase Auth is primary)
+      let passwordHash = null;
+      if (password) {
+        const { data: hashData } = await supabase.functions.invoke('hash-password', {
+          body: { password }
+        });
+        passwordHash = hashData?.hashedPassword || null;
+      }
+
+      // Create user profile
       const { data: newUser, error: userError } = await supabase
         .from('users')
         .insert({
           email,
-          password_hash: hashData.hashedPassword,
+          auth_id: authId,
+          password_hash: passwordHash,
           signup_method: 'email',
           is_email_verified: true,
           is_age_over_18: true,
@@ -219,61 +244,53 @@ serve(async (req) => {
         .single();
 
       if (userError) {
-        console.error('Failed to create user:', userError);
+        console.error('Failed to create user profile');
+        // If user creation failed but auth account was created, clean up
+        if (authId) {
+          await supabase.auth.admin.deleteUser(authId);
+        }
         return new Response(
-          JSON.stringify({ 
+          JSON.stringify({
             success: false,
             error: 'Unable to create account. Please try again.'
           }),
-          {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            status: 200,
-          }
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
         );
       }
 
-      // Mark OTP as verified AFTER successful user creation
-      await supabase
-        .from('email_verifications')
-        .update({ verified: true })
-        .eq('id', verification.id);
-
-      // Invalidate all other unverified OTPs for this email (security best practice)
-      await supabase
-        .from('email_verifications')
-        .delete()
-        .eq('email', email)
-        .eq('verified', false)
-        .neq('id', verification.id);
-
       userId = newUser.id;
-      console.log('New user created successfully');
     }
 
+    // Mark OTP as verified
+    await supabase
+      .from('email_verifications')
+      .update({ verified: true })
+      .eq('id', verification.id);
+
+    // Clean up other unverified OTPs for this email
+    await supabase
+      .from('email_verifications')
+      .delete()
+      .eq('email', email)
+      .eq('verified', false);
+
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         success: true,
         message: 'Email verified successfully',
-        userId: userId
+        userId: userId,
+        authId: authId
       }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
-      }
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
     );
-  } catch (error: any) {
-    console.error('Error in verify-email-otp function:', error);
-    
-    // Return generic user-friendly message without exposing system details
+  } catch (error: unknown) {
+    console.error('Error in verify-email-otp function');
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         success: false,
-        error: "Unable to verify code. Please request a new code." 
+        error: 'Unable to verify code. Please request a new code.'
       }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
-      }
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
     );
   }
 });
