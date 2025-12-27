@@ -36,20 +36,6 @@ const GENRE_NAME_TO_ID: Record<string, number> = Object.fromEntries(
   Object.entries(GENRE_MAP).map(([id, name]) => [name, parseInt(id)])
 );
 
-// Map language codes to appropriate streaming regions
-const LANGUAGE_TO_REGION: Record<string, string> = {
-  'hi': 'IN',  // Hindi -> India
-  'ko': 'KR',  // Korean -> South Korea
-  'ja': 'JP',  // Japanese -> Japan
-  'es': 'ES',  // Spanish -> Spain
-  'fr': 'FR',  // French -> France
-  'de': 'DE',  // German -> Germany
-  'it': 'IT',  // Italian -> Italy
-  'pt': 'BR',  // Portuguese -> Brazil
-  'zh': 'CN',  // Chinese -> China
-  'en': 'US',  // English -> US
-};
-
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -78,7 +64,7 @@ serve(async (req) => {
 
     const providerFilter = streamingProviderIds.length > 0 ? streamingProviderIds.join('|') : null;
     
-    console.log(`[discover-tmdb] Fetching movies: languages=${languages}, minDate=${minDate}, minRating=${minRating}, providers=${providerFilter || 'none'}, defaultRegion=${region}`);
+    console.log(`[discover-tmdb] Fetching movies: languages=${languages}, minDate=${minDate}, minRating=${minRating}, providers=${providerFilter || 'none'}, region=${region}`);
 
     // Fetch multiple pages to get enough movies - track language priority
     const allMovies: any[] = [];
@@ -88,10 +74,10 @@ serve(async (req) => {
       const language = languages[langIndex];
       const languagePriority = languages.length - langIndex; // Higher priority for earlier languages
       
-      // Use language-appropriate region for streaming filter
-      const languageRegion = LANGUAGE_TO_REGION[language] || region;
+      // Use lower vote_count threshold for non-English languages (they have fewer votes on TMDB)
+      const voteCountThreshold = language === 'en' ? 50 : 20;
       
-      console.log(`[discover-tmdb] Fetching ${language} movies with region=${languageRegion}`);
+      console.log(`[discover-tmdb] Fetching ${language} movies (priority=${languagePriority}, voteCount>=${voteCountThreshold})`);
       
       for (let page = 1; page <= Math.min(pagesToFetch, 5); page++) {
         const url = new URL(`${TMDB_BASE_URL}/discover/movie`);
@@ -100,15 +86,15 @@ serve(async (req) => {
         url.searchParams.set('with_original_language', language);
         url.searchParams.set('primary_release_date.gte', minDate);
         url.searchParams.set('vote_average.gte', minRating.toString());
-        url.searchParams.set('vote_count.gte', '50'); // Ensure enough votes for reliability
+        url.searchParams.set('vote_count.gte', voteCountThreshold.toString());
         url.searchParams.set('sort_by', 'popularity.desc');
         url.searchParams.set('page', page.toString());
         url.searchParams.set('include_adult', 'false');
         
-        // Add streaming provider filter with language-appropriate region
+        // Add streaming provider filter - use the provided region for all languages
         if (providerFilter) {
           url.searchParams.set('with_watch_providers', providerFilter);
-          url.searchParams.set('watch_region', languageRegion);
+          url.searchParams.set('watch_region', region);
         }
 
         const response = await fetch(url.toString());
