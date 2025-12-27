@@ -6,125 +6,131 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// TMDB Genre ID to Name mapping (includes both Movie and TV genre IDs)
-const TMDB_GENRE_MAP: Record<number, string> = {
-  // Movie genres
-  28: 'Action',
-  12: 'Adventure',
-  16: 'Animation',
-  35: 'Comedy',
-  80: 'Crime',
-  99: 'Documentary',
-  18: 'Drama',
-  10751: 'Family',
-  14: 'Fantasy',
-  36: 'History',
-  27: 'Horror',
-  10402: 'Music',
-  9648: 'Mystery',
-  10749: 'Romance',
-  878: 'Science Fiction',
-  10770: 'TV Movie',
-  53: 'Thriller',
-  10752: 'War',
-  37: 'Western',
-  // TV-specific genres
-  10759: 'Action & Adventure',
-  10762: 'Kids',
-  10763: 'News',
-  10764: 'Reality',
-  10765: 'Sci-Fi & Fantasy',
-  10766: 'Soap',
-  10767: 'Talk',
-  10768: 'War & Politics',
-};
+// Cache for loaded configuration
+let cachedGenreMap: Record<number, string> | null = null;
+let cachedValidTvGenres: Set<number> | null = null;
+let cachedMovieToTvGenreMap: Record<number, number | null> | null = null;
+let cachedTvOnlyGenres: Record<number, number[]> | null = null;
+let cachedTvOnlyGenreNames: Record<number, string> | null = null;
+let cachedProviderMap: Record<number, string> | null = null;
 
-// CRITICAL: Map movie genre IDs to their TV equivalents
-// TMDB uses DIFFERENT genre IDs for TV shows vs Movies!
-// These are the ONLY valid TV genres from TMDB API
-const VALID_TV_GENRES = new Set([
-  10759, // Action & Adventure
-  16,    // Animation
-  35,    // Comedy
-  80,    // Crime
-  99,    // Documentary
-  18,    // Drama
-  10751, // Family
-  10762, // Kids
-  10763, // News
-  10764, // Reality
-  10765, // Sci-Fi & Fantasy
-  10766, // Soap
-  10767, // Talk
-  10768, // War & Politics
-  37,    // Western
-  9648,  // Mystery
-]);
+// Load genre mappings from database
+async function loadGenreMappings(supabase: any): Promise<void> {
+  if (cachedGenreMap) return;
 
-// Map movie genre IDs to TV genre IDs
-// Returns null if genre has NO TV equivalent
-const MOVIE_TO_TV_GENRE_MAP: Record<number, number | null> = {
-  // These movie genres MAP to different TV genre IDs
-  28: 10759,    // Action → Action & Adventure (TV)
-  12: 10759,    // Adventure → Action & Adventure (TV)
-  878: 10765,   // Science Fiction → Sci-Fi & Fantasy (TV)
-  14: 10765,    // Fantasy → Sci-Fi & Fantasy (TV)
-  10752: 10768, // War → War & Politics (TV)
+  console.log('Loading genre mappings from database...');
   
-  // These genres use SAME ID for both movies and TV
-  16: 16,       // Animation
-  35: 35,       // Comedy
-  80: 80,       // Crime
-  99: 99,       // Documentary
-  18: 18,       // Drama
-  10751: 10751, // Family
-  9648: 9648,   // Mystery
-  37: 37,       // Western
+  const { data: genreMappings, error } = await supabase
+    .from('tmdb_genre_mappings')
+    .select('*')
+    .eq('is_active', true);
+
+  if (error) {
+    console.error('Error loading genre mappings:', error);
+    throw new Error('Failed to load genre mappings from database');
+  }
+
+  cachedGenreMap = {};
+  cachedValidTvGenres = new Set();
+  cachedMovieToTvGenreMap = {};
+  cachedTvOnlyGenres = {};
+  cachedTvOnlyGenreNames = {};
+
+  for (const mapping of genreMappings || []) {
+    // Build TMDB_GENRE_MAP
+    cachedGenreMap[mapping.tmdb_genre_id] = mapping.genre_name;
+    
+    // Build VALID_TV_GENRES - genres that are TV or both
+    if (mapping.media_type === 'tv' || mapping.media_type === 'both') {
+      cachedValidTvGenres.add(mapping.tmdb_genre_id);
+    }
+    
+    // Build MOVIE_TO_TV_GENRE_MAP - maps movie genre IDs to TV equivalents
+    if (mapping.media_type === 'movie' || mapping.media_type === 'both') {
+      if (mapping.tv_equivalent_id !== null) {
+        cachedMovieToTvGenreMap[mapping.tmdb_genre_id] = mapping.tv_equivalent_id;
+      } else if (mapping.media_type === 'both') {
+        // Same ID for both movie and TV
+        cachedMovieToTvGenreMap[mapping.tmdb_genre_id] = mapping.tmdb_genre_id;
+      } else {
+        // Movie-only genre with no TV equivalent
+        cachedMovieToTvGenreMap[mapping.tmdb_genre_id] = null;
+      }
+    }
+    
+    // Build TV_ONLY_GENRES - genres that are TV only (for searching during movie genre work)
+    if (mapping.media_type === 'tv') {
+      cachedTvOnlyGenreNames[mapping.tmdb_genre_id] = mapping.genre_name;
+    }
+  }
+
+  // Build TV_ONLY_GENRES_TO_SEARCH mapping based on related genres
+  // Map: When searching Comedy (35), also search Talk (10767)
+  // When searching Drama (18), also search Reality (10764), Soap (10766)
+  // When searching Family (10751), also search Kids (10762)
+  // When searching Documentary (99), also search News (10763)
+  const tvOnlyGenreRelations: Record<number, number[]> = {
+    35: [10767],        // Comedy → Talk
+    18: [10764, 10766], // Drama → Reality, Soap
+    10751: [10762],     // Family → Kids
+    99: [10763],        // Documentary → News
+  };
   
-  // CRITICAL: These movie genres have NO TV equivalent!
-  // TV shows in TMDB don't use these genre IDs
-  // Setting to null means we skip TV discovery for these genres
-  27: null,     // Horror - NO TV EQUIVALENT
-  36: null,     // History - NO TV EQUIVALENT
-  10402: null,  // Music - NO TV EQUIVALENT
-  10749: null,  // Romance - NO TV EQUIVALENT
-  53: null,     // Thriller - NO TV EQUIVALENT
-  10770: null,  // TV Movie - NO TV EQUIVALENT (doesn't make sense for TV)
-};
+  // Only include TV-only genres that exist in the database
+  for (const [movieGenreId, tvOnlyIds] of Object.entries(tvOnlyGenreRelations)) {
+    const validTvOnlyIds = tvOnlyIds.filter(id => cachedTvOnlyGenreNames![id]);
+    if (validTvOnlyIds.length > 0) {
+      cachedTvOnlyGenres[Number(movieGenreId)] = validTvOnlyIds;
+    }
+  }
 
-// TV-ONLY genres that have NO movie equivalent
-// These must be searched during specific movie genre work units
-// Map: movie genre ID → array of TV-only genres to also search
-const TV_ONLY_GENRES_TO_SEARCH: Record<number, number[]> = {
-  35: [10767],        // When searching Comedy, also search Talk (10767)
-  18: [10764, 10766], // When searching Drama, also search Reality (10764), Soap (10766)
-  10751: [10762],     // When searching Family, also search Kids (10762)
-  99: [10763],        // When searching Documentary, also search News (10763)
-};
+  console.log(`Loaded ${Object.keys(cachedGenreMap).length} genre mappings from database`);
+}
 
-// Human-readable names for TV-only genres
-const TV_ONLY_GENRE_NAMES: Record<number, string> = {
-  10762: 'Kids',
-  10763: 'News',
-  10764: 'Reality',
-  10766: 'Soap',
-  10767: 'Talk',
-};
+// Load provider mappings from database
+async function loadProviderMappings(supabase: any): Promise<void> {
+  if (cachedProviderMap) return;
 
-// TMDB Provider ID to service name mapping (US region)
-// Names must EXACTLY match streaming_services.service_name in database
-const TMDB_PROVIDER_MAP: Record<number, string> = {
-  8: 'Netflix',
-  9: 'Prime Video',
-  119: 'Prime Video',
-  15: 'Hulu',
-  350: 'Apple TV+',
-  2: 'Apple TV+',
-  337: 'Disney+',
-  390: 'Disney+',
-  1899: 'HBO Max',
-  384: 'HBO Max',
-};
+  console.log('Loading provider mappings from database...');
+  
+  const { data: providerMappings, error } = await supabase
+    .from('tmdb_provider_mappings')
+    .select('*')
+    .eq('is_active', true)
+    .eq('region_code', 'US');
+
+  if (error) {
+    console.error('Error loading provider mappings:', error);
+    throw new Error('Failed to load provider mappings from database');
+  }
+
+  cachedProviderMap = {};
+  for (const mapping of providerMappings || []) {
+    cachedProviderMap[mapping.tmdb_provider_id] = mapping.service_name;
+  }
+
+  console.log(`Loaded ${Object.keys(cachedProviderMap).length} provider mappings from database`);
+}
+
+// Load job configuration from app_settings
+async function loadJobConfig(supabase: any): Promise<{ minRating: number; maxRuntimeMs: number }> {
+  const { data: minRatingSetting } = await supabase
+    .from('app_settings')
+    .select('setting_value')
+    .eq('setting_key', 'full_refresh_min_rating')
+    .single();
+
+  const { data: maxRuntimeSetting } = await supabase
+    .from('app_settings')
+    .select('setting_value')
+    .eq('setting_key', 'full_refresh_max_runtime_ms')
+    .single();
+
+  return {
+    minRating: minRatingSetting?.setting_value ?? 6.0,
+    maxRuntimeMs: maxRuntimeSetting?.setting_value ?? 90000,
+  };
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -154,11 +160,15 @@ serve(async (req) => {
   }
 
   try {
-
     console.log('Starting Full Refresh job...', requestBody);
+
+    // Load configuration from database
+    await loadGenreMappings(supabase);
+    await loadProviderMappings(supabase);
 
     const startTime = Date.now();
 
+    // Load job-specific config from jobs table first, then fall back to app_settings
     const { data: jobData } = await supabase
       .from('jobs')
       .select('configuration')
@@ -166,7 +176,9 @@ serve(async (req) => {
       .single();
 
     const config = jobData?.configuration as any || {};
-    const minRating = config.min_rating || 6.0;
+    const appConfig = await loadJobConfig(supabase);
+    const minRating = config.min_rating || appConfig.minRating;
+    const MAX_RUNTIME_MS = config.max_runtime_ms || appConfig.maxRuntimeMs;
     
     const languageCode = requestBody.languageCode;
     const year = requestBody.startYear;
@@ -211,14 +223,13 @@ serve(async (req) => {
 
     console.log(`Loaded ${officialChannels?.length || 0} official trailer channels`);
 
-    const genreName = TMDB_GENRE_MAP[tmdbGenreId] || `Unknown(${tmdbGenreId})`;
+    const genreName = cachedGenreMap![tmdbGenreId] || `Unknown(${tmdbGenreId})`;
     console.log(`Processing: Language=${languageCode}, Year=${year}, Genre=${genreName} (ID: ${tmdbGenreId})`);
 
     let totalProcessed = 0;
     let moviesProcessed = 0;
     let seriesProcessed = 0;
     let skippedNoProvider = 0;
-    const MAX_RUNTIME_MS = 90000;
 
     // Helper function to fetch watch providers from TMDB (US region only)
     async function fetchWatchProviders(tmdbId: number, titleType: string): Promise<{ providers: Array<{ tmdbId: number; name: string; serviceId: string }> }> {
@@ -232,7 +243,7 @@ serve(async (req) => {
         const matchedProviders: Array<{ tmdbId: number; name: string; serviceId: string }> = [];
         
         for (const provider of usProviders) {
-          const mappedName = TMDB_PROVIDER_MAP[provider.provider_id];
+          const mappedName = cachedProviderMap![provider.provider_id];
           if (mappedName) {
             const serviceId = serviceNameToId[mappedName.toLowerCase()];
             if (serviceId) {
@@ -387,7 +398,7 @@ serve(async (req) => {
         // Build genres JSON array from TMDB genre IDs
         const movieGenreIds = movie.genre_ids || [];
         const genresJson = movieGenreIds
-          .map((gId: number) => TMDB_GENRE_MAP[gId])
+          .map((gId: number) => cachedGenreMap![gId])
           .filter(Boolean);
 
         const { data: upsertedTitle, error: titleError } = await supabase
@@ -411,7 +422,6 @@ serve(async (req) => {
             original_language: movie.original_language || details?.original_language,
             is_adult: movie.adult || false,
             imdb_id: details?.imdb_id || null,
-            tagline: details?.tagline || null,
             trailer_url: trailerUrl,
             is_tmdb_trailer: isTmdbTrailer,
             title_genres: genresJson,
@@ -576,9 +586,9 @@ serve(async (req) => {
 
     // CRITICAL: Check if this genre has a TV equivalent
     // Movie-only genres (Horror, History, Music, Romance, Thriller, TV Movie) have NO TV equivalent
-    const tvGenreId = MOVIE_TO_TV_GENRE_MAP[tmdbGenreId];
+    const tvGenreId = cachedMovieToTvGenreMap![tmdbGenreId];
     
-    if (tvGenreId === null) {
+    if (tvGenreId === null || tvGenreId === undefined) {
       console.log(`⚠️ Genre "${genreName}" (${tmdbGenreId}) is movie-only - NO TV equivalent exists. Skipping TV discovery.`);
       // Skip TV discovery entirely for movie-only genres
     } else {
@@ -611,7 +621,7 @@ serve(async (req) => {
           // Build genres JSON array from TMDB genre IDs
           const showGenreIds = show.genre_ids || [];
           const genresJson = showGenreIds
-            .map((gId: number) => TMDB_GENRE_MAP[gId])
+            .map((gId: number) => cachedGenreMap![gId])
             .filter(Boolean);
 
           const { data: upsertedTitle, error: titleError } = await supabase
@@ -635,7 +645,6 @@ serve(async (req) => {
               original_language: show.original_language || details?.original_language,
               is_adult: show.adult || false,
               imdb_id: details?.external_ids?.imdb_id || null,
-              tagline: details?.tagline || null,
               trailer_url: trailerUrl,
               is_tmdb_trailer: isTmdbTrailerTv,
               title_genres: genresJson,
@@ -860,18 +869,18 @@ serve(async (req) => {
     // TV PHASE 3: TV-ONLY GENRES (Kids, Reality, News, Soap, Talk)
     // These genres have NO movie equivalent and must be searched separately
     // ==========================================
-    const tvOnlyGenresToSearch = TV_ONLY_GENRES_TO_SEARCH[tmdbGenreId] || [];
+    const tvOnlyGenresToSearch = cachedTvOnlyGenres![tmdbGenreId] || [];
     
     if (tvOnlyGenresToSearch.length > 0) {
       const elapsedBeforeTvOnly = Date.now() - startTime;
       if (elapsedBeforeTvOnly < MAX_RUNTIME_MS - 20000) {
-        console.log(`Starting TV Phase 3: TV-only genres ${tvOnlyGenresToSearch.map(g => TV_ONLY_GENRE_NAMES[g] || g).join(', ')} for ${languageCode}`);
+        console.log(`Starting TV Phase 3: TV-only genres ${tvOnlyGenresToSearch.map(g => cachedTvOnlyGenreNames![g] || g).join(', ')} for ${languageCode}`);
         
         // Reuse processedTvIds from earlier phases if available
         const processedTvIdsForTvOnly = new Set<number>();
         
         for (const tvOnlyGenreId of tvOnlyGenresToSearch) {
-          const tvOnlyGenreName = TV_ONLY_GENRE_NAMES[tvOnlyGenreId] || `Unknown(${tvOnlyGenreId})`;
+          const tvOnlyGenreName = cachedTvOnlyGenreNames![tvOnlyGenreId] || `Unknown(${tvOnlyGenreId})`;
           console.log(`Searching TV-only genre: ${tvOnlyGenreName} (${tvOnlyGenreId})`);
           
           // Phase 3a: Year-based discovery for TV-only genre
@@ -917,7 +926,7 @@ serve(async (req) => {
                 // Build genres JSON array
                 const showGenreIds = show.genre_ids || [];
                 const genresJson = showGenreIds
-                  .map((gId: number) => TMDB_GENRE_MAP[gId])
+                  .map((gId: number) => cachedGenreMap![gId])
                   .filter(Boolean);
 
                 const { data: upsertedTitle, error: titleError } = await supabase
@@ -941,7 +950,6 @@ serve(async (req) => {
                     original_language: show.original_language,
                     is_adult: show.adult || false,
                     imdb_id: details?.external_ids?.imdb_id || null,
-                    tagline: details?.tagline || null,
                     trailer_url: trailerUrl,
                     is_tmdb_trailer: isTmdbTrailer,
                     title_genres: genresJson,
@@ -1047,7 +1055,7 @@ serve(async (req) => {
                   // Build genres JSON array
                   const showGenreIds = show.genre_ids || [];
                   const genresJson = showGenreIds
-                    .map((gId: number) => TMDB_GENRE_MAP[gId])
+                    .map((gId: number) => cachedGenreMap![gId])
                     .filter(Boolean);
 
                   const { data: upsertedTitle, error: titleError } = await supabase
@@ -1071,7 +1079,6 @@ serve(async (req) => {
                       original_language: show.original_language,
                       is_adult: show.adult || false,
                       imdb_id: details?.external_ids?.imdb_id || null,
-                      tagline: details?.tagline || null,
                       trailer_url: trailerUrl,
                       is_tmdb_trailer: isTmdbTrailer,
                       title_genres: genresJson,
