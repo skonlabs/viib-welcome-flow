@@ -347,6 +347,36 @@ export type Database = {
           },
         ]
       }
+      enabled_countries: {
+        Row: {
+          country_code: string
+          country_name: string
+          created_at: string | null
+          dial_code: string
+          flag_emoji: string | null
+          id: string
+          is_active: boolean | null
+        }
+        Insert: {
+          country_code: string
+          country_name: string
+          created_at?: string | null
+          dial_code: string
+          flag_emoji?: string | null
+          id?: string
+          is_active?: boolean | null
+        }
+        Update: {
+          country_code?: string
+          country_name?: string
+          created_at?: string | null
+          dial_code?: string
+          flag_emoji?: string | null
+          id?: string
+          is_active?: boolean | null
+        }
+        Relationships: []
+      }
       episodes: {
         Row: {
           air_date: string | null
@@ -805,6 +835,58 @@ export type Database = {
           window_start?: string | null
         }
         Relationships: []
+      }
+      recommendation_notifications: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_read: boolean | null
+          notification_type: string
+          receiver_user_id: string
+          sender_user_id: string
+          title_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_read?: boolean | null
+          notification_type: string
+          receiver_user_id: string
+          sender_user_id: string
+          title_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_read?: boolean | null
+          notification_type?: string
+          receiver_user_id?: string
+          sender_user_id?: string
+          title_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recommendation_notifications_receiver_user_id_fkey"
+            columns: ["receiver_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recommendation_notifications_sender_user_id_fkey"
+            columns: ["sender_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recommendation_notifications_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: false
+            referencedRelation: "titles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       recommendation_outcomes: {
         Row: {
@@ -2270,6 +2352,45 @@ export type Database = {
           notes?: string | null
           novelty_weight?: number
           social_weight?: number
+        }
+        Relationships: []
+      }
+      visual_taste_options: {
+        Row: {
+          created_at: string | null
+          display_order: number | null
+          genre_id: string
+          genre_name: string
+          gradient_class: string | null
+          id: string
+          is_active: boolean | null
+          mood_description: string | null
+          poster_path: string | null
+          poster_tmdb_id: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          display_order?: number | null
+          genre_id: string
+          genre_name: string
+          gradient_class?: string | null
+          id?: string
+          is_active?: boolean | null
+          mood_description?: string | null
+          poster_path?: string | null
+          poster_tmdb_id?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          display_order?: number | null
+          genre_id?: string
+          genre_name?: string
+          gradient_class?: string | null
+          id?: string
+          is_active?: boolean | null
+          mood_description?: string | null
+          poster_path?: string | null
+          poster_tmdb_id?: number | null
         }
         Relationships: []
       }
