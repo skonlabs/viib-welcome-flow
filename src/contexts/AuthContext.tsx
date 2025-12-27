@@ -36,7 +36,28 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Get initial session
+    // CRITICAL: Set up auth state listener FIRST (before getSession)
+    // This prevents missing auth events during initialization
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        // Only synchronous state updates here - NO async calls!
+        setSession(session);
+        setUser(session?.user ?? null);
+
+        if (event === 'SIGNED_OUT') {
+          setProfile(null);
+          setIsAdmin(false);
+          setLoading(false);
+        } else if (event === 'SIGNED_IN' && session?.user) {
+          // Defer Supabase calls with setTimeout to prevent deadlock
+          setTimeout(() => {
+            fetchUserProfile(session.user.id);
+          }, 0);
+        }
+      }
+    );
+
+    // THEN check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
@@ -46,24 +67,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setLoading(false);
       }
     });
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-
-        if (event === 'SIGNED_IN' && session?.user) {
-          await fetchUserProfile(session.user.id);
-        } else if (event === 'SIGNED_OUT') {
-          setProfile(null);
-          setIsAdmin(false);
-          setLoading(false);
-        } else if (event === 'TOKEN_REFRESHED') {
-          // Token refreshed, profile should still be valid
-        }
-      }
-    );
 
     return () => subscription.unsubscribe();
   }, []);
@@ -75,10 +78,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         .from('users')
         .select('id, email, phone_number, full_name, username, country, timezone, language_preference, created_at, onboarding_completed, is_active')
         .eq('auth_id', authId)
-        .single();
+        .maybeSingle();
 
-      if (userError || !userData) {
+      if (userError) {
         console.error('Error fetching user profile:', userError);
+        setProfile(null);
+        setLoading(false);
+        return;
+      }
+
+      if (!userData) {
+        console.warn('No user profile found for auth_id:', authId);
         setProfile(null);
         setLoading(false);
         return;
