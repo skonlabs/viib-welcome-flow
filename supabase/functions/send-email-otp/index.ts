@@ -1,16 +1,23 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import {
+  getCorsHeaders,
+  handleCorsPreflightRequest,
+  validateOrigin,
+} from "../_shared/cors.ts";
+import { hashOtp, generateSecureOtp } from "../_shared/crypto.ts";
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return handleCorsPreflightRequest(req);
   }
+
+  // Validate origin for security
+  const originError = validateOrigin(req);
+  if (originError) return originError;
+
+  const corsHeaders = getCorsHeaders(req);
 
   try {
     const { email } = await req.json();
@@ -83,9 +90,11 @@ serve(async (req) => {
       );
     }
 
-    // Generate 6-digit OTP
-    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-    // OTP generated (not logging value for security)
+    // Generate 6-digit OTP using cryptographically secure random
+    const otpCode = generateSecureOtp(6);
+
+    // Hash the OTP for secure storage
+    const otpHash = await hashOtp(otpCode, email);
 
     // Store OTP in database (expires in 5 minutes)
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
@@ -93,9 +102,12 @@ serve(async (req) => {
       .from('email_verifications')
       .insert({
         email,
-        otp_code: otpCode,
+        otp_code: otpCode, // TODO: Remove after migration to hash-only
+        otp_hash: otpHash,
         expires_at: expiresAt,
         verified: false,
+        attempt_count: 0,
+        is_locked: false,
       });
 
     if (dbError) {

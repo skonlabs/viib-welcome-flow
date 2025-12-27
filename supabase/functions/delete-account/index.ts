@@ -1,10 +1,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import {
+  getCorsHeaders,
+  handleCorsPreflightRequest,
+  validateOrigin,
+} from "../_shared/cors.ts";
+import { verifyPasswordSecure } from "../_shared/crypto.ts";
 
 /**
  * Account Deletion Edge Function
@@ -17,8 +18,14 @@ const corsHeaders = {
  */
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return handleCorsPreflightRequest(req);
   }
+
+  // Validate origin for security
+  const originError = validateOrigin(req);
+  if (originError) return originError;
+
+  const corsHeaders = getCorsHeaders(req);
 
   try {
     const { userId, password, confirmDeletion, reason } = await req.json();
@@ -75,12 +82,10 @@ serve(async (req) => {
       );
     }
 
-    // Verify password
-    const { data: verifyData, error: verifyError } = await supabase.functions.invoke('verify-password', {
-      body: { password, hashedPassword: user.password_hash }
-    });
+    // Verify password using constant-time comparison
+    const isPasswordValid = await verifyPasswordSecure(password, user.password_hash);
 
-    if (verifyError || !verifyData?.valid) {
+    if (!isPasswordValid) {
       // Record failed attempt
       await supabase.rpc('record_login_attempt', {
         p_identifier: user.email,

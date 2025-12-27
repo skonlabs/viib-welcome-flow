@@ -1,15 +1,25 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import {
+  getCorsHeaders,
+  handleCorsPreflightRequest,
+  validateOrigin,
+} from "../_shared/cors.ts";
+import { hashOtp, constantTimeCompare } from "../_shared/crypto.ts";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+// Maximum verification attempts before lockout
+const MAX_ATTEMPTS = 5;
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return handleCorsPreflightRequest(req);
   }
+
+  // Validate origin for security
+  const originError = validateOrigin(req);
+  if (originError) return originError;
+
+  const corsHeaders = getCorsHeaders(req);
 
   try {
     const { email, otp, password, name } = await req.json();
@@ -106,11 +116,18 @@ serve(async (req) => {
       );
     }
 
-    // Verify OTP - ensure both are strings and trimmed
-    const dbOtp = String(verification.otp_code).trim();
+    // Verify OTP using constant-time comparison (prevents timing attacks)
     const userOtp = String(otp).trim();
-    // Security: Do not log OTP values
-    const otpMatches = dbOtp === userOtp;
+    const inputOtpHash = await hashOtp(userOtp, email);
+
+    // Support both hash-based and legacy plaintext comparison during migration
+    const hashMatch = verification.otp_hash
+      ? constantTimeCompare(verification.otp_hash, inputOtpHash)
+      : false;
+    const legacyMatch = verification.otp_code
+      ? constantTimeCompare(String(verification.otp_code).trim(), userOtp)
+      : false;
+    const otpMatches = hashMatch || legacyMatch;
 
     if (!otpMatches) {
       // Record failed attempt for brute force protection

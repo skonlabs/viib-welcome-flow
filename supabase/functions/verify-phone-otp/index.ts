@@ -1,15 +1,26 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  getCorsHeaders,
+  handleCorsPreflightRequest,
+  validateOrigin,
+} from "../_shared/cors.ts";
+import { hashOtp, constantTimeCompare } from "../_shared/crypto.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+// Maximum verification attempts before lockout
+const MAX_ATTEMPTS = 5;
 
 serve(async (req) => {
+  // Handle CORS preflight
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return handleCorsPreflightRequest(req);
   }
+
+  // Validate origin for security
+  const originError = validateOrigin(req);
+  if (originError) return originError;
+
+  const corsHeaders = getCorsHeaders(req);
 
   try {
     const supabaseClient = createClient(
@@ -26,12 +37,13 @@ serve(async (req) => {
     // Normalize phone number - remove all spaces and keep only digits and +
     const normalizedPhone = phoneNumber.replace(/\s+/g, '');
 
-    // Find the most recent non-verified OTP for this phone number
+    // Find the most recent non-verified, non-locked OTP for this phone number
     const { data: verifications, error: fetchError } = await supabaseClient
       .from('phone_verifications')
       .select('*')
       .eq('phone_number', normalizedPhone)
       .eq('verified', false)
+      .eq('is_locked', false)
       .gt('expires_at', new Date().toISOString())
       .order('created_at', { ascending: false })
       .limit(1);
@@ -56,12 +68,58 @@ serve(async (req) => {
 
     const verification = verifications[0];
 
-    // Check if OTP matches
-    if (verification.otp_code !== otpCode) {
+    // Check if max attempts exceeded
+    if (verification.attempt_count >= MAX_ATTEMPTS) {
+      // Lock this verification
+      await supabaseClient
+        .from('phone_verifications')
+        .update({ is_locked: true })
+        .eq('id', verification.id);
+
       return new Response(
         JSON.stringify({
           success: false,
-          error: "The code you entered is incorrect. Please check and try again."
+          error: "Too many failed attempts. Please request a new code."
+        }),
+        {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 200
+        }
+      );
+    }
+
+    // Hash the input OTP for comparison
+    const inputOtpHash = await hashOtp(otpCode, normalizedPhone);
+
+    // Check if OTP matches using constant-time comparison
+    // Support both hash-based and legacy plaintext comparison during migration
+    const hashMatch = verification.otp_hash
+      ? constantTimeCompare(verification.otp_hash, inputOtpHash)
+      : false;
+    const legacyMatch = verification.otp_code
+      ? constantTimeCompare(verification.otp_code, otpCode)
+      : false;
+
+    if (!hashMatch && !legacyMatch) {
+      // Increment attempt counter
+      const newAttemptCount = (verification.attempt_count || 0) + 1;
+      await supabaseClient
+        .from('phone_verifications')
+        .update({
+          attempt_count: newAttemptCount,
+          is_locked: newAttemptCount >= MAX_ATTEMPTS
+        })
+        .eq('id', verification.id);
+
+      const attemptsRemaining = MAX_ATTEMPTS - newAttemptCount;
+      const errorMessage = attemptsRemaining > 0
+        ? `The code you entered is incorrect. ${attemptsRemaining} attempts remaining.`
+        : "Too many failed attempts. Please request a new code.";
+
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: errorMessage
         }),
         {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -105,14 +163,14 @@ serve(async (req) => {
         status: 200
       }
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error in verify-phone-otp:', error);
-    
+
     // Return user-friendly error message instead of technical details
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         success: false,
-        error: "Unable to verify code. Please try again." 
+        error: "Unable to verify code. Please try again."
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
