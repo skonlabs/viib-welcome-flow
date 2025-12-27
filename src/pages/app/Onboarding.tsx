@@ -14,7 +14,6 @@ import { MoodCalibrationScreen } from "@/components/onboarding/MoodCalibrationSc
 import { VisualTasteScreen } from "@/components/onboarding/VisualTasteScreen";
 import { VisualDNARevealScreen } from "@/components/onboarding/VisualDNARevealScreen";
 import { SocialConnectionScreen } from "@/components/onboarding/SocialConnectionScreen";
-import { RecommendationRevealScreen } from "@/components/onboarding/RecommendationRevealScreen";
 import { FeedbackCaptureScreen } from "@/components/onboarding/FeedbackCaptureScreen";
 import { CompanionIntroScreen } from "@/components/onboarding/CompanionIntroScreen";
 import { CompletionScreen } from "@/components/onboarding/CompletionScreen";
@@ -35,7 +34,6 @@ type OnboardingStep =
   | "taste"
   | "dna"
   | "social"
-  | "recommendations"
   | "feedback"
   | "companion"
   | "completion";
@@ -169,7 +167,7 @@ export default function Onboarding() {
         const validSteps: OnboardingStep[] = [
           "welcome", "entry", "phone", "otp", "email", "email-otp", "biometric", "identity",
           "platforms", "languages", "mood", "taste", "dna", "social",
-          "recommendations", "feedback", "companion", "completion"
+          "feedback", "companion", "completion"
         ];
         if (validSteps.includes(step as OnboardingStep)) {
           setCurrentStep(step as OnboardingStep);
@@ -496,10 +494,6 @@ export default function Onboarding() {
   };
 
   const handleSocial = () => {
-    navigateToStep("recommendations");
-  };
-
-  const handleRecommendations = () => {
     navigateToStep("feedback");
   };
 
@@ -571,7 +565,6 @@ export default function Onboarding() {
   const handleBackToTaste = () => navigateToStep("taste", false);
   const handleBackToDNA = () => navigateToStep("dna", false);
   const handleBackToSocial = () => navigateToStep("social", false);
-  const handleBackToRecommendations = () => navigateToStep("recommendations", false);
   const handleBackToFeedback = () => navigateToStep("feedback", false);
 
   // Show loading state while checking auth/onboarding status
@@ -676,15 +669,8 @@ export default function Onboarding() {
           onBack={handleBackToDNA}
         />
       )}
-      {currentStep === "recommendations" && (
-        <RecommendationRevealScreen
-          userName={onboardingData.name}
-          onContinue={handleRecommendations}
-          onBack={handleBackToSocial}
-        />
-      )}
       {currentStep === "feedback" && (
-        <FeedbackCaptureScreen onContinue={handleFeedback} onBack={handleBackToRecommendations} />
+        <FeedbackCaptureScreen onContinue={handleFeedback} onBack={handleBackToSocial} />
       )}
       {currentStep === "companion" && (
         <CompanionIntroScreen onContinue={handleCompanion} onBack={handleBackToFeedback} />
