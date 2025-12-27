@@ -44,6 +44,7 @@ serve(async (req) => {
   try {
     const { 
       languages = ['en'], 
+      streamingProviderIds = [], // TMDB provider IDs (e.g., 8=Netflix, 337=Disney+, 9=Amazon)
       minYear, 
       minRating = 6, 
       minPopularity = 10,
@@ -61,7 +62,9 @@ serve(async (req) => {
     threeYearsAgo.setFullYear(threeYearsAgo.getFullYear() - 3);
     const minDate = minYear || threeYearsAgo.toISOString().split('T')[0];
 
-    console.log(`[discover-tmdb] Fetching movies: languages=${languages}, minDate=${minDate}, minRating=${minRating}`);
+    const providerFilter = streamingProviderIds.length > 0 ? streamingProviderIds.join('|') : null;
+    
+    console.log(`[discover-tmdb] Fetching movies: languages=${languages}, minDate=${minDate}, minRating=${minRating}, providers=${providerFilter || 'none'}, region=${region}`);
 
     // Fetch multiple pages to get enough movies
     const allMovies: any[] = [];
@@ -80,8 +83,10 @@ serve(async (req) => {
         url.searchParams.set('page', page.toString());
         url.searchParams.set('include_adult', 'false');
         
-        if (excludeKids) {
-          // Exclude Family and Animation dominated content by not filtering, but we'll filter certifications later
+        // Add streaming provider filter if providers are selected
+        if (providerFilter) {
+          url.searchParams.set('with_watch_providers', providerFilter);
+          url.searchParams.set('watch_region', region);
         }
 
         const response = await fetch(url.toString());
