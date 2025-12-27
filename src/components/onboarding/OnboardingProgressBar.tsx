@@ -6,19 +6,19 @@ interface OnboardingProgressBarProps {
 }
 
 const STEP_LABELS = [
-  "Welcome",
-  "Sign Up",
-  "Verify",
-  "Security",
-  "Profile",
-  "Platforms",
-  "Languages",
-  "Mood",
-  "Taste",
-  "DNA",
-  "Social",
-  "Feedback",
-  "Complete"
+  "Welcome",      // 1: welcome
+  "Sign Up",      // 2: entry
+  "Sign Up",      // 3: phone
+  "Verify",       // 4: otp
+  "Sign Up",      // 5: email
+  "Verify",       // 6: email-otp
+  "Security",     // 7: biometric
+  "Profile",      // 8: identity
+  "Platforms",    // 9: platforms
+  "Languages",    // 10: languages
+  "Mood",         // 11: mood
+  "Taste",        // 12: taste
+  "Complete"      // 13: completion
 ];
 
 export const OnboardingProgressBar = ({ currentStep, totalSteps }: OnboardingProgressBarProps) => {

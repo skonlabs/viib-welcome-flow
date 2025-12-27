@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { WelcomeScreen } from "@/components/onboarding/WelcomeScreen";
 import { EntryMethodScreen } from "@/components/onboarding/EntryMethodScreen";
@@ -12,10 +12,6 @@ import { StreamingPlatformsScreen } from "@/components/onboarding/StreamingPlatf
 import { LanguageSelectionScreen } from "@/components/onboarding/LanguageSelectionScreen";
 import { MoodCalibrationScreen } from "@/components/onboarding/MoodCalibrationScreen";
 import { VisualTasteScreen } from "@/components/onboarding/VisualTasteScreen";
-import { VisualDNARevealScreen } from "@/components/onboarding/VisualDNARevealScreen";
-import { SocialConnectionScreen } from "@/components/onboarding/SocialConnectionScreen";
-import { FeedbackCaptureScreen } from "@/components/onboarding/FeedbackCaptureScreen";
-import { CompanionIntroScreen } from "@/components/onboarding/CompanionIntroScreen";
 import { CompletionScreen } from "@/components/onboarding/CompletionScreen";
 import { OnboardingProgressBar } from "@/components/onboarding/OnboardingProgressBar";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
@@ -33,10 +29,6 @@ type OnboardingStep =
   | "languages"
   | "mood"
   | "taste"
-  | "dna"
-  | "social"
-  | "feedback"
-  | "companion"
   | "completion";
 
 export default function Onboarding() {
@@ -167,8 +159,7 @@ export default function Onboarding() {
       if (step && step !== currentStep) {
         const validSteps: OnboardingStep[] = [
           "welcome", "entry", "phone", "otp", "email", "email-otp", "biometric", "identity",
-          "platforms", "languages", "mood", "taste", "dna", "social",
-          "feedback", "companion", "completion"
+          "platforms", "languages", "mood", "taste", "completion"
         ];
         if (validSteps.includes(step as OnboardingStep)) {
           setCurrentStep(step as OnboardingStep);
@@ -487,23 +478,6 @@ export default function Onboarding() {
 
   const handleTaste = (visualTaste: string[]) => {
     setOnboardingData((prev) => ({ ...prev, visualTaste }));
-    navigateToStep("dna");
-  };
-
-  const handleDNAContinue = () => {
-    navigateToStep("social");
-  };
-
-  const handleSocial = () => {
-    navigateToStep("feedback");
-  };
-
-  const handleFeedback = (feedback: string) => {
-    setOnboardingData((prev) => ({ ...prev, feedback }));
-    navigateToStep("companion");
-  };
-
-  const handleCompanion = () => {
     navigateToStep("completion");
   };
 
@@ -511,12 +485,24 @@ export default function Onboarding() {
     console.log("Onboarding completed with data:", onboardingData);
     
     try {
-      // Check if we have a stored user_id from resume scenario
+      // Check if we have a stored user_id
       const storedUserId = localStorage.getItem('viib_user_id');
       
       if (!storedUserId) {
         console.error('No user ID found in localStorage');
         return;
+      }
+      
+      // Get user email and signup method
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('email, password_hash, signup_method')
+        .eq('id', storedUserId)
+        .single();
+      
+      if (userError) {
+        console.error('Error fetching user data:', userError);
+        throw userError;
       }
       
       // Update user record with completion status
@@ -538,7 +524,32 @@ export default function Onboarding() {
       // Clean up resume flag
       localStorage.removeItem('viib_resume_onboarding');
       
-      // Navigate directly to home screen
+      // Sign in with Supabase Auth if email user and we have credentials
+      const email = navEmail || onboardingData.email || userData?.email;
+      const password = navPassword || onboardingData.password;
+      
+      if (userData?.signup_method === 'email' && email && password) {
+        // Try to sign in with Supabase Auth
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+        
+        if (signInError) {
+          console.warn('Auth sign-in failed, user may need to login manually:', signInError);
+        } else {
+          // Link auth user to profile
+          const { data: authData } = await supabase.auth.getUser();
+          if (authData?.user) {
+            await supabase
+              .from('users')
+              .update({ auth_id: authData.user.id })
+              .eq('id', storedUserId);
+          }
+        }
+      }
+      
+      // Navigate to home screen
       navigate("/app/home");
     } catch (error) {
       console.error('Error in handleComplete:', error);
@@ -564,9 +575,6 @@ export default function Onboarding() {
   const handleBackToLanguages = () => navigateToStep("languages", false);
   const handleBackToMood = () => navigateToStep("mood", false);
   const handleBackToTaste = () => navigateToStep("taste", false);
-  const handleBackToDNA = () => navigateToStep("dna", false);
-  const handleBackToSocial = () => navigateToStep("social", false);
-  const handleBackToFeedback = () => navigateToStep("feedback", false);
 
   // Show loading state while checking auth/onboarding status
   if (isChecking) {
@@ -583,10 +591,10 @@ export default function Onboarding() {
   // Calculate current step number for progress bar
   const stepOrder: OnboardingStep[] = [
     "welcome", "entry", "phone", "otp", "email", "email-otp", "biometric", "identity",
-    "platforms", "languages", "mood", "taste", "dna", "social", "feedback", "companion", "completion"
+    "platforms", "languages", "mood", "taste", "completion"
   ];
   const currentStepNumber = stepOrder.indexOf(currentStep) + 1;
-  const totalSteps = 13; // Simplified view: welcome -> entry -> auth -> biometric -> identity -> platforms -> languages -> mood -> taste -> dna -> social -> feedback -> completion
+  const totalSteps = 13; // Total visible steps in progress bar
   
   // Show progress bar only after welcome
   const showProgressBar = currentStep !== "welcome";
@@ -672,26 +680,6 @@ export default function Onboarding() {
       )}
       {currentStep === "taste" && (
         <VisualTasteScreen onContinue={handleTaste} onBack={handleBackToMood} />
-      )}
-      {currentStep === "dna" && (
-        <VisualDNARevealScreen
-          selections={onboardingData.visualTaste}
-          onContinue={handleDNAContinue}
-          onBack={handleBackToTaste}
-        />
-      )}
-      {currentStep === "social" && (
-        <SocialConnectionScreen
-          onInvite={handleSocial}
-          onSkip={handleSocial}
-          onBack={handleBackToDNA}
-        />
-      )}
-      {currentStep === "feedback" && (
-        <FeedbackCaptureScreen onContinue={handleFeedback} onBack={handleBackToSocial} />
-      )}
-      {currentStep === "companion" && (
-        <CompanionIntroScreen onContinue={handleCompanion} onBack={handleBackToFeedback} />
       )}
       {currentStep === "completion" && (
         <CompletionScreen
