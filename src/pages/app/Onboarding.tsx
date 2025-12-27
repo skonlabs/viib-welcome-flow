@@ -6,12 +6,12 @@ import { PhoneEntryScreen } from "@/components/onboarding/PhoneEntryScreen";
 import { OTPVerificationScreen } from "@/components/onboarding/OTPVerificationScreen";
 import { EmailSignupScreen } from "@/components/onboarding/EmailSignupScreen";
 import { EmailOTPVerificationScreen } from "@/components/onboarding/EmailOTPVerificationScreen";
-import { BiometricEnableScreen } from "@/components/onboarding/BiometricEnableScreen";
 import { UserIdentityScreen } from "@/components/onboarding/UserIdentityScreen";
 import { StreamingPlatformsScreen } from "@/components/onboarding/StreamingPlatformsScreen";
 import { LanguageSelectionScreen } from "@/components/onboarding/LanguageSelectionScreen";
 import { MoodCalibrationScreen } from "@/components/onboarding/MoodCalibrationScreen";
 import { VisualTasteScreen } from "@/components/onboarding/VisualTasteScreen";
+import { SocialConnectionScreen } from "@/components/onboarding/SocialConnectionScreen";
 import { CompletionScreen } from "@/components/onboarding/CompletionScreen";
 import { OnboardingProgressBar } from "@/components/onboarding/OnboardingProgressBar";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
@@ -23,12 +23,12 @@ type OnboardingStep =
   | "otp"
   | "email"
   | "email-otp"
-  | "biometric"
   | "identity"
   | "platforms"
   | "languages"
   | "mood"
   | "taste"
+  | "social"
   | "completion";
 
 export default function Onboarding() {
@@ -158,8 +158,8 @@ export default function Onboarding() {
       // Sync step from URL to state
       if (step && step !== currentStep) {
         const validSteps: OnboardingStep[] = [
-          "welcome", "entry", "phone", "otp", "email", "email-otp", "biometric", "identity",
-          "platforms", "languages", "mood", "taste", "completion"
+          "welcome", "entry", "phone", "otp", "email", "email-otp", "identity",
+          "platforms", "languages", "mood", "taste", "social", "completion"
         ];
         if (validSteps.includes(step as OnboardingStep)) {
           setCurrentStep(step as OnboardingStep);
@@ -205,8 +205,8 @@ export default function Onboarding() {
     } else if (method === "email") {
       navigateToStep("email");
     } else {
-      // Apple sign in - skip to biometric
-      navigateToStep("biometric");
+      // Apple sign in - skip to identity
+      navigateToStep("identity");
     }
   };
 
@@ -250,7 +250,7 @@ export default function Onboarding() {
         .eq('otp_code', otp)
         .eq('verified', false);
       
-      navigateToStep("biometric");
+      navigateToStep("identity");
       return;
     }
     
@@ -333,7 +333,7 @@ export default function Onboarding() {
       throw error;
     }
     
-    navigateToStep("biometric");
+    navigateToStep("identity");
   };
 
   const handleEmailOTPVerify = async () => {
@@ -354,7 +354,7 @@ export default function Onboarding() {
       }
     }
     
-    navigateToStep("biometric");
+    navigateToStep("identity");
   };
 
   const handleResendPhoneOTP = async () => {
@@ -382,11 +382,6 @@ export default function Onboarding() {
       throw error;
     }
   };
-
-  const handleBiometric = (enabled: boolean) => {
-    navigateToStep("identity");
-  };
-
   const handleIdentity = async (data: { name: string; vibe: string }) => {
     setOnboardingData((prev) => ({ ...prev, ...data }));
     
@@ -478,6 +473,10 @@ export default function Onboarding() {
 
   const handleTaste = (visualTaste: string[]) => {
     setOnboardingData((prev) => ({ ...prev, visualTaste }));
+    navigateToStep("social");
+  };
+
+  const handleSocial = () => {
     navigateToStep("completion");
   };
 
@@ -559,7 +558,7 @@ export default function Onboarding() {
   // Back navigation handlers - don't save progress when going backward
   const handleBackToWelcome = () => navigateToStep("welcome", false);
   const handleBackToEntry = () => navigateToStep("entry", false);
-  const handleBackToBiometric = () => {
+  const handleBackToVerification = () => {
     // Go back to the authentication screen they came from
     if (onboardingData.entryMethod === "phone") {
       navigateToStep("otp", false);
@@ -575,6 +574,7 @@ export default function Onboarding() {
   const handleBackToLanguages = () => navigateToStep("languages", false);
   const handleBackToMood = () => navigateToStep("mood", false);
   const handleBackToTaste = () => navigateToStep("taste", false);
+  const handleBackToSocial = () => navigateToStep("social", false);
 
   // Show loading state while checking auth/onboarding status
   if (isChecking) {
@@ -590,11 +590,11 @@ export default function Onboarding() {
 
   // Calculate current step number for progress bar
   const stepOrder: OnboardingStep[] = [
-    "welcome", "entry", "phone", "otp", "email", "email-otp", "biometric", "identity",
-    "platforms", "languages", "mood", "taste", "completion"
+    "welcome", "entry", "phone", "otp", "email", "email-otp", "identity",
+    "platforms", "languages", "mood", "taste", "social", "completion"
   ];
   const currentStepNumber = stepOrder.indexOf(currentStep) + 1;
-  const totalSteps = 13; // Total visible steps in progress bar
+  const totalSteps = 12; // Total visible steps in progress bar
   
   // Show progress bar only after welcome
   const showProgressBar = currentStep !== "welcome";
@@ -641,17 +641,10 @@ export default function Onboarding() {
           onBack={handleBackToEmail}
         />
       )}
-      {currentStep === "biometric" && (
-        <BiometricEnableScreen
-          onEnable={() => handleBiometric(true)}
-          onSkip={() => handleBiometric(false)}
-          onBack={handleBackToBiometric}
-        />
-      )}
       {currentStep === "identity" && (
         <UserIdentityScreen 
           onContinue={handleIdentity} 
-          onBack={handleBackToBiometric}
+          onBack={handleBackToVerification}
           initialName={onboardingData.name}
           initialVibe={onboardingData.vibe}
         />
@@ -680,6 +673,13 @@ export default function Onboarding() {
       )}
       {currentStep === "taste" && (
         <VisualTasteScreen onContinue={handleTaste} onBack={handleBackToMood} />
+      )}
+      {currentStep === "social" && (
+        <SocialConnectionScreen
+          onInvite={handleSocial}
+          onSkip={handleSocial}
+          onBack={handleBackToTaste}
+        />
       )}
       {currentStep === "completion" && (
         <CompletionScreen
