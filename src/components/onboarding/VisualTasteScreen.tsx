@@ -98,15 +98,16 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
         console.log('[VisualTaste] TMDB Provider IDs:', tmdbProviderIds);
 
         // Call TMDB discover edge function
+        // NOTE: Don't pass streaming providers here - for taste selection we want 
+        // popular movies in user's languages, not filtered by streaming availability
         const { data, error } = await supabase.functions.invoke('discover-tmdb', {
           body: {
             languages: languageCodes,
-            streamingProviderIds: tmdbProviderIds,
+            streamingProviderIds: [], // Empty - no streaming filter for taste screen
             minRating: 6,
             minPopularity: 10,
             limit: 200,
-            excludeKids: true,
-            region: 'US'
+            excludeKids: true
           }
         });
 
