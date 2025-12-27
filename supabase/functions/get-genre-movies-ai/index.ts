@@ -103,7 +103,7 @@ NO explanations, NO markdown, NO extra text. Start with [ and end with ]`;
     const data = await response.json();
     const aiResponse = data.choices[0]?.message?.content?.trim();
     
-    console.log('[get-genre-movies-ai] Raw AI response:', aiResponse?.substring(0, 200));
+    console.log('[get-genre-movies-ai] Full AI response:', aiResponse);
 
     // Parse AI response
     let movieRecommendations: Array<{ title: string; genre: string; language: string }>;
