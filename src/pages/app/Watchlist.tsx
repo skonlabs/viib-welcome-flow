@@ -73,19 +73,19 @@ export default function Watchlist() {
   const [ratingDialogOpen, setRatingDialogOpen] = useState(false);
   const [titleToRate, setTitleToRate] = useState<{ id: string; title_id: string; title: string } | null>(null);
 
-  const { user } = useAuth();
+  const { profile } = useAuth();
 
   useEffect(() => {
-    if (user) {
+    if (profile) {
       loadWatchlist("pending");
       loadWatchlist("watched");
       loadRecommendedTitles();
       calculateStats();
     }
-  }, [user]);
+  }, [profile]);
 
   const loadWatchlist = async (status: string) => {
-    if (!user) return;
+    if (!profile) return;
     setLoading(true);
 
     try {
@@ -93,7 +93,7 @@ export default function Watchlist() {
       const { data: interactions, error } = await supabase
         .from('user_title_interactions')
         .select('id, title_id, season_number, created_at, rating_value')
-        .eq('user_id', user.id)
+        .eq('user_id', profile.id)
         .eq('interaction_type', status === 'pending' ? 'wishlisted' : 'completed')
         .order('created_at', { ascending: false });
 
@@ -207,14 +207,14 @@ export default function Watchlist() {
   };
 
   const loadRecommendedTitles = async () => {
-    if (!user) return;
+    if (!profile) return;
     setLoading(true);
 
     try {
       const { data: recommendations, error } = await supabase
         .from('user_social_recommendations')
         .select('id, title_id, message, created_at, sender:sender_user_id(full_name, username)')
-        .eq('receiver_user_id', user.id)
+        .eq('receiver_user_id', profile.id)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -283,14 +283,14 @@ export default function Watchlist() {
   };
 
   const calculateStats = async () => {
-    if (!user) return;
+    if (!profile) return;
 
     try {
       // Get watched items with their title IDs
       const { data: watchedItems } = await supabase
         .from('user_title_interactions')
         .select('title_id, watch_duration_percentage, rating_value')
-        .eq('user_id', user.id)
+        .eq('user_id', profile.id)
         .eq('interaction_type', 'completed');
 
       if (watchedItems && watchedItems.length > 0) {
@@ -336,7 +336,7 @@ export default function Watchlist() {
   };
 
   const handleRatingSubmit = async (rating: 'love_it' | 'like_it' | 'dislike_it') => {
-    if (!user || !titleToRate) return;
+    if (!profile || !titleToRate) return;
 
     try {
       if (titleToRate.id) {
@@ -348,13 +348,13 @@ export default function Watchlist() {
             rating_value: rating
           })
           .eq('id', titleToRate.id)
-          .eq('user_id', user.id);
+          .eq('user_id', profile.id);
       } else {
         // Create new completed entry (for recommended titles)
         const { error } = await supabase
           .from('user_title_interactions')
           .insert({
-            user_id: user.id,
+            user_id: profile.id,
             title_id: titleToRate.title_id,
             interaction_type: 'completed',
             rating_value: rating
@@ -377,14 +377,14 @@ export default function Watchlist() {
   };
 
   const moveToWatchlist = async (titleId: string) => {
-    if (!user) return;
+    if (!profile) return;
 
     try {
       // Check if already in watchlist
       const { data: existing } = await supabase
         .from('user_title_interactions')
         .select('id')
-        .eq('user_id', user.id)
+        .eq('user_id', profile.id)
         .eq('title_id', titleId)
         .eq('interaction_type', 'wishlisted')
         .maybeSingle();
@@ -397,7 +397,7 @@ export default function Watchlist() {
       const { error } = await supabase
         .from('user_title_interactions')
         .insert({
-          user_id: user.id,
+          user_id: profile.id,
           title_id: titleId,
           interaction_type: 'wishlisted'
         });
@@ -414,14 +414,14 @@ export default function Watchlist() {
   };
 
   const moveToWatchlistFromWatched = async (interactionId: string) => {
-    if (!user) return;
+    if (!profile) return;
 
     try {
       await supabase
         .from('user_title_interactions')
         .update({ interaction_type: 'wishlisted' })
         .eq('id', interactionId)
-        .eq('user_id', user.id);
+        .eq('user_id', profile.id);
 
       toast.success('Moved to watchlist!');
       loadWatchlist('pending');
@@ -434,7 +434,7 @@ export default function Watchlist() {
   };
 
   const removeItem = async (id: string, type: string) => {
-    if (!user) return;
+    if (!profile) return;
 
     try {
       if (type === 'recommended') {
@@ -442,13 +442,13 @@ export default function Watchlist() {
           .from('user_social_recommendations')
           .delete()
           .eq('id', id)
-          .eq('receiver_user_id', user.id);
+          .eq('receiver_user_id', profile.id);
       } else {
         await supabase
           .from('user_title_interactions')
           .delete()
           .eq('id', id)
-          .eq('user_id', user.id);
+          .eq('user_id', profile.id);
       }
 
       toast.success('Removed successfully');

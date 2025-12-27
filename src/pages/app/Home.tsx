@@ -29,7 +29,7 @@ interface RecommendedTitle {
 }
 
 const Home = () => {
-  const { user, loading: authLoading } = useAuthContext();
+  const { profile, loading: authLoading } = useAuthContext();
   const [recommendations, setRecommendations] = useState<RecommendedTitle[]>([]);
   const [loading, setLoading] = useState(true);
   const [userWatchlist, setUserWatchlist] = useState<Set<string>>(new Set());
@@ -44,18 +44,18 @@ const Home = () => {
   useEffect(() => {
     if (authLoading) return;
     
-    if (user?.id) {
+    if (profile?.id) {
       fetchRecommendations();
       fetchUserWatchlist();
     } else {
       setLoading(false);
     }
-  }, [authLoading, user?.id]);
+  }, [authLoading, profile?.id]);
 
   // Listen for mood changes to refresh recommendations
   useEffect(() => {
     const handleMoodChange = () => {
-      if (user?.id) {
+      if (profile?.id) {
         setLoading(true);
         fetchRecommendations();
       }
@@ -63,15 +63,15 @@ const Home = () => {
     
     window.addEventListener('viib-mood-changed', handleMoodChange);
     return () => window.removeEventListener('viib-mood-changed', handleMoodChange);
-  }, [user?.id]);
+  }, [profile?.id]);
 
   const fetchUserWatchlist = async () => {
-    if (!user?.id) return;
+    if (!profile?.id) return;
 
     const { data } = await supabase
       .from('user_title_interactions')
       .select('title_id')
-      .eq('user_id', user.id)
+      .eq('user_id', profile.id)
       .in('interaction_type', ['wishlisted', 'completed']);
 
     if (data) {
@@ -80,7 +80,7 @@ const Home = () => {
   };
 
   const fetchRecommendations = async () => {
-    if (!user?.id) {
+    if (!profile?.id) {
       setLoading(false);
       return;
     }
@@ -90,7 +90,7 @@ const Home = () => {
       console.log('Fetching user recommendations');
       const { data: recData, error: recError } = await supabase.rpc(
         'get_top_recommendations_v2',
-        { p_user_id: user.id, p_limit: 10 }
+        { p_user_id: profile.id, p_limit: 10 }
       );
 
       console.log('Recommendation response:', { recData, recError });
@@ -186,7 +186,7 @@ const Home = () => {
   };
 
   const handleAddToWatchlist = async (titleId: string) => {
-    if (!user?.id) return;
+    if (!profile?.id) return;
 
     // Check if already in watchlist
     if (userWatchlist.has(titleId)) {
@@ -195,7 +195,7 @@ const Home = () => {
     }
 
     const { error } = await supabase.from('user_title_interactions').insert({
-      user_id: user.id,
+      user_id: profile.id,
       title_id: titleId,
       interaction_type: 'wishlisted',
     });
@@ -221,13 +221,13 @@ const Home = () => {
   };
 
   const handleRateAndMarkWatched = async (rating: 'love_it' | 'like_it' | 'dislike_it') => {
-    if (!titleToRate || !user?.id) return;
+    if (!titleToRate || !profile?.id) return;
 
     // Check if already exists
     const { data: existing } = await supabase
       .from('user_title_interactions')
       .select('id')
-      .eq('user_id', user.id)
+      .eq('user_id', profile.id)
       .eq('title_id', titleToRate.id)
       .eq('interaction_type', 'completed')
       .maybeSingle();
@@ -249,13 +249,13 @@ const Home = () => {
       await supabase
         .from('user_title_interactions')
         .delete()
-        .eq('user_id', user.id)
+        .eq('user_id', profile.id)
         .eq('title_id', titleToRate.id)
         .eq('interaction_type', 'wishlisted');
 
       // Insert new completed entry with rating
       const { error } = await supabase.from('user_title_interactions').insert({
-        user_id: user.id,
+        user_id: profile.id,
         title_id: titleToRate.id,
         interaction_type: 'completed',
         rating_value: rating,
@@ -280,11 +280,11 @@ const Home = () => {
   };
 
   const handleNotMyTaste = async () => {
-    if (!titleToDismiss || !user?.id) return;
+    if (!titleToDismiss || !profile?.id) return;
 
     // Record as disliked interaction
     const { error } = await supabase.from('user_title_interactions').insert({
-      user_id: user.id,
+      user_id: profile.id,
       title_id: titleToDismiss.id,
       interaction_type: 'disliked',
       rating_value: 'dislike_it',

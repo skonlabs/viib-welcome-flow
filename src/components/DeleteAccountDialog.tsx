@@ -25,7 +25,7 @@ interface DeleteAccountDialogProps {
 }
 
 export function DeleteAccountDialog({ onDeleted }: DeleteAccountDialogProps) {
-  const { user, signOut } = useAuthContext();
+  const { profile, signOut } = useAuthContext();
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<'confirm' | 'password'>('confirm');
   const [password, setPassword] = useState('');
@@ -61,7 +61,7 @@ export function DeleteAccountDialog({ onDeleted }: DeleteAccountDialogProps) {
       return;
     }
 
-    if (!user?.id) {
+    if (!profile?.id) {
       setError('User session not found');
       return;
     }
@@ -72,7 +72,7 @@ export function DeleteAccountDialog({ onDeleted }: DeleteAccountDialogProps) {
     try {
       const { data, error: deleteError } = await supabase.functions.invoke('delete-account', {
         body: {
-          userId: user.id,
+          userId: profile.id,
           password,
           confirmDeletion: true,
           reason: reason || undefined,

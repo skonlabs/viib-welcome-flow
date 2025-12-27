@@ -36,7 +36,7 @@ const MOOD_OPTIONS = [
 ];
 
 export default function ViiBList() {
-  const { user } = useAuth();
+  const { profile } = useAuth();
   const [lists, setLists] = useState<any[]>([]);
   const [sharedWithMeLists, setSharedWithMeLists] = useState<any[]>([]);
   const [publicLists, setPublicLists] = useState<any[]>([]);
@@ -75,21 +75,21 @@ export default function ViiBList() {
   });
 
   useEffect(() => {
-    if (user) {
+    if (profile) {
       loadLists();
       loadSharedWithMeLists();
       loadPublicLists();
       loadFollowedLists();
       loadUserWatchlist();
     }
-  }, [user]);
+  }, [profile]);
 
   const loadUserWatchlist = async () => {
-    if (!user) return;
+    if (!profile) return;
     const { data } = await supabase
       .from('user_title_interactions')
       .select('title_id')
-      .eq('user_id', user.id)
+      .eq('user_id', profile.id)
       .in('interaction_type', ['wishlisted', 'completed']);
 
     if (data) {
@@ -154,12 +154,12 @@ export default function ViiBList() {
   };
 
   const loadLists = async () => {
-    if (!user) return;
+    if (!profile) return;
 
     const { data: listsData } = await supabase
       .from('vibe_lists')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('user_id', profile.id)
       .order('created_at', { ascending: false });
 
     if (!listsData) {
@@ -243,7 +243,7 @@ export default function ViiBList() {
       .from('vibe_lists')
       .select('*, users:user_id(full_name)')
       .eq('visibility', 'public')
-      .neq('user_id', user?.id || '')
+      .neq('user_id', profile?.id || '')
       .order('created_at', { ascending: false })
       .limit(20);
 
@@ -267,12 +267,12 @@ export default function ViiBList() {
   };
 
   const loadSharedWithMeLists = async () => {
-    if (!user) return;
+    if (!profile) return;
 
     const { data: sharedData } = await supabase
       .from('vibe_list_shared_with')
       .select('vibe_list_id')
-      .eq('shared_with_user_id', user.id);
+      .eq('shared_with_user_id', profile.id);
 
     if (!sharedData || sharedData.length === 0) {
       setSharedWithMeLists([]);
@@ -306,17 +306,17 @@ export default function ViiBList() {
   };
 
   const loadFollowedLists = async () => {
-    if (!user) return;
+    if (!profile) return;
     const { data } = await supabase
       .from('vibe_list_followers')
       .select('vibe_list_id')
-      .eq('follower_user_id', user.id);
+      .eq('follower_user_id', profile.id);
 
     setFollowedLists(data?.map(f => f.vibe_list_id) || []);
   };
 
   const createList = async () => {
-    if (!user || !newList.name) {
+    if (!profile || !newList.name) {
       toast.error('Please enter a list name');
       return;
     }
@@ -324,7 +324,7 @@ export default function ViiBList() {
     const { data, error } = await supabase
       .from('vibe_lists')
       .insert({
-        user_id: user.id,
+        user_id: profile.id,
         name: newList.name,
         description: newList.description,
         mood_tags: newList.mood_tags,
@@ -371,7 +371,7 @@ export default function ViiBList() {
   };
 
   const updateList = async () => {
-    if (!user || !editingList || !newList.name) {
+    if (!profile || !editingList || !newList.name) {
       toast.error('Please enter a list name');
       return;
     }
@@ -446,7 +446,7 @@ export default function ViiBList() {
   };
 
   const toggleFollowList = async (listId: string) => {
-    if (!user) return;
+    if (!profile) return;
 
     try {
       if (followedLists.includes(listId)) {
@@ -454,7 +454,7 @@ export default function ViiBList() {
           .from('vibe_list_followers')
           .delete()
           .eq('vibe_list_id', listId)
-          .eq('follower_user_id', user.id);
+          .eq('follower_user_id', profile.id);
 
         if (error) throw error;
         setFollowedLists(prev => prev.filter(id => id !== listId));
@@ -464,7 +464,7 @@ export default function ViiBList() {
           .from('vibe_list_followers')
           .insert({
             vibe_list_id: listId,
-            follower_user_id: user.id
+            follower_user_id: profile.id
           });
 
         if (error) throw error;
@@ -477,7 +477,7 @@ export default function ViiBList() {
     }
   };
 
-  const isOwnList = selectedList?.user_id === user?.id;
+  const isOwnList = selectedList?.user_id === profile?.id;
 
   return (
     <div className="container max-w-6xl mx-auto px-4 sm:px-6">

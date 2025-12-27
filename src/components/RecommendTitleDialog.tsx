@@ -45,16 +45,16 @@ export function RecommendTitleDialog({
   const [newContacts, setNewContacts] = useState<string[]>([]);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
-  const { user } = useAuth();
+  const { profile } = useAuth();
 
   useEffect(() => {
-    if (open && user) {
+    if (open && profile) {
       loadFriends();
     }
-  }, [open, user]);
+  }, [open, profile]);
 
   const loadFriends = async () => {
-    if (!user) return;
+    if (!profile) return;
 
     try {
       const { data, error } = await supabase
@@ -64,7 +64,7 @@ export function RecommendTitleDialog({
           friend_user_id,
           friend:friend_user_id(full_name, username)
         `)
-        .eq("user_id", user.id);
+        .eq("user_id", profile.id);
 
       if (error) throw error;
 
@@ -122,7 +122,7 @@ export function RecommendTitleDialog({
   const handleRecommend = async () => {
     const totalRecipients = selectedFriends.length + newContacts.length;
     
-    if (!user || totalRecipients === 0) {
+    if (!profile || totalRecipients === 0) {
       toast.error("Please select at least one friend or add a contact");
       return;
     }
@@ -133,7 +133,7 @@ export function RecommendTitleDialog({
       // Send recommendations to existing friends
       if (selectedFriends.length > 0) {
         const recommendations = selectedFriends.map((friendId) => ({
-          sender_user_id: user.id,
+          sender_user_id: profile.id,
           receiver_user_id: friendId,
           title_id: titleId,
           message: message || null,
@@ -150,7 +150,7 @@ export function RecommendTitleDialog({
       if (newContacts.length > 0) {
         const { error: inviteError } = await supabase.functions.invoke('send-invites', {
           body: {
-            userId: user.id,
+            userId: profile.id,
             method,
             contacts: newContacts,
             note: `${message ? message + '\n\n' : ''}Check out "${titleName}" on ViiB!`

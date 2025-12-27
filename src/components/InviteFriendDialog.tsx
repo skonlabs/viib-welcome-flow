@@ -24,9 +24,9 @@ export const InviteFriendDialog = ({ open, onOpenChange, onInviteSent }: InviteF
   const [message, setMessage] = useState("Hey! Join me on ViiB - it's an amazing app for discovering movies and shows based on your mood!");
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
-  const { user } = useAuth();
+  const { profile } = useAuth();
 
-  const inviteLink = user ? `${window.location.origin}?invited_by=${user.id}` : "";
+  const inviteLink = profile ? `${window.location.origin}?invited_by=${profile.id}` : "";
 
   const copyInviteLink = async () => {
     try {
@@ -80,7 +80,7 @@ export const InviteFriendDialog = ({ open, onOpenChange, onInviteSent }: InviteF
       return;
     }
 
-    if (!user) {
+    if (!profile) {
       toast.error("You must be logged in to send invites");
       return;
     }
@@ -89,7 +89,7 @@ export const InviteFriendDialog = ({ open, onOpenChange, onInviteSent }: InviteF
     try {
       const { data, error } = await supabase.functions.invoke('send-invites', {
         body: {
-          userId: user.id,
+          userId: profile.id,
           method,
           contacts,
           note: message
