@@ -14,18 +14,18 @@ interface ManageTrustedCircleDialogProps {
 }
 
 export function ManageTrustedCircleDialog({ open, onOpenChange, listId }: ManageTrustedCircleDialogProps) {
-  const { user } = useAuth();
+  const { profile } = useAuth();
   const [sharedWith, setSharedWith] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (open && user) {
+    if (open && profile) {
       loadSharedWith();
     }
-  }, [open, user]);
+  }, [open, profile]);
 
   const loadSharedWith = async () => {
-    if (!user) return;
+    if (!profile) return;
     
     setLoading(true);
     try {
@@ -48,7 +48,7 @@ export function ManageTrustedCircleDialog({ open, onOpenChange, listId }: Manage
   };
 
   const removeUser = async (sharedWithId: string) => {
-    if (!user) return;
+    if (!profile) return;
 
     try {
       // Verify ownership before deleting by checking the vibe_lists table directly
@@ -58,7 +58,7 @@ export function ManageTrustedCircleDialog({ open, onOpenChange, listId }: Manage
         .eq('id', listId)
         .single();
 
-      if (!listData || listData.user_id !== user.id) {
+      if (!listData || listData.user_id !== profile.id) {
         toast.error('You do not have permission to modify this list');
         return;
       }

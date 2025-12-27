@@ -6,7 +6,7 @@ import { Loader2 } from '@/icons';
 
 const Mood = () => {
   const navigate = useNavigate();
-  const { user, loading } = useAuth();
+  const { profile, loading } = useAuth();
 
   const handleMoodSaved = () => {
     toast.success('Your mood has been updated!');
@@ -25,8 +25,8 @@ const Mood = () => {
     );
   }
 
-  // Redirect to login if no user (should be handled by protected route but just in case)
-  if (!user) {
+  // Redirect to login if no profile (should be handled by protected route but just in case)
+  if (!profile) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-background to-accent/10">
         <div className="flex flex-col items-center gap-4 text-center p-6">
@@ -39,7 +39,7 @@ const Mood = () => {
 
   return (
     <MoodMap
-      userId={user.id}
+      userId={profile.id}
       onMoodSaved={handleMoodSaved}
       onBack={() => navigate('/app/home')}
     />

@@ -43,7 +43,7 @@ interface GraphEdge {
 }
 
 const UserSocialGraph = () => {
-  const { user: currentUser } = useAuth();
+  const { profile: currentUser } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [connections, setConnections] = useState<Connection[]>([]);
   const [loading, setLoading] = useState(true);

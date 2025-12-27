@@ -17,7 +17,7 @@ interface AddTitlesToListDialogProps {
 }
 
 export function AddTitlesToListDialog({ open, onOpenChange, listId, onTitlesAdded }: AddTitlesToListDialogProps) {
-  const { user } = useAuth();
+  const { profile } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -55,7 +55,7 @@ export function AddTitlesToListDialog({ open, onOpenChange, listId, onTitlesAdde
   };
 
   const addTitle = async (title: any) => {
-    if (!user) return;
+    if (!profile) return;
 
     try {
       // Verify ownership before adding by checking the vibe_lists table directly
@@ -65,7 +65,7 @@ export function AddTitlesToListDialog({ open, onOpenChange, listId, onTitlesAdde
         .eq('id', listId)
         .single();
 
-      if (!listData || listData.user_id !== user.id) {
+      if (!listData || listData.user_id !== profile.id) {
         toast.error('You do not have permission to modify this list');
         return;
       }
