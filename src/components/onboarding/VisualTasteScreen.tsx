@@ -124,14 +124,16 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
           return;
         }
 
-        // Calculate combined score and sort by blockbuster score
-        const scoredMovies = movies.map((movie: any) => ({
+        // Movies are already sorted by language priority from edge function
+        // Add a combined score for tie-breaking within genres
+        const scoredMovies = movies.map((movie: any, index: number) => ({
           ...movie,
+          orderIndex: index, // Preserve original order from edge function
           combinedScore: (movie.vote_average || 0) * (movie.popularity || 0)
-        })).sort((a: any, b: any) => b.combinedScore - a.combinedScore);
+        }));
 
-        // Build genre options - one movie per genre
-        const genreToTopMovie = new Map<string, GenreTitleOption>();
+        // Build genre options - one movie per genre, respecting order from edge function
+        const genreToTopMovie = new Map<string, GenreTitleOption & { orderIndex: number }>();
         const usedMovies = new Set<string>();
 
         for (const movie of scoredMovies) {
@@ -159,16 +161,17 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
             genre_name: primaryGenre,
             title_name: movie.name,
             poster_path: movie.poster_path,
-            score: movie.combinedScore
+            score: movie.combinedScore,
+            orderIndex: movie.orderIndex
           });
           usedMovies.add(movieKey);
         }
 
-        // Convert to array and sort by score
+        // Convert to array - sort by order index (preserves language priority from edge function)
         const genreOptions = Array.from(genreToTopMovie.values())
-          .sort((a, b) => b.score - a.score);
+          .sort((a, b) => a.orderIndex - b.orderIndex);
 
-        console.log('[VisualTaste] Genre options:', genreOptions.length, genreOptions.map(g => `${g.genre_name}: ${g.title_name}`));
+        console.log('[VisualTaste] Genre options:', genreOptions.length, genreOptions.map(g => `${g.genre_name}: ${g.title_name} (${g.orderIndex})`));
         setOptions(genreOptions);
       } catch (err) {
         console.error('[VisualTaste] Failed to load genre options:', err);
