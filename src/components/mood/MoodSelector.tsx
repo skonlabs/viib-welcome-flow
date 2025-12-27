@@ -3,12 +3,19 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Sparkles } from 'lucide-react';
+import { Sparkles, ArrowRight } from 'lucide-react';
 
-interface MoodMapProps {
+export interface MoodSelectorProps {
   userId: string;
-  onMoodSaved: () => void;
-  onBack: () => void;
+  onMoodSaved: (mood: { valence: number; arousal: number; label: string }) => void;
+  /** Button text - defaults to "Set My Mood" */
+  buttonText?: string;
+  /** Show arrow icon on button */
+  showArrowIcon?: boolean;
+  /** Whether to show animated background effects */
+  showBackgroundEffects?: boolean;
+  /** Additional class for the container */
+  className?: string;
 }
 
 interface EmotionState {
@@ -87,13 +94,19 @@ const getMoodLabel = (valence: number, arousal: number): string => {
   return 'Sad';
 };
 
-export const MoodMap = ({ userId, onMoodSaved, onBack }: MoodMapProps) => {
+export const MoodSelector = ({
+  userId,
+  onMoodSaved,
+  buttonText = 'Set My Mood',
+  showArrowIcon = false,
+  showBackgroundEffects = false,
+  className = '',
+}: MoodSelectorProps) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState({ x: 50, y: 50 });
   const [isDragging, setIsDragging] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [emotions, setEmotions] = useState<EmotionState[]>([]);
-  const [showEmotionDots, setShowEmotionDots] = useState(true);
 
   // Fetch emotions for reference points
   useEffect(() => {
@@ -114,6 +127,8 @@ export const MoodMap = ({ userId, onMoodSaved, onBack }: MoodMapProps) => {
   // Load user's last mood
   useEffect(() => {
     const loadLastMood = async () => {
+      if (!userId) return;
+      
       const { data } = await supabase
         .from('user_emotion_states')
         .select('valence, arousal')
@@ -216,8 +231,7 @@ export const MoodMap = ({ userId, onMoodSaved, onBack }: MoodMapProps) => {
         return;
       }
 
-      // Calculate intensity based on distance from center
-      const intensity = Math.sqrt(valence * valence + arousal * arousal);
+      // Calculate energy percentage from arousal
       const energyPercentage = Math.round(((arousal + 1) / 2) * 100);
 
       // Call the translate_mood_to_emotion RPC
@@ -231,10 +245,10 @@ export const MoodMap = ({ userId, onMoodSaved, onBack }: MoodMapProps) => {
 
       toast.success(`Mood set to ${moodLabel}!`);
       
-      // Dispatch event to notify other components (like Home) to refresh recommendations
+      // Dispatch event to notify other components
       window.dispatchEvent(new CustomEvent('viib-mood-changed'));
       
-      onMoodSaved();
+      onMoodSaved({ valence, arousal, label: moodLabel });
     } catch (error) {
       console.error('Error saving mood:', error);
       toast.error('Failed to save mood');
@@ -244,161 +258,163 @@ export const MoodMap = ({ userId, onMoodSaved, onBack }: MoodMapProps) => {
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
-      <div className="p-4 flex items-center gap-4">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onBack}
-          className="text-foreground/70 hover:text-foreground"
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        <div>
-          <h1 className="text-xl font-bold text-foreground">How are you feeling?</h1>
-          <p className="text-sm text-muted-foreground">Tap or drag to select your mood</p>
-        </div>
-      </div>
-
-      {/* Main content */}
-      <div className="flex-1 flex flex-col items-center justify-center p-4 gap-6">
-        {/* Current mood display */}
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={moodLabel}
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 10 }}
-            className="text-center"
-          >
-            <span className="text-5xl mb-2 block">{moodEmoji}</span>
-            <span 
-              className="text-2xl font-bold"
-              style={{ color: positionColor }}
-            >
-              {moodLabel}
-            </span>
-          </motion.div>
-        </AnimatePresence>
-
-        {/* 2D Mood Map */}
-        <div 
-          ref={mapRef}
-          className="relative w-full max-w-sm aspect-square rounded-2xl cursor-crosshair touch-none select-none overflow-hidden"
+    <div className={`flex flex-col items-center gap-6 ${className}`}>
+      {/* Animated background effect */}
+      {showBackgroundEffects && (
+        <motion.div 
+          className="fixed top-1/4 left-1/4 w-[500px] h-[500px] rounded-full blur-[120px] pointer-events-none -z-10" 
           style={{
-            background: `
-              radial-gradient(ellipse at 100% 0%, hsl(200 100% 60% / 0.35), transparent 50%),
-              radial-gradient(ellipse at 0% 0%, hsl(320 80% 55% / 0.35), transparent 50%),
-              radial-gradient(ellipse at 100% 100%, hsl(200 80% 50% / 0.25), transparent 50%),
-              radial-gradient(ellipse at 0% 100%, hsl(280 100% 70% / 0.3), transparent 50%),
-              hsl(var(--card))
-            `
-          }}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseUp}
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
+            background: `radial-gradient(circle, ${positionColor}80 0%, transparent 70%)`
+          }} 
+          animate={{
+            x: [0, 120, 0],
+            y: [0, -60, 0],
+            scale: [1, 1.2, 1]
+          }} 
+          transition={{
+            duration: 20,
+            repeat: Infinity,
+            ease: "easeInOut"
+          }} 
+        />
+      )}
+
+      {/* Current mood display */}
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={moodLabel}
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 10 }}
+          className="text-center"
         >
-          {/* Grid lines */}
-          <div className="absolute inset-0 pointer-events-none">
-            <div className="absolute left-1/2 top-0 bottom-0 w-px bg-foreground/10" />
-            <div className="absolute top-1/2 left-0 right-0 h-px bg-foreground/10" />
-          </div>
-
-          {/* Axis labels */}
-          <div className="absolute top-2 left-1/2 -translate-x-1/2 text-xs text-foreground/50 font-medium">
-            High Energy
-          </div>
-          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-xs text-foreground/50 font-medium">
-            Low Energy
-          </div>
-          <div className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-foreground/50 font-medium writing-mode-vertical">
-            Negative
-          </div>
-          <div className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-foreground/50 font-medium writing-mode-vertical">
-            Positive
-          </div>
-
-          {/* Emotion reference dots */}
-          {showEmotionDots && emotions.slice(0, 12).map((emotion) => {
-            if (emotion.valence === null || emotion.arousal === null) return null;
-            const pos = emotionToPosition(emotion.valence, emotion.arousal);
-            return (
-              <div
-                key={emotion.id}
-                className="absolute w-2 h-2 rounded-full bg-foreground/20 pointer-events-none"
-                style={{
-                  left: `${pos.x}%`,
-                  top: `${pos.y}%`,
-                  transform: 'translate(-50%, -50%)',
-                }}
-                title={emotion.emotion_label}
-              />
-            );
-          })}
-
-          {/* Current position marker */}
-          <motion.div
-            className="absolute pointer-events-none"
-            style={{
-              left: `${position.x}%`,
-              top: `${position.y}%`,
-            }}
-            animate={{
-              left: `${position.x}%`,
-              top: `${position.y}%`,
-            }}
-            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+          <span className="text-5xl mb-2 block">{moodEmoji}</span>
+          <span 
+            className="text-2xl font-bold"
+            style={{ color: positionColor }}
           >
-            {/* Outer glow */}
-            <div 
-              className="absolute w-16 h-16 rounded-full opacity-30 blur-md"
-              style={{ 
-                backgroundColor: positionColor,
-                transform: 'translate(-50%, -50%)',
-              }} 
-            />
-            {/* Main marker */}
-            <div 
-              className="absolute w-8 h-8 rounded-full border-4 border-white shadow-lg"
-              style={{ 
-                backgroundColor: positionColor,
+            {moodLabel}
+          </span>
+        </motion.div>
+      </AnimatePresence>
+
+      {/* 2D Mood Map */}
+      <div 
+        ref={mapRef}
+        className="relative w-full max-w-sm aspect-square rounded-2xl cursor-crosshair touch-none select-none overflow-hidden"
+        style={{
+          background: `
+            radial-gradient(ellipse at 100% 0%, hsl(200 100% 60% / 0.35), transparent 50%),
+            radial-gradient(ellipse at 0% 0%, hsl(320 80% 55% / 0.35), transparent 50%),
+            radial-gradient(ellipse at 100% 100%, hsl(200 80% 50% / 0.25), transparent 50%),
+            radial-gradient(ellipse at 0% 100%, hsl(280 100% 70% / 0.3), transparent 50%),
+            hsl(var(--card))
+          `
+        }}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
+        {/* Grid lines */}
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute left-1/2 top-0 bottom-0 w-px bg-foreground/10" />
+          <div className="absolute top-1/2 left-0 right-0 h-px bg-foreground/10" />
+        </div>
+
+        {/* Axis labels */}
+        <div className="absolute top-2 left-1/2 -translate-x-1/2 text-xs text-foreground/50 font-medium">
+          High Energy
+        </div>
+        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-xs text-foreground/50 font-medium">
+          Low Energy
+        </div>
+        <div className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-foreground/50 font-medium writing-mode-vertical">
+          Negative
+        </div>
+        <div className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-foreground/50 font-medium writing-mode-vertical">
+          Positive
+        </div>
+
+        {/* Emotion reference dots */}
+        {emotions.slice(0, 12).map((emotion) => {
+          if (emotion.valence === null || emotion.arousal === null) return null;
+          const pos = emotionToPosition(emotion.valence, emotion.arousal);
+          return (
+            <div
+              key={emotion.id}
+              className="absolute w-2 h-2 rounded-full bg-foreground/20 pointer-events-none"
+              style={{
+                left: `${pos.x}%`,
+                top: `${pos.y}%`,
                 transform: 'translate(-50%, -50%)',
               }}
+              title={emotion.emotion_label}
             />
-            {/* Inner dot */}
-            <div 
-              className="absolute w-2 h-2 rounded-full bg-white"
-              style={{ transform: 'translate(-50%, -50%)' }}
-            />
-          </motion.div>
-        </div>
+          );
+        })}
 
-        {/* Quadrant hints */}
-        <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground max-w-sm w-full">
-          <div className="text-left">😤 Tense / Angry</div>
-          <div className="text-right">🤩 Excited / Happy</div>
-          <div className="text-left">😔 Sad / Tired</div>
-          <div className="text-right">😌 Calm / Peaceful</div>
-        </div>
-
-        {/* Save button */}
-        <Button
-          onClick={handleSaveMood}
-          disabled={isSaving}
-          className="w-full max-w-sm gap-2"
-          size="lg"
+        {/* Current position marker */}
+        <motion.div
+          className="absolute pointer-events-none"
+          style={{
+            left: `${position.x}%`,
+            top: `${position.y}%`,
+          }}
+          animate={{
+            left: `${position.x}%`,
+            top: `${position.y}%`,
+          }}
+          transition={{ type: 'spring', stiffness: 300, damping: 30 }}
         >
-          <Sparkles className="h-4 w-4" />
-          {isSaving ? 'Saving...' : 'Set My Mood'}
-        </Button>
+          {/* Outer glow */}
+          <div 
+            className="absolute w-16 h-16 rounded-full opacity-30 blur-md"
+            style={{ 
+              backgroundColor: positionColor,
+              transform: 'translate(-50%, -50%)',
+            }} 
+          />
+          {/* Main marker */}
+          <div 
+            className="absolute w-8 h-8 rounded-full border-4 border-white shadow-lg"
+            style={{ 
+              backgroundColor: positionColor,
+              transform: 'translate(-50%, -50%)',
+            }}
+          />
+          {/* Inner dot */}
+          <div 
+            className="absolute w-2 h-2 rounded-full bg-white"
+            style={{ transform: 'translate(-50%, -50%)' }}
+          />
+        </motion.div>
       </div>
+
+      {/* Quadrant hints */}
+      <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground max-w-sm w-full">
+        <div className="text-left">😤 Tense / Angry</div>
+        <div className="text-right">🤩 Excited / Happy</div>
+        <div className="text-left">😔 Sad / Tired</div>
+        <div className="text-right">😌 Calm / Peaceful</div>
+      </div>
+
+      {/* Save button */}
+      <Button
+        onClick={handleSaveMood}
+        disabled={isSaving}
+        className="w-full max-w-sm gap-2"
+        size="lg"
+      >
+        <Sparkles className="h-4 w-4" />
+        {isSaving ? 'Saving...' : buttonText}
+        {showArrowIcon && !isSaving && <ArrowRight className="h-4 w-4" />}
+      </Button>
     </div>
   );
 };
 
-export default MoodMap;
+export default MoodSelector;
