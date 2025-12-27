@@ -1943,6 +1943,72 @@ export type Database = {
         }
         Relationships: []
       }
+      vibe_emotion_weights: {
+        Row: {
+          emotion_id: string
+          vibe_id: string
+          weight: number
+        }
+        Insert: {
+          emotion_id: string
+          vibe_id: string
+          weight: number
+        }
+        Update: {
+          emotion_id?: string
+          vibe_id?: string
+          weight?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vibe_emotion_weights_emotion_id_fkey"
+            columns: ["emotion_id"]
+            isOneToOne: false
+            referencedRelation: "emotion_master"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vibe_emotion_weights_vibe_id_fkey"
+            columns: ["vibe_id"]
+            isOneToOne: false
+            referencedRelation: "vibes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vibe_genre_weights: {
+        Row: {
+          genre_id: string
+          vibe_id: string
+          weight: number
+        }
+        Insert: {
+          genre_id: string
+          vibe_id: string
+          weight: number
+        }
+        Update: {
+          genre_id?: string
+          vibe_id?: string
+          weight?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vibe_genre_weights_genre_id_fkey"
+            columns: ["genre_id"]
+            isOneToOne: false
+            referencedRelation: "genres"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vibe_genre_weights_vibe_id_fkey"
+            columns: ["vibe_id"]
+            isOneToOne: false
+            referencedRelation: "vibes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vibe_list_followers: {
         Row: {
           followed_at: string
@@ -2120,6 +2186,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      vibes: {
+        Row: {
+          base_weight: number
+          component_ratios: Json
+          created_at: string
+          decay_half_life_days: number
+          description: string | null
+          id: string
+          label: string
+          updated_at: string
+        }
+        Insert: {
+          base_weight?: number
+          component_ratios?: Json
+          created_at?: string
+          decay_half_life_days?: number
+          description?: string | null
+          id: string
+          label: string
+          updated_at?: string
+        }
+        Update: {
+          base_weight?: number
+          component_ratios?: Json
+          created_at?: string
+          decay_half_life_days?: number
+          description?: string | null
+          id?: string
+          label?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       viib_emotion_classified_titles: {
         Row: {
