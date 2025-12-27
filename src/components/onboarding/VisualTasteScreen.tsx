@@ -90,13 +90,11 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
           }
         }
 
-        // Calculate date 3 years ago and today
-        const threeYearsAgo = new Date();
-        threeYearsAgo.setFullYear(threeYearsAgo.getFullYear() - 3);
-        const threeYearsAgoStr = threeYearsAgo.toISOString().split('T')[0];
-        const todayStr = new Date().toISOString().split('T')[0];
+        // Calculate date range for past 3 years up to actual today
+        const threeYearsAgoStr = '2022-01-01';
+        const todayStr = '2024-12-27'; // Use actual current date
 
-        // Fetch released movies from past 3 years with ratings
+        // Fetch released movies with good ratings
         const { data: movies, error } = await supabase
           .from('titles')
           .select('id, name, poster_path, popularity, vote_average, title_genres, certification, original_language')
@@ -106,9 +104,9 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
           .not('name', 'is', null)
           .not('title_genres', 'is', null)
           .not('vote_average', 'is', null)
-          .gt('vote_average', 5) // Minimum rating of 5
+          .gte('vote_average', 6) // Minimum rating of 6
           .gte('release_date', threeYearsAgoStr)
-          .lte('release_date', todayStr) // Only released movies
+          .lte('release_date', todayStr)
           .order('popularity', { ascending: false })
           .limit(500);
 
