@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import { WelcomeScreen } from "@/components/onboarding/WelcomeScreen";
 import { EntryMethodScreen } from "@/components/onboarding/EntryMethodScreen";
 import { PhoneEntryScreen } from "@/components/onboarding/PhoneEntryScreen";
@@ -493,19 +494,31 @@ export default function Onboarding() {
       
       if (!storedUserId) {
         console.error('No user ID found in localStorage');
+        toast.error('Session expired. Please restart onboarding.');
+        navigate('/app/onboarding');
         return;
       }
       
-      // Get user email and signup method
+      console.log('Completing onboarding for user:', storedUserId);
+      
+      // Get user email and signup method - use maybeSingle to handle missing user gracefully
       const { data: userData, error: userError } = await supabase
         .from('users')
         .select('email, password_hash, signup_method')
         .eq('id', storedUserId)
-        .single();
+        .maybeSingle();
       
       if (userError) {
         console.error('Error fetching user data:', userError);
-        throw userError;
+        // Don't throw - try to continue without user data
+      }
+      
+      if (!userData) {
+        console.warn('User not found in database, may have been deleted. Clearing session.');
+        localStorage.removeItem('viib_user_id');
+        toast.error('Session expired. Please restart onboarding.');
+        navigate('/app/onboarding');
+        return;
       }
       
       // Update user record with completion status
@@ -556,6 +569,7 @@ export default function Onboarding() {
       navigate("/app/home");
     } catch (error) {
       console.error('Error in handleComplete:', error);
+      toast.error('Something went wrong. Please try again.');
     }
   };
 
