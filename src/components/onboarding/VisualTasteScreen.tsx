@@ -6,13 +6,12 @@ import { BackButton } from "./BackButton";
 import { FloatingParticles } from "./FloatingParticles";
 import { supabase } from "@/integrations/supabase/client";
 
-interface VisualTasteOption {
-  id: string;
+interface GenreTitleOption {
   genre_id: string;
   genre_name: string;
-  mood_description: string | null;
-  poster_path: string | null;
-  gradient_class: string | null;
+  title_id: string;
+  title_name: string;
+  poster_path: string;
 }
 
 interface VisualTasteScreenProps {
@@ -24,31 +23,55 @@ const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w500";
 
 export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps) => {
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
-  const [options, setOptions] = useState<VisualTasteOption[]>([]);
+  const [options, setOptions] = useState<GenreTitleOption[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const loadOptions = async () => {
       try {
-        const { data, error } = await supabase
-          .from('visual_taste_options')
-          .select('id, genre_id, genre_name, mood_description, poster_path, gradient_class')
-          .eq('is_active', true)
-          .order('display_order');
+        // Get all genres first
+        const { data: genres, error: genreError } = await supabase
+          .from('genres')
+          .select('id, genre_name')
+          .order('genre_name');
 
-        if (error) throw error;
-        setOptions(data || []);
+        if (genreError) throw genreError;
+
+        // For each genre, get the most popular title with a poster
+        const genreTitles: GenreTitleOption[] = [];
+
+        for (const genre of genres || []) {
+          const { data: titles, error: titleError } = await supabase
+            .from('title_genres')
+            .select(`
+              genre_id,
+              titles!inner (
+                id,
+                name,
+                poster_path,
+                popularity
+              )
+            `)
+            .eq('genre_id', genre.id)
+            .not('titles.poster_path', 'is', null)
+            .order('titles(popularity)', { ascending: false })
+            .limit(1);
+
+          if (!titleError && titles && titles.length > 0) {
+            const title = titles[0].titles as any;
+            genreTitles.push({
+              genre_id: genre.id,
+              genre_name: genre.genre_name,
+              title_id: title.id,
+              title_name: title.name,
+              poster_path: title.poster_path,
+            });
+          }
+        }
+
+        setOptions(genreTitles);
       } catch (err) {
-        console.error('Failed to load visual taste options:', err);
-        // Fallback to hardcoded options if DB fails
-        setOptions([
-          { id: "1", genre_id: "scifi", genre_name: "Epic Sci-Fi", mood_description: "Expansive Worlds", poster_path: "/nBNZadXqJSdt05SHLqgT0HuC5Gm.jpg", gradient_class: "from-blue-600 via-indigo-700 to-purple-800" },
-          { id: "2", genre_id: "drama", genre_name: "Intimate Drama", mood_description: "Deep Emotions", poster_path: "/pB8BM7pdSp6B6Ih7QZ4DrQ3PmJK.jpg", gradient_class: "from-rose-600 via-pink-700 to-red-800" },
-          { id: "3", genre_id: "thriller", genre_name: "Mystery Thriller", mood_description: "Edge of Seat", poster_path: "/8IB2e4r4oVhHnANbnm7O3Tj6tF8.jpg", gradient_class: "from-slate-700 via-gray-800 to-zinc-900" },
-          { id: "4", genre_id: "comedy", genre_name: "Feel-Good Comedy", mood_description: "Pure Joy", poster_path: "/2CAL2433ZeIihfX1Hb2139CX0pW.jpg", gradient_class: "from-amber-500 via-orange-600 to-yellow-600" },
-          { id: "5", genre_id: "documentary", genre_name: "Nature Documentary", mood_description: "Awe & Wonder", poster_path: "/8tZYtuWezp8JbcsvHYO0O46tFbo.jpg", gradient_class: "from-emerald-600 via-teal-700 to-cyan-800" },
-          { id: "6", genre_id: "history", genre_name: "Historical Epic", mood_description: "Grand Scale", poster_path: "/8DUxtioaQQMgxitHqvWJ3K6xzGM.jpg", gradient_class: "from-amber-700 via-yellow-800 to-stone-900" },
-        ]);
+        console.error('Failed to load genre titles:', err);
       } finally {
         setLoading(false);
       }
@@ -145,32 +168,30 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
               <span className="text-gradient">What speaks to you?</span>
             </h2>
             <p className="text-muted-foreground text-base">
-              Pick at least 2 visual styles that capture your attention
+              Pick at least 2 genres that capture your attention
             </p>
           </motion.div>
 
           {/* Poster Grid */}
           {loading ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              {[1, 2, 3, 4, 5, 6].map((i) => (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
                 <div key={i} className="aspect-[2/3] rounded-3xl bg-white/5 animate-pulse" />
               ))}
             </div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 max-h-[60vh] overflow-y-auto pr-2">
               {options.map((option, index) => {
                 const isSelected = selectedGenres.includes(option.genre_id);
-                const posterUrl = option.poster_path 
-                  ? `${TMDB_IMAGE_BASE}${option.poster_path}`
-                  : null;
+                const posterUrl = `${TMDB_IMAGE_BASE}${option.poster_path}`;
                 
                 return (
                   <motion.div
-                    key={option.id}
+                    key={option.genre_id}
                     initial={{ opacity: 0, y: 30 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ 
-                      delay: index * 0.08,
+                      delay: index * 0.05,
                       type: "spring",
                       stiffness: 100
                     }}
@@ -182,17 +203,13 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
                       whileTap={{ scale: 0.95 }}
                       className="relative w-full aspect-[2/3] rounded-3xl overflow-hidden"
                     >
-                      {/* Background: Poster or Gradient fallback */}
-                      {posterUrl ? (
-                        <img
-                          src={posterUrl}
-                          alt={option.genre_name}
-                          className="absolute inset-0 w-full h-full object-cover"
-                          loading="lazy"
-                        />
-                      ) : (
-                        <div className={`absolute inset-0 bg-gradient-to-br ${option.gradient_class || 'from-primary to-accent'}`} />
-                      )}
+                      {/* Background: Poster */}
+                      <img
+                        src={posterUrl}
+                        alt={option.genre_name}
+                        className="absolute inset-0 w-full h-full object-cover"
+                        loading="lazy"
+                      />
                       
                       <AnimatePresence>
                         {isSelected && (
@@ -222,8 +239,8 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
                         <p className="text-base font-bold">
                           {option.genre_name}
                         </p>
-                        <p className="text-xs text-white/70">
-                          {option.mood_description}
+                        <p className="text-xs text-white/70 truncate">
+                          {option.title_name}
                         </p>
                       </div>
                       
