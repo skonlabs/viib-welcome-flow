@@ -1,10 +1,15 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import {
+  getCorsHeaders,
+  handleCorsPreflightRequest,
+  validateOrigin,
+} from "../_shared/cors.ts";
+import {
+  hashOtp,
+  generateSecureOtp,
+  isTestPhoneNumber,
+} from "../_shared/crypto.ts";
 
 // Helper function to send SMS via Twilio
 async function sendTwilioSMS(to: string, message: string): Promise<boolean> {
@@ -41,7 +46,8 @@ async function sendTwilioSMS(to: string, message: string): Promise<boolean> {
       return false;
     }
 
-    console.log("SMS sent successfully via Twilio to", to);
+    // Log without exposing phone number
+    console.log("SMS sent successfully via Twilio");
     return true;
   } catch (error) {
     console.error("Error sending SMS via Twilio:", error);
@@ -49,28 +55,17 @@ async function sendTwilioSMS(to: string, message: string): Promise<boolean> {
   }
 }
 
-// Helper function to check if phone number is a test number
-function isTestPhoneNumber(phoneNumber: string): boolean {
-  // Test numbers: +1555XXXXXXX, +15555551234, or common dev test numbers
-  // Common test patterns: +11234567890, +10000000000, +99999999999
-  const testPatterns = [
-    /^\+1555\d{7}$/,           // +1555XXXXXXX
-    /^\+1(1234567890|0{10})$/, // +11234567890 or +10000000000
-    /^\+9{11,}$/,              // +99999999999...
-  ];
-  
-  return testPatterns.some(pattern => pattern.test(phoneNumber));
-}
-
-// Helper function to generate random 6-digit OTP
-function generateOTP(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
-}
-
 serve(async (req) => {
+  // Handle CORS preflight
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return handleCorsPreflightRequest(req);
   }
+
+  // Validate origin for security
+  const originError = validateOrigin(req);
+  if (originError) return originError;
+
+  const corsHeaders = getCorsHeaders(req);
 
   try {
     const supabaseClient = createClient(
@@ -105,7 +100,8 @@ serve(async (req) => {
       .gte('created_at', windowStart);
 
     if (recentOtpCount !== null && recentOtpCount >= rateLimit) {
-      console.log(`Rate limit exceeded for ${normalizedPhone}: ${recentOtpCount}/${rateLimit} in ${rateLimitWindow} minutes`);
+      // Log without exposing full phone number
+      console.log(`Rate limit exceeded: ${recentOtpCount}/${rateLimit} in ${rateLimitWindow} minutes`);
       return new Response(
         JSON.stringify({
           success: false,
@@ -118,23 +114,29 @@ serve(async (req) => {
       );
     }
 
-    // Check if this is a test phone number (for development/testing only)
+    // Check if this is a test phone number (only works in dev mode)
     const isTestNumber = isTestPhoneNumber(normalizedPhone);
 
-    // Generate OTP - use test code for test numbers, random for production
-    const otpCode = isTestNumber ? "111111" : generateOTP();
+    // Generate OTP - use secure random for production, fixed for test mode
+    const otpCode = isTestNumber ? "111111" : generateSecureOtp(6);
+
+    // Hash the OTP for secure storage
+    const otpHash = await hashOtp(otpCode, normalizedPhone);
 
     // Set expiry to 5 minutes from now
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
 
-    // Store OTP in database
+    // Store hashed OTP in database (store both hash and plaintext temporarily for backwards compat)
     const { error: dbError } = await supabaseClient
       .from('phone_verifications')
       .insert({
         phone_number: normalizedPhone,
-        otp_code: otpCode,
+        otp_code: otpCode, // TODO: Remove after migration to hash-only
+        otp_hash: otpHash,
         expires_at: expiresAt,
-        verified: false
+        verified: false,
+        attempt_count: 0,
+        is_locked: false
       });
 
     if (dbError) {
@@ -148,11 +150,11 @@ serve(async (req) => {
       const smsSent = await sendTwilioSMS(normalizedPhone, smsMessage);
 
       if (!smsSent) {
-        // Log warning but don't fail - OTP is still stored in database
-        console.warn('SMS delivery failed for', normalizedPhone.substring(0, 6) + '***');
+        // Log warning without exposing phone number
+        console.warn('SMS delivery failed');
       }
     } else {
-      console.log('Test phone number detected, skipping SMS');
+      console.log('Test phone number in dev mode, skipping SMS');
     }
 
     return new Response(
@@ -165,10 +167,11 @@ serve(async (req) => {
         status: 200
       }
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error in send-phone-otp:', error);
+    const errorMessage = error instanceof Error ? error.message : "An error occurred";
     return new Response(
-      JSON.stringify({ error: error?.message || "An error occurred" }),
+      JSON.stringify({ error: errorMessage }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 400

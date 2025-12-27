@@ -25,8 +25,6 @@ export const OTPVerificationScreen = ({
   };
 
   const handleVerify = async (code: string) => {
-    console.log("Verifying OTP for phone:", phone);
-
     if (!phone || phone.trim() === '') {
       throw new Error("Phone number is missing. Please go back and enter your phone number again.");
     }

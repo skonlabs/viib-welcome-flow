@@ -1,16 +1,23 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import {
+  getCorsHeaders,
+  handleCorsPreflightRequest,
+  validateOrigin,
+} from "../_shared/cors.ts";
+import { hashOtp, generateSecureOtp, constantTimeCompare } from "../_shared/crypto.ts";
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return handleCorsPreflightRequest(req);
   }
+
+  // Validate origin for security
+  const originError = validateOrigin(req);
+  if (originError) return originError;
+
+  const corsHeaders = getCorsHeaders(req);
 
   try {
     const { email, otp, newPassword, action } = await req.json();
@@ -71,18 +78,22 @@ serve(async (req) => {
         );
       }
 
-      // Generate 6-digit OTP
-      const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+      // Generate 6-digit OTP using cryptographically secure random
+      const otpCode = generateSecureOtp(6);
+      const otpHash = await hashOtp(otpCode, email);
       const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 minutes
 
-      // Store OTP
+      // Store OTP with hash
       const { error: dbError } = await supabase
         .from('email_verifications')
         .insert({
           email,
-          otp_code: otpCode,
+          otp_code: otpCode, // TODO: Remove after migration to hash-only
+          otp_hash: otpHash,
           expires_at: expiresAt,
           verified: false,
+          attempt_count: 0,
+          is_locked: false,
         });
 
       if (dbError) {
@@ -172,8 +183,19 @@ serve(async (req) => {
         );
       }
 
-      // Verify OTP
-      if (verification.otp_code !== otp.trim()) {
+      // Verify OTP using constant-time comparison
+      const userOtp = String(otp).trim();
+      const inputOtpHash = await hashOtp(userOtp, email);
+
+      // Support both hash and legacy comparison
+      const hashMatch = verification.otp_hash
+        ? constantTimeCompare(verification.otp_hash, inputOtpHash)
+        : false;
+      const legacyMatch = verification.otp_code
+        ? constantTimeCompare(String(verification.otp_code).trim(), userOtp)
+        : false;
+
+      if (!hashMatch && !legacyMatch) {
         // Record failed attempt
         await supabase.rpc('record_login_attempt', {
           p_identifier: email,

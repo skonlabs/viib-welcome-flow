@@ -1,7 +1,8 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import type { User, Session } from '@supabase/supabase-js';
 
-interface CustomUser {
+interface UserProfile {
   id: string;
   email: string | null;
   phone_number: string | null;
@@ -11,123 +12,90 @@ interface CustomUser {
   timezone: string | null;
   language_preference: string | null;
   created_at: string;
-  user_metadata?: {
-    avatar_url?: string;
-    full_name?: string;
-  };
+  onboarding_completed: boolean;
+  is_active: boolean;
 }
 
 interface AuthContextType {
-  user: CustomUser | null;
+  user: User | null;
+  profile: UserProfile | null;
+  session: Session | null;
   isAdmin: boolean;
   loading: boolean;
   signOut: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<CustomUser | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    checkSession();
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        fetchUserProfile(session.user.id);
+      } else {
+        setLoading(false);
+      }
+    });
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        setSession(session);
+        setUser(session?.user ?? null);
+
+        if (event === 'SIGNED_IN' && session?.user) {
+          await fetchUserProfile(session.user.id);
+        } else if (event === 'SIGNED_OUT') {
+          setProfile(null);
+          setIsAdmin(false);
+          setLoading(false);
+        } else if (event === 'TOKEN_REFRESHED') {
+          // Token refreshed, profile should still be valid
+        }
+      }
+    );
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  const checkSession = async () => {
+  const fetchUserProfile = async (authId: string) => {
     try {
-      const sessionData = localStorage.getItem('viib_session') || sessionStorage.getItem('viib_session');
+      // Fetch user profile linked to auth user
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('id, email, phone_number, full_name, username, country, timezone, language_preference, created_at, onboarding_completed, is_active')
+        .eq('auth_id', authId)
+        .single();
 
-      if (!sessionData) {
-        const userId = localStorage.getItem('viib_user_id');
-        if (!userId) {
-          setLoading(false);
-          return;
-        }
-        await fetchUserData(userId);
-        return;
-      }
-
-      // Safely parse and validate session data
-      let parsedSession: { userId?: unknown; rememberMe?: unknown; timestamp?: unknown };
-      try {
-        parsedSession = JSON.parse(sessionData);
-      } catch {
-        // Invalid JSON - clear corrupted session data
-        localStorage.removeItem('viib_session');
-        sessionStorage.removeItem('viib_session');
+      if (userError || !userData) {
+        console.error('Error fetching user profile:', userError);
+        setProfile(null);
         setLoading(false);
         return;
       }
 
-      // Validate required fields exist and have correct types
-      const { userId, rememberMe, timestamp } = parsedSession;
-      if (
-        typeof userId !== 'string' ||
-        !userId ||
-        typeof timestamp !== 'number'
-      ) {
-        // Invalid session structure - clear corrupted data
-        localStorage.removeItem('viib_session');
-        sessionStorage.removeItem('viib_session');
-        setLoading(false);
-        return;
-      }
-
-      if (rememberMe) {
-        const thirtyDays = 30 * 24 * 60 * 60 * 1000;
-        if (Date.now() - timestamp > thirtyDays) {
-          localStorage.removeItem('viib_session');
-          localStorage.removeItem('viib_user_id');
-          setLoading(false);
-          return;
-        }
-      }
-
-      await fetchUserData(userId);
+      setProfile(userData);
+      await checkAdminStatus(userData.id);
     } catch (error) {
-      console.error('Error checking session:', error);
-      localStorage.removeItem('viib_session');
-      sessionStorage.removeItem('viib_session');
+      console.error('Error fetching user profile:', error);
+      setProfile(null);
       setLoading(false);
     }
   };
 
-  const fetchUserData = async (userId: string) => {
-    try {
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('id, email, phone_number, full_name, username, country, timezone, language_preference, created_at')
-        .eq('id', userId)
-        .eq('is_active', true)
-        .single();
-
-      if (userError || !userData) {
-        localStorage.removeItem('viib_user_id');
-        setLoading(false);
-        return;
-      }
-
-      setUser({
-        id: userData.id,
-        email: userData.email,
-        phone_number: userData.phone_number,
-        full_name: userData.full_name,
-        username: userData.username,
-        country: userData.country,
-        timezone: userData.timezone,
-        language_preference: userData.language_preference,
-        created_at: userData.created_at,
-        user_metadata: {
-          full_name: userData.full_name || undefined,
-        }
-      });
-
-      await checkAdminStatus(userData.id);
-    } catch (error) {
-      console.error('Error fetching user data:', error);
-      setLoading(false);
+  const refreshProfile = async () => {
+    if (user) {
+      await fetchUserProfile(user.id);
     }
   };
 
@@ -141,7 +109,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         .maybeSingle();
 
       setIsAdmin(!!data && !error);
-    } catch (error) {
+    } catch {
       setIsAdmin(false);
     } finally {
       setLoading(false);
@@ -149,19 +117,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const signOut = async () => {
-    localStorage.removeItem('viib_user_id');
-    localStorage.removeItem('viib_session');
-    localStorage.removeItem('viib_resume_onboarding');
-    sessionStorage.removeItem('viib_session');
-    
+    await supabase.auth.signOut();
     setUser(null);
+    setProfile(null);
+    setSession(null);
     setIsAdmin(false);
-    
     window.location.replace('/');
   };
 
   return (
-    <AuthContext.Provider value={{ user, isAdmin, loading, signOut }}>
+    <AuthContext.Provider value={{
+      user,
+      profile,
+      session,
+      isAdmin,
+      loading,
+      signOut,
+      refreshProfile
+    }}>
       {children}
     </AuthContext.Provider>
   );
@@ -174,3 +147,7 @@ export const useAuthContext = () => {
   }
   return context;
 };
+
+// Backwards compatibility - some components use user.id
+// They should use profile.id for the internal user ID
+export const useAuth = useAuthContext;

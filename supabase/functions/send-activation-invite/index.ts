@@ -1,49 +1,96 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
+import {
+  getCorsHeaders,
+  handleCorsPreflightRequest,
+  validateOrigin,
+} from "../_shared/cors.ts";
+import { requireAuth, createAdminClient } from "../_shared/auth.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
-
+/**
+ * Send Activation Invite Edge Function
+ * REQUIRES: Valid Supabase Auth JWT with admin role
+ */
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return handleCorsPreflightRequest(req);
   }
 
+  // Validate origin
+  const originError = validateOrigin(req);
+  if (originError) return originError;
+
+  const corsHeaders = getCorsHeaders(req);
+
   try {
+    // Require authentication
+    const authResult = await requireAuth(req);
+    if (!authResult.authenticated) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Unauthorized' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+      );
+    }
+
+    const { userId } = authResult;
+    if (!userId) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'User profile not found' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 404 }
+      );
+    }
+
+    const supabase = createAdminClient();
+
+    // Verify user has admin role
+    const { data: adminRole } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', userId)
+      .eq('role', 'admin')
+      .maybeSingle();
+
+    if (!adminRole) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Admin access required' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403 }
+      );
+    }
+
     const { email, code, senderName = "ViiB" } = await req.json();
 
     if (!email || !code) {
-      throw new Error("Email and activation code are required");
+      return new Response(
+        JSON.stringify({ success: false, error: 'Email and activation code are required' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      );
     }
 
-    console.log(`Sending activation invite to ${email} with code ${code}`);
-
-    const supabaseClient = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
-    );
-
     // Fetch email configuration
-    const { data: emailConfig, error: configError } = await supabaseClient
+    const { data: emailConfig, error: configError } = await supabase
       .from('email_config')
       .select('*')
       .eq('is_active', true)
       .maybeSingle();
 
     if (configError) {
-      console.error('Error fetching email config:', configError);
-      throw new Error('Failed to fetch email configuration');
+      console.error('Error fetching email config');
+      return new Response(
+        JSON.stringify({ success: false, error: 'Failed to fetch email configuration' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+      );
     }
 
     if (!emailConfig) {
-      throw new Error('No active email configuration found. Please configure email settings in Admin > Email Setup');
+      return new Response(
+        JSON.stringify({ success: false, error: 'No active email configuration found. Please configure email settings in Admin > Email Setup' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      );
     }
 
     // Fetch email template for activation invite
-    const { data: template, error: templateError } = await supabaseClient
+    const { data: template, error: templateError } = await supabase
       .from('email_templates')
       .select('*')
       .eq('template_type', 'activation_invite')
@@ -68,15 +115,15 @@ serve(async (req) => {
         <body>
           <div class="container">
             <div class="header">
-              <h1 style="margin: 0; font-size: 28px;">Welcome to ViiB! 🎉</h1>
+              <h1 style="margin: 0; font-size: 28px;">Welcome to ViiB!</h1>
             </div>
             <div class="content">
               <h2 style="color: #1f2937; margin-top: 0;">You've Been Invited!</h2>
               <p style="color: #4b5563; font-size: 16px; line-height: 1.6;">
-                Someone has invited you to join ViiB - your personalized entertainment companion. 
+                Someone has invited you to join ViiB - your personalized entertainment companion.
                 Use the activation code below to get started on your journey.
               </p>
-              
+
               <div class="code-box">
                 <div style="color: #6b7280; font-size: 14px; margin-bottom: 10px;">YOUR ACTIVATION CODE</div>
                 <div class="code">${code}</div>
@@ -93,7 +140,7 @@ serve(async (req) => {
               </ol>
 
               <div style="text-align: center;">
-                <a href="${Deno.env.get("SUPABASE_URL")?.replace('.supabase.co', '.lovable.app') || 'https://viib.lovable.app'}" class="button">
+                <a href="https://viib.app" class="button">
                   Get Started Now
                 </a>
               </div>
@@ -103,7 +150,7 @@ serve(async (req) => {
               </p>
             </div>
             <div class="footer">
-              <p style="margin: 0;">© ${new Date().getFullYear()} ViiB. All rights reserved.</p>
+              <p style="margin: 0;">ViiB. All rights reserved.</p>
               <p style="margin: 10px 0 0 0;">Discover content that matches your vibe.</p>
             </div>
           </div>
@@ -114,14 +161,13 @@ serve(async (req) => {
     // Use template if available
     if (template && !templateError) {
       subject = template.subject;
-      // Replace template variables
       body = template.body
         .replace(/{{code}}/g, code)
         .replace(/{{email}}/g, email)
-        .replace(/{{app_url}}/g, Deno.env.get("SUPABASE_URL")?.replace('.supabase.co', '.lovable.app') || 'https://viib.lovable.app');
+        .replace(/{{app_url}}/g, 'https://viib.app');
     }
 
-    // Send email using Gmail SMTP
+    // Send email using SMTP
     const client = new SMTPClient({
       connection: {
         hostname: emailConfig.smtp_host,
@@ -135,7 +181,7 @@ serve(async (req) => {
     });
 
     await client.send({
-      from: emailConfig.from_name 
+      from: emailConfig.from_name
         ? `${emailConfig.from_name} <${emailConfig.from_email}>`
         : emailConfig.from_email,
       to: email,
@@ -146,30 +192,22 @@ serve(async (req) => {
 
     await client.close();
 
-    console.log(`Activation invite sent successfully to ${email}`);
-
     return new Response(
       JSON.stringify({
         success: true,
         message: "Activation invite sent successfully",
       }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 200,
-      }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
     );
-  } catch (error: any) {
-    console.error("Error in send-activation-invite:", error);
-    
+  } catch (error: unknown) {
+    console.error("Error in send-activation-invite");
+
     return new Response(
       JSON.stringify({
         success: false,
-        error: error.message || "Failed to send activation invite",
+        error: "Failed to send activation invite",
       }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 200,
-      }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
     );
   }
 });
