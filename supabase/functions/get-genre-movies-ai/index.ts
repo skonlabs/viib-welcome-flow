@@ -1,89 +1,67 @@
-import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
 const tmdbApiKey = Deno.env.get('TMDB_API_KEY');
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-
-// Helper function to search TMDB as fallback
-async function searchTMDB(title: string): Promise<{
-  id: string;
-  name: string;
-  poster_path: string | null;
-  backdrop_path: string | null;
-  overview: string | null;
-  vote_average: number | null;
-  release_date: string | null;
-  original_language: string | null;
-  title_type?: string | null;
-} | null> {
-  if (!tmdbApiKey) {
-    console.log('[get-genre-movies-ai] TMDB_API_KEY not configured, skipping fallback');
-    return null;
-  }
-
-  try {
-    // Search for movies first
-    const movieResponse = await fetch(
-      `https://api.themoviedb.org/3/search/movie?api_key=${tmdbApiKey}&query=${encodeURIComponent(title)}&page=1`
-    );
-    const movieData = await movieResponse.json();
-    
-    if (movieData.results && movieData.results.length > 0) {
-      const movie = movieData.results[0];
-      return {
-        id: `tmdb-movie-${movie.id}`,
-        name: movie.title,
-        poster_path: movie.poster_path,
-        backdrop_path: movie.backdrop_path,
-        overview: movie.overview,
-        vote_average: movie.vote_average,
-        release_date: movie.release_date,
-        original_language: movie.original_language,
-        title_type: 'movie'
-      };
-    }
-
-    // If no movie found, search TV shows
-    const tvResponse = await fetch(
-      `https://api.themoviedb.org/3/search/tv?api_key=${tmdbApiKey}&query=${encodeURIComponent(title)}&page=1`
-    );
-    const tvData = await tvResponse.json();
-    
-    if (tvData.results && tvData.results.length > 0) {
-      const tv = tvData.results[0];
-      return {
-        id: `tmdb-tv-${tv.id}`,
-        name: tv.name,
-        poster_path: tv.poster_path,
-        backdrop_path: tv.backdrop_path,
-        overview: tv.overview,
-        vote_average: tv.vote_average,
-        release_date: tv.first_air_date,
-        original_language: tv.original_language,
-        title_type: 'tv'
-      };
-    }
-
-    return null;
-  } catch (error) {
-    console.error(`[get-genre-movies-ai] TMDB search error for "${title}":`, error);
-    return null;
-  }
-}
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const GENRES = [
-  'Action', 'Adventure', 'Animation', 'Comedy', 'Crime', 'Documentary',
-  'Drama', 'Family', 'Fantasy', 'History', 'Horror', 'Music', 'Mystery',
-  'Romance', 'Science Fiction', 'Thriller', 'War', 'Western'
-];
+// TMDB genre IDs - mapped for both movies and TV
+const GENRE_MAP: Record<string, { movie: number; tv: number }> = {
+  'Action': { movie: 28, tv: 10759 },       // TV uses "Action & Adventure"
+  'Adventure': { movie: 12, tv: 10759 },    // TV uses "Action & Adventure"
+  'Animation': { movie: 16, tv: 16 },
+  'Comedy': { movie: 35, tv: 35 },
+  'Crime': { movie: 80, tv: 80 },
+  'Documentary': { movie: 99, tv: 99 },
+  'Drama': { movie: 18, tv: 18 },
+  'Family': { movie: 10751, tv: 10751 },
+  'Fantasy': { movie: 14, tv: 10765 },      // TV uses "Sci-Fi & Fantasy"
+  'History': { movie: 36, tv: 36 },
+  'Horror': { movie: 27, tv: 27 },
+  'Music': { movie: 10402, tv: 10402 },
+  'Mystery': { movie: 9648, tv: 9648 },
+  'Romance': { movie: 10749, tv: 10749 },
+  'Science Fiction': { movie: 878, tv: 10765 }, // TV uses "Sci-Fi & Fantasy"
+  'Thriller': { movie: 53, tv: 53 },
+  'War': { movie: 10752, tv: 10768 },       // TV uses "War & Politics"
+  'Western': { movie: 37, tv: 37 },
+};
+
+const GENRES = Object.keys(GENRE_MAP);
+
+// TMDB streaming provider IDs (US region)
+const PROVIDER_MAP: Record<string, number> = {
+  'Netflix': 8,
+  'Amazon Prime Video': 9,
+  'Disney+': 337,
+  'Hulu': 15,
+  'HBO Max': 384,
+  'Apple TV+': 350,
+  'Paramount+': 531,
+  'Peacock': 386,
+  'Max': 1899,
+};
+
+interface TMDBResult {
+  id: number;
+  title?: string;
+  name?: string;
+  poster_path: string | null;
+  backdrop_path: string | null;
+  overview: string;
+  vote_average: number;
+  vote_count: number;
+  release_date?: string;
+  first_air_date?: string;
+  original_language: string;
+  genre_ids: number[];
+  popularity: number;
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -97,105 +75,26 @@ serve(async (req) => {
       yearsBack = 3
     } = await req.json();
 
-    if (!openAIApiKey) {
-      throw new Error('OPENAI_API_KEY not configured');
+    if (!tmdbApiKey) {
+      throw new Error('TMDB_API_KEY not configured');
     }
 
-    // Build language names for prompt
-    const languageNames = languages.map((code: string) => {
-      const langMap: Record<string, string> = {
-        'en': 'English',
-        'hi': 'Hindi',
-        'ko': 'Korean',
-        'es': 'Spanish',
-        'fr': 'French',
-        'de': 'German',
-        'ja': 'Japanese',
-        'zh': 'Chinese',
-        'ta': 'Tamil',
-        'te': 'Telugu'
-      };
-      return langMap[code] || code;
-    });
-
-    const prompt = `You are a movie database expert. List exactly ONE unique movie or series per genre that meets ALL criteria:
-
-STRICT CRITERIA:
-- Released in the past ${yearsBack} years (2022-2025)
-- Original language must be one of: ${languageNames.join(', ')}
-- Available on: ${streamingServices.join(' or ')}
-- Critically acclaimed OR widely popular
-
-CRITICAL RULES - FOLLOW EXACTLY:
-1. NEVER repeat the same title for multiple genres - each title can only appear ONCE
-2. Each title MUST be the PRIMARY genre listed - not secondary or tertiary
-3. Animation: ONLY animated films (Pixar, Disney, anime, stop-motion). NOT live-action.
-4. Documentary: ONLY non-fiction documentaries
-5. Horror: ONLY actual horror films with scares/terror. NOT dramas or thrillers.
-6. Fantasy: ONLY films with magic, supernatural, or fantastical elements
-7. Music: ONLY films primarily about music/musicians (biopics, musicals, concert films)
-8. Only include titles that ACTUALLY EXIST - do not make up titles
-
-GENRES (one unique title each - NO DUPLICATES):
-${GENRES.join('\n')}
-
-OUTPUT FORMAT - Return ONLY valid JSON array:
-[{"title": "Movie Name", "genre": "Action", "language": "Language name"}]
-
-NO explanations, NO markdown, NO extra text. Start with [ and end with ]`;
-
-    console.log('[get-genre-movies-ai] Calling OpenAI for', GENRES.length, 'genres, languages:', languageNames, 'services:', streamingServices);
-
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openAIApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          { 
-            role: 'system', 
-            content: 'You are a movie recommendation expert. You only respond with valid JSON arrays, no other text.' 
-          },
-          { role: 'user', content: prompt }
-        ],
-        temperature: 0.3,
-        max_tokens: 2000,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('[get-genre-movies-ai] OpenAI API error:', errorText);
-      throw new Error(`OpenAI API error: ${response.status}`);
-    }
-
-    const data = await response.json();
-    const aiResponse = data.choices[0]?.message?.content?.trim();
-    
-    console.log('[get-genre-movies-ai] Full AI response:', aiResponse);
-
-    // Parse AI response
-    let movieRecommendations: Array<{ title: string; genre: string; language: string }>;
-    try {
-      // Handle potential markdown code blocks
-      let jsonStr = aiResponse;
-      if (jsonStr.startsWith('```')) {
-        jsonStr = jsonStr.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
-      }
-      movieRecommendations = JSON.parse(jsonStr);
-    } catch (parseError) {
-      console.error('[get-genre-movies-ai] Failed to parse AI response:', parseError);
-      throw new Error('Failed to parse AI movie recommendations');
-    }
-
-    console.log('[get-genre-movies-ai] Parsed', movieRecommendations.length, 'movie recommendations');
-
-    // Query titles table to find matching movies
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     
+    // Calculate date range (last 3 years)
+    const today = new Date();
+    const minDate = new Date(today.getFullYear() - yearsBack, today.getMonth(), today.getDate())
+      .toISOString().split('T')[0];
+    const maxDate = today.toISOString().split('T')[0];
+
+    // Get provider IDs for user's streaming services
+    const providerIds = streamingServices
+      .map((s: string) => PROVIDER_MAP[s])
+      .filter((id: number | undefined): id is number => id !== undefined);
+
+    console.log(`[get-genre-movies-ai] Fetching for languages: ${languages.join(', ')}, providers: ${streamingServices.join(', ')}, dateRange: ${minDate} to ${maxDate}`);
+
+    const usedTmdbIds = new Set<number>();
     const results: Array<{
       genre: string;
       title: {
@@ -207,59 +106,137 @@ NO explanations, NO markdown, NO extra text. Start with [ and end with ]`;
         vote_average: number | null;
         release_date: string | null;
         original_language: string | null;
-        title_type?: string | null;
+        title_type: string;
+        tmdb_id: number;
       } | null;
-      ai_recommendation: { title: string; language: string };
       source: string;
     }> = [];
 
-    // Query each title from the database (case-insensitive, movies or series)
-    for (const rec of movieRecommendations) {
-      const { data: titles, error } = await supabase
-        .from('titles')
-        .select('id, name, poster_path, backdrop_path, overview, vote_average, release_date, original_language, title_type')
-        .ilike('name', rec.title)
-        .limit(1);
+    // Animation genre ID for exclusion
+    const animationGenreId = 16;
 
-      if (error) {
-        console.error(`[get-genre-movies-ai] Error querying title "${rec.title}":`, error);
-      }
+    // Process each genre
+    for (const genre of GENRES) {
+      const genreIds = GENRE_MAP[genre];
+      let foundTitle = null;
+      let source = 'not_found';
 
-      let titleData: {
-        id: string;
-        name: string;
-        poster_path: string | null;
-        backdrop_path: string | null;
-        overview: string | null;
-        vote_average: number | null;
-        release_date: string | null;
-        original_language: string | null;
-        title_type?: string | null;
-      } | null = titles && titles.length > 0 ? titles[0] : null;
-      let source = 'database';
+      // Try each language in preference order
+      for (const lang of languages) {
+        if (foundTitle) break;
 
-      // Fallback to TMDB if not found in database
-      if (!titleData) {
-        console.log(`[get-genre-movies-ai] "${rec.title}" not in DB, trying TMDB...`);
-        titleData = await searchTMDB(rec.title);
-        source = titleData ? 'tmdb' : 'not_found';
+        // Try movies first, then TV
+        for (const mediaType of ['movie', 'tv'] as const) {
+          if (foundTitle) break;
+
+          const genreId = mediaType === 'movie' ? genreIds.movie : genreIds.tv;
+          const dateParam = mediaType === 'movie' ? 'primary_release_date' : 'first_air_date';
+          
+          // Build query params
+          const params = new URLSearchParams({
+            api_key: tmdbApiKey,
+            language: 'en-US',
+            sort_by: 'popularity.desc',
+            'vote_count.gte': '100',       // Ensure it's well-known
+            'vote_average.gte': '6.5',     // Good ratings
+            with_genres: String(genreId),
+            with_original_language: lang,
+            [`${dateParam}.gte`]: minDate,
+            [`${dateParam}.lte`]: maxDate,
+            page: '1',
+          });
+
+          // Add streaming provider filter if we have providers
+          if (providerIds.length > 0) {
+            params.append('with_watch_providers', providerIds.join('|'));
+            params.append('watch_region', 'US');
+          }
+
+          // For non-Animation genres, exclude animation
+          if (genre !== 'Animation') {
+            params.append('without_genres', String(animationGenreId));
+          }
+
+          try {
+            const url = `https://api.themoviedb.org/3/discover/${mediaType}?${params.toString()}`;
+            const response = await fetch(url);
+            
+            if (!response.ok) {
+              console.error(`[get-genre-movies-ai] TMDB error for ${genre}/${lang}/${mediaType}:`, await response.text());
+              continue;
+            }
+
+            const data = await response.json();
+            const tmdbResults: TMDBResult[] = data.results || [];
+
+            // Find first result not already used
+            for (const item of tmdbResults) {
+              if (!usedTmdbIds.has(item.id)) {
+                usedTmdbIds.add(item.id);
+                
+                const titleName = mediaType === 'movie' ? item.title : item.name;
+                const releaseDate = mediaType === 'movie' ? item.release_date : item.first_air_date;
+
+                // Check if exists in our database
+                const { data: dbTitle } = await supabase
+                  .from('titles')
+                  .select('id, name, poster_path, backdrop_path, overview, vote_average, release_date, first_air_date, original_language, title_type, tmdb_id')
+                  .eq('tmdb_id', item.id)
+                  .limit(1);
+
+                if (dbTitle && dbTitle.length > 0) {
+                  foundTitle = {
+                    id: dbTitle[0].id,
+                    name: dbTitle[0].name,
+                    poster_path: dbTitle[0].poster_path,
+                    backdrop_path: dbTitle[0].backdrop_path,
+                    overview: dbTitle[0].overview,
+                    vote_average: dbTitle[0].vote_average,
+                    release_date: dbTitle[0].release_date || dbTitle[0].first_air_date,
+                    original_language: dbTitle[0].original_language,
+                    title_type: dbTitle[0].title_type,
+                    tmdb_id: item.id,
+                  };
+                  source = 'database';
+                } else {
+                  foundTitle = {
+                    id: `tmdb-${mediaType}-${item.id}`,
+                    name: titleName || 'Unknown',
+                    poster_path: item.poster_path,
+                    backdrop_path: item.backdrop_path,
+                    overview: item.overview,
+                    vote_average: item.vote_average,
+                    release_date: releaseDate || null,
+                    original_language: item.original_language,
+                    title_type: mediaType === 'movie' ? 'movie' : 'tv',
+                    tmdb_id: item.id,
+                  };
+                  source = 'tmdb';
+                }
+                break;
+              }
+            }
+          } catch (error) {
+            console.error(`[get-genre-movies-ai] Error fetching ${genre}/${lang}/${mediaType}:`, error);
+          }
+        }
       }
 
       results.push({
-        genre: rec.genre,
-        title: titleData,
-        ai_recommendation: { title: rec.title, language: rec.language },
-        source
+        genre,
+        title: foundTitle,
+        source,
       });
 
-      console.log(`[get-genre-movies-ai] ${rec.genre}: "${rec.title}" -> ${titleData ? `FOUND (${source})` : 'NOT FOUND'}`);
+      console.log(`[get-genre-movies-ai] ${genre}: ${foundTitle ? `"${foundTitle.name}" (${source}, lang: ${foundTitle.original_language})` : 'NOT FOUND'}`);
     }
 
-    // Count found vs not found
+    // Stats
     const found = results.filter(r => r.title !== null).length;
     const fromDb = results.filter(r => r.source === 'database').length;
     const fromTmdb = results.filter(r => r.source === 'tmdb').length;
-    console.log(`[get-genre-movies-ai] Found ${found}/${results.length} (DB: ${fromDb}, TMDB: ${fromTmdb})`);
+    
+    console.log(`[get-genre-movies-ai] Complete: ${found}/${results.length} found (DB: ${fromDb}, TMDB: ${fromTmdb})`);
 
     return new Response(
       JSON.stringify({ 
