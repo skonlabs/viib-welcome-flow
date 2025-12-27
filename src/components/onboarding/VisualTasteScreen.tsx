@@ -92,12 +92,12 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
         
         console.log('[VisualTaste] Final config - Languages:', languageCodes, 'Region:', userRegion, 'Streaming:', streamingServiceIds.length);
 
-        // Step 1: Get title IDs available on user's streaming services
-        let availableTitleIds: string[] = [];
+        // Query movies - use RPC or direct query based on streaming filter
+        let movies: any[] = [];
         
         if (streamingServiceIds.length > 0) {
-          console.log('[VisualTaste] Querying streaming availability for services:', streamingServiceIds);
-          const { data: streamingTitles, error: streamingError } = await supabase
+          // Query movies available on user's streaming services using a subquery approach
+          const { data: streamingTitleIds, error: streamingError } = await supabase
             .from('title_streaming_availability')
             .select('title_id')
             .in('streaming_service_id', streamingServiceIds)
@@ -105,52 +105,39 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
 
           if (streamingError) {
             console.error('[VisualTaste] Streaming availability error:', streamingError);
-          } else if (streamingTitles && streamingTitles.length > 0) {
-            availableTitleIds = streamingTitles.map(t => t.title_id);
-            console.log('[VisualTaste] Found', availableTitleIds.length, 'titles on streaming services');
-          } else {
-            console.log('[VisualTaste] No titles found on streaming services');
+          }
+
+          const titleIds = [...new Set(streamingTitleIds?.map(t => t.title_id) || [])];
+          console.log('[VisualTaste] Found', titleIds.length, 'unique titles on streaming services');
+
+          if (titleIds.length > 0) {
+            // Query in batches to avoid URL length limits
+            const batchSize = 50;
+            for (let i = 0; i < Math.min(titleIds.length, 500); i += batchSize) {
+              const batch = titleIds.slice(i, i + batchSize);
+              const { data: batchMovies, error } = await supabase
+                .from('titles')
+                .select('id, name, poster_path, popularity, vote_average, title_genres, certification, original_language')
+                .in('id', batch)
+                .eq('title_type', 'movie')
+                .in('original_language', languageCodes)
+                .not('poster_path', 'is', null)
+                .not('name', 'is', null)
+                .not('title_genres', 'is', null)
+                .gte('vote_average', 6)
+                .gte('popularity', 5);
+
+              if (!error && batchMovies) {
+                movies.push(...batchMovies);
+              }
+            }
+            console.log('[VisualTaste] Found', movies.length, 'movies matching language + streaming');
           }
         }
-
-        // If no streaming titles found, we'll query all popular movies
-        const hasStreamingFilter = availableTitleIds.length > 0;
-        console.log('[VisualTaste] Using streaming filter:', hasStreamingFilter);
         
-        // Step 2: Query movies - filter by streaming availability if available
-        let movies: any[] = [];
-        
-        if (hasStreamingFilter) {
-          // Query movies that are on user's streaming services
-          // Supabase has a limit on IN clause, so chunk if needed
-          const chunkSize = 100;
-          const chunks = [];
-          for (let i = 0; i < availableTitleIds.length; i += chunkSize) {
-            chunks.push(availableTitleIds.slice(i, i + chunkSize));
-          }
-          
-          for (const chunk of chunks) {
-            const { data: chunkMovies, error } = await supabase
-              .from('titles')
-              .select('id, name, poster_path, popularity, vote_average, title_genres, certification, original_language')
-              .in('id', chunk)
-              .eq('title_type', 'movie')
-              .in('original_language', languageCodes)
-              .not('poster_path', 'is', null)
-              .not('name', 'is', null)
-              .not('title_genres', 'is', null)
-              .not('vote_average', 'is', null)
-              .gte('vote_average', 6)
-              .gte('popularity', 5)
-              .order('popularity', { ascending: false })
-              .limit(200);
-
-            if (!error && chunkMovies) {
-              movies.push(...chunkMovies);
-            }
-          }
-        } else {
-          // Fallback: query all popular movies
+        // Fallback: if no streaming results, query popular movies by language only
+        if (movies.length === 0) {
+          console.log('[VisualTaste] Fallback: querying all popular movies for languages:', languageCodes);
           const { data: allMovies, error } = await supabase
             .from('titles')
             .select('id, name, poster_path, popularity, vote_average, title_genres, certification, original_language')
@@ -159,7 +146,6 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
             .not('poster_path', 'is', null)
             .not('name', 'is', null)
             .not('title_genres', 'is', null)
-            .not('vote_average', 'is', null)
             .gte('vote_average', 6)
             .gte('popularity', 10)
             .order('popularity', { ascending: false })
@@ -168,6 +154,7 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
           if (!error && allMovies) {
             movies = allMovies;
           }
+          console.log('[VisualTaste] Fallback found', movies.length, 'movies');
         }
 
         if (movies.length === 0) {
