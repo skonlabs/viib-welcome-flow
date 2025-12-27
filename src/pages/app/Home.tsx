@@ -87,13 +87,19 @@ const Home = () => {
 
     try {
       // Call the ViiB recommendation engine (v2 with transformation scoring)
-      console.log('Fetching user recommendations');
+      console.log('Fetching recommendations for user:', profile.id);
+      
       const { data: recData, error: recError } = await supabase.rpc(
         'get_top_recommendations_v2',
         { p_user_id: profile.id, p_limit: 10 }
       );
 
-      console.log('Recommendation response:', { recData, recError });
+      console.log('Recommendation RPC response:', { 
+        hasData: !!recData, 
+        count: recData?.length,
+        error: recError,
+        firstItem: recData?.[0] // Log first item to see structure
+      });
 
       if (recError) {
         console.error('Recommendation function error:', recError);
@@ -108,8 +114,6 @@ const Home = () => {
         setLoading(false);
         return;
       }
-
-      console.log('Got recommendation data:', recData.length, 'titles');
 
       // Fetch title details for recommended titles (genres now in title_genres column)
       const titleIds = recData.map((r: any) => r.title_id);
@@ -363,7 +367,7 @@ const Home = () => {
                 runtime_minutes: title.runtime,
                 genres: title.genres,
               }}
-              viibScore={title.final_score * 100}
+              viibScore={title.final_score != null ? Math.round(title.final_score * 100) : undefined}
               isInWatchlist={userWatchlist.has(title.id)}
               onClick={() => {
                 setSelectedTitle(title);
