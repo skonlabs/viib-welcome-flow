@@ -118,21 +118,25 @@ serve(async (req) => {
       return langMap[code] || code;
     });
 
-    const prompt = `You are a movie database expert. List exactly ONE movie or series per genre that meets ALL criteria:
+    const prompt = `You are a movie database expert. List exactly ONE unique movie or series per genre that meets ALL criteria:
 
 STRICT CRITERIA:
 - Released in the past ${yearsBack} years (2022-2025)
 - Original language must be one of: ${languageNames.join(', ')}
 - Available on: ${streamingServices.join(' or ')}
 - Critically acclaimed OR widely popular
-- Each movie or series can only appear once (no duplicates)
 
-IMPORTANT GENRE RULES:
-- Animation: ONLY animated films (like Pixar, Disney, anime). NOT live-action films with animated elements.
-- Documentary: ONLY non-fiction documentaries
-- Each movie or series MUST be the PRIMARY genre listed - not secondary
+CRITICAL RULES - FOLLOW EXACTLY:
+1. NEVER repeat the same title for multiple genres - each title can only appear ONCE
+2. Each title MUST be the PRIMARY genre listed - not secondary or tertiary
+3. Animation: ONLY animated films (Pixar, Disney, anime, stop-motion). NOT live-action.
+4. Documentary: ONLY non-fiction documentaries
+5. Horror: ONLY actual horror films with scares/terror. NOT dramas or thrillers.
+6. Fantasy: ONLY films with magic, supernatural, or fantastical elements
+7. Music: ONLY films primarily about music/musicians (biopics, musicals, concert films)
+8. Only include titles that ACTUALLY EXIST - do not make up titles
 
-GENRES (one movie or series each):
+GENRES (one unique title each - NO DUPLICATES):
 ${GENRES.join('\n')}
 
 OUTPUT FORMAT - Return ONLY valid JSON array:
