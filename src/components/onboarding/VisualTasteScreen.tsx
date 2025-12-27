@@ -142,9 +142,13 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
           const genres = movie.genres || [];
           if (!genres || genres.length === 0) continue;
 
-          // Skip if movie is primarily kids content
-          const isKidsContent = genres.some((g: string) => KIDS_GENRES.includes(g));
-          if (isKidsContent && genres[0] && KIDS_GENRES.includes(genres[0])) continue;
+          // Skip if movie has Animation in ANY of its genres (not just primary)
+          const isAnimation = genres.some((g: string) => g === 'Animation');
+          if (isAnimation) continue;
+
+          // Skip if movie is primarily Family content
+          const isFamilyContent = genres[0] === 'Family';
+          if (isFamilyContent) continue;
 
           // Get primary genre (first in array)
           const primaryGenre = genres[0];
