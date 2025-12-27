@@ -5,7 +5,7 @@ import { Check, ArrowRight } from "@/icons";
 import { BackButton } from "./BackButton";
 import { FloatingParticles } from "./FloatingParticles";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuthContext } from "@/contexts/AuthContext";
+
 
 interface GenreTitleOption {
   genre_id: string;
@@ -34,7 +34,6 @@ const DISPLAY_GENRES = [
 ];
 
 export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps) => {
-  const { profile } = useAuthContext();
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
   const [options, setOptions] = useState<GenreTitleOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,55 +41,43 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
   useEffect(() => {
     const loadOptions = async () => {
       try {
-        // Use profile.id from auth context - this ensures RLS works correctly
-        const userId = profile?.id || localStorage.getItem('viib_user_id');
-        console.log('[VisualTaste] Loading for userId:', userId, 'profile:', profile?.id);
-        
         let streamingServiceIds: string[] = [];
         let languageCodes: string[] = ['en']; // Default to English
         let userRegion = 'US'; // Default region
-        
-        // Only query user preferences if we have a userId
-        if (userId) {
-          // Get user's streaming subscriptions
-          const { data: userStreaming, error: streamingError } = await supabase
-            .from('user_streaming_subscriptions')
-            .select('streaming_service_id')
-            .eq('user_id', userId)
-            .eq('is_active', true);
 
-          if (streamingError) {
-            console.error('[VisualTaste] Streaming query error:', streamingError);
-          } else {
-            streamingServiceIds = userStreaming?.map(s => s.streaming_service_id) || [];
-          }
-          console.log('[VisualTaste] Streaming services:', streamingServiceIds.length, streamingServiceIds);
+        // RLS handles user filtering automatically via auth.uid()
+        const { data: userStreaming, error: streamingError } = await supabase
+          .from('user_streaming_subscriptions')
+          .select('streaming_service_id')
+          .eq('is_active', true);
 
-          // Get user's language preferences
-          const { data: userLanguages, error: langError } = await supabase
-            .from('user_language_preferences')
-            .select('language_code')
-            .eq('user_id', userId);
-
-          if (langError) {
-            console.error('[VisualTaste] Language query error:', langError);
-          } else if (userLanguages && userLanguages.length > 0) {
-            languageCodes = userLanguages.map(l => l.language_code);
-          }
-          console.log('[VisualTaste] Languages:', languageCodes);
-
-          // Get user's region for streaming availability
-          const { data: userData } = await supabase
-            .from('users')
-            .select('ip_country')
-            .eq('id', userId)
-            .maybeSingle();
-
-          if (userData?.ip_country && userData.ip_country !== 'pending') {
-            userRegion = userData.ip_country;
-          }
+        if (streamingError) {
+          console.error('[VisualTaste] Streaming query error:', streamingError);
         } else {
-          console.log('[VisualTaste] No userId, using defaults: EN language, US region');
+          streamingServiceIds = userStreaming?.map(s => s.streaming_service_id) || [];
+        }
+        console.log('[VisualTaste] Streaming services:', streamingServiceIds.length);
+
+        // RLS handles user filtering automatically
+        const { data: userLanguages, error: langError } = await supabase
+          .from('user_language_preferences')
+          .select('language_code');
+
+        if (langError) {
+          console.error('[VisualTaste] Language query error:', langError);
+        } else if (userLanguages && userLanguages.length > 0) {
+          languageCodes = userLanguages.map(l => l.language_code);
+        }
+        console.log('[VisualTaste] Languages:', languageCodes);
+
+        // Get user's region - RLS filters to current user
+        const { data: userData } = await supabase
+          .from('users')
+          .select('ip_country')
+          .maybeSingle();
+
+        if (userData?.ip_country && userData.ip_country !== 'Unknown' && userData.ip_country !== 'pending') {
+          userRegion = userData.ip_country;
         }
         
         console.log('[VisualTaste] Final config - Languages:', languageCodes, 'Region:', userRegion, 'Streaming:', streamingServiceIds.length);
@@ -230,7 +217,7 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
     };
 
     loadOptions();
-  }, [profile?.id]);
+  }, []);
 
   const toggleGenre = (genreId: string) => {
     setSelectedGenres((prev) =>
@@ -241,13 +228,20 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
   };
 
   const handleContinue = async () => {
-    const userId = profile?.id || localStorage.getItem('viib_user_id');
-    if (userId && selectedGenres.length > 0) {
+    if (selectedGenres.length > 0) {
       try {
-        await supabase.from('user_vibe_preferences').upsert({
-          user_id: userId,
-          vibe_type: selectedGenres.join(',')
-        }, { onConflict: 'user_id' });
+        // Get current user - RLS ensures we only see our own data
+        const { data: userData } = await supabase
+          .from('users')
+          .select('id')
+          .maybeSingle();
+        
+        if (userData?.id) {
+          await supabase.from('user_vibe_preferences').upsert({
+            user_id: userData.id,
+            vibe_type: selectedGenres.join(',')
+          }, { onConflict: 'user_id' });
+        }
       } catch (err) {
         console.error('Failed to save taste preferences:', err);
       }
