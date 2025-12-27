@@ -68,3 +68,10 @@ verify_jwt = true
 
 [functions.delete-account]
 verify_jwt = true
+
+# Visual taste screen - public (used during onboarding)
+[functions.get-genre-movies-ai]
+verify_jwt = false
+
+[functions.discover-tmdb]
+verify_jwt = false

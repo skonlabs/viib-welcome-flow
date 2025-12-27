@@ -11,7 +11,6 @@ interface GenreTitleOption {
   genre_name: string;
   title_name: string;
   poster_path: string;
-  score: number;
   orderIndex: number;
 }
 
@@ -21,16 +20,6 @@ interface VisualTasteScreenProps {
 }
 
 const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w500";
-
-// Kids content certifications to exclude
-const KIDS_GENRES = ['Animation', 'Family'];
-
-// Genres to display
-const DISPLAY_GENRES = [
-  'Action', 'Adventure', 'Animation', 'Comedy', 'Crime', 'Documentary',
-  'Drama', 'Fantasy', 'History', 'Horror', 'Music', 'Mystery',
-  'Romance', 'Science Fiction', 'Thriller', 'War', 'Western'
-];
 
 export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps) => {
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
@@ -53,72 +42,46 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
         }
         console.log('[VisualTaste] Languages:', languageCodes);
 
-        // Get user's streaming subscriptions and map to TMDB provider IDs
+        // Get user's streaming subscriptions for the AI prompt
+        let streamingServices: string[] = ['Netflix', 'Amazon Prime Video']; // Defaults
+        
         const { data: userStreamingSubs } = await supabase
           .from('user_streaming_subscriptions')
           .select('streaming_service_id')
           .eq('is_active', true);
         
-        let tmdbProviderIds: number[] = [];
-        
         if (userStreamingSubs && userStreamingSubs.length > 0) {
           const serviceIds = userStreamingSubs.map(s => s.streaming_service_id);
           
-          // Get TMDB provider IDs from mapping table
-          const { data: providerMappings } = await supabase
-            .from('tmdb_provider_mappings')
-            .select('tmdb_provider_id')
-            .in('service_name', serviceIds)
-            .eq('is_active', true);
+          const { data: services } = await supabase
+            .from('streaming_services')
+            .select('service_name')
+            .in('id', serviceIds);
           
-          // If no mapping found by service_name, try fetching streaming service names first
-          if (!providerMappings || providerMappings.length === 0) {
-            const { data: streamingServices } = await supabase
-              .from('streaming_services')
-              .select('service_name')
-              .in('id', serviceIds);
-            
-            if (streamingServices && streamingServices.length > 0) {
-              const serviceNames = streamingServices.map(s => s.service_name);
-              const { data: mappings } = await supabase
-                .from('tmdb_provider_mappings')
-                .select('tmdb_provider_id')
-                .in('service_name', serviceNames)
-                .eq('is_active', true);
-              
-              if (mappings) {
-                tmdbProviderIds = mappings.map(m => m.tmdb_provider_id);
-              }
-            }
-          } else {
-            tmdbProviderIds = providerMappings.map(m => m.tmdb_provider_id);
+          if (services && services.length > 0) {
+            streamingServices = services.map(s => s.service_name);
           }
         }
         
-        console.log('[VisualTaste] TMDB Provider IDs:', tmdbProviderIds);
+        console.log('[VisualTaste] Streaming services:', streamingServices);
 
-        // Call TMDB discover edge function
-        // NOTE: Don't pass streaming providers here - for taste selection we want 
-        // popular movies in user's languages, not filtered by streaming availability
-        const { data, error } = await supabase.functions.invoke('discover-tmdb', {
+        // Call the new AI-powered edge function
+        const { data, error } = await supabase.functions.invoke('get-genre-movies-ai', {
           body: {
             languages: languageCodes,
-            streamingProviderIds: [], // Empty - no streaming filter for taste screen
-            minRating: 6,
-            minPopularity: 10,
-            limit: 200,
-            excludeKids: true
+            streamingServices,
+            yearsBack: 3
           }
         });
 
         if (error) {
-          console.error('[VisualTaste] TMDB edge function error:', error);
+          console.error('[VisualTaste] AI edge function error:', error);
           setLoading(false);
           return;
         }
 
         const movies = data?.movies || [];
-        console.log('[VisualTaste] Got', movies.length, 'movies from TMDB');
+        console.log('[VisualTaste] Got', movies.length, 'genre movies from AI, found:', data?.stats?.found);
 
         if (movies.length === 0) {
           console.log('[VisualTaste] No movies found');
@@ -126,54 +89,27 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
           return;
         }
 
-        // Movies are already sorted by language priority from edge function
-        // Add a combined score for tie-breaking within genres
-        const scoredMovies = movies.map((movie: any, index: number) => ({
-          ...movie,
-          orderIndex: index, // Preserve original order from edge function
-          combinedScore: (movie.vote_average || 0) * (movie.popularity || 0)
-        }));
-
-        // Build genre options - one movie per genre, respecting order from edge function
-        const genreToTopMovie = new Map<string, GenreTitleOption>();
-        const usedMovies = new Set<string>();
-
-        for (const movie of scoredMovies) {
-          const genres = movie.genres || [];
-          if (!genres || genres.length === 0) continue;
-
-          // If Animation is in ANY genre position, treat it as primary genre
-          const isAnimation = genres.some((g: string) => g === 'Animation');
-          const primaryGenre = isAnimation ? 'Animation' : genres[0];
-
-          // Skip if primary genre is Family (kids content)
-          if (primaryGenre === 'Family') continue;
-
-          // Only consider genres we want to display
-          if (!DISPLAY_GENRES.includes(primaryGenre)) continue;
-
-          // Skip if we already have a movie for this genre or this movie was used
-          const movieKey = movie.name;
-          if (genreToTopMovie.has(primaryGenre) || usedMovies.has(movieKey)) continue;
-
-          if (!movie.poster_path) continue;
-
-          genreToTopMovie.set(primaryGenre, {
-            genre_id: primaryGenre.toLowerCase().replace(/\s+/g, '-'),
-            genre_name: primaryGenre,
-            title_name: movie.name,
-            poster_path: movie.poster_path,
-            score: movie.combinedScore,
-            orderIndex: movie.orderIndex
-          });
-          usedMovies.add(movieKey);
+        // Build genre options from AI recommendations
+        const genreOptions: GenreTitleOption[] = [];
+        
+        for (let i = 0; i < movies.length; i++) {
+          const movie = movies[i];
+          
+          // Use database match if found, otherwise skip (no poster available)
+          if (movie.title && movie.title.poster_path) {
+            genreOptions.push({
+              genre_id: movie.genre.toLowerCase().replace(/\s+/g, '-'),
+              genre_name: movie.genre,
+              title_name: movie.title.name || movie.ai_recommendation.title,
+              poster_path: movie.title.poster_path,
+              orderIndex: i
+            });
+          } else {
+            console.log(`[VisualTaste] Skipping ${movie.genre}: "${movie.ai_recommendation.title}" - not found in DB`);
+          }
         }
 
-        // Convert to array - sort by order index (preserves language priority from edge function)
-        const genreOptions = Array.from(genreToTopMovie.values())
-          .sort((a, b) => a.orderIndex - b.orderIndex);
-
-        console.log('[VisualTaste] Genre options:', genreOptions.length, genreOptions.map(g => `${g.genre_name}: ${g.title_name} (${g.orderIndex})`));
+        console.log('[VisualTaste] Genre options:', genreOptions.length, genreOptions.map(g => `${g.genre_name}: ${g.title_name}`));
         setOptions(genreOptions);
       } catch (err) {
         console.error('[VisualTaste] Failed to load genre options:', err);
