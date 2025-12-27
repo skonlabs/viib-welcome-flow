@@ -2,11 +2,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { motion, AnimatePresence } from "framer-motion";
-import { Waves, Zap, Sparkles, Compass, ArrowRight, Check } from "@/icons";
-import calmImage from "@/assets/vibe-calm.png";
-import energeticImage from "@/assets/vibe-energetic.png";
-import curiousImage from "@/assets/vibe-curious.png";
-import adventureImage from "@/assets/vibe-adventure.png";
+import { Waves, Zap, Sparkles, Brain, Moon, ArrowRight, Check } from "@/icons";
 import { BackButton } from "./BackButton";
 import { FloatingParticles } from "./FloatingParticles";
 
@@ -29,44 +25,54 @@ export const UserIdentityScreen = ({ onContinue, onBack, initialName = "", initi
 
   const vibes = [
     { 
-      id: "calm", 
+      id: "calm_reflective", 
       label: "Calm & Reflective", 
-      description: "For peaceful, thoughtful moments",
+      description: "Slow, emotional, introspective, soothing, meaningful",
       icon: Waves,
-      image: calmImage,
-      gradient: "from-blue-400/20 via-cyan-500/30 to-teal-400/20",
-      glowColor: "rgba(34, 211, 238, 0.4)",
-      particleColor: "#22d3ee"
+      gradient: "from-sky-400/30 via-blue-500/40 to-indigo-400/30",
+      glowColor: "rgba(56, 189, 248, 0.5)",
+      particleColor: "#38bdf8",
+      bgGradient: "linear-gradient(135deg, #0c4a6e 0%, #164e63 50%, #1e3a5f 100%)"
     },
     { 
-      id: "energetic", 
-      label: "Bold & Exciting", 
-      description: "For high-energy, thrilling experiences",
-      icon: Zap,
-      image: energeticImage,
-      gradient: "from-orange-400/20 via-red-500/30 to-pink-400/20",
-      glowColor: "rgba(249, 115, 22, 0.4)",
-      particleColor: "#f97316"
-    },
-    { 
-      id: "curious", 
-      label: "Curious & Wonder", 
-      description: "For exploring the mysterious",
+      id: "light_feelgood", 
+      label: "Light & Feel-Good", 
+      description: "Easy, comforting, positive, low-effort",
       icon: Sparkles,
-      image: curiousImage,
-      gradient: "from-purple-400/20 via-pink-500/30 to-fuchsia-400/20",
-      glowColor: "rgba(168, 85, 247, 0.4)",
-      particleColor: "#a855f7"
+      gradient: "from-amber-300/30 via-yellow-400/40 to-orange-300/30",
+      glowColor: "rgba(251, 191, 36, 0.5)",
+      particleColor: "#fbbf24",
+      bgGradient: "linear-gradient(135deg, #78350f 0%, #92400e 50%, #a16207 100%)"
     },
     { 
-      id: "adventure", 
-      label: "Adventure & Discovery", 
-      description: "For journeys into the unknown",
-      icon: Compass,
-      image: adventureImage,
-      gradient: "from-green-400/20 via-emerald-500/30 to-lime-400/20",
-      glowColor: "rgba(16, 185, 129, 0.4)",
-      particleColor: "#10b981"
+      id: "bold_energetic", 
+      label: "Bold & Energetic", 
+      description: "Fast-paced, exciting, adrenaline-driven",
+      icon: Zap,
+      gradient: "from-orange-400/30 via-red-500/40 to-rose-400/30",
+      glowColor: "rgba(249, 115, 22, 0.5)",
+      particleColor: "#f97316",
+      bgGradient: "linear-gradient(135deg, #7c2d12 0%, #991b1b 50%, #9f1239 100%)"
+    },
+    { 
+      id: "curious_thoughtprovoking", 
+      label: "Curious & Thought-Provoking", 
+      description: "Intellectual, mysterious, imaginative",
+      icon: Brain,
+      gradient: "from-violet-400/30 via-purple-500/40 to-fuchsia-400/30",
+      glowColor: "rgba(168, 85, 247, 0.5)",
+      particleColor: "#a855f7",
+      bgGradient: "linear-gradient(135deg, #4c1d95 0%, #6b21a8 50%, #86198f 100%)"
+    },
+    { 
+      id: "dark_intense", 
+      label: "Dark & Intense", 
+      description: "Heavy, gritty, emotionally charged",
+      icon: Moon,
+      gradient: "from-slate-500/30 via-zinc-600/40 to-neutral-500/30",
+      glowColor: "rgba(113, 113, 122, 0.5)",
+      particleColor: "#71717a",
+      bgGradient: "linear-gradient(135deg, #18181b 0%, #27272a 50%, #3f3f46 100%)"
     },
   ];
 
@@ -120,63 +126,6 @@ export const UserIdentityScreen = ({ onContinue, onBack, initialName = "", initi
 
       <BackButton onClick={onBack} />
       
-      {/* Cinematic Multi-Layer Background */}
-      <div className="absolute inset-0">
-        {/* Base gradient */}
-        <div className="absolute inset-0 bg-gradient-to-br from-black via-purple-950/20 to-black" />
-        
-        {/* Animated mesh gradients - Layer 1 */}
-        <div
-          className="absolute top-0 left-0 w-full h-full opacity-40"
-          style={{ 
-            background: "radial-gradient(ellipse 80% 50% at 50% -20%, rgba(168, 85, 247, 0.15), transparent 50%), radial-gradient(ellipse 60% 50% at 80% 50%, rgba(59, 130, 246, 0.1), transparent 50%)"
-          }}
-        />
-
-        {/* Floating orbs with parallax effect */}
-        {[...Array(5)].map((_, i) => (
-          <motion.div
-            key={`orb-${i}`}
-            className="absolute rounded-full blur-[80px] opacity-20"
-            style={{ 
-              width: `${200 + i * 80}px`,
-              height: `${200 + i * 80}px`,
-              background: `radial-gradient(circle, ${
-                i % 3 === 0 ? '#a855f7' : i % 3 === 1 ? '#3b82f6' : '#ec4899'
-              } 0%, transparent 70%)`,
-              left: `${10 + i * 15}%`,
-              top: `${20 + i * 10}%`,
-            }}
-            animate={{
-              x: [0, 100 + i * 30, -50 + i * 20, 0],
-              y: [0, -80 + i * 15, 60 - i * 10, 0],
-              scale: [1, 1.3, 0.8, 1],
-            }}
-            transition={{
-              duration: 20 + i * 5,
-              repeat: Infinity,
-              ease: "easeInOut",
-              delay: i * 2,
-            }}
-          />
-        ))}
-
-        {/* Floating particles */}
-        <FloatingParticles count={20} />
-
-        {/* Grid overlay */}
-        <div 
-          className="absolute inset-0 opacity-[0.03]"
-          style={{
-            backgroundImage: `
-              linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px),
-              linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)
-            `,
-            backgroundSize: '50px 50px'
-          }}
-        />
-      </div>
-
       {/* Content */}
       <motion.div
         className="relative z-10 w-full max-w-4xl"
@@ -255,10 +204,11 @@ export const UserIdentityScreen = ({ onContinue, onBack, initialName = "", initi
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 1 }}
             >
-              Choose your vibe
+              What's your viewing vibe?
             </motion.h3>
             
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* 5-column grid on desktop, stacked on mobile */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
               {vibes.map((vibe, index) => {
                 const Icon = vibe.icon;
                 const isSelected = selectedVibe === vibe.id;
@@ -267,120 +217,69 @@ export const UserIdentityScreen = ({ onContinue, onBack, initialName = "", initi
                   <motion.button
                     key={vibe.id}
                     onClick={() => setSelectedVibe(vibe.id)}
-                    initial={{ opacity: 0, scale: 0.5, y: 50, rotateX: -30 }}
-                    animate={{ opacity: 1, scale: 1, y: 0, rotateX: 0 }}
+                    initial={{ opacity: 0, scale: 0.8, y: 30 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
                     transition={{ 
-                      delay: 1.1 + (0.15 * index), 
+                      delay: 1.1 + (0.1 * index), 
                       type: "spring",
                       stiffness: 120,
                       damping: 12
                     }}
                     whileHover={{ 
-                      scale: 1.08, 
-                      y: -12,
-                      rotateY: 5,
+                      scale: 1.05, 
+                      y: -8,
                       transition: { type: "spring", stiffness: 300, damping: 20 }
                     }}
-                    whileTap={{ scale: 0.92 }}
-                    className="relative overflow-hidden rounded-3xl group perspective-1000"
-                    style={{ transformStyle: 'preserve-3d' }}
+                    whileTap={{ scale: 0.95 }}
+                    className={`relative overflow-hidden rounded-2xl group ${
+                      index === 4 ? 'col-span-2 sm:col-span-1' : ''
+                    }`}
                   >
-                    {/* Multi-layer glow effect */}
+                    {/* Glow effect */}
                     <div
-                      className="absolute -inset-2 rounded-3xl blur-2xl transition-opacity duration-500"
+                      className="absolute -inset-1 rounded-2xl blur-xl transition-opacity duration-500"
                       style={{ 
                         background: `radial-gradient(circle at center, ${vibe.glowColor}, transparent 60%)`,
-                        opacity: isSelected ? 0.7 : 0
+                        opacity: isSelected ? 0.8 : 0
                       }}
                     />
 
-                    {/* Outer glow ring */}
-                    <div
-                      className="absolute -inset-1 rounded-3xl transition-opacity duration-500"
-                      style={{ 
-                        background: `conic-gradient(from 0deg, ${vibe.glowColor}, transparent, ${vibe.glowColor})`,
-                        opacity: isSelected ? 0.6 : 0
-                      }}
-                    />
-
-                    {/* Card container with 3D transform */}
-                    <div className={`relative overflow-hidden rounded-3xl border transition-all duration-500 ${
-                      isSelected
-                        ? "border-white/50 shadow-2xl"
-                        : "border-white/10 shadow-lg hover:border-white/30"
-                    }`}>
-                      {/* Background Image */}
-                      <motion.div
-                        className="absolute inset-0"
-                        animate={{
-                          scale: isSelected ? [1, 1.1, 1] : 1,
-                        }}
-                        transition={{
-                          duration: 20,
-                          repeat: Infinity,
-                          ease: "linear"
-                        }}
-                      >
-                        <img 
-                          src={vibe.image} 
-                          alt={vibe.label}
-                          className="w-full h-full object-cover"
-                        />
-                      </motion.div>
-
-                      {/* Animated gradient overlay */}
-                      <div 
-                        className={`absolute inset-0 bg-gradient-to-br ${vibe.gradient} mix-blend-overlay`}
-                        style={{ backgroundSize: '200% 200%' }}
-                      />
+                    {/* Card */}
+                    <div 
+                      className={`relative overflow-hidden rounded-2xl border transition-all duration-500 ${
+                        isSelected
+                          ? "border-white/60 shadow-2xl"
+                          : "border-white/10 shadow-lg hover:border-white/30"
+                      }`}
+                      style={{ background: vibe.bgGradient }}
+                    >
+                      {/* Gradient overlay */}
+                      <div className={`absolute inset-0 bg-gradient-to-br ${vibe.gradient} mix-blend-overlay`} />
                       
-                      {/* Enhanced glass effect */}
-                      <div className="absolute inset-0 bg-black/30 backdrop-blur-2xl" />
-                      <div className="absolute inset-0 bg-white/[0.02]" />
+                      {/* Glass effect */}
+                      <div className="absolute inset-0 bg-black/20 backdrop-blur-sm" />
 
-                      {/* Selection wave effect */}
-                      <AnimatePresence>
-                        {isSelected && (
-                          <>
-                            <motion.div
-                              className="absolute inset-0 bg-gradient-to-br from-white/30 via-white/10 to-transparent"
-                              initial={{ scale: 0, opacity: 1 }}
-                              animate={{ scale: 2, opacity: 0 }}
-                              exit={{ opacity: 0 }}
-                              transition={{ duration: 1, ease: "easeOut" }}
-                            />
-                            <motion.div
-                              className="absolute inset-0 bg-gradient-to-tl from-white/20 via-white/5 to-transparent"
-                              initial={{ scale: 0, opacity: 0.8 }}
-                              animate={{ scale: 2, opacity: 0 }}
-                              exit={{ opacity: 0 }}
-                              transition={{ duration: 1.2, ease: "easeOut", delay: 0.1 }}
-                            />
-                          </>
-                        )}
-                      </AnimatePresence>
-
-                      {/* Orbiting particles on selection */}
+                      {/* Selection particles */}
                       {isSelected && (
                         <>
-                          {[...Array(8)].map((_, i) => (
+                          {[...Array(6)].map((_, i) => (
                             <motion.div
                               key={i}
-                              className="absolute w-1.5 h-1.5 rounded-full"
+                              className="absolute w-1 h-1 rounded-full"
                               style={{ 
                                 backgroundColor: vibe.particleColor,
                                 left: '50%',
                                 top: '50%',
-                                boxShadow: `0 0 10px ${vibe.particleColor}`
+                                boxShadow: `0 0 8px ${vibe.particleColor}`
                               }}
                               animate={{
-                                x: [0, Math.cos(i * 45 * Math.PI / 180) * 80],
-                                y: [0, Math.sin(i * 45 * Math.PI / 180) * 80],
-                                scale: [0, 1.5, 0],
+                                x: [0, Math.cos(i * 60 * Math.PI / 180) * 50],
+                                y: [0, Math.sin(i * 60 * Math.PI / 180) * 50],
+                                scale: [0, 1.2, 0],
                                 opacity: [0, 1, 0],
                               }}
                               transition={{
-                                duration: 2,
+                                duration: 1.5,
                                 repeat: Infinity,
                                 delay: i * 0.1,
                                 ease: "easeOut"
@@ -390,65 +289,47 @@ export const UserIdentityScreen = ({ onContinue, onBack, initialName = "", initi
                         </>
                       )}
 
-                      {/* Shimmer effect on hover */}
-                      <motion.div
-                        className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -skew-x-12"
-                        initial={{ x: '-100%', opacity: 0 }}
-                        whileHover={{ x: '200%', opacity: 1 }}
-                        transition={{ duration: 1, ease: "easeInOut" }}
-                      />
-                      
-                      {/* Content with 3D depth - Optimized spacing */}
-                      <div className="relative z-10 flex flex-col items-center gap-3 p-5 sm:p-6">
-                        {/* Icon with subtle animation */}
+                      {/* Content */}
+                      <div className="relative z-10 flex flex-col items-center gap-2 p-4 sm:p-5">
+                        {/* Icon */}
                         <div className="relative">
-                          {/* Icon glow */}
                           <div
-                            className="absolute inset-0 blur-xl rounded-full"
+                            className="absolute inset-0 blur-lg rounded-full transition-opacity duration-300"
                             style={{ 
                               backgroundColor: vibe.particleColor,
-                              opacity: isSelected ? 0.4 : 0
+                              opacity: isSelected ? 0.5 : 0.2
                             }}
                           />
                           <Icon 
-                            className="relative w-10 h-10 sm:w-12 sm:h-12 text-white drop-shadow-2xl" 
+                            className="relative w-8 h-8 sm:w-10 sm:h-10 text-white drop-shadow-lg" 
                             strokeWidth={1.5}
                           />
                         </div>
                         
-                        {/* Label */}
-                        <div className="flex flex-col items-center gap-0.5">
-                          <span 
-                            className="font-bold text-base sm:text-lg text-white drop-shadow-lg text-center tracking-wide"
-                          >
+                        {/* Label & Description */}
+                        <div className="flex flex-col items-center gap-1 text-center">
+                          <span className="font-bold text-sm sm:text-base text-white drop-shadow-lg leading-tight">
                             {vibe.label}
                           </span>
-                          
-                          {/* Description text */}
-                          <motion.p
-                            className="text-xs text-white/60 text-center font-medium"
-                            initial={{ opacity: 0, y: 5 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.2 }}
-                          >
+                          <p className="text-[10px] sm:text-xs text-white/60 leading-snug line-clamp-2">
                             {vibe.description}
-                          </motion.p>
+                          </p>
                         </div>
 
-                    {/* Selection checkmark */}
-                    <AnimatePresence>
-                      {isSelected && (
-                        <motion.div
-                          className="absolute top-2 right-2 w-6 h-6 rounded-full bg-white/90 backdrop-blur-xl flex items-center justify-center shadow-lg"
-                          initial={{ scale: 0, rotate: -180 }}
-                          animate={{ scale: 1, rotate: 0 }}
-                          exit={{ scale: 0, rotate: 180 }}
-                          transition={{ type: "spring", stiffness: 300, damping: 15 }}
-                        >
-                          <Check className="w-3.5 h-3.5 text-primary" strokeWidth={3} />
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
+                        {/* Selection indicator */}
+                        <AnimatePresence>
+                          {isSelected && (
+                            <motion.div
+                              initial={{ scale: 0, opacity: 0 }}
+                              animate={{ scale: 1, opacity: 1 }}
+                              exit={{ scale: 0, opacity: 0 }}
+                              transition={{ type: "spring", stiffness: 400, damping: 15 }}
+                              className="absolute top-2 right-2 w-5 h-5 rounded-full bg-white/90 flex items-center justify-center shadow-lg"
+                            >
+                              <Check className="w-3 h-3 text-black" strokeWidth={3} />
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
                       </div>
                     </div>
                   </motion.button>
@@ -459,35 +340,33 @@ export const UserIdentityScreen = ({ onContinue, onBack, initialName = "", initi
 
           {/* Continue Button */}
           <motion.div
-            className="flex justify-center pt-8"
-            initial={{ opacity: 0, y: 20 }}
+            className="flex justify-center pt-4"
+            initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 1.8, ease: [0.23, 1, 0.32, 1] }}
+            transition={{ delay: 1.6, duration: 0.6 }}
           >
             <motion.div
-              whileHover={{ scale: 1.05, y: -4 }}
-              whileTap={{ scale: 0.95 }}
-              transition={{ type: "spring", stiffness: 300, damping: 20 }}
+              whileHover={{ scale: name && selectedVibe ? 1.05 : 1 }}
+              whileTap={{ scale: name && selectedVibe ? 0.95 : 1 }}
             >
-              <div className="relative group">
-                {/* Static glow on hover */}
-                <div
-                  className="absolute -inset-2 bg-gradient-to-r from-primary to-accent blur-xl rounded-full opacity-0 group-hover:opacity-50 transition-opacity duration-500"
-                />
-
-                <Button
-                  onClick={handleContinue}
-                  disabled={!name || !selectedVibe}
-                  size="2xl"
-                  variant="gradient"
-                  className="relative rounded-full shadow-[0_20px_50px_-15px_rgba(168,85,247,0.4)] border border-white/20"
-                >
-                  <span className="relative z-10 flex items-center gap-3">
-                    Continue
+              <Button
+                onClick={handleContinue}
+                disabled={!name || !selectedVibe}
+                className="group relative px-10 py-6 text-lg font-semibold rounded-2xl overflow-hidden bg-gradient-to-r from-primary via-primary/90 to-primary shadow-2xl disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {/* Button glow */}
+                <div className="absolute inset-0 bg-gradient-to-r from-primary/50 via-primary/30 to-primary/50 blur-xl opacity-50 group-hover:opacity-80 transition-opacity duration-500" />
+                
+                <span className="relative z-10 flex items-center gap-3">
+                  Continue
+                  <motion.div
+                    animate={{ x: [0, 5, 0] }}
+                    transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                  >
                     <ArrowRight className="w-5 h-5" />
-                  </span>
-                </Button>
-              </div>
+                  </motion.div>
+                </span>
+              </Button>
             </motion.div>
           </motion.div>
         </div>
