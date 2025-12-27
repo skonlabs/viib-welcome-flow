@@ -139,13 +139,12 @@ NO explanations, NO markdown, NO extra text. Start with [ and end with ]`;
       ai_recommendation: { title: string; language: string };
     }> = [];
 
-    // Query each movie title from the database (exact match)
+    // Query each title from the database (case-insensitive, movies or series)
     for (const rec of movieRecommendations) {
       const { data: titles, error } = await supabase
         .from('titles')
-        .select('id, name, poster_path, backdrop_path, overview, vote_average, release_date, original_language')
-        .eq('name', rec.title)
-        .eq('title_type', 'movie')
+        .select('id, name, poster_path, backdrop_path, overview, vote_average, release_date, original_language, title_type')
+        .ilike('name', rec.title)
         .limit(1);
 
       if (error) {
