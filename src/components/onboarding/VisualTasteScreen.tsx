@@ -12,7 +12,7 @@ interface GenreTitleOption {
   title_id: string;
   title_name: string;
   poster_path: string;
-  popularity: number;
+  score: number;
 }
 
 interface VisualTasteScreenProps {
@@ -62,7 +62,6 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
           .eq('user_id', userId);
 
         const languageCodes = userLanguages?.map(l => l.language_code) || [];
-        // Default to English if no preferences
         if (languageCodes.length === 0) {
           languageCodes.push('en');
         }
@@ -91,21 +90,25 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
           }
         }
 
-        // Calculate date 3 years ago
+        // Calculate date 3 years ago and today
         const threeYearsAgo = new Date();
         threeYearsAgo.setFullYear(threeYearsAgo.getFullYear() - 3);
         const threeYearsAgoStr = threeYearsAgo.toISOString().split('T')[0];
+        const todayStr = new Date().toISOString().split('T')[0];
 
-        // Fetch popular movies from past 3 years in user's languages
+        // Fetch released movies from past 3 years with ratings
         const { data: movies, error } = await supabase
           .from('titles')
-          .select('id, name, poster_path, popularity, title_genres, certification, original_language')
+          .select('id, name, poster_path, popularity, vote_average, title_genres, certification, original_language')
           .eq('title_type', 'movie')
           .in('original_language', languageCodes)
           .not('poster_path', 'is', null)
           .not('name', 'is', null)
           .not('title_genres', 'is', null)
+          .not('vote_average', 'is', null)
+          .gt('vote_average', 5) // Minimum rating of 5
           .gte('release_date', threeYearsAgoStr)
+          .lte('release_date', todayStr) // Only released movies
           .order('popularity', { ascending: false })
           .limit(500);
 
@@ -120,11 +123,17 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
           return;
         }
 
+        // Calculate combined score and sort
+        const scoredMovies = movies.map(movie => ({
+          ...movie,
+          combinedScore: (movie.vote_average || 0) * (movie.popularity || 0)
+        })).sort((a, b) => b.combinedScore - a.combinedScore);
+
         // Filter and build genre options
         const genreToTopMovie = new Map<string, GenreTitleOption>();
         const usedMovieIds = new Set<string>();
 
-        for (const movie of movies) {
+        for (const movie of scoredMovies) {
           // Skip if not available on user's streaming services (when filter is active)
           if (availableTitleIds !== null && !availableTitleIds.has(movie.id)) {
             continue;
@@ -156,21 +165,20 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
           // Skip if we already have a movie for this genre or this movie was used
           if (genreToTopMovie.has(primaryGenre) || usedMovieIds.has(movie.id)) continue;
 
-          // This is the top movie for this primary genre
           genreToTopMovie.set(primaryGenre, {
             genre_id: primaryGenre.toLowerCase().replace(/\s+/g, '-'),
             genre_name: primaryGenre,
             title_id: movie.id,
             title_name: movie.name!,
             poster_path: movie.poster_path!,
-            popularity: movie.popularity || 0
+            score: movie.combinedScore
           });
           usedMovieIds.add(movie.id);
         }
 
-        // Convert to array and sort by popularity
+        // Convert to array and sort by score
         const genreOptions = Array.from(genreToTopMovie.values())
-          .sort((a, b) => b.popularity - a.popularity);
+          .sort((a, b) => b.score - a.score);
 
         setOptions(genreOptions);
       } catch (err) {
