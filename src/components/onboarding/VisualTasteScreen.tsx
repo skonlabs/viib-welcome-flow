@@ -1,37 +1,89 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import { Check, ArrowRight } from "@/icons";
 import { BackButton } from "./BackButton";
 import { FloatingParticles } from "./FloatingParticles";
+import { supabase } from "@/integrations/supabase/client";
+
+interface VisualTasteOption {
+  id: string;
+  genre_id: string;
+  genre_name: string;
+  mood_description: string | null;
+  poster_path: string | null;
+  gradient_class: string | null;
+}
 
 interface VisualTasteScreenProps {
   onContinue: (selections: string[]) => void;
   onBack: () => void;
 }
 
+const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w500";
+
 export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps) => {
-  const [selectedPosters, setSelectedPosters] = useState<string[]>([]);
+  const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
+  const [options, setOptions] = useState<VisualTasteOption[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const posters = [
-    { id: "1", title: "Epic Sci-Fi", mood: "Expansive Worlds", gradient: "from-blue-600 via-indigo-700 to-purple-800", image: "🚀" },
-    { id: "2", title: "Intimate Drama", mood: "Deep Emotions", gradient: "from-rose-600 via-pink-700 to-red-800", image: "❤️" },
-    { id: "3", title: "Mystery Thriller", mood: "Edge of Seat", gradient: "from-slate-700 via-gray-800 to-zinc-900", image: "🔍" },
-    { id: "4", title: "Feel-Good Comedy", mood: "Pure Joy", gradient: "from-amber-500 via-orange-600 to-yellow-600", image: "😄" },
-    { id: "5", title: "Nature Documentary", mood: "Awe & Wonder", gradient: "from-emerald-600 via-teal-700 to-cyan-800", image: "🌿" },
-    { id: "6", title: "Historical Epic", mood: "Grand Scale", gradient: "from-amber-700 via-brown-800 to-stone-900", image: "⚔️" },
-  ];
+  useEffect(() => {
+    const loadOptions = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('visual_taste_options')
+          .select('id, genre_id, genre_name, mood_description, poster_path, gradient_class')
+          .eq('is_active', true)
+          .order('display_order');
 
-  const togglePoster = (posterId: string) => {
-    setSelectedPosters((prev) =>
-      prev.includes(posterId)
-        ? prev.filter((id) => id !== posterId)
-        : [...prev, posterId]
+        if (error) throw error;
+        setOptions(data || []);
+      } catch (err) {
+        console.error('Failed to load visual taste options:', err);
+        // Fallback to hardcoded options if DB fails
+        setOptions([
+          { id: "1", genre_id: "scifi", genre_name: "Epic Sci-Fi", mood_description: "Expansive Worlds", poster_path: "/nBNZadXqJSdt05SHLqgT0HuC5Gm.jpg", gradient_class: "from-blue-600 via-indigo-700 to-purple-800" },
+          { id: "2", genre_id: "drama", genre_name: "Intimate Drama", mood_description: "Deep Emotions", poster_path: "/pB8BM7pdSp6B6Ih7QZ4DrQ3PmJK.jpg", gradient_class: "from-rose-600 via-pink-700 to-red-800" },
+          { id: "3", genre_id: "thriller", genre_name: "Mystery Thriller", mood_description: "Edge of Seat", poster_path: "/8IB2e4r4oVhHnANbnm7O3Tj6tF8.jpg", gradient_class: "from-slate-700 via-gray-800 to-zinc-900" },
+          { id: "4", genre_id: "comedy", genre_name: "Feel-Good Comedy", mood_description: "Pure Joy", poster_path: "/2CAL2433ZeIihfX1Hb2139CX0pW.jpg", gradient_class: "from-amber-500 via-orange-600 to-yellow-600" },
+          { id: "5", genre_id: "documentary", genre_name: "Nature Documentary", mood_description: "Awe & Wonder", poster_path: "/8tZYtuWezp8JbcsvHYO0O46tFbo.jpg", gradient_class: "from-emerald-600 via-teal-700 to-cyan-800" },
+          { id: "6", genre_id: "history", genre_name: "Historical Epic", mood_description: "Grand Scale", poster_path: "/8DUxtioaQQMgxitHqvWJ3K6xzGM.jpg", gradient_class: "from-amber-700 via-yellow-800 to-stone-900" },
+        ]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadOptions();
+  }, []);
+
+  const toggleGenre = (genreId: string) => {
+    setSelectedGenres((prev) =>
+      prev.includes(genreId)
+        ? prev.filter((id) => id !== genreId)
+        : [...prev, genreId]
     );
   };
 
+  const handleContinue = async () => {
+    // Save visual taste preferences to database
+    const userId = localStorage.getItem('viib_user_id');
+    if (userId && selectedGenres.length > 0) {
+      try {
+        // Store as user preferences (can be used for recommendations)
+        await supabase.from('user_vibe_preferences').upsert({
+          user_id: userId,
+          vibe_type: selectedGenres.join(',')
+        }, { onConflict: 'user_id' });
+      } catch (err) {
+        console.error('Failed to save visual taste:', err);
+      }
+    }
+    onContinue(selectedGenres);
+  };
+
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-black">
+    <div className="min-h-screen flex items-center justify-center p-4 pt-16 relative overflow-hidden bg-black">
       <BackButton onClick={onBack} />
       
       {/* Background container - fixed positioning */}
@@ -98,83 +150,92 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
           </motion.div>
 
           {/* Poster Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            {posters.map((poster, index) => {
-              const isSelected = selectedPosters.includes(poster.id);
-              
-              return (
-                <motion.div
-                  key={poster.id}
-                  initial={{ opacity: 0, y: 30 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ 
-                    delay: index * 0.08,
-                    type: "spring",
-                    stiffness: 100
-                  }}
-                  className="relative group"
-                >
-                  <motion.button
-                    onClick={() => togglePoster(poster.id)}
-                    whileHover={{ scale: 1.05, y: -10 }}
-                    whileTap={{ scale: 0.95 }}
-                    className="relative w-full aspect-[2/3] rounded-3xl overflow-hidden"
+          {loading ? (
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <div key={i} className="aspect-[2/3] rounded-3xl bg-white/5 animate-pulse" />
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              {options.map((option, index) => {
+                const isSelected = selectedGenres.includes(option.genre_id);
+                const posterUrl = option.poster_path 
+                  ? `${TMDB_IMAGE_BASE}${option.poster_path}`
+                  : null;
+                
+                return (
+                  <motion.div
+                    key={option.id}
+                    initial={{ opacity: 0, y: 30 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ 
+                      delay: index * 0.08,
+                      type: "spring",
+                      stiffness: 100
+                    }}
+                    className="relative group"
                   >
-                    <div className={`absolute inset-0 bg-gradient-to-br ${poster.gradient} transition-all duration-300`} />
-                    
-                    <AnimatePresence>
-                      {isSelected && (
-                        <>
-                          <motion.div
-                            initial={{ scale: 0 }}
-                            animate={{ scale: 1 }}
-                            exit={{ scale: 0 }}
-                            className="absolute top-4 right-4 z-10 w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-2xl"
-                          >
-                            <Check className="w-6 h-6 text-black" />
-                          </motion.div>
-                          
-                          <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            className="absolute inset-0 ring-4 ring-white rounded-3xl"
-                          />
-                        </>
+                    <motion.button
+                      onClick={() => toggleGenre(option.genre_id)}
+                      whileHover={{ scale: 1.05, y: -10 }}
+                      whileTap={{ scale: 0.95 }}
+                      className="relative w-full aspect-[2/3] rounded-3xl overflow-hidden"
+                    >
+                      {/* Background: Poster or Gradient fallback */}
+                      {posterUrl ? (
+                        <img
+                          src={posterUrl}
+                          alt={option.genre_name}
+                          className="absolute inset-0 w-full h-full object-cover"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div className={`absolute inset-0 bg-gradient-to-br ${option.gradient_class || 'from-primary to-accent'}`} />
                       )}
-                    </AnimatePresence>
-                    
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
-                    
-                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-4 text-white">
-                      <motion.span 
-                        className="text-5xl"
-                        animate={{
-                          scale: isSelected ? [1, 1.2, 1] : 1,
-                        }}
-                        transition={{ duration: 0.3 }}
-                      >
-                        {poster.image}
-                      </motion.span>
-                    </div>
-                    
-                    <div className="absolute bottom-0 left-0 right-0 p-4 space-y-0.5 text-white">
-                      <p className="text-base font-bold">
-                        {poster.title}
-                      </p>
-                      <p className="text-xs text-white/70">
-                        {poster.mood}
-                      </p>
-                    </div>
-                    
-                    {!isSelected && (
-                      <div className="absolute inset-0 bg-black/20 group-hover:bg-black/0 transition-colors" />
-                    )}
-                  </motion.button>
-                </motion.div>
-              );
-            })}
-          </div>
+                      
+                      <AnimatePresence>
+                        {isSelected && (
+                          <>
+                            <motion.div
+                              initial={{ scale: 0 }}
+                              animate={{ scale: 1 }}
+                              exit={{ scale: 0 }}
+                              className="absolute top-4 right-4 z-10 w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-2xl"
+                            >
+                              <Check className="w-6 h-6 text-black" />
+                            </motion.div>
+                            
+                            <motion.div
+                              initial={{ opacity: 0 }}
+                              animate={{ opacity: 1 }}
+                              exit={{ opacity: 0 }}
+                              className="absolute inset-0 ring-4 ring-white rounded-3xl"
+                            />
+                          </>
+                        )}
+                      </AnimatePresence>
+                      
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
+                      
+                      <div className="absolute bottom-0 left-0 right-0 p-4 space-y-0.5 text-white">
+                        <p className="text-base font-bold">
+                          {option.genre_name}
+                        </p>
+                        <p className="text-xs text-white/70">
+                          {option.mood_description}
+                        </p>
+                      </div>
+                      
+                      {!isSelected && (
+                        <div className="absolute inset-0 bg-black/20 group-hover:bg-black/0 transition-colors" />
+                      )}
+                    </motion.button>
+                  </motion.div>
+                );
+              })}
+            </div>
+          )}
 
           {/* Action */}
           <motion.div
@@ -184,15 +245,15 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
             transition={{ delay: 0.6 }}
           >
             <Button
-              onClick={() => onContinue(selectedPosters)}
-              disabled={selectedPosters.length < 2}
+              onClick={handleContinue}
+              disabled={selectedGenres.length < 2}
               size="2xl"
               variant="gradient"
               className="group shadow-[0_20px_50px_-15px_rgba(168,85,247,0.4)]"
             >
-              {selectedPosters.length < 2 
-                ? `Select ${2 - selectedPosters.length} more to continue`
-                : `Continue with ${selectedPosters.length} selections`
+              {selectedGenres.length < 2 
+                ? `Select ${2 - selectedGenres.length} more to continue`
+                : `Continue with ${selectedGenres.length} selections`
               }
               <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-2 transition-transform" />
             </Button>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { WelcomeScreen } from "@/components/onboarding/WelcomeScreen";
 import { EntryMethodScreen } from "@/components/onboarding/EntryMethodScreen";
@@ -17,6 +17,7 @@ import { SocialConnectionScreen } from "@/components/onboarding/SocialConnection
 import { FeedbackCaptureScreen } from "@/components/onboarding/FeedbackCaptureScreen";
 import { CompanionIntroScreen } from "@/components/onboarding/CompanionIntroScreen";
 import { CompletionScreen } from "@/components/onboarding/CompletionScreen";
+import { OnboardingProgressBar } from "@/components/onboarding/OnboardingProgressBar";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 
 type OnboardingStep =
@@ -579,8 +580,25 @@ export default function Onboarding() {
     );
   }
 
+  // Calculate current step number for progress bar
+  const stepOrder: OnboardingStep[] = [
+    "welcome", "entry", "phone", "otp", "email", "email-otp", "biometric", "identity",
+    "platforms", "languages", "mood", "taste", "dna", "social", "feedback", "companion", "completion"
+  ];
+  const currentStepNumber = stepOrder.indexOf(currentStep) + 1;
+  const totalSteps = 13; // Simplified view: welcome -> entry -> auth -> biometric -> identity -> platforms -> languages -> mood -> taste -> dna -> social -> feedback -> completion
+  
+  // Show progress bar only after welcome
+  const showProgressBar = currentStep !== "welcome";
+
   return (
     <div className="min-h-screen bg-black">
+      {showProgressBar && (
+        <OnboardingProgressBar 
+          currentStep={Math.min(currentStepNumber, totalSteps)} 
+          totalSteps={totalSteps} 
+        />
+      )}
       {currentStep === "welcome" && (
         <WelcomeScreen onContinue={handleWelcomeContinue} />
       )}

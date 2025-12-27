@@ -9,6 +9,7 @@ import { ProtectedRoute } from "@/components/app/ProtectedRoute";
 import { AppRedirect } from "@/components/app/AppRedirect";
 import { AppLayoutWrapper } from "@/components/app/AppLayoutWrapper";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { CookieConsentBanner } from "@/components/CookieConsentBanner";
 import Index from "./pages/Index";
 import Onboarding from "./pages/app/Onboarding";
 import Home from "./pages/app/Home";
@@ -71,6 +72,7 @@ const App = () => (
         <BrowserRouter>
           <AuthProvider>
             <AnimatedRoutes />
+            <CookieConsentBanner />
           </AuthProvider>
         </BrowserRouter>
       </TooltipProvider>
