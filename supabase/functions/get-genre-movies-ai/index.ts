@@ -50,25 +50,25 @@ serve(async (req) => {
       return langMap[code] || code;
     });
 
-    const prompt = `You are a movie database expert. List exactly ONE movie per genre that meets ALL criteria:
+    const prompt = `You are a movie database expert. List exactly ONE movie or series per genre that meets ALL criteria:
 
 STRICT CRITERIA:
 - Released in the past ${yearsBack} years (2022-2025)
 - Original language must be one of: ${languageNames.join(', ')}
 - Available on: ${streamingServices.join(' or ')}
 - Critically acclaimed OR widely popular
-- Each movie can only appear once (no duplicates)
+- Each movie or series can only appear once (no duplicates)
 
 IMPORTANT GENRE RULES:
 - Animation: ONLY animated films (like Pixar, Disney, anime). NOT live-action films with animated elements.
 - Documentary: ONLY non-fiction documentaries
-- Each movie MUST be the PRIMARY genre listed - not secondary
+- Each movie or series MUST be the PRIMARY genre listed - not secondary
 
-GENRES (one movie each):
+GENRES (one movie or series each):
 ${GENRES.join('\n')}
 
 OUTPUT FORMAT - Return ONLY valid JSON array:
-[{"title": "Movie Name", "genre": "Action", "language": "English"}]
+[{"title": "Movie Name", "genre": "Action", "language": "Language name"}]
 
 NO explanations, NO markdown, NO extra text. Start with [ and end with ]`;
 
