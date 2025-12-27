@@ -489,37 +489,67 @@ export default function Onboarding() {
     console.log("Onboarding completed with data:", onboardingData);
     
     try {
-      // Check if we have a stored user_id
-      const storedUserId = localStorage.getItem('viib_user_id');
+      let userId: string | null = null;
+      let userData: { email: string | null; password_hash: string | null; signup_method: string | null } | null = null;
       
-      if (!storedUserId) {
-        console.error('No user ID found in localStorage');
-        toast.error('Session expired. Please restart onboarding.');
-        navigate('/app/onboarding');
-        return;
+      // First, try to get user from Supabase Auth session (preferred method)
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      
+      if (authUser) {
+        console.log('Found authenticated user via auth.uid:', authUser.id);
+        
+        // Get the linked user profile from users table
+        const { data: profileData, error: profileError } = await supabase
+          .from('users')
+          .select('id, email, password_hash, signup_method')
+          .eq('auth_id', authUser.id)
+          .maybeSingle();
+        
+        if (profileError) {
+          console.error('Error fetching user profile by auth_id:', profileError);
+        }
+        
+        if (profileData) {
+          userId = profileData.id;
+          userData = profileData;
+          console.log('Found user profile linked to auth:', userId);
+        }
       }
       
-      console.log('Completing onboarding for user:', storedUserId);
-      
-      // Get user email and signup method - use maybeSingle to handle missing user gracefully
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('email, password_hash, signup_method')
-        .eq('id', storedUserId)
-        .maybeSingle();
-      
-      if (userError) {
-        console.error('Error fetching user data:', userError);
-        // Don't throw - try to continue without user data
+      // Fallback to localStorage if no auth session (legacy support)
+      if (!userId) {
+        const storedUserId = localStorage.getItem('viib_user_id');
+        
+        if (storedUserId) {
+          console.log('Using localStorage user ID:', storedUserId);
+          
+          const { data: storedUserData, error: userError } = await supabase
+            .from('users')
+            .select('id, email, password_hash, signup_method')
+            .eq('id', storedUserId)
+            .maybeSingle();
+          
+          if (userError) {
+            console.error('Error fetching user data:', userError);
+          }
+          
+          if (storedUserData) {
+            userId = storedUserData.id;
+            userData = storedUserData;
+          }
+        }
       }
       
-      if (!userData) {
-        console.warn('User not found in database, may have been deleted. Clearing session.');
+      // No user found via either method
+      if (!userId || !userData) {
+        console.error('No user found via auth session or localStorage');
         localStorage.removeItem('viib_user_id');
         toast.error('Session expired. Please restart onboarding.');
         navigate('/app/onboarding');
         return;
       }
+      
+      console.log('Completing onboarding for user:', userId);
       
       // Update user record with completion status
       const { error } = await supabase
@@ -528,7 +558,7 @@ export default function Onboarding() {
           onboarding_completed: true,
           is_active: true,
         })
-        .eq('id', storedUserId);
+        .eq('id', userId);
       
       if (error) {
         console.error('Error updating user record:', error);
@@ -537,30 +567,23 @@ export default function Onboarding() {
       
       console.log('Successfully updated onboarding_completed and is_active');
       
-      // Clean up resume flag
+      // Clean up localStorage
       localStorage.removeItem('viib_resume_onboarding');
+      localStorage.removeItem('viib_user_id');
       
-      // Sign in with Supabase Auth if email user and we have credentials
-      const email = navEmail || onboardingData.email || userData?.email;
-      const password = navPassword || onboardingData.password;
-      
-      if (userData?.signup_method === 'email' && email && password) {
-        // Try to sign in with Supabase Auth
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
+      // If not already authenticated and we have email credentials, sign in
+      if (!authUser && userData?.signup_method === 'email') {
+        const email = navEmail || onboardingData.email || userData?.email;
+        const password = navPassword || onboardingData.password;
         
-        if (signInError) {
-          console.warn('Auth sign-in failed, user may need to login manually:', signInError);
-        } else {
-          // Link auth user to profile
-          const { data: authData } = await supabase.auth.getUser();
-          if (authData?.user) {
-            await supabase
-              .from('users')
-              .update({ auth_id: authData.user.id })
-              .eq('id', storedUserId);
+        if (email && password) {
+          const { error: signInError } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+          });
+          
+          if (signInError) {
+            console.warn('Auth sign-in failed, user may need to login manually:', signInError);
           }
         }
       }
