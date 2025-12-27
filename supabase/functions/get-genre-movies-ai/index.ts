@@ -3,8 +3,76 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
+const tmdbApiKey = Deno.env.get('TMDB_API_KEY');
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+
+// Helper function to search TMDB as fallback
+async function searchTMDB(title: string): Promise<{
+  id: string;
+  name: string;
+  poster_path: string | null;
+  backdrop_path: string | null;
+  overview: string | null;
+  vote_average: number | null;
+  release_date: string | null;
+  original_language: string | null;
+  title_type?: string | null;
+} | null> {
+  if (!tmdbApiKey) {
+    console.log('[get-genre-movies-ai] TMDB_API_KEY not configured, skipping fallback');
+    return null;
+  }
+
+  try {
+    // Search for movies first
+    const movieResponse = await fetch(
+      `https://api.themoviedb.org/3/search/movie?api_key=${tmdbApiKey}&query=${encodeURIComponent(title)}&page=1`
+    );
+    const movieData = await movieResponse.json();
+    
+    if (movieData.results && movieData.results.length > 0) {
+      const movie = movieData.results[0];
+      return {
+        id: `tmdb-movie-${movie.id}`,
+        name: movie.title,
+        poster_path: movie.poster_path,
+        backdrop_path: movie.backdrop_path,
+        overview: movie.overview,
+        vote_average: movie.vote_average,
+        release_date: movie.release_date,
+        original_language: movie.original_language,
+        title_type: 'movie'
+      };
+    }
+
+    // If no movie found, search TV shows
+    const tvResponse = await fetch(
+      `https://api.themoviedb.org/3/search/tv?api_key=${tmdbApiKey}&query=${encodeURIComponent(title)}&page=1`
+    );
+    const tvData = await tvResponse.json();
+    
+    if (tvData.results && tvData.results.length > 0) {
+      const tv = tvData.results[0];
+      return {
+        id: `tmdb-tv-${tv.id}`,
+        name: tv.name,
+        poster_path: tv.poster_path,
+        backdrop_path: tv.backdrop_path,
+        overview: tv.overview,
+        vote_average: tv.vote_average,
+        release_date: tv.first_air_date,
+        original_language: tv.original_language,
+        title_type: 'tv'
+      };
+    }
+
+    return null;
+  } catch (error) {
+    console.error(`[get-genre-movies-ai] TMDB search error for "${title}":`, error);
+    return null;
+  }
+}
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -135,8 +203,10 @@ NO explanations, NO markdown, NO extra text. Start with [ and end with ]`;
         vote_average: number | null;
         release_date: string | null;
         original_language: string | null;
+        title_type?: string | null;
       } | null;
       ai_recommendation: { title: string; language: string };
+      source: string;
     }> = [];
 
     // Query each title from the database (case-insensitive, movies or series)
@@ -151,18 +221,41 @@ NO explanations, NO markdown, NO extra text. Start with [ and end with ]`;
         console.error(`[get-genre-movies-ai] Error querying title "${rec.title}":`, error);
       }
 
+      let titleData: {
+        id: string;
+        name: string;
+        poster_path: string | null;
+        backdrop_path: string | null;
+        overview: string | null;
+        vote_average: number | null;
+        release_date: string | null;
+        original_language: string | null;
+        title_type?: string | null;
+      } | null = titles && titles.length > 0 ? titles[0] : null;
+      let source = 'database';
+
+      // Fallback to TMDB if not found in database
+      if (!titleData) {
+        console.log(`[get-genre-movies-ai] "${rec.title}" not in DB, trying TMDB...`);
+        titleData = await searchTMDB(rec.title);
+        source = titleData ? 'tmdb' : 'not_found';
+      }
+
       results.push({
         genre: rec.genre,
-        title: titles && titles.length > 0 ? titles[0] : null,
-        ai_recommendation: { title: rec.title, language: rec.language }
+        title: titleData,
+        ai_recommendation: { title: rec.title, language: rec.language },
+        source
       });
 
-      console.log(`[get-genre-movies-ai] ${rec.genre}: "${rec.title}" -> ${titles && titles.length > 0 ? 'FOUND' : 'NOT FOUND'}`);
+      console.log(`[get-genre-movies-ai] ${rec.genre}: "${rec.title}" -> ${titleData ? `FOUND (${source})` : 'NOT FOUND'}`);
     }
 
     // Count found vs not found
     const found = results.filter(r => r.title !== null).length;
-    console.log(`[get-genre-movies-ai] Found ${found}/${results.length} movies in database`);
+    const fromDb = results.filter(r => r.source === 'database').length;
+    const fromTmdb = results.filter(r => r.source === 'tmdb').length;
+    console.log(`[get-genre-movies-ai] Found ${found}/${results.length} (DB: ${fromDb}, TMDB: ${fromTmdb})`);
 
     return new Response(
       JSON.stringify({ 
@@ -170,6 +263,8 @@ NO explanations, NO markdown, NO extra text. Start with [ and end with ]`;
         stats: {
           total: results.length,
           found,
+          fromDb,
+          fromTmdb,
           notFound: results.length - found
         }
       }),
