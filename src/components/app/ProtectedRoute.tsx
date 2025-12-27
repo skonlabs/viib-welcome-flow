@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 
 interface ProtectedRouteProps {
@@ -7,44 +7,49 @@ interface ProtectedRouteProps {
 }
 
 export const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
-  const { user, profile, loading: authLoading } = useAuth();
+  const { user, profile, loading } = useAuth();
   const navigate = useNavigate();
-  const [ready, setReady] = useState(false);
+  const location = useLocation();
+  const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
     // Wait for auth to finish loading
-    if (authLoading) {
+    if (loading) {
       return;
     }
 
-    // Auth finished - now check state
+    // No authenticated user - redirect to login
     if (!user) {
-      // No authenticated user - go to login
-      navigate('/login');
+      navigate('/login', { replace: true });
       return;
     }
 
+    // User authenticated but no profile found
+    // This means they're a new Supabase Auth user without a linked profile
     if (!profile) {
-      // User exists in Supabase Auth but no linked profile in users table
-      // This shouldn't happen normally - redirect to login
-      console.warn('Authenticated user has no profile');
-      navigate('/login');
+      console.warn('User authenticated but no profile found, redirecting to onboarding');
+      navigate('/app/onboarding', { replace: true });
       return;
     }
 
-    // Check onboarding status from profile
+    // Check onboarding status
     if (!profile.onboarding_completed) {
+      // Store that we're resuming onboarding
       localStorage.setItem('viib_resume_onboarding', 'true');
-      navigate('/app/onboarding');
-      return;
+      
+      // Don't redirect if already on onboarding page
+      if (!location.pathname.startsWith('/app/onboarding')) {
+        navigate('/app/onboarding', { replace: true });
+        return;
+      }
     }
 
-    // All checks passed - ready to show content
-    setReady(true);
-  }, [user, profile, authLoading, navigate]);
+    // All checks passed - ready to render
+    setIsReady(true);
+  }, [user, profile, loading, navigate, location.pathname]);
 
-  // Show loading while auth is loading OR we haven't verified everything
-  if (authLoading || !ready) {
+  // Show loading spinner while checking auth
+  if (loading || !isReady) {
     return (
       <div className="min-h-screen bg-gradient-ocean flex items-center justify-center">
         <div className="text-center">
