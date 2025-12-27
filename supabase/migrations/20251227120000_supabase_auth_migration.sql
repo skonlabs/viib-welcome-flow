@@ -303,7 +303,7 @@ CREATE POLICY "vibe_lists_select_auth"
     TO authenticated
     USING (
         user_id = get_user_id_from_auth()
-        OR is_public = true
+        OR visibility = 'public'
         OR EXISTS (
             SELECT 1 FROM vibe_list_shared_with
             WHERE vibe_list_id = vibe_lists.id
