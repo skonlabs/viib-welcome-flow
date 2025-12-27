@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -8,6 +8,8 @@ import { Play, Pause, RefreshCw, Clock, Calendar as CalendarIcon, Settings, XCir
 import { errorLogger } from "@/lib/services/ErrorLoggerService";
 import { CronMetricsDashboard } from "./CronMetricsDashboard";
 import { ThreadMonitor } from "./ThreadMonitor";
+import { JobScheduleDialog, RecurrenceConfig } from "./JobScheduleDialog";
+import { useVisibilityAwarePolling } from "@/hooks/useVisibilityAwarePolling";
 import {
   Dialog,
   DialogContent,
@@ -30,7 +32,8 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { format } from "date-fns";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { format, addDays, addWeeks, addMonths } from "date-fns";
 import { cn } from "@/lib/utils";
 
 interface Job {
@@ -451,21 +454,68 @@ export const Jobs = () => {
     }
   };
 
+  // Visibility-aware polling for job status updates
+  const handlePollJobs = useCallback(async () => {
+    await Promise.all([
+      fetchJobs(),
+      fetchJobMetrics(),
+      fetchEnrichMetrics(),
+      fetchStreamingMetrics(),
+    ]);
+  }, []);
+
+  // Use visibility-aware polling - jobs continue in background, UI updates pause when hidden
+  useVisibilityAwarePolling({
+    visibleInterval: 10000, // Poll every 10s when visible
+    hiddenInterval: 0, // Stop polling when hidden (jobs still run on server)
+    enabled: true,
+    onPoll: handlePollJobs,
+  });
+
+  // Initial fetch
   useEffect(() => {
     fetchJobs();
     fetchCronJobs();
     fetchJobMetrics();
     fetchEnrichMetrics();
     fetchStreamingMetrics();
-    // Refresh every 10 seconds
-    const interval = setInterval(() => {
-      fetchJobs();
-      fetchJobMetrics();
-      fetchEnrichMetrics();
-      fetchStreamingMetrics();
-    }, 10000);
-    return () => clearInterval(interval);
   }, []);
+
+  // Handle job scheduling with recurrence
+  const handleScheduleJob = async (job: Job, nextRunAt: string, recurrence: RecurrenceConfig | null) => {
+    try {
+      const newConfig = {
+        ...job.configuration,
+        recurrence: recurrence,
+      };
+      
+      const { error } = await supabase
+        .from('jobs')
+        .update({ 
+          configuration: newConfig,
+          next_run_at: nextRunAt,
+        })
+        .eq('id', job.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Job Scheduled",
+        description: recurrence 
+          ? `${job.job_name} scheduled to run ${recurrence.type} at ${recurrence.time}`
+          : `${job.job_name} scheduled for ${format(new Date(nextRunAt), "PPP 'at' HH:mm")}`,
+      });
+
+      await fetchJobs();
+    } catch (error) {
+      await errorLogger.log(error, { operation: 'schedule_job', jobId: job.id });
+      toast({
+        title: "Error",
+        description: "Failed to schedule job. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
 
   const handleRunJob = async (job: Job) => {
     try {
@@ -1751,7 +1801,14 @@ export const Jobs = () => {
                   </div>
                   <div className="space-y-1">
                     <div className="text-muted-foreground">Next Run</div>
-                    <div className="font-medium">{formatDate(job.next_run_at)}</div>
+                    <div className="font-medium">
+                      {formatDate(job.next_run_at)}
+                      {job.configuration?.recurrence && (
+                        <Badge variant="outline" className="ml-2 text-xs">
+                          {job.configuration.recurrence.type}
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                   <div className="space-y-1">
                     <div className="text-muted-foreground">Titles Processed</div>
@@ -1908,21 +1965,22 @@ export const Jobs = () => {
                 )}
                 <Button
                   onClick={() => handleToggleActive(job)}
-                  variant={job.is_active ? "destructive" : "default"}
+                  variant={job.is_active ? "outline" : "default"}
+                  size="sm"
                   disabled={job.status === 'running'}
+                  title={job.is_active ? "Pause automatic scheduling" : "Enable automatic scheduling"}
                 >
                   {job.is_active ? (
-                    <>
-                      <Pause className="w-4 h-4 mr-2" />
-                      Pause
-                    </>
+                    <Pause className="w-4 h-4" />
                   ) : (
-                    <>
-                      <Play className="w-4 h-4 mr-2" />
-                      Activate
-                    </>
+                    <Play className="w-4 h-4" />
                   )}
                 </Button>
+                <JobScheduleDialog
+                  jobName={job.job_name}
+                  currentNextRun={job.next_run_at}
+                  onSchedule={(nextRunAt, recurrence) => handleScheduleJob(job, nextRunAt, recurrence)}
+                />
                 <JobConfigDialog job={job} onUpdate={handleUpdateConfig} />
               </div>
             </CardContent>
@@ -2299,10 +2357,57 @@ interface CronConfigDialogProps {
 const CronConfigDialog = ({ cronJob, onUpdate }: CronConfigDialogProps) => {
   const [schedule, setSchedule] = useState(cronJob.schedule);
   const [open, setOpen] = useState(false);
+  const [scheduleType, setScheduleType] = useState<'custom' | 'daily' | 'weekly' | 'monthly'>('custom');
+  const [time, setTime] = useState('02:00');
+  const [dayOfWeek, setDayOfWeek] = useState(0);
+  const [dayOfMonth, setDayOfMonth] = useState(1);
 
   const handleSave = async () => {
     await onUpdate(cronJob, schedule);
     setOpen(false);
+  };
+
+  // Generate cron schedule from easy options
+  const generateSchedule = (type: 'daily' | 'weekly' | 'monthly', timeValue: string, dow: number, dom: number) => {
+    const [hours, minutes] = timeValue.split(':');
+    switch (type) {
+      case 'daily':
+        return `${minutes} ${hours} * * *`;
+      case 'weekly':
+        return `${minutes} ${hours} * * ${dow}`;
+      case 'monthly':
+        return `${minutes} ${hours} ${dom} * *`;
+      default:
+        return schedule;
+    }
+  };
+
+  const handleScheduleTypeChange = (type: 'custom' | 'daily' | 'weekly' | 'monthly') => {
+    setScheduleType(type);
+    if (type !== 'custom') {
+      setSchedule(generateSchedule(type, time, dayOfWeek, dayOfMonth));
+    }
+  };
+
+  const handleTimeChange = (newTime: string) => {
+    setTime(newTime);
+    if (scheduleType !== 'custom') {
+      setSchedule(generateSchedule(scheduleType, newTime, dayOfWeek, dayOfMonth));
+    }
+  };
+
+  const handleDayOfWeekChange = (dow: number) => {
+    setDayOfWeek(dow);
+    if (scheduleType === 'weekly') {
+      setSchedule(generateSchedule('weekly', time, dow, dayOfMonth));
+    }
+  };
+
+  const handleDayOfMonthChange = (dom: number) => {
+    setDayOfMonth(dom);
+    if (scheduleType === 'monthly') {
+      setSchedule(generateSchedule('monthly', time, dayOfWeek, dom));
+    }
   };
 
   // Parse cron schedule to human-readable format
@@ -2311,6 +2416,7 @@ const CronConfigDialog = ({ cronJob, onUpdate }: CronConfigDialogProps) => {
     if (parts.length < 5) return 'Invalid schedule';
     
     const [minute, hour, dayMonth, month, dayWeek] = parts;
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     
     if (hour.includes('*/')) {
       const interval = hour.replace('*/', '');
@@ -2318,6 +2424,12 @@ const CronConfigDialog = ({ cronJob, onUpdate }: CronConfigDialogProps) => {
     }
     if (minute === '0' && hour === '*') {
       return 'Every hour at the start of the hour';
+    }
+    if (dayMonth !== '*' && month === '*' && dayWeek === '*') {
+      return `Monthly on day ${dayMonth} at ${hour}:${minute.padStart(2, '0')}`;
+    }
+    if (dayMonth === '*' && month === '*' && dayWeek !== '*') {
+      return `Weekly on ${days[parseInt(dayWeek)] || dayWeek} at ${hour}:${minute.padStart(2, '0')}`;
     }
     if (dayMonth === '*' && month === '*' && dayWeek === '*') {
       if (hour === '*') return `Every hour at minute ${minute}`;
@@ -2333,65 +2445,117 @@ const CronConfigDialog = ({ cronJob, onUpdate }: CronConfigDialogProps) => {
           <Settings className="w-4 h-4" />
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Configure {cronJob.jobname}</DialogTitle>
           <DialogDescription>
-            Update the cron schedule for this job
+            Set the schedule for this cron job
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">
+          {/* Schedule Type */}
           <div className="space-y-2">
-            <Label>Cron Schedule</Label>
-            <Input
-              value={schedule}
-              onChange={(e) => setSchedule(e.target.value)}
-              placeholder="* * * * *"
-              className="font-mono"
-            />
-            <p className="text-xs text-muted-foreground">
-              Format: minute hour day-of-month month day-of-week
-            </p>
+            <Label>Schedule Type</Label>
+            <Select value={scheduleType} onValueChange={(v) => handleScheduleTypeChange(v as any)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="daily">Daily</SelectItem>
+                <SelectItem value="weekly">Weekly</SelectItem>
+                <SelectItem value="monthly">Monthly</SelectItem>
+                <SelectItem value="custom">Custom (Cron)</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
+
+          {/* Time picker for non-custom */}
+          {scheduleType !== 'custom' && (
+            <div className="space-y-2">
+              <Label>Time (24-hour format)</Label>
+              <Input
+                type="time"
+                value={time}
+                onChange={(e) => handleTimeChange(e.target.value)}
+              />
+            </div>
+          )}
+
+          {/* Day of week for weekly */}
+          {scheduleType === 'weekly' && (
+            <div className="space-y-2">
+              <Label>Day of Week</Label>
+              <Select value={String(dayOfWeek)} onValueChange={(v) => handleDayOfWeekChange(Number(v))}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="0">Sunday</SelectItem>
+                  <SelectItem value="1">Monday</SelectItem>
+                  <SelectItem value="2">Tuesday</SelectItem>
+                  <SelectItem value="3">Wednesday</SelectItem>
+                  <SelectItem value="4">Thursday</SelectItem>
+                  <SelectItem value="5">Friday</SelectItem>
+                  <SelectItem value="6">Saturday</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {/* Day of month for monthly */}
+          {scheduleType === 'monthly' && (
+            <div className="space-y-2">
+              <Label>Day of Month</Label>
+              <Input
+                type="number"
+                min={1}
+                max={31}
+                value={dayOfMonth}
+                onChange={(e) => handleDayOfMonthChange(Math.min(31, Math.max(1, Number(e.target.value))))}
+              />
+            </div>
+          )}
+
+          {/* Custom cron input */}
+          {scheduleType === 'custom' && (
+            <div className="space-y-2">
+              <Label>Cron Expression</Label>
+              <Input
+                value={schedule}
+                onChange={(e) => setSchedule(e.target.value)}
+                placeholder="* * * * *"
+                className="font-mono"
+              />
+              <p className="text-xs text-muted-foreground">
+                Format: minute hour day-of-month month day-of-week
+              </p>
+              
+              {/* Quick presets */}
+              <div className="grid grid-cols-2 gap-2 pt-2">
+                <Button variant="outline" size="sm" onClick={() => setSchedule('0 * * * *')}>
+                  Every hour
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setSchedule('0 */6 * * *')}>
+                  Every 6 hours
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setSchedule('0 0 * * *')}>
+                  Daily midnight
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setSchedule('0 2 * * *')}>
+                  Daily 2 AM
+                </Button>
+              </div>
+            </div>
+          )}
           
+          {/* Schedule Preview */}
           <div className="p-3 bg-muted rounded-lg">
             <div className="text-sm font-medium mb-1">Schedule Preview</div>
             <div className="text-sm text-muted-foreground">
               {getCronDescription(schedule)}
             </div>
-          </div>
-          
-          <div className="space-y-2">
-            <Label className="text-sm">Common Schedules</Label>
-            <div className="grid grid-cols-2 gap-2">
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => setSchedule('0 * * * *')}
-              >
-                Every hour
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => setSchedule('0 */6 * * *')}
-              >
-                Every 6 hours
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => setSchedule('0 0 * * *')}
-              >
-                Daily at midnight
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => setSchedule('0 2 * * *')}
-              >
-                Daily at 2 AM
-              </Button>
+            <div className="text-xs text-muted-foreground font-mono mt-1">
+              {schedule}
             </div>
           </div>
         </div>
