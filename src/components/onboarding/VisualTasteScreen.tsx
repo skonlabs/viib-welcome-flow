@@ -37,34 +37,43 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
 
         if (genreError) throw genreError;
 
-        // For each genre, get the most popular title with a poster
+        // Track used title IDs to ensure uniqueness across genres
+        const usedTitleIds = new Set<string>();
         const genreTitles: GenreTitleOption[] = [];
 
         for (const genre of genres || []) {
-          const { data: titles, error: titleError } = await supabase
+          // Get multiple titles per genre so we can find an unused one
+          const { data: titleGenres, error: titleError } = await supabase
             .from('title_genres')
-            .select(`
-              genre_id,
-              titles!inner (
-                id,
-                name,
-                poster_path,
-                popularity
-              )
-            `)
-            .eq('genre_id', genre.id)
-            .not('titles.poster_path', 'is', null)
-            .order('titles(popularity)', { ascending: false })
-            .limit(1);
+            .select('genre_id, title_id')
+            .eq('genre_id', genre.id);
 
-          if (!titleError && titles && titles.length > 0) {
-            const title = titles[0].titles as any;
+          if (titleError || !titleGenres || titleGenres.length === 0) continue;
+
+          // Get the title details for this genre's titles
+          const titleIds = titleGenres.map(tg => tg.title_id);
+          
+          const { data: titles, error: titlesError } = await supabase
+            .from('titles')
+            .select('id, name, poster_path, popularity')
+            .in('id', titleIds)
+            .not('poster_path', 'is', null)
+            .order('popularity', { ascending: false })
+            .limit(10);
+
+          if (titlesError || !titles) continue;
+
+          // Find the first title that hasn't been used yet
+          const uniqueTitle = titles.find(t => !usedTitleIds.has(t.id));
+          
+          if (uniqueTitle) {
+            usedTitleIds.add(uniqueTitle.id);
             genreTitles.push({
               genre_id: genre.id,
               genre_name: genre.genre_name,
-              title_id: title.id,
-              title_name: title.name,
-              poster_path: title.poster_path,
+              title_id: uniqueTitle.id,
+              title_name: uniqueTitle.name || 'Unknown',
+              poster_path: uniqueTitle.poster_path!,
             });
           }
         }
