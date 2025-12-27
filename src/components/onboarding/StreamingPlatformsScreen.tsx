@@ -334,7 +334,7 @@ export const StreamingPlatformsScreen = ({ onContinue, onBack, initialPlatforms 
 
           {/* Continue Button */}
           <motion.div
-            className="flex flex-col items-center gap-4 pt-8"
+            className="flex justify-center pt-8"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 1.3, ease: [0.23, 1, 0.32, 1] }}
@@ -365,15 +365,6 @@ export const StreamingPlatformsScreen = ({ onContinue, onBack, initialPlatforms 
                 </Button>
               </div>
             </motion.div>
-            
-            <motion.button
-              onClick={() => onContinue([])}
-              className="text-muted-foreground hover:text-foreground transition-colors text-sm"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              Skip for now
-            </motion.button>
           </motion.div>
         </div>
       </motion.div>
