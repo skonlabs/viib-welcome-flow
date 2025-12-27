@@ -15,8 +15,6 @@ export const EmailOTPVerificationScreen = ({
   onBack,
 }: EmailOTPVerificationScreenProps) => {
   const handleVerify = async (code: string) => {
-    console.log("Verifying email OTP for:", email);
-
     if (!email || email.trim() === '') {
       throw new Error("Email is missing. Please go back and enter your email again.");
     }
@@ -49,7 +47,6 @@ export const EmailOTPVerificationScreen = ({
 
     // Store user ID from edge function response
     if (data.userId) {
-      console.log('User created with ID:', data.userId);
       localStorage.setItem('viib_user_id', data.userId);
     }
 
