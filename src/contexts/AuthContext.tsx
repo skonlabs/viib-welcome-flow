@@ -36,44 +36,73 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // CRITICAL: Set up auth state listener FIRST (before getSession)
-    // This prevents missing auth events during initialization
+    let mounted = true;
+
+    const initialize = async () => {
+      try {
+        // Get initial session - this establishes the auth context for RLS
+        const { data: { session: initialSession } } = await supabase.auth.getSession();
+        
+        if (!mounted) return;
+
+        if (initialSession?.user) {
+          setSession(initialSession);
+          setUser(initialSession.user);
+          
+          // Session is now established - RLS will work correctly
+          await fetchUserProfile(initialSession.user.id);
+        } else {
+          setSession(null);
+          setUser(null);
+          setProfile(null);
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error('Auth initialization error:', error);
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    // Initialize auth
+    initialize();
+
+    // Listen for auth changes AFTER initial setup
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        // Only synchronous state updates here - NO async calls!
-        setSession(session);
-        setUser(session?.user ?? null);
+      (event, newSession) => {
+        if (!mounted) return;
+
+        // Update session state synchronously
+        setSession(newSession);
+        setUser(newSession?.user ?? null);
 
         if (event === 'SIGNED_OUT') {
           setProfile(null);
           setIsAdmin(false);
           setLoading(false);
-        } else if (event === 'SIGNED_IN' && session?.user) {
-          // Defer Supabase calls with setTimeout to prevent deadlock
+        } else if (event === 'SIGNED_IN' && newSession?.user) {
+          // Defer profile fetch to next tick to ensure session is fully established
           setTimeout(() => {
-            fetchUserProfile(session.user.id);
+            if (mounted) {
+              fetchUserProfile(newSession.user.id);
+            }
           }, 0);
+        } else if (event === 'TOKEN_REFRESHED') {
+          // Token refreshed, profile should still be valid - no action needed
         }
       }
     );
 
-    // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchUserProfile(session.user.id);
-      } else {
-        setLoading(false);
-      }
-    });
-
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const fetchUserProfile = async (authId: string) => {
     try {
-      // Fetch user profile linked to auth user
+      // Query the users table - RLS policy will allow if auth.uid() matches auth_id
       const { data: userData, error: userError } = await supabase
         .from('users')
         .select('id, email, phone_number, full_name, username, country, timezone, language_preference, created_at, onboarding_completed, is_active')
@@ -158,6 +187,5 @@ export const useAuthContext = () => {
   return context;
 };
 
-// Backwards compatibility - some components use user.id
-// They should use profile.id for the internal user ID
+// Backwards compatibility
 export const useAuth = useAuthContext;
