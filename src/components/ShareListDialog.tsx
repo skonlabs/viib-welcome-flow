@@ -2,7 +2,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { errorLogger } from "@/lib/services/ErrorLoggerService";
+import { errorLogger } from "@/lib/services/LoggerService";
 import { Copy, Share2 } from "lucide-react";
 import { useState } from "react";
 

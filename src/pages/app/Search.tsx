@@ -111,17 +111,12 @@ export default function Search() {
 
     try {
       // Batch all user preference queries in parallel
-      const [userResult, subscriptionsResult, watchlistResult] = await Promise.all([
+      const [userResult, watchlistResult] = await Promise.all([
         supabase
           .from('users')
           .select('language_preference')
           .eq('id', profile.id)
           .single(),
-        supabase
-          .from('user_streaming_subscriptions')
-          .select('streaming_service_id')
-          .eq('user_id', profile.id)
-          .eq('is_active', true),
         supabase
           .from('user_title_interactions')
           .select('title_id')
@@ -131,10 +126,6 @@ export default function Search() {
 
       if (userResult.data?.language_preference) {
         setUserLanguage(userResult.data.language_preference);
-      }
-
-      if (subscriptionsResult.data) {
-        setUserServices(subscriptionsResult.data.map(sub => sub.streaming_service_id));
       }
 
       if (watchlistResult.data) {
@@ -148,21 +139,24 @@ export default function Search() {
   const loadServices = async () => {
     if (!profile) return;
 
-    const { data: streamingServices } = await supabase
-      .from('streaming_services')
-      .select('*')
-      .eq('is_active', true);
+    // Fetch both streaming services and user subscriptions in parallel
+    const [servicesResult, subscriptionsResult] = await Promise.all([
+      supabase
+        .from('streaming_services')
+        .select('*')
+        .eq('is_active', true),
+      supabase
+        .from('user_streaming_subscriptions')
+        .select('streaming_service_id')
+        .eq('user_id', profile.id)
+        .eq('is_active', true)
+    ]);
 
-    setServices(streamingServices || []);
+    const streamingServices = servicesResult.data || [];
+    setServices(streamingServices);
 
-    // Pre-select user's streaming subscriptions and get service names
-    const { data: userSubscriptions } = await supabase
-      .from('user_streaming_subscriptions')
-      .select('streaming_service_id')
-      .eq('user_id', profile.id)
-      .eq('is_active', true);
-
-    if (userSubscriptions && streamingServices) {
+    const userSubscriptions = subscriptionsResult.data || [];
+    if (userSubscriptions.length > 0) {
       const userServiceIds = userSubscriptions.map(sub => sub.streaming_service_id);
       setSelectedServices(userServiceIds);
       

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { errorLogger } from '@/lib/services/ErrorLoggerService';
+import { errorLogger } from '@/lib/services/LoggerService';
 
 export const AppRedirect = () => {
   const navigate = useNavigate();
