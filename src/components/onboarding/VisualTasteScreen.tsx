@@ -101,19 +101,26 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
           console.log('[VisualTaste] Found', titleIds.length, 'unique titles on streaming services');
 
           if (titleIds.length > 0) {
+            // Calculate 3 years ago date
+            const threeYearsAgo = new Date();
+            threeYearsAgo.setFullYear(threeYearsAgo.getFullYear() - 3);
+            const threeYearsAgoStr = threeYearsAgo.toISOString().split('T')[0];
+
             // Query in batches to avoid URL length limits
             const batchSize = 50;
             for (let i = 0; i < Math.min(titleIds.length, 500); i += batchSize) {
               const batch = titleIds.slice(i, i + batchSize);
               const { data: batchMovies, error } = await supabase
                 .from('titles')
-                .select('id, name, poster_path, popularity, vote_average, title_genres, certification, original_language')
+                .select('id, name, poster_path, popularity, vote_average, title_genres, certification, original_language, release_date')
                 .in('id', batch)
                 .eq('title_type', 'movie')
                 .in('original_language', languageCodes)
                 .not('poster_path', 'is', null)
                 .not('name', 'is', null)
                 .not('title_genres', 'is', null)
+                .not('release_date', 'is', null)
+                .gte('release_date', threeYearsAgoStr)
                 .gte('vote_average', 6)
                 .gte('popularity', 5);
 
@@ -121,21 +128,28 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
                 movies.push(...batchMovies);
               }
             }
-            console.log('[VisualTaste] Found', movies.length, 'movies matching language + streaming');
+            console.log('[VisualTaste] Found', movies.length, 'movies matching language + streaming + last 3 years');
           }
         }
         
         // Fallback: if no streaming results, query popular movies by language only
         if (movies.length === 0) {
-          console.log('[VisualTaste] Fallback: querying all popular movies for languages:', languageCodes);
+          // Calculate 3 years ago date
+          const threeYearsAgo = new Date();
+          threeYearsAgo.setFullYear(threeYearsAgo.getFullYear() - 3);
+          const threeYearsAgoStr = threeYearsAgo.toISOString().split('T')[0];
+
+          console.log('[VisualTaste] Fallback: querying all popular movies for languages:', languageCodes, 'since:', threeYearsAgoStr);
           const { data: allMovies, error } = await supabase
             .from('titles')
-            .select('id, name, poster_path, popularity, vote_average, title_genres, certification, original_language')
+            .select('id, name, poster_path, popularity, vote_average, title_genres, certification, original_language, release_date')
             .eq('title_type', 'movie')
             .in('original_language', languageCodes)
             .not('poster_path', 'is', null)
             .not('name', 'is', null)
             .not('title_genres', 'is', null)
+            .not('release_date', 'is', null)
+            .gte('release_date', threeYearsAgoStr)
             .gte('vote_average', 6)
             .gte('popularity', 10)
             .order('popularity', { ascending: false })
@@ -144,7 +158,7 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
           if (!error && allMovies) {
             movies = allMovies;
           }
-          console.log('[VisualTaste] Fallback found', movies.length, 'movies');
+          console.log('[VisualTaste] Fallback found', movies.length, 'movies from last 3 years');
         }
 
         if (movies.length === 0) {
