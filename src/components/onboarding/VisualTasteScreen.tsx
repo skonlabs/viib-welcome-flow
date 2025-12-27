@@ -6,11 +6,9 @@ import { BackButton } from "./BackButton";
 import { FloatingParticles } from "./FloatingParticles";
 import { supabase } from "@/integrations/supabase/client";
 
-
 interface GenreTitleOption {
   genre_id: string;
   genre_name: string;
-  title_id: string;
   title_name: string;
   poster_path: string;
   score: number;
@@ -24,11 +22,11 @@ interface VisualTasteScreenProps {
 const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w500";
 
 // Kids content certifications to exclude
-const KIDS_CERTIFICATIONS = ['G', 'TV-Y', 'TV-Y7', 'TV-G', 'TV-PG'];
+const KIDS_GENRES = ['Animation', 'Family'];
 
 // Genres to display
 const DISPLAY_GENRES = [
-  'Action', 'Adventure', 'Animation', 'Comedy', 'Crime', 'Documentary',
+  'Action', 'Adventure', 'Comedy', 'Crime', 'Documentary',
   'Drama', 'Fantasy', 'History', 'Horror', 'Music', 'Mystery',
   'Romance', 'Science Fiction', 'Thriller', 'War', 'Western'
 ];
@@ -41,161 +39,62 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
   useEffect(() => {
     const loadOptions = async () => {
       try {
-        let streamingServiceIds: string[] = [];
+        // Get user's language preferences
         let languageCodes: string[] = ['en']; // Default to English
-        let userRegion = 'US'; // Default region
 
-        // RLS handles user filtering automatically via auth.uid()
-        const { data: userStreaming, error: streamingError } = await supabase
-          .from('user_streaming_subscriptions')
-          .select('streaming_service_id')
-          .eq('is_active', true);
-
-        if (streamingError) {
-          console.error('[VisualTaste] Streaming query error:', streamingError);
-        } else {
-          streamingServiceIds = userStreaming?.map(s => s.streaming_service_id) || [];
-        }
-        console.log('[VisualTaste] Streaming services:', streamingServiceIds.length);
-
-        // RLS handles user filtering automatically
-        const { data: userLanguages, error: langError } = await supabase
+        const { data: userLanguages } = await supabase
           .from('user_language_preferences')
-          .select('language_code');
+          .select('language_code')
+          .order('priority_order', { ascending: true });
 
-        if (langError) {
-          console.error('[VisualTaste] Language query error:', langError);
-        } else if (userLanguages && userLanguages.length > 0) {
+        if (userLanguages && userLanguages.length > 0) {
           languageCodes = userLanguages.map(l => l.language_code);
         }
         console.log('[VisualTaste] Languages:', languageCodes);
 
-        // Get user's region - RLS filters to current user
-        const { data: userData } = await supabase
-          .from('users')
-          .select('ip_country')
-          .maybeSingle();
-
-        if (userData?.ip_country && userData.ip_country !== 'Unknown' && userData.ip_country !== 'pending') {
-          userRegion = userData.ip_country;
-        }
-        
-        console.log('[VisualTaste] Final config - Languages:', languageCodes, 'Region:', userRegion, 'Streaming:', streamingServiceIds.length);
-
-        // Query movies - use RPC or direct query based on streaming filter
-        let movies: any[] = [];
-        
-        if (streamingServiceIds.length > 0) {
-          // Query movies available on user's streaming services using a subquery approach
-          const { data: streamingTitleIds, error: streamingError } = await supabase
-            .from('title_streaming_availability')
-            .select('title_id')
-            .in('streaming_service_id', streamingServiceIds)
-            .eq('region_code', userRegion);
-
-          if (streamingError) {
-            console.error('[VisualTaste] Streaming availability error:', streamingError);
+        // Call TMDB discover edge function
+        const { data, error } = await supabase.functions.invoke('discover-tmdb', {
+          body: {
+            languages: languageCodes,
+            minRating: 6,
+            minPopularity: 10,
+            limit: 200,
+            excludeKids: true
           }
+        });
 
-          const titleIds = [...new Set(streamingTitleIds?.map(t => t.title_id) || [])];
-          console.log('[VisualTaste] Found', titleIds.length, 'unique titles on streaming services');
-
-          if (titleIds.length > 0) {
-            // Calculate 3 years ago date
-            const threeYearsAgo = new Date();
-            threeYearsAgo.setFullYear(threeYearsAgo.getFullYear() - 3);
-            const threeYearsAgoStr = threeYearsAgo.toISOString().split('T')[0];
-
-            // Query in batches to avoid URL length limits
-            const batchSize = 50;
-            for (let i = 0; i < Math.min(titleIds.length, 500); i += batchSize) {
-              const batch = titleIds.slice(i, i + batchSize);
-              const { data: batchMovies, error } = await supabase
-                .from('titles')
-                .select('id, name, poster_path, popularity, vote_average, title_genres, certification, original_language, release_date')
-                .in('id', batch)
-                .eq('title_type', 'movie')
-                .in('original_language', languageCodes)
-                .not('poster_path', 'is', null)
-                .not('name', 'is', null)
-                .not('title_genres', 'is', null)
-                .not('release_date', 'is', null)
-                .gte('release_date', threeYearsAgoStr)
-                .gte('vote_average', 6)
-                .gte('popularity', 5);
-
-              if (!error && batchMovies) {
-                movies.push(...batchMovies);
-              }
-            }
-            console.log('[VisualTaste] Found', movies.length, 'movies matching language + streaming + last 3 years');
-          }
-        }
-        
-        // Fallback: if no streaming results, query popular movies by language only
-        if (movies.length === 0) {
-          // Calculate 3 years ago date
-          const threeYearsAgo = new Date();
-          threeYearsAgo.setFullYear(threeYearsAgo.getFullYear() - 3);
-          const threeYearsAgoStr = threeYearsAgo.toISOString().split('T')[0];
-
-          console.log('[VisualTaste] Fallback: querying all popular movies for languages:', languageCodes, 'since:', threeYearsAgoStr);
-          const { data: allMovies, error } = await supabase
-            .from('titles')
-            .select('id, name, poster_path, popularity, vote_average, title_genres, certification, original_language, release_date')
-            .eq('title_type', 'movie')
-            .in('original_language', languageCodes)
-            .not('poster_path', 'is', null)
-            .not('name', 'is', null)
-            .not('title_genres', 'is', null)
-            .not('release_date', 'is', null)
-            .gte('release_date', threeYearsAgoStr)
-            .gte('vote_average', 6)
-            .gte('popularity', 10)
-            .order('popularity', { ascending: false })
-            .limit(500);
-
-          if (!error && allMovies) {
-            movies = allMovies;
-          }
-          console.log('[VisualTaste] Fallback found', movies.length, 'movies from last 3 years');
-        }
-
-        if (movies.length === 0) {
-          console.log('[VisualTaste] No movies found for user preferences');
+        if (error) {
+          console.error('[VisualTaste] TMDB edge function error:', error);
           setLoading(false);
           return;
         }
 
-        console.log('[VisualTaste] Found', movies.length, 'movies. Top 5:', movies.slice(0, 5).map(m => m.name));
+        const movies = data?.movies || [];
+        console.log('[VisualTaste] Got', movies.length, 'movies from TMDB');
+
+        if (movies.length === 0) {
+          console.log('[VisualTaste] No movies found');
+          setLoading(false);
+          return;
+        }
 
         // Calculate combined score and sort by blockbuster score
-        const scoredMovies = movies.map(movie => ({
+        const scoredMovies = movies.map((movie: any) => ({
           ...movie,
           combinedScore: (movie.vote_average || 0) * (movie.popularity || 0)
-        })).sort((a, b) => b.combinedScore - a.combinedScore);
+        })).sort((a: any, b: any) => b.combinedScore - a.combinedScore);
 
         // Build genre options - one movie per genre
         const genreToTopMovie = new Map<string, GenreTitleOption>();
-        const usedMovieIds = new Set<string>();
+        const usedMovies = new Set<string>();
 
         for (const movie of scoredMovies) {
-          // Skip kids content
-          if (movie.certification && KIDS_CERTIFICATIONS.includes(movie.certification)) {
-            continue;
-          }
-
-          // Parse title_genres
-          let genres: string[];
-          try {
-            genres = typeof movie.title_genres === 'string' 
-              ? JSON.parse(movie.title_genres) 
-              : movie.title_genres as string[];
-          } catch {
-            continue;
-          }
-
+          const genres = movie.genres || [];
           if (!genres || genres.length === 0) continue;
+
+          // Skip if movie is primarily kids content
+          const isKidsContent = genres.some((g: string) => KIDS_GENRES.includes(g));
+          if (isKidsContent && genres[0] && KIDS_GENRES.includes(genres[0])) continue;
 
           // Get primary genre (first in array)
           const primaryGenre = genres[0];
@@ -204,17 +103,19 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
           if (!DISPLAY_GENRES.includes(primaryGenre)) continue;
 
           // Skip if we already have a movie for this genre or this movie was used
-          if (genreToTopMovie.has(primaryGenre) || usedMovieIds.has(movie.id)) continue;
+          const movieKey = movie.name;
+          if (genreToTopMovie.has(primaryGenre) || usedMovies.has(movieKey)) continue;
+
+          if (!movie.poster_path) continue;
 
           genreToTopMovie.set(primaryGenre, {
             genre_id: primaryGenre.toLowerCase().replace(/\s+/g, '-'),
             genre_name: primaryGenre,
-            title_id: movie.id,
-            title_name: movie.name!,
-            poster_path: movie.poster_path!,
+            title_name: movie.name,
+            poster_path: movie.poster_path,
             score: movie.combinedScore
           });
-          usedMovieIds.add(movie.id);
+          usedMovies.add(movieKey);
         }
 
         // Convert to array and sort by score
@@ -244,7 +145,6 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
   const handleContinue = async () => {
     if (selectedGenres.length > 0) {
       try {
-        // Get current user - RLS ensures we only see our own data
         const { data: userData } = await supabase
           .from('users')
           .select('id')
