@@ -52,12 +52,11 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
           .eq('user_id', userId);
 
         const languageCodes = userLanguages?.map(l => l.language_code) || [];
-        // Always include English as fallback
         if (!languageCodes.includes('en')) {
           languageCodes.push('en');
         }
 
-        // Get user's region for streaming availability
+        // Get user's region
         const { data: userData } = await supabase
           .from('users')
           .select('ip_country')
@@ -66,8 +65,8 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
 
         const userRegion = userData?.ip_country || 'US';
 
-        // Get titles available on user's streaming services
-        let availableTitleIds: string[] = [];
+        // Get available title IDs based on streaming
+        let availableTitleIds: string[] | null = null;
         
         if (streamingServiceIds.length > 0) {
           const { data: streamingTitles } = await supabase
@@ -76,114 +75,76 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
             .in('streaming_service_id', streamingServiceIds)
             .eq('region_code', userRegion);
 
-          availableTitleIds = [...new Set(streamingTitles?.map(t => t.title_id) || [])];
+          if (streamingTitles && streamingTitles.length > 0) {
+            availableTitleIds = [...new Set(streamingTitles.map(t => t.title_id))];
+          }
         }
 
         // Get all genres
-        const { data: genres, error: genreError } = await supabase
+        const { data: genres } = await supabase
           .from('genres')
           .select('id, genre_name')
           .order('genre_name');
 
-        if (genreError) throw genreError;
         if (!genres || genres.length === 0) {
           setLoading(false);
           return;
         }
 
-        // Build query for popular titles
-        let titlesQuery = supabase
-          .from('titles')
-          .select('id, name, poster_path, popularity, original_language')
-          .not('poster_path', 'is', null)
-          .not('name', 'is', null)
-          .in('original_language', languageCodes)
-          .order('popularity', { ascending: false });
-
-        // Filter by available titles if user has streaming preferences
-        if (availableTitleIds.length > 0) {
-          titlesQuery = titlesQuery.in('id', availableTitleIds.slice(0, 500));
-        } else {
-          titlesQuery = titlesQuery.limit(500);
-        }
-
-        const { data: popularTitles, error: titlesError } = await titlesQuery;
-
-        if (titlesError) throw titlesError;
-        if (!popularTitles || popularTitles.length === 0) {
-          // Fallback: get any popular titles if filtered results are empty
-          const { data: fallbackTitles } = await supabase
-            .from('titles')
-            .select('id, name, poster_path, popularity, original_language')
-            .not('poster_path', 'is', null)
-            .not('name', 'is', null)
-            .order('popularity', { ascending: false })
-            .limit(300);
-
-          if (!fallbackTitles || fallbackTitles.length === 0) {
-            setLoading(false);
-            return;
-          }
-          
-          // Continue with fallback titles
-          await processGenreTitles(genres, fallbackTitles);
-          return;
-        }
-
-        await processGenreTitles(genres, popularTitles);
-
-      } catch (err) {
-        console.error('Failed to load genre titles:', err);
-        setLoading(false);
-      }
-    };
-
-    const processGenreTitles = async (
-      genres: { id: string; genre_name: string }[],
-      popularTitles: { id: string; name: string | null; poster_path: string | null; popularity: number | null }[]
-    ) => {
-      try {
-        // Get title-genre mappings for these titles
-        const titleIds = popularTitles.map(t => t.id);
-        
-        const { data: titleGenres } = await supabase
-          .from('title_genres')
-          .select('genre_id, title_id')
-          .in('title_id', titleIds);
-
-        if (!titleGenres) {
-          setLoading(false);
-          return;
-        }
-
-        // Create maps
-        const titleMap = new Map(popularTitles.map(t => [t.id, t]));
-        const genreToTitles = new Map<string, string[]>();
-        
-        for (const tg of titleGenres) {
-          const existing = genreToTitles.get(tg.genre_id) || [];
-          existing.push(tg.title_id);
-          genreToTitles.set(tg.genre_id, existing);
-        }
-
-        // Track used titles to ensure uniqueness
+        // Track used titles and build results
         const usedTitleIds = new Set<string>();
         const genreTitles: GenreTitleOption[] = [];
 
-        // For each genre, find the most popular unused title
+        // Process each genre individually to get the BEST title for THAT genre
         for (const genre of genres) {
-          const genreTitleIds = genreToTitles.get(genre.id) || [];
-          
-          let bestTitle = null;
-          let bestPopularity = -1;
+          // Get title IDs for this specific genre
+          const { data: genreTitleMappings } = await supabase
+            .from('title_genres')
+            .select('title_id')
+            .eq('genre_id', genre.id);
 
-          for (const titleId of genreTitleIds) {
-            if (usedTitleIds.has(titleId)) continue;
+          if (!genreTitleMappings || genreTitleMappings.length === 0) continue;
+
+          const genreSpecificTitleIds = genreTitleMappings.map(m => m.title_id);
+
+          // Filter by streaming availability if applicable
+          let candidateTitleIds = genreSpecificTitleIds;
+          if (availableTitleIds) {
+            candidateTitleIds = genreSpecificTitleIds.filter(id => availableTitleIds!.includes(id));
+          }
+
+          // Remove already used titles
+          candidateTitleIds = candidateTitleIds.filter(id => !usedTitleIds.has(id));
+
+          if (candidateTitleIds.length === 0) continue;
+
+          // Get the most popular title from candidates (in batches if needed)
+          const batchSize = 100;
+          let bestTitle: { id: string; name: string; poster_path: string; popularity: number } | null = null;
+
+          for (let i = 0; i < Math.min(candidateTitleIds.length, 500); i += batchSize) {
+            const batch = candidateTitleIds.slice(i, i + batchSize);
             
-            const title = titleMap.get(titleId);
-            if (title && title.poster_path && (title.popularity || 0) > bestPopularity) {
-              bestTitle = title;
-              bestPopularity = title.popularity || 0;
+            const { data: titles } = await supabase
+              .from('titles')
+              .select('id, name, poster_path, popularity, original_language')
+              .in('id', batch)
+              .in('original_language', languageCodes)
+              .not('poster_path', 'is', null)
+              .not('name', 'is', null)
+              .order('popularity', { ascending: false })
+              .limit(1);
+
+            if (titles && titles.length > 0) {
+              const title = titles[0];
+              if (!bestTitle || (title.popularity || 0) > (bestTitle.popularity || 0)) {
+                bestTitle = {
+                  id: title.id,
+                  name: title.name!,
+                  poster_path: title.poster_path!,
+                  popularity: title.popularity || 0
+                };
+              }
             }
           }
 
@@ -193,18 +154,19 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
               genre_id: genre.id,
               genre_name: genre.genre_name,
               title_id: bestTitle.id,
-              title_name: bestTitle.name || 'Unknown',
-              poster_path: bestTitle.poster_path!,
-              popularity: bestTitle.popularity || 0
+              title_name: bestTitle.name,
+              poster_path: bestTitle.poster_path,
+              popularity: bestTitle.popularity
             });
           }
         }
 
-        // Sort by popularity so most recognizable genres appear first
+        // Sort by popularity (most popular genres first)
         genreTitles.sort((a, b) => b.popularity - a.popularity);
         setOptions(genreTitles);
+
       } catch (err) {
-        console.error('Failed to process genre titles:', err);
+        console.error('Failed to load genre titles:', err);
       } finally {
         setLoading(false);
       }
