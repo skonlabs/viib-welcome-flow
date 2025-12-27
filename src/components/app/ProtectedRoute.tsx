@@ -8,7 +8,7 @@ interface ProtectedRouteProps {
 }
 
 export const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
-  const { user, loading: authLoading } = useAuth();
+  const { user, profile, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [checkingOnboarding, setCheckingOnboarding] = useState(true);
 
@@ -21,11 +21,18 @@ export const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
         return;
       }
 
+      // Wait for profile to be loaded
+      if (!profile) {
+        // Profile is still loading, wait
+        return;
+      }
+
       try {
+        // Use profile.id (internal user ID) for querying users table
         const { data, error } = await supabase
           .from('users')
           .select('onboarding_completed')
-          .eq('id', user.id)
+          .eq('id', profile.id)
           .single();
 
         if (error) {
@@ -47,7 +54,7 @@ export const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
     };
 
     checkOnboardingStatus();
-  }, [user, authLoading, navigate]);
+  }, [user, profile, authLoading, navigate]);
 
   if (authLoading || checkingOnboarding) {
     return (

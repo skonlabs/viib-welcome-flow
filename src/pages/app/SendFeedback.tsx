@@ -20,7 +20,7 @@ const feedbackSchema = z.object({
 type FeedbackType = 'support' | 'bug' | 'feature';
 
 export default function SendFeedback() {
-  const { user } = useAuth();
+  const { profile } = useAuth();
   const [activeTab, setActiveTab] = useState<FeedbackType>('support');
   const [title, setTitle] = useState('');
   const [message, setMessage] = useState('');
@@ -48,7 +48,7 @@ export default function SendFeedback() {
 
     try {
       // Use authenticated user ID - more secure than localStorage
-      const userId = user?.id;
+      const userId = profile?.id;
       if (!userId) {
         toast.error('Please log in to submit feedback');
         return;

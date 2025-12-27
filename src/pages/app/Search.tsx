@@ -23,7 +23,7 @@ const currentYear = new Date().getFullYear();
 const YEARS = Array.from({ length: 10 }, (_, i) => currentYear - i);
 
 export default function Search() {
-  const { user } = useAuth();
+  const { profile } = useAuth();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<TitleWithAvailability[]>([]);
   const [loading, setLoading] = useState(false);
@@ -54,7 +54,7 @@ export default function Search() {
     loadServices();
     loadEmotions();
     loadUserPreferences();
-  }, [user]);
+  }, [profile]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -107,7 +107,7 @@ export default function Search() {
   }, []); // Empty dependency - observer is created once
 
   const loadUserPreferences = useCallback(async () => {
-    if (!user) return;
+    if (!profile) return;
 
     try {
       // Batch all user preference queries in parallel
@@ -115,17 +115,17 @@ export default function Search() {
         supabase
           .from('users')
           .select('language_preference')
-          .eq('id', user.id)
+          .eq('id', profile.id)
           .single(),
         supabase
           .from('user_streaming_subscriptions')
           .select('streaming_service_id')
-          .eq('user_id', user.id)
+          .eq('user_id', profile.id)
           .eq('is_active', true),
         supabase
           .from('user_title_interactions')
           .select('title_id')
-          .eq('user_id', user.id)
+          .eq('user_id', profile.id)
           .in('interaction_type', ['wishlisted', 'completed'])
       ]);
 
@@ -143,10 +143,10 @@ export default function Search() {
     } catch (error) {
       console.error('Failed to load user preferences:', error);
     }
-  }, [user]);
+  }, [profile]);
 
   const loadServices = async () => {
-    if (!user) return;
+    if (!profile) return;
 
     const { data: streamingServices } = await supabase
       .from('streaming_services')
@@ -159,7 +159,7 @@ export default function Search() {
     const { data: userSubscriptions } = await supabase
       .from('user_streaming_subscriptions')
       .select('streaming_service_id')
-      .eq('user_id', user.id)
+      .eq('user_id', profile.id)
       .eq('is_active', true);
 
     if (userSubscriptions && streamingServices) {
@@ -193,7 +193,7 @@ export default function Search() {
 
     if (value.length >= 3) {
       searchTimeoutRef.current = setTimeout(async () => {
-        if (!user) return;
+        if (!profile) return;
         setLoadingSuggestions(true);
         try {
           const { data, error } = await supabase.functions.invoke('search-tmdb', {
@@ -276,7 +276,7 @@ export default function Search() {
   };
 
   const handleSearch = useCallback(async () => {
-    if (!user) return;
+    if (!profile) return;
 
     setShowDropdown(false);
     setSuggestions([]);
@@ -305,10 +305,10 @@ export default function Search() {
     } finally {
       setLoading(false);
     }
-  }, [user, query, selectedGenres, selectedYears, selectedMoods, moodIntensity, sortResults]);
+  }, [profile, query, selectedGenres, selectedYears, selectedMoods, moodIntensity, sortResults]);
 
   const loadMoreResults = useCallback(async () => {
-    if (!user || loadingMore || !hasMore) return;
+    if (!profile || loadingMore || !hasMore) return;
 
     setLoadingMore(true);
     try {
@@ -337,7 +337,7 @@ export default function Search() {
     } finally {
       setLoadingMore(false);
     }
-  }, [user, loadingMore, hasMore, page, query, selectedGenres, selectedYears, selectedMoods, moodIntensity, sortResults]);
+  }, [profile, loadingMore, hasMore, page, query, selectedGenres, selectedYears, selectedMoods, moodIntensity, sortResults]);
 
   // Update ref after function is defined
   loadMoreCallbackRef.current = loadMoreResults;
