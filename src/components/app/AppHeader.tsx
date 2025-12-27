@@ -16,7 +16,7 @@ import { ProfileModal } from './ProfileModal';
 import { SettingsModal } from './SettingsModal';
 
 export const AppHeader = () => {
-  const { user, isAdmin, signOut } = useAuth();
+  const { user, profile, isAdmin, signOut } = useAuth();
   const navigate = useNavigate();
   
   // Track unread messages count (would connect to real notifications in production)
@@ -44,8 +44,8 @@ export const AppHeader = () => {
   };
 
   const getUserInitials = () => {
-    if (!user) return 'G';
-    const name = user.full_name || user.email || user.phone_number || '';
+    if (!profile) return 'G';
+    const name = profile.full_name || profile.email || profile.phone_number || '';
     return name.charAt(0).toUpperCase();
   };
 
@@ -86,7 +86,7 @@ export const AppHeader = () => {
                     </AvatarFallback>
                   </Avatar>
                   <span className="hidden sm:block text-xs sm:text-sm text-foreground font-medium max-w-[100px] truncate">
-                    {user.full_name || user.email?.split('@')[0] || user.phone_number || 'User'}
+                    {profile?.full_name || profile?.email?.split('@')[0] || profile?.phone_number || 'User'}
                   </span>
                   <ChevronDown className="w-3 h-3 sm:w-4 sm:h-4 text-icon-secondary" />
                 </button>

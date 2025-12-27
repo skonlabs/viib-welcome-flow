@@ -10,6 +10,9 @@ const DEFAULT_ALLOWED_ORIGINS = [
   'https://app.viib.app',
 ];
 
+// Lovable preview origins pattern
+const LOVABLE_ORIGIN_PATTERN = /^https:\/\/[a-z0-9-]+--[a-z0-9-]+\.lovable\.app$/;
+
 // Development origins (only used when ENVIRONMENT=development)
 const DEV_ORIGINS = [
   'http://localhost:3000',
@@ -48,6 +51,11 @@ export function getAllowedOrigins(): string[] {
  */
 export function isOriginAllowed(origin: string | null): boolean {
   if (!origin) return false;
+
+  // Allow Lovable preview origins
+  if (LOVABLE_ORIGIN_PATTERN.test(origin)) {
+    return true;
+  }
 
   const allowedOrigins = getAllowedOrigins();
   return allowedOrigins.some(allowed => {

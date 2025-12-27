@@ -168,27 +168,36 @@ export type Database = {
       }
       email_verifications: {
         Row: {
+          attempt_count: number | null
           created_at: string
           email: string
           expires_at: string
           id: string
+          is_locked: boolean | null
           otp_code: string
+          otp_hash: string | null
           verified: boolean
         }
         Insert: {
+          attempt_count?: number | null
           created_at?: string
           email: string
           expires_at: string
           id?: string
+          is_locked?: boolean | null
           otp_code: string
+          otp_hash?: string | null
           verified?: boolean
         }
         Update: {
+          attempt_count?: number | null
           created_at?: string
           email?: string
           expires_at?: string
           id?: string
+          is_locked?: boolean | null
           otp_code?: string
+          otp_hash?: string | null
           verified?: boolean
         }
         Relationships: []
@@ -492,6 +501,33 @@ export type Database = {
         }
         Relationships: []
       }
+      ip_rate_limits: {
+        Row: {
+          created_at: string | null
+          endpoint: string
+          id: string
+          ip_address: string
+          request_count: number | null
+          window_start: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          endpoint: string
+          id?: string
+          ip_address: string
+          request_count?: number | null
+          window_start?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          endpoint?: string
+          id?: string
+          ip_address?: string
+          request_count?: number | null
+          window_start?: string | null
+        }
+        Relationships: []
+      }
       jobs: {
         Row: {
           configuration: Json | null
@@ -555,6 +591,36 @@ export type Database = {
           id?: string
           name?: string
           tmdb_keyword_id?: number | null
+        }
+        Relationships: []
+      }
+      login_attempts: {
+        Row: {
+          attempt_type: string
+          created_at: string | null
+          id: string
+          identifier: string
+          ip_address: string | null
+          requires_captcha: boolean | null
+          success: boolean | null
+        }
+        Insert: {
+          attempt_type?: string
+          created_at?: string | null
+          id?: string
+          identifier: string
+          ip_address?: string | null
+          requires_captcha?: boolean | null
+          success?: boolean | null
+        }
+        Update: {
+          attempt_type?: string
+          created_at?: string | null
+          id?: string
+          identifier?: string
+          ip_address?: string | null
+          requires_captcha?: boolean | null
+          success?: boolean | null
         }
         Relationships: []
       }
@@ -646,26 +712,38 @@ export type Database = {
       }
       phone_verifications: {
         Row: {
+          attempt_count: number | null
           created_at: string
           expires_at: string
           id: string
+          is_locked: boolean | null
+          max_attempts: number | null
           otp_code: string
+          otp_hash: string | null
           phone_number: string
           verified: boolean
         }
         Insert: {
+          attempt_count?: number | null
           created_at?: string
           expires_at: string
           id?: string
+          is_locked?: boolean | null
+          max_attempts?: number | null
           otp_code: string
+          otp_hash?: string | null
           phone_number: string
           verified?: boolean
         }
         Update: {
+          attempt_count?: number | null
           created_at?: string
           expires_at?: string
           id?: string
+          is_locked?: boolean | null
+          max_attempts?: number | null
           otp_code?: string
+          otp_hash?: string | null
           phone_number?: string
           verified?: boolean
         }
@@ -701,6 +779,30 @@ export type Database = {
           max_requests?: number
           updated_at?: string | null
           window_seconds?: number
+        }
+        Relationships: []
+      }
+      rate_limit_entries: {
+        Row: {
+          count: number | null
+          expires_at: string
+          id: string
+          key: string
+          window_start: string | null
+        }
+        Insert: {
+          count?: number | null
+          expires_at: string
+          id?: string
+          key: string
+          window_start?: string | null
+        }
+        Update: {
+          count?: number | null
+          expires_at?: string
+          id?: string
+          key?: string
+          window_start?: string | null
         }
         Relationships: []
       }
@@ -805,6 +907,53 @@ export type Database = {
           },
         ]
       }
+      session_tokens: {
+        Row: {
+          created_at: string | null
+          expires_at: string
+          id: string
+          ip_address: string | null
+          is_remember_me: boolean | null
+          issued_at: string
+          revoked_at: string | null
+          token_hash: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          expires_at: string
+          id?: string
+          ip_address?: string | null
+          is_remember_me?: boolean | null
+          issued_at?: string
+          revoked_at?: string | null
+          token_hash: string
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          expires_at?: string
+          id?: string
+          ip_address?: string | null
+          is_remember_me?: boolean | null
+          issued_at?: string
+          revoked_at?: string | null
+          token_hash?: string
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "session_tokens_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       spoken_languages: {
         Row: {
           flag_emoji: string | null
@@ -853,6 +1002,7 @@ export type Database = {
           created_at: string
           error_message: string
           error_stack: string | null
+          http_status: number | null
           id: string
           notes: string | null
           operation: string | null
@@ -868,6 +1018,7 @@ export type Database = {
           created_at?: string
           error_message: string
           error_stack?: string | null
+          http_status?: number | null
           id?: string
           notes?: string | null
           operation?: string | null
@@ -883,6 +1034,7 @@ export type Database = {
           created_at?: string
           error_message?: string
           error_stack?: string | null
+          http_status?: number | null
           id?: string
           notes?: string | null
           operation?: string | null
@@ -1585,6 +1737,7 @@ export type Database = {
       }
       users: {
         Row: {
+          auth_id: string | null
           country: string | null
           created_at: string
           email: string | null
@@ -1606,6 +1759,7 @@ export type Database = {
           username: string | null
         }
         Insert: {
+          auth_id?: string | null
           country?: string | null
           created_at?: string
           email?: string | null
@@ -1627,6 +1781,7 @@ export type Database = {
           username?: string | null
         }
         Update: {
+          auth_id?: string | null
           country?: string | null
           created_at?: string
           email?: string | null
@@ -2083,9 +2238,30 @@ export type Database = {
         Args: { p_emotion_id: string; p_energy_percentage: number }
         Returns: number
       }
+      check_ip_rate_limit: {
+        Args: {
+          p_endpoint: string
+          p_ip_address: string
+          p_max_requests?: number
+          p_window_seconds?: number
+        }
+        Returns: {
+          allowed: boolean
+          current_count: number
+          reset_at: string
+        }[]
+      }
       check_list_ownership: {
         Args: { p_list_id: string; p_user_id: string }
         Returns: boolean
+      }
+      check_rate_limit_fast: {
+        Args: { p_key: string; p_max_count: number; p_window_seconds: number }
+        Returns: {
+          allowed: boolean
+          current_count: number
+          requires_captcha: boolean
+        }[]
       }
       check_recommendation_cache_freshness: {
         Args: never
@@ -2098,9 +2274,25 @@ export type Database = {
           row_count: number
         }[]
       }
+      cleanup_rate_limit_data: { Args: never; Returns: undefined }
+      cleanup_rate_limit_entries: { Args: never; Returns: number }
       explain_recommendation: {
         Args: { p_title_id: string; p_user_id: string }
-        Returns: Json
+        Returns: {
+          emotional_match: number
+          friend_name: string
+          friend_rating: string
+          full_explanation: string
+          intent_confidence: number
+          intent_match: string
+          primary_reason: string
+          secondary_reasons: string[]
+          social_score: number
+          taste_similarity: number
+          title_id: string
+          transformation_score: number
+          transformation_type: string
+        }[]
       }
       get_active_viib_weights: {
         Args: never
@@ -2151,6 +2343,10 @@ export type Database = {
           intent_staging_distinct: number
           total_titles: number
         }[]
+      }
+      get_lockout_remaining: {
+        Args: { p_identifier: string; p_window_minutes?: number }
+        Returns: number
       }
       get_result_emotion_label: {
         Args: { p_emotion_label: string; p_intensity: number }
@@ -2235,6 +2431,7 @@ export type Database = {
           title_id: string
         }[]
       }
+      get_user_id_from_auth: { Args: never; Returns: string }
       get_vibe_list_stats: {
         Args: { p_list_ids: string[] }
         Returns: {
@@ -2251,6 +2448,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      hash_otp: { Args: { p_otp: string; p_salt?: string }; Returns: string }
       increment_job_titles: {
         Args: { p_increment: number; p_job_type: string }
         Returns: undefined
@@ -2258,6 +2456,21 @@ export type Database = {
       invalidate_old_otps: { Args: { p_email: string }; Returns: undefined }
       invalidate_old_phone_otps: {
         Args: { p_phone: string }
+        Returns: undefined
+      }
+      is_account_locked: {
+        Args: { p_identifier: string; p_window_minutes?: number }
+        Returns: boolean
+      }
+      is_session_valid: {
+        Args: { p_token_hash: string }
+        Returns: {
+          user_id: string
+          valid: boolean
+        }[]
+      }
+      link_auth_user_to_profile: {
+        Args: { p_auth_id: string; p_user_id: string }
         Returns: undefined
       }
       log_recommendation_outcome: {
@@ -2271,6 +2484,15 @@ export type Database = {
         Returns: undefined
       }
       promote_title_intents: { Args: { p_limit?: number }; Returns: number }
+      record_login_attempt: {
+        Args: {
+          p_attempt_type?: string
+          p_identifier: string
+          p_ip_address: string
+          p_success?: boolean
+        }
+        Returns: undefined
+      }
       refresh_all_recommendation_caches: {
         Args: never
         Returns: {
@@ -2311,6 +2533,7 @@ export type Database = {
         Args: { p_title_id: string }
         Returns: undefined
       }
+      revoke_all_user_sessions: { Args: { p_user_id: string }; Returns: number }
       run_cron_job_now: { Args: { p_command: string }; Returns: undefined }
       store_user_emotion_vector: {
         Args: {
@@ -2338,6 +2561,18 @@ export type Database = {
       update_cron_schedule: {
         Args: { p_jobid: number; p_schedule: string }
         Returns: undefined
+      }
+      verify_otp_secure: {
+        Args: {
+          p_max_attempts?: number
+          p_otp_input: string
+          p_phone_number: string
+        }
+        Returns: {
+          error_message: string
+          success: boolean
+          verification_id: string
+        }[]
       }
       viib_autotune_weights:
         | { Args: { p_days?: number }; Returns: string }
