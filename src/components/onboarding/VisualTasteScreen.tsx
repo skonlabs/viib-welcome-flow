@@ -41,44 +41,62 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
     const loadOptions = async () => {
       try {
         const userId = localStorage.getItem('viib_user_id');
-        if (!userId) {
-          setLoading(false);
-          return;
+        console.log('[VisualTaste] Loading for userId:', userId);
+        
+        let streamingServiceIds: string[] = [];
+        let languageCodes: string[] = ['en']; // Default to English
+        let userRegion = 'US'; // Default region
+        
+        // Only query user preferences if we have a userId
+        if (userId) {
+          // Get user's streaming subscriptions
+          const { data: userStreaming, error: streamingError } = await supabase
+            .from('user_streaming_subscriptions')
+            .select('streaming_service_id')
+            .eq('user_id', userId)
+            .eq('is_active', true);
+
+          if (streamingError) {
+            console.error('[VisualTaste] Streaming query error:', streamingError);
+          } else {
+            streamingServiceIds = userStreaming?.map(s => s.streaming_service_id) || [];
+          }
+          console.log('[VisualTaste] Streaming services:', streamingServiceIds.length, streamingServiceIds);
+
+          // Get user's language preferences
+          const { data: userLanguages, error: langError } = await supabase
+            .from('user_language_preferences')
+            .select('language_code')
+            .eq('user_id', userId);
+
+          if (langError) {
+            console.error('[VisualTaste] Language query error:', langError);
+          } else if (userLanguages && userLanguages.length > 0) {
+            languageCodes = userLanguages.map(l => l.language_code);
+          }
+          console.log('[VisualTaste] Languages:', languageCodes);
+
+          // Get user's region for streaming availability
+          const { data: userData } = await supabase
+            .from('users')
+            .select('ip_country')
+            .eq('id', userId)
+            .maybeSingle();
+
+          if (userData?.ip_country && userData.ip_country !== 'pending') {
+            userRegion = userData.ip_country;
+          }
+        } else {
+          console.log('[VisualTaste] No userId, using defaults: EN language, US region');
         }
-
-        // Get user's streaming subscriptions
-        const { data: userStreaming } = await supabase
-          .from('user_streaming_subscriptions')
-          .select('streaming_service_id')
-          .eq('user_id', userId)
-          .eq('is_active', true);
-
-        const streamingServiceIds = userStreaming?.map(s => s.streaming_service_id) || [];
-
-        // Get user's language preferences
-        const { data: userLanguages } = await supabase
-          .from('user_language_preferences')
-          .select('language_code')
-          .eq('user_id', userId);
-
-        const languageCodes = userLanguages?.map(l => l.language_code) || [];
-        if (languageCodes.length === 0) {
-          languageCodes.push('en');
-        }
-
-        // Get user's region for streaming availability
-        const { data: userData } = await supabase
-          .from('users')
-          .select('ip_country')
-          .eq('id', userId)
-          .maybeSingle();
-
-        const userRegion = userData?.ip_country || 'US';
+        
+        console.log('[VisualTaste] Final config - Languages:', languageCodes, 'Region:', userRegion, 'Streaming:', streamingServiceIds.length);
 
         // Step 1: Get title IDs available on user's streaming services
         let availableTitleIds: string[] = [];
         
         if (streamingServiceIds.length > 0) {
+          console.log('[VisualTaste] Querying streaming availability for services:', streamingServiceIds);
           const { data: streamingTitles, error: streamingError } = await supabase
             .from('title_streaming_availability')
             .select('title_id')
@@ -86,14 +104,18 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
             .eq('region_code', userRegion);
 
           if (streamingError) {
-            console.error('Failed to load streaming titles:', streamingError);
+            console.error('[VisualTaste] Streaming availability error:', streamingError);
           } else if (streamingTitles && streamingTitles.length > 0) {
             availableTitleIds = streamingTitles.map(t => t.title_id);
+            console.log('[VisualTaste] Found', availableTitleIds.length, 'titles on streaming services');
+          } else {
+            console.log('[VisualTaste] No titles found on streaming services');
           }
         }
 
         // If no streaming titles found, we'll query all popular movies
         const hasStreamingFilter = availableTitleIds.length > 0;
+        console.log('[VisualTaste] Using streaming filter:', hasStreamingFilter);
         
         // Step 2: Query movies - filter by streaming availability if available
         let movies: any[] = [];
@@ -149,12 +171,12 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
         }
 
         if (movies.length === 0) {
-          console.log('No movies found for user preferences');
+          console.log('[VisualTaste] No movies found for user preferences');
           setLoading(false);
           return;
         }
 
-        console.log(`Found ${movies.length} movies matching user preferences`);
+        console.log('[VisualTaste] Found', movies.length, 'movies. Top 5:', movies.slice(0, 5).map(m => m.name));
 
         // Calculate combined score and sort by blockbuster score
         const scoredMovies = movies.map(movie => ({
@@ -208,9 +230,10 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
         const genreOptions = Array.from(genreToTopMovie.values())
           .sort((a, b) => b.score - a.score);
 
+        console.log('[VisualTaste] Genre options:', genreOptions.length, genreOptions.map(g => `${g.genre_name}: ${g.title_name}`));
         setOptions(genreOptions);
       } catch (err) {
-        console.error('Failed to load genre options:', err);
+        console.error('[VisualTaste] Failed to load genre options:', err);
       } finally {
         setLoading(false);
       }
