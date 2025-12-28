@@ -2724,11 +2724,13 @@ export type Database = {
           backdrop_path: string
           emotion_score: number
           final_score: number
+          first_air_date: string
           genres: Json
           language_score: number
           overview: string
           poster_path: string
           recommendation_reason: string
+          release_date: string
           runtime: number
           social_score: number
           title: string
