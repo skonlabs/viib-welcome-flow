@@ -125,12 +125,19 @@ const Home = () => {
             ? rec.genres 
             : [];
 
+          // Get release year from release_date or first_air_date
+          const releaseYear = rec.release_date 
+            ? new Date(rec.release_date).getFullYear()
+            : rec.first_air_date 
+              ? new Date(rec.first_air_date).getFullYear()
+              : undefined;
+
           return {
             id: rec.title_id,
             tmdb_id: rec.tmdb_id,
             title: rec.title || 'Unknown Title',
             type: rec.title_type === 'tv' ? 'series' : 'movie',
-            year: undefined, // Not returned by RPC, could parse from release_date if needed
+            year: releaseYear,
             poster_path: rec.poster_path,
             backdrop_path: rec.backdrop_path,
             trailer_url: rec.trailer_url,
