@@ -2429,6 +2429,7 @@ export type Database = {
           notes: string | null
           novelty_weight: number
           social_weight: number
+          vibe_weight: number
         }
         Insert: {
           context_weight: number
@@ -2440,6 +2441,7 @@ export type Database = {
           notes?: string | null
           novelty_weight: number
           social_weight: number
+          vibe_weight?: number
         }
         Update: {
           context_weight?: number
@@ -2451,6 +2453,7 @@ export type Database = {
           notes?: string | null
           novelty_weight?: number
           social_weight?: number
+          vibe_weight?: number
         }
         Relationships: []
       }
