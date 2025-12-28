@@ -151,7 +151,9 @@ export const MoodSelector = ({
         .maybeSingle();
 
       if (data?.valence !== null && data?.arousal !== null) {
-        const pos = emotionToPosition(data.valence, data.arousal);
+        // DB stores values in 0-1 scale, use isEmotionMaster=true for correct conversion
+        const pos = emotionToPosition(data.valence, data.arousal, true);
+        console.log('[MoodSelector] Loaded last mood from DB:', { valence: data.valence, arousal: data.arousal, position: pos });
         setPosition(pos);
       }
     };
