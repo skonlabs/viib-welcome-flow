@@ -2706,6 +2706,21 @@ export type Database = {
           vibe_component: number
         }[]
       }
+      get_top_recommendations_v3: {
+        Args: { p_limit?: number; p_user_id: string }
+        Returns: {
+          base_score: number
+          context_component: number
+          emotional_component: number
+          final_score: number
+          historical_component: number
+          novelty_component: number
+          recommendation_reason: string
+          social_component: number
+          title_id: string
+          vibe_component: number
+        }[]
+      }
       get_top_recommendations_with_intent: {
         Args: { p_limit: number; p_user_id: string }
         Returns: {
