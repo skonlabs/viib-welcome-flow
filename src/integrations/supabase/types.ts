@@ -2721,16 +2721,22 @@ export type Database = {
       get_top_recommendations_v3: {
         Args: { p_limit?: number; p_user_id: string }
         Returns: {
-          out_base_score: number
-          out_context_component: number
-          out_emotional_component: number
-          out_final_score: number
-          out_historical_component: number
-          out_novelty_component: number
-          out_recommendation_reason: string
-          out_social_component: number
-          out_title_id: string
-          out_vibe_component: number
+          backdrop_path: string
+          emotion_score: number
+          final_score: number
+          genres: Json
+          language_score: number
+          overview: string
+          poster_path: string
+          recommendation_reason: string
+          runtime: number
+          social_score: number
+          title: string
+          title_id: string
+          title_type: string
+          tmdb_id: number
+          trailer_url: string
+          vibe_score: number
         }[]
       }
       get_top_recommendations_with_intent: {
