@@ -94,13 +94,16 @@ export default function Settings() {
   const [countrySearch, setCountrySearch] = useState('');
 
   // ViiB Weights State
+  // Note: Social is now a multiplier in the formula, not a base weight
+  // Formula: base = 0.35E + 0.30H + 0.15C + 0.10V + 0.10N
+  // Final = base × (1 + min(0.35, 0.25 × S))
   const [viibWeights, setViibWeights] = useState<ViibWeights>({
-    emotional_weight: 0.30,
-    social_weight: 0.15,
-    historical_weight: 0.20,
-    context_weight: 0.10,
+    emotional_weight: 0.35,
+    social_weight: 0.00, // Social is a multiplier, not additive weight
+    historical_weight: 0.30,
+    context_weight: 0.15,
     novelty_weight: 0.10,
-    vibe_weight: 0.15,
+    vibe_weight: 0.10,
   });
 
   const filteredCountries = useMemo(() => {
@@ -111,10 +114,10 @@ export default function Settings() {
     );
   }, [countrySearch]);
 
+  // Total weight calculation - Social is excluded (it's a multiplier in the formula)
   const totalWeight = useMemo(() => {
     return (
       viibWeights.emotional_weight +
-      viibWeights.social_weight +
       viibWeights.historical_weight +
       viibWeights.context_weight +
       viibWeights.novelty_weight +
@@ -479,20 +482,14 @@ export default function Settings() {
                   </p>
                 </div>
 
-                <div className="space-y-3">
+                {/* Social is now a multiplier, shown as info only */}
+                <div className="space-y-3 opacity-60">
                   <div className="flex justify-between items-center">
-                    <Label>Social Weight</Label>
-                    <span className="text-sm font-medium">{(viibWeights.social_weight * 100).toFixed(0)}%</span>
+                    <Label>Social (Multiplier)</Label>
+                    <span className="text-sm font-medium text-muted-foreground">×(1 + min(35%, 25%×S))</span>
                   </div>
-                  <Slider
-                    value={[viibWeights.social_weight * 100]}
-                    onValueChange={([v]) => updateWeight('social_weight', v / 100)}
-                    max={100}
-                    step={1}
-                    className="w-full"
-                  />
                   <p className="text-xs text-muted-foreground">
-                    Influence from friend recommendations and social circles
+                    Social is now a score multiplier, not an additive weight. Friend recommendations can boost final score by up to 35%.
                   </p>
                 </div>
 
