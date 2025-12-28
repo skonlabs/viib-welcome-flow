@@ -26,11 +26,22 @@ interface EmotionState {
   category: string;
 }
 
-// Map valence (-1 to 1) and arousal (-1 to 1) to x,y percentages (0-100)
-const emotionToPosition = (valence: number, arousal: number) => ({
-  x: ((valence + 1) / 2) * 100,
-  y: ((1 - arousal) / 2) * 100, // Invert Y so high energy is at top
-});
+// Map valence and arousal to x,y percentages (0-100)
+// emotion_master stores values in 0-1 scale, UI uses -1 to 1 internally
+const emotionToPosition = (valence: number, arousal: number, isEmotionMaster = false) => {
+  // If from emotion_master (0-1 scale), convert directly to percentage
+  // If from UI (-1 to 1 scale), normalize first
+  if (isEmotionMaster) {
+    return {
+      x: valence * 100,
+      y: (1 - arousal) * 100, // Invert Y so high energy is at top
+    };
+  }
+  return {
+    x: ((valence + 1) / 2) * 100,
+    y: ((1 - arousal) / 2) * 100,
+  };
+};
 
 // Map x,y percentages (0-100) to valence and arousal (-1 to 1)
 const positionToEmotion = (x: number, y: number) => ({
@@ -356,7 +367,8 @@ export const MoodSelector = ({
         {/* Emotion reference dots */}
         {emotions.slice(0, 12).map((emotion) => {
           if (emotion.valence === null || emotion.arousal === null) return null;
-          const pos = emotionToPosition(emotion.valence, emotion.arousal);
+          // emotion_master values are in 0-1 scale, pass true to use correct conversion
+          const pos = emotionToPosition(emotion.valence, emotion.arousal, true);
           return (
             <div
               key={emotion.id}
