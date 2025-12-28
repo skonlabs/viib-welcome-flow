@@ -2733,16 +2733,13 @@ export type Database = {
       get_top_recommendations_v3: {
         Args: { p_limit?: number; p_user_id: string }
         Returns: {
-          out_base_score: number
-          out_context_component: number
-          out_emotional_component: number
-          out_final_score: number
-          out_historical_component: number
-          out_novelty_component: number
-          out_recommendation_reason: string
-          out_social_component: number
-          out_title_id: string
-          out_vibe_component: number
+          emotion_score: number
+          final_score: number
+          popularity_score: number
+          quality_score: number
+          social_score: number
+          title_id: string
+          vibe_score: number
         }[]
       }
       get_top_recommendations_with_intent: {
