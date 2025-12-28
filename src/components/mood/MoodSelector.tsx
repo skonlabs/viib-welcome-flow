@@ -150,7 +150,7 @@ export const MoodSelector = ({
         .limit(1)
         .maybeSingle();
 
-      if (data?.valence !== null && data?.arousal !== null) {
+      if (data && data.valence !== null && data.arousal !== null) {
         // DB stores values in 0-1 scale, use isEmotionMaster=true for correct conversion
         const pos = emotionToPosition(data.valence, data.arousal, true);
         console.log('[MoodSelector] Loaded last mood from DB:', { valence: data.valence, arousal: data.arousal, position: pos });
