@@ -234,11 +234,13 @@ export const MoodSelector = ({
       // Calculate energy percentage from arousal
       const energyPercentage = Math.round(((arousal + 1) / 2) * 100);
 
-      // Call the translate_mood_to_emotion RPC
+      // Call the translate_mood_to_emotion RPC with raw valence/arousal
       const { error: rpcError } = await supabase.rpc('translate_mood_to_emotion', {
         p_user_id: userId,
         p_mood_text: closestEmotion.emotion_label,
-        p_energy_percentage: energyPercentage
+        p_energy_percentage: energyPercentage,
+        p_raw_valence: valence,
+        p_raw_arousal: arousal
       });
 
       if (rpcError) throw rpcError;

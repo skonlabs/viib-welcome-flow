@@ -2839,6 +2839,8 @@ export type Database = {
         Args: {
           p_emotion_label: string
           p_energy_percentage: number
+          p_raw_arousal?: number
+          p_raw_valence?: number
           p_user_id: string
         }
         Returns: undefined
@@ -2851,6 +2853,8 @@ export type Database = {
         Args: {
           p_energy_percentage: number
           p_mood_text: string
+          p_raw_arousal?: number
+          p_raw_valence?: number
           p_user_id: string
         }
         Returns: {
