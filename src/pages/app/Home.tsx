@@ -115,67 +115,34 @@ const Home = () => {
         return;
       }
 
-      // Fetch title details for recommended titles (genres now in title_genres column)
-      const titleIds = recData.map((r: any) => r.out_title_id);
-      const { data: titles, error: titlesError } = await supabase
-        .from('titles')
-        .select(`
-          id,
-          name,
-          title_type,
-          release_date,
-          first_air_date,
-          poster_path,
-          backdrop_path,
-          trailer_url,
-          runtime,
-          title_genres,
-          overview,
-          tmdb_id
-        `)
-        .in('id', titleIds);
-
-      if (titlesError) {
-        console.error('Error fetching title details:', titlesError);
-        setLoading(false);
-        return;
-      }
-
-      // Combine recommendation scores with title details
+      // The RPC now returns all title data directly - no need for extra fetch
       const enrichedRecs: RecommendedTitle[] = recData
         .map((rec: any) => {
-          const title = titles?.find((t) => t.id === rec.out_title_id);
-          if (!title) return null;
+          if (!rec.title_id) return null;
 
-          const releaseYear = title.release_date 
-            ? new Date(title.release_date).getFullYear()
-            : title.first_air_date 
-              ? new Date(title.first_air_date).getFullYear()
-              : undefined;
-
-          // Parse title_genres from JSON column
-          const genres = Array.isArray(title.title_genres) 
-            ? title.title_genres 
+          // Parse genres from the RPC response
+          const genres = Array.isArray(rec.genres) 
+            ? rec.genres 
             : [];
 
           return {
-            id: title.id,
-            tmdb_id: title.tmdb_id,
-            title: title.name || 'Unknown Title',
-            type: title.title_type === 'tv' ? 'series' : 'movie',
-            year: releaseYear,
-            poster_path: title.poster_path,
-            backdrop_path: title.backdrop_path,
-            trailer_url: title.trailer_url,
-            runtime: title.runtime,
+            id: rec.title_id,
+            tmdb_id: rec.tmdb_id,
+            title: rec.title || 'Unknown Title',
+            type: rec.title_type === 'tv' ? 'series' : 'movie',
+            year: undefined, // Not returned by RPC, could parse from release_date if needed
+            poster_path: rec.poster_path,
+            backdrop_path: rec.backdrop_path,
+            trailer_url: rec.trailer_url,
+            runtime: rec.runtime,
             genres,
-            overview: title.overview,
-            final_score: rec.out_final_score,
-            base_viib_score: rec.out_base_score,
-            intent_alignment_score: rec.out_emotional_component,
-            social_priority_score: rec.out_social_component,
-            transformation_score: rec.out_vibe_component,
-            recommendation_reason: rec.out_recommendation_reason || '',
+            overview: rec.overview,
+            final_score: rec.final_score,
+            base_viib_score: rec.emotion_score,
+            intent_alignment_score: rec.emotion_score,
+            social_priority_score: rec.social_score,
+            transformation_score: rec.vibe_score,
+            recommendation_reason: rec.recommendation_reason || '',
           };
         })
         .filter(Boolean) as RecommendedTitle[];
