@@ -2707,29 +2707,6 @@ export type Database = {
               tmdb_id: number
             }[]
           }
-      get_top_recommendations: {
-        Args: { p_limit?: number; p_user_id: string }
-        Returns: {
-          base_viib_score: number
-          final_score: number
-          intent_alignment_score: number
-          social_priority_score: number
-          title_id: string
-        }[]
-      }
-      get_top_recommendations_v2: {
-        Args: { p_limit?: number; p_user_id: string }
-        Returns: {
-          base_viib_score: number
-          context_component: number
-          emotional_component: number
-          final_score: number
-          historical_component: number
-          novelty_component: number
-          title_id: string
-          vibe_component: number
-        }[]
-      }
       get_top_recommendations_v3: {
         Args: { p_limit?: number; p_user_id: string }
         Returns: {
