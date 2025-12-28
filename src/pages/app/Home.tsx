@@ -116,7 +116,7 @@ const Home = () => {
       }
 
       // Fetch title details for recommended titles (genres now in title_genres column)
-      const titleIds = recData.map((r: any) => r.out_title_id);
+      const titleIds = recData.map((r: any) => r.title_id);
       const { data: titles, error: titlesError } = await supabase
         .from('titles')
         .select(`
@@ -144,7 +144,7 @@ const Home = () => {
       // Combine recommendation scores with title details
       const enrichedRecs: RecommendedTitle[] = recData
         .map((rec: any) => {
-          const title = titles?.find((t) => t.id === rec.out_title_id);
+          const title = titles?.find((t) => t.id === rec.title_id);
           if (!title) return null;
 
           const releaseYear = title.release_date 
@@ -170,12 +170,12 @@ const Home = () => {
             runtime: title.runtime,
             genres,
             overview: title.overview,
-            final_score: rec.out_final_score,
-            base_viib_score: rec.out_base_score,
-            intent_alignment_score: rec.out_emotional_component,
-            social_priority_score: rec.out_social_component,
-            transformation_score: rec.out_vibe_component,
-            recommendation_reason: rec.out_recommendation_reason,
+            final_score: rec.final_score,
+            base_viib_score: rec.quality_score,
+            intent_alignment_score: rec.emotion_score,
+            social_priority_score: rec.social_score,
+            transformation_score: rec.vibe_score,
+            recommendation_reason: '',
           };
         })
         .filter(Boolean) as RecommendedTitle[];
