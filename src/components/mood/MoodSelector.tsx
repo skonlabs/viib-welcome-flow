@@ -108,16 +108,18 @@ export const MoodSelector = ({
   const [isSaving, setIsSaving] = useState(false);
   const [emotions, setEmotions] = useState<EmotionState[]>([]);
 
-  // Fetch emotions for reference points
+  // Fetch emotions for reference points - only user_state emotions
   useEffect(() => {
     const fetchEmotions = async () => {
       const { data } = await supabase
         .from('emotion_master')
         .select('id, emotion_label, valence, arousal, category')
+        .eq('category', 'user_state')
         .not('valence', 'is', null)
         .not('arousal', 'is', null);
       
       if (data) {
+        console.log('[MoodSelector] Loaded user_state emotions:', data.length);
         setEmotions(data);
       }
     };
@@ -214,6 +216,10 @@ export const MoodSelector = ({
       const uiValence01 = (valence + 1) / 2; // Convert -1..1 to 0..1
       const uiArousal01 = (arousal + 1) / 2; // Convert -1..1 to 0..1
       
+      console.log('[MoodSelector] UI values:', { valence, arousal });
+      console.log('[MoodSelector] Converted to 0-1 scale:', { uiValence01, uiArousal01 });
+      console.log('[MoodSelector] Available emotions count:', emotions.length);
+      
       let closestEmotion = emotions[0];
       let minDistance = Infinity;
 
@@ -229,6 +235,8 @@ export const MoodSelector = ({
           closestEmotion = emotion;
         }
       }
+      
+      console.log('[MoodSelector] Closest emotion found:', closestEmotion?.emotion_label, 'distance:', minDistance);
 
       if (!closestEmotion) {
         toast.error('Could not determine mood');
