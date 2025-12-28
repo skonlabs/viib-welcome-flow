@@ -2734,6 +2734,23 @@ export type Database = {
           vibe_score: number
         }[]
       }
+      get_top_recommendations_v3_3: {
+        Args: { p_limit?: number; p_user_id: string }
+        Returns: {
+          context_score: number
+          emotion_score: number
+          final_score: number
+          novelty_score: number
+          poster_path: string
+          quality_score: number
+          recommendation_reason: string
+          social_score: number
+          taste_score: number
+          title: string
+          title_id: string
+          vibe_boost: number
+        }[]
+      }
       get_top_recommendations_v4: {
         Args: { p_limit?: number; p_user_id: string }
         Returns: {
