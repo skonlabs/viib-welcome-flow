@@ -1872,6 +1872,7 @@ export type Database = {
           id: string
           updated_at: string
           user_id: string
+          vibe_id: string | null
           vibe_type: string
         }
         Insert: {
@@ -1879,6 +1880,7 @@ export type Database = {
           id?: string
           updated_at?: string
           user_id: string
+          vibe_id?: string | null
           vibe_type: string
         }
         Update: {
@@ -1886,6 +1888,7 @@ export type Database = {
           id?: string
           updated_at?: string
           user_id?: string
+          vibe_id?: string | null
           vibe_type?: string
         }
         Relationships: [
@@ -2721,24 +2724,31 @@ export type Database = {
       get_top_recommendations_v3: {
         Args: { p_limit?: number; p_user_id: string }
         Returns: {
-          backdrop_path: string
-          emotion_score: number
           final_score: number
-          first_air_date: string
-          genres: Json
-          language_score: number
-          overview: string
           poster_path: string
+          quality_score: number
           recommendation_reason: string
-          release_date: string
-          runtime: number
           social_score: number
           title: string
           title_id: string
-          title_type: string
-          tmdb_id: number
-          trailer_url: string
           vibe_score: number
+        }[]
+      }
+      get_top_recommendations_v4: {
+        Args: { p_limit?: number; p_user_id: string }
+        Returns: {
+          context_score: number
+          emotion_score: number
+          final_score: number
+          historical_score: number
+          novelty_score: number
+          poster_path: string
+          quality_score: number
+          recommendation_reason: string
+          social_score: number
+          title: string
+          title_id: string
+          vibe_boost: number
         }[]
       }
       get_top_recommendations_with_intent: {
