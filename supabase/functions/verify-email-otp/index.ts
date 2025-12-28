@@ -45,11 +45,13 @@ serve(async (req) => {
 
     // Get country from IP using ipapi.co
     let ipCountry = 'Unknown';
+    let countryCode = 'US'; // Default country code for streaming availability
     try {
       const geoResponse = await fetch(`https://ipapi.co/${ipAddress}/json/`);
       if (geoResponse.ok) {
         const geoData = await geoResponse.json();
         ipCountry = geoData.country_name || 'Unknown';
+        countryCode = geoData.country_code || 'US';
       }
     } catch {
       // Ignore geo lookup errors
@@ -239,6 +241,7 @@ serve(async (req) => {
           is_active: false,
           ip_address: ipAddress,
           ip_country: ipCountry,
+          country: countryCode, // Set country code for streaming recommendations
         })
         .select('id')
         .single();

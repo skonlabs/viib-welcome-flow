@@ -2534,6 +2534,17 @@ export type Database = {
       }
     }
     Functions: {
+      calculate_emotion_distance_score: {
+        Args: {
+          p_title_arousal: number
+          p_title_dominance: number
+          p_title_valence: number
+          p_user_arousal: number
+          p_user_dominance: number
+          p_user_valence: number
+        }
+        Returns: number
+      }
       calculate_taste_similarity: {
         Args: { p_user_a: string; p_user_b: string }
         Returns: number
