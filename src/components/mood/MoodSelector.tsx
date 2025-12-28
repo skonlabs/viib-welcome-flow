@@ -210,15 +210,19 @@ export const MoodSelector = ({
   const handleSaveMood = async () => {
     setIsSaving(true);
     try {
-      // Find the closest emotion
+      // Find the closest emotion - convert UI values (-1 to 1) to emotion_master scale (0 to 1)
+      const uiValence01 = (valence + 1) / 2; // Convert -1..1 to 0..1
+      const uiArousal01 = (arousal + 1) / 2; // Convert -1..1 to 0..1
+      
       let closestEmotion = emotions[0];
       let minDistance = Infinity;
 
       for (const emotion of emotions) {
         if (emotion.valence === null || emotion.arousal === null) continue;
+        // emotion_master values are already in 0-1 scale
         const distance = Math.sqrt(
-          Math.pow(emotion.valence - valence, 2) +
-          Math.pow(emotion.arousal - arousal, 2)
+          Math.pow(emotion.valence - uiValence01, 2) +
+          Math.pow(emotion.arousal - uiArousal01, 2)
         );
         if (distance < minDistance) {
           minDistance = distance;
