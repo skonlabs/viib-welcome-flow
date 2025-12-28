@@ -116,7 +116,7 @@ const Home = () => {
       }
 
       // Fetch title details for recommended titles (genres now in title_genres column)
-      const titleIds = recData.map((r: any) => r.title_id);
+      const titleIds = recData.map((r: any) => r.out_title_id);
       const { data: titles, error: titlesError } = await supabase
         .from('titles')
         .select(`
