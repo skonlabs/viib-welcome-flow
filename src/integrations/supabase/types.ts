@@ -2697,12 +2697,13 @@ export type Database = {
         Args: { p_limit?: number; p_user_id: string }
         Returns: {
           base_viib_score: number
+          context_component: number
+          emotional_component: number
           final_score: number
-          intent_alignment_score: number
-          recommendation_reason: string
-          social_priority_score: number
+          historical_component: number
+          novelty_component: number
           title_id: string
-          transformation_score: number
+          vibe_component: number
         }[]
       }
       get_top_recommendations_with_intent: {
