@@ -307,6 +307,7 @@ export default function Onboarding() {
 
             // Get country from IP
             let ipCountry = 'Unknown';
+            let countryCode = 'US'; // Default to US
             try {
               const geoResponse = await fetch(`https://ipapi.co/${ipAddress}/json/`, {
                 signal: AbortSignal.timeout(5000)
@@ -314,18 +315,23 @@ export default function Onboarding() {
               if (geoResponse.ok) {
                 const geoData = await geoResponse.json();
                 ipCountry = geoData.country_name || 'Unknown';
+                countryCode = geoData.country_code || 'US'; // Get 2-letter code
               }
             } catch (geoError) {
               console.error('Failed to fetch geo data:', geoError);
             }
 
-            // Update user with IP data
+            // Update user with IP data AND country code for streaming availability
             await supabase
               .from('users')
-              .update({ ip_address: ipAddress, ip_country: ipCountry })
+              .update({ 
+                ip_address: ipAddress, 
+                ip_country: ipCountry,
+                country: countryCode // Set the country code for recommendations
+              })
               .eq('id', insertedUser.id);
 
-            console.log('IP/geo data updated for user');
+            console.log('IP/geo data updated for user:', { ipCountry, countryCode });
           } catch (ipError) {
             console.error('Failed to fetch IP data:', ipError);
           }
