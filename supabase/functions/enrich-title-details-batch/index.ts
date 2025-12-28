@@ -209,6 +209,101 @@ serve(async (req) => {
     }
   }
 
+  // Helper: Fetch Rotten Tomatoes scores using OpenAI
+  interface RottenTomatoesData {
+    rt_cscore: number | null;
+    rt_ascore: number | null;
+    rt_ccount: number | null;
+    rt_acount: number | null;
+  }
+
+  async function fetchRottenTomatoesScores(
+    titleName: string,
+    titleType: 'movie' | 'tv',
+    releaseYear: number | null
+  ): Promise<RottenTomatoesData | null> {
+    if (!OPENAI_API_KEY) return null;
+
+    const prompt = `You are a movie review data assistant.
+
+Task:
+Provide the most current Rotten Tomatoes review information for the given movie or TV series.
+
+Input:
+- Title: ${titleName}
+- Type: ${titleType === 'movie' ? 'movie' : 'series'}
+- Release year (if known): ${releaseYear || 'null'}
+
+Requirements:
+- Use the latest available Rotten Tomatoes data
+- If multiple versions exist, select the most recent or most relevant one
+- If exact data is unavailable, return null values instead of guessing
+
+Return ONLY a valid JSON object with the following fields:
+- "title" (string)
+- "critic_score" (number | null)       // Rotten Tomatoes Tomatometer %
+- "audience_score" (number | null)     // Rotten Tomatoes Audience Score %
+- "critic_count" (number | null)
+- "audience_count" (number | null)
+
+Formatting Rules:
+- No explanations
+- No markdown
+- No extra text
+- No comments
+- Output must be valid JSON only
+
+Example Output:
+{
+  "title": "Movie Name",
+  "critic_score": 87,
+  "audience_score": 91,
+  "critic_count": 245,
+  "audience_count": 10000
+}
+
+Begin now.`;
+
+    try {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 
+          'Authorization': `Bearer ${OPENAI_API_KEY}`, 
+          'Content-Type': 'application/json' 
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [{ role: 'user', content: prompt }],
+          max_tokens: 200,
+          temperature: 0.1  // Low temperature for factual data
+        }),
+      });
+
+      if (!response.ok) {
+        console.error(`OpenAI API error for RT lookup: ${response.status}`);
+        return null;
+      }
+
+      const data = await response.json();
+      const content = data.choices[0]?.message?.content?.trim();
+      
+      if (!content) return null;
+
+      // Parse JSON response
+      const parsed = JSON.parse(content);
+      
+      return {
+        rt_cscore: typeof parsed.critic_score === 'number' ? parsed.critic_score : null,
+        rt_ascore: typeof parsed.audience_score === 'number' ? parsed.audience_score : null,
+        rt_ccount: typeof parsed.critic_count === 'number' ? parsed.critic_count : null,
+        rt_acount: typeof parsed.audience_count === 'number' ? parsed.audience_count : null,
+      };
+    } catch (error) {
+      console.error(`Error fetching RT scores for ${titleName}:`, error);
+      return null;
+    }
+  }
+
   try {
     let jobId: string | null = null;
     try {
@@ -264,7 +359,7 @@ serve(async (req) => {
     // Query 1: Missing poster (simpler, faster query)
     const { data: missingPoster, error: err1 } = await supabase
       .from('titles')
-      .select('id, tmdb_id, title_type, name, overview, poster_path, trailer_url, trailer_transcript, backdrop_path, release_date, first_air_date')
+      .select('id, tmdb_id, title_type, name, overview, poster_path, trailer_url, trailer_transcript, backdrop_path, release_date, first_air_date, rt_cscore, rt_ascore')
       .not('tmdb_id', 'is', null)
       .or('poster_path.is.null,poster_path.eq.')
       .order('popularity', { ascending: false, nullsFirst: false })
@@ -281,7 +376,7 @@ serve(async (req) => {
       const existingIds = new Set(titlesWithMissingBasics.map(t => t.id));
       const { data: missingOverview, error: err2 } = await supabase
         .from('titles')
-        .select('id, tmdb_id, title_type, name, overview, poster_path, trailer_url, trailer_transcript, backdrop_path, release_date, first_air_date')
+        .select('id, tmdb_id, title_type, name, overview, poster_path, trailer_url, trailer_transcript, backdrop_path, release_date, first_air_date, rt_cscore, rt_ascore')
         .not('tmdb_id', 'is', null)
         .or('overview.is.null,overview.eq.')
         .order('popularity', { ascending: false, nullsFirst: false })
@@ -302,7 +397,7 @@ serve(async (req) => {
       const existingIds = new Set(titlesWithMissingBasics.map(t => t.id));
       const { data: missingTrailer, error: err3 } = await supabase
         .from('titles')
-        .select('id, tmdb_id, title_type, name, overview, poster_path, trailer_url, trailer_transcript, backdrop_path, release_date, first_air_date')
+        .select('id, tmdb_id, title_type, name, overview, poster_path, trailer_url, trailer_transcript, backdrop_path, release_date, first_air_date, rt_cscore, rt_ascore')
         .not('tmdb_id', 'is', null)
         .or('trailer_url.is.null,trailer_url.eq.')
         .order('popularity', { ascending: false, nullsFirst: false })
@@ -321,13 +416,13 @@ serve(async (req) => {
 
     // Fill remaining slots with titles only needing transcripts (if we have capacity)
     let titlesNeedingEnrichment = titlesWithMissingBasics || [];
-    const remainingSlots = BATCH_SIZE - titlesNeedingEnrichment.length;
+    let remainingSlots = BATCH_SIZE - titlesNeedingEnrichment.length;
     
     if (remainingSlots > 0 && !supadataLimitExceeded) {
       const existingIds = new Set(titlesNeedingEnrichment.map(t => t.id));
       const { data: titlesNeedingTranscript } = await supabase
         .from('titles')
-        .select('id, tmdb_id, title_type, name, overview, poster_path, trailer_url, trailer_transcript, backdrop_path, release_date, first_air_date')
+        .select('id, tmdb_id, title_type, name, overview, poster_path, trailer_url, trailer_transcript, backdrop_path, release_date, first_air_date, rt_cscore, rt_ascore')
         .not('tmdb_id', 'is', null)
         .not('poster_path', 'is', null).neq('poster_path', '')
         .not('overview', 'is', null).neq('overview', '')
@@ -339,6 +434,29 @@ serve(async (req) => {
       if (titlesNeedingTranscript) {
         // Add only titles not already in the list
         for (const t of titlesNeedingTranscript) {
+          if (!existingIds.has(t.id)) {
+            titlesNeedingEnrichment.push(t);
+          }
+        }
+      }
+    }
+
+    // Query 5: Fill remaining with titles needing RT scores
+    remainingSlots = BATCH_SIZE - titlesNeedingEnrichment.length;
+    if (remainingSlots > 0 && OPENAI_API_KEY) {
+      const existingIds = new Set(titlesNeedingEnrichment.map(t => t.id));
+      const { data: titlesNeedingRT } = await supabase
+        .from('titles')
+        .select('id, tmdb_id, title_type, name, overview, poster_path, trailer_url, trailer_transcript, backdrop_path, release_date, first_air_date, rt_cscore, rt_ascore')
+        .not('tmdb_id', 'is', null)
+        .not('poster_path', 'is', null).neq('poster_path', '')
+        .not('overview', 'is', null).neq('overview', '')
+        .is('rt_cscore', null)
+        .order('popularity', { ascending: false, nullsFirst: false })
+        .limit(remainingSlots);
+      
+      if (titlesNeedingRT) {
+        for (const t of titlesNeedingRT) {
           if (!existingIds.has(t.id)) {
             titlesNeedingEnrichment.push(t);
           }
@@ -498,6 +616,30 @@ serve(async (req) => {
           }
         }
 
+        // Fetch Rotten Tomatoes scores if missing (check for NULL only, not 0)
+        const needsRTScores = title.rt_cscore === null || title.rt_cscore === undefined;
+        if (needsRTScores && OPENAI_API_KEY) {
+          const dateStr = title.title_type === 'movie' ? title.release_date : title.first_air_date;
+          const releaseYear = dateStr ? new Date(dateStr).getFullYear() : null;
+          const rtData = await fetchRottenTomatoesScores(
+            title.name, 
+            title.title_type === 'movie' ? 'movie' : 'tv', 
+            releaseYear
+          );
+          
+          if (rtData) {
+            if (rtData.rt_cscore !== null) updateData.rt_cscore = rtData.rt_cscore;
+            if (rtData.rt_ascore !== null) updateData.rt_ascore = rtData.rt_ascore;
+            if (rtData.rt_ccount !== null) updateData.rt_ccount = rtData.rt_ccount;
+            if (rtData.rt_acount !== null) updateData.rt_acount = rtData.rt_acount;
+            
+            if (rtData.rt_cscore !== null || rtData.rt_ascore !== null) {
+              updates.push(`rt(c:${rtData.rt_cscore},a:${rtData.rt_ascore})`);
+              console.log(`  ✓ RT Scores: Critic ${rtData.rt_cscore}%, Audience ${rtData.rt_ascore}%`);
+            }
+          }
+        }
+
         // Apply updates
         if (Object.keys(updateData).length > 0) {
           updateData.updated_at = new Date().toISOString();
@@ -529,13 +671,15 @@ serve(async (req) => {
 
       const { data: seasonsToEnrich } = await supabase
         .from('seasons')
-        .select('id, title_id, season_number, name, trailer_url, trailer_transcript, titles!inner(tmdb_id, name)')
-        .or('trailer_url.is.null,trailer_url.eq.,trailer_transcript.is.null')
+        .select('id, title_id, season_number, name, trailer_url, trailer_transcript, rt_cscore, rt_ascore, titles!inner(tmdb_id, name)')
+        .or('trailer_url.is.null,trailer_url.eq.,trailer_transcript.is.null,rt_cscore.is.null')
         .gt('season_number', 0)
         .limit(BATCH_SIZE);
 
       const seasonsNeedingEnrichment = (seasonsToEnrich || []).filter(season =>
-        isEmpty(season.trailer_url) || (season.trailer_transcript === null && hasValidTrailer(season.trailer_url))
+        isEmpty(season.trailer_url) || 
+        (season.trailer_transcript === null && hasValidTrailer(season.trailer_url)) ||
+        (season.rt_cscore === null && OPENAI_API_KEY)
       );
 
       console.log(`Found ${seasonsNeedingEnrichment.length} seasons to process`);
@@ -618,6 +762,29 @@ serve(async (req) => {
               // Mark as checked so we don't retry endlessly
               updateData.trailer_transcript = '[no-transcript]';
               updates.push('transcript-unavailable');
+            }
+          }
+
+          // Fetch Rotten Tomatoes scores for season if missing
+          const needsRTScores = season.rt_cscore === null || season.rt_cscore === undefined;
+          if (needsRTScores && OPENAI_API_KEY) {
+            const seasonName = season.name || `Season ${season.season_number}`;
+            const rtData = await fetchRottenTomatoesScores(
+              `${titleName} ${seasonName}`, 
+              'tv', 
+              null
+            );
+            
+            if (rtData) {
+              if (rtData.rt_cscore !== null) updateData.rt_cscore = rtData.rt_cscore;
+              if (rtData.rt_ascore !== null) updateData.rt_ascore = rtData.rt_ascore;
+              if (rtData.rt_ccount !== null) updateData.rt_ccount = rtData.rt_ccount;
+              if (rtData.rt_acount !== null) updateData.rt_acount = rtData.rt_acount;
+              
+              if (rtData.rt_cscore !== null || rtData.rt_ascore !== null) {
+                updates.push(`rt(c:${rtData.rt_cscore},a:${rtData.rt_ascore})`);
+                console.log(`  ✓ RT Scores: Critic ${rtData.rt_cscore}%, Audience ${rtData.rt_ascore}%`);
+              }
             }
           }
 
