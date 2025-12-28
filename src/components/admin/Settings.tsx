@@ -23,6 +23,7 @@ interface ViibWeights {
   historical_weight: number;
   context_weight: number;
   novelty_weight: number;
+  vibe_weight: number;
   is_active?: boolean;
   notes?: string;
 }
@@ -94,11 +95,12 @@ export default function Settings() {
 
   // ViiB Weights State
   const [viibWeights, setViibWeights] = useState<ViibWeights>({
-    emotional_weight: 0.35,
-    social_weight: 0.20,
-    historical_weight: 0.25,
+    emotional_weight: 0.30,
+    social_weight: 0.15,
+    historical_weight: 0.20,
     context_weight: 0.10,
     novelty_weight: 0.10,
+    vibe_weight: 0.15,
   });
 
   const filteredCountries = useMemo(() => {
@@ -115,7 +117,8 @@ export default function Settings() {
       viibWeights.social_weight +
       viibWeights.historical_weight +
       viibWeights.context_weight +
-      viibWeights.novelty_weight
+      viibWeights.novelty_weight +
+      viibWeights.vibe_weight
     );
   }, [viibWeights]);
 
@@ -166,6 +169,7 @@ export default function Settings() {
           historical_weight: weightsData.historical_weight,
           context_weight: weightsData.context_weight,
           novelty_weight: weightsData.novelty_weight,
+          vibe_weight: weightsData.vibe_weight ?? 0,
           is_active: weightsData.is_active,
           notes: weightsData.notes,
         });
@@ -248,6 +252,7 @@ export default function Settings() {
           historical_weight: viibWeights.historical_weight,
           context_weight: viibWeights.context_weight,
           novelty_weight: viibWeights.novelty_weight,
+          vibe_weight: viibWeights.vibe_weight,
           is_active: true,
           notes: 'Updated via Admin Settings',
         });
@@ -539,6 +544,23 @@ export default function Settings() {
                   />
                   <p className="text-xs text-muted-foreground">
                     Discovery of new content outside typical preferences
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <Label>Vibe Weight</Label>
+                    <span className="text-sm font-medium">{(viibWeights.vibe_weight * 100).toFixed(0)}%</span>
+                  </div>
+                  <Slider
+                    value={[viibWeights.vibe_weight * 100]}
+                    onValueChange={([v]) => updateWeight('vibe_weight', v / 100)}
+                    max={100}
+                    step={1}
+                    className="w-full"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    User's vibe preference alignment (calm, energetic, curious, adventurous)
                   </p>
                 </div>
               </div>
