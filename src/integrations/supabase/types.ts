@@ -1868,6 +1868,7 @@ export type Database = {
       }
       user_vibe_preferences: {
         Row: {
+          canonical_key: string | null
           created_at: string
           id: string
           updated_at: string
@@ -1876,6 +1877,7 @@ export type Database = {
           vibe_type: string
         }
         Insert: {
+          canonical_key?: string | null
           created_at?: string
           id?: string
           updated_at?: string
@@ -1884,6 +1886,7 @@ export type Database = {
           vibe_type: string
         }
         Update: {
+          canonical_key?: string | null
           created_at?: string
           id?: string
           updated_at?: string
@@ -2033,6 +2036,32 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vibes"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      vibe_genre_weights_key: {
+        Row: {
+          canonical_key: string
+          genre_id: string
+          weight: number
+        }
+        Insert: {
+          canonical_key: string
+          genre_id: string
+          weight: number
+        }
+        Update: {
+          canonical_key?: string
+          genre_id?: string
+          weight?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vibe_genre_weights_key_canonical_fk"
+            columns: ["canonical_key"]
+            isOneToOne: false
+            referencedRelation: "vibes"
+            referencedColumns: ["canonical_key"]
           },
         ]
       }
@@ -2217,6 +2246,7 @@ export type Database = {
       vibes: {
         Row: {
           base_weight: number
+          canonical_key: string | null
           component_ratios: Json
           created_at: string
           decay_half_life_days: number
@@ -2227,6 +2257,7 @@ export type Database = {
         }
         Insert: {
           base_weight?: number
+          canonical_key?: string | null
           component_ratios?: Json
           created_at?: string
           decay_half_life_days?: number
@@ -2237,6 +2268,7 @@ export type Database = {
         }
         Update: {
           base_weight?: number
+          canonical_key?: string | null
           component_ratios?: Json
           created_at?: string
           decay_half_life_days?: number
