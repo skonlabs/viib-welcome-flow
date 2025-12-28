@@ -946,6 +946,10 @@ export type Database = {
           name: string | null
           overview: string | null
           poster_path: string | null
+          rt_acount: number | null
+          rt_ascore: number | null
+          rt_ccount: number | null
+          rt_cscore: number | null
           season_number: number
           title_id: string
           trailer_transcript: string | null
@@ -960,6 +964,10 @@ export type Database = {
           name?: string | null
           overview?: string | null
           poster_path?: string | null
+          rt_acount?: number | null
+          rt_ascore?: number | null
+          rt_ccount?: number | null
+          rt_cscore?: number | null
           season_number: number
           title_id: string
           trailer_transcript?: string | null
@@ -974,6 +982,10 @@ export type Database = {
           name?: string | null
           overview?: string | null
           poster_path?: string | null
+          rt_acount?: number | null
+          rt_ascore?: number | null
+          rt_ccount?: number | null
+          rt_cscore?: number | null
           season_number?: number
           title_id?: string
           trailer_transcript?: string | null
@@ -1403,6 +1415,10 @@ export type Database = {
           popularity: number | null
           poster_path: string | null
           release_date: string | null
+          rt_acount: number | null
+          rt_ascore: number | null
+          rt_ccount: number | null
+          rt_cscore: number | null
           runtime: number | null
           status: string | null
           title_genres: Json | null
@@ -1433,6 +1449,10 @@ export type Database = {
           popularity?: number | null
           poster_path?: string | null
           release_date?: string | null
+          rt_acount?: number | null
+          rt_ascore?: number | null
+          rt_ccount?: number | null
+          rt_cscore?: number | null
           runtime?: number | null
           status?: string | null
           title_genres?: Json | null
@@ -1463,6 +1483,10 @@ export type Database = {
           popularity?: number | null
           poster_path?: string | null
           release_date?: string | null
+          rt_acount?: number | null
+          rt_ascore?: number | null
+          rt_ccount?: number | null
+          rt_cscore?: number | null
           runtime?: number | null
           status?: string | null
           title_genres?: Json | null
