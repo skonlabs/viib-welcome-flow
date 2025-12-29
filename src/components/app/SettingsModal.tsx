@@ -39,7 +39,7 @@ const SERVICE_COLORS: Record<string, string> = {
 };
 
 export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
-  const { user } = useAuth();
+  const { profile } = useAuth();
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [pushNotifications, setPushNotifications] = useState(true);
   const [darkMode, setDarkMode] = useState(false);
@@ -64,9 +64,13 @@ export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
       fetchLanguages();
       fetchStreamingServices();
       fetchVibes();
-      fetchUserPreferences();
+      if (profile?.id) {
+        fetchUserPreferences();
+      } else {
+        setLoadingPrefs(false);
+      }
     }
-  }, [open]);
+  }, [open, profile?.id]);
 
   const fetchVibes = async () => {
     const { data, error } = await supabase
@@ -111,8 +115,7 @@ export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
   };
 
   const fetchUserPreferences = async () => {
-    const userId = localStorage.getItem('viib_user_id');
-    if (!userId) {
+    if (!profile?.id) {
       setLoadingPrefs(false);
       return;
     }
@@ -121,7 +124,7 @@ export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
     const { data: langData } = await supabase
       .from('user_language_preferences')
       .select('language_code')
-      .eq('user_id', userId)
+      .eq('user_id', profile.id)
       .order('priority_order');
 
     if (langData) {
@@ -132,7 +135,7 @@ export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
     const { data: streamData } = await supabase
       .from('user_streaming_subscriptions')
       .select('streaming_service_id')
-      .eq('user_id', userId)
+      .eq('user_id', profile.id)
       .eq('is_active', true);
 
     if (streamData) {
@@ -143,7 +146,7 @@ export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
     const { data: vibeData } = await supabase
       .from('user_vibe_preferences')
       .select('vibe_type')
-      .eq('user_id', userId)
+      .eq('user_id', profile.id)
       .single();
 
     if (vibeData) {
@@ -170,8 +173,7 @@ export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
   };
 
   const saveLanguagePreferences = async () => {
-    const userId = localStorage.getItem('viib_user_id');
-    if (!userId) return;
+    if (!profile?.id) return;
 
     setIsSaving(true);
 
@@ -179,12 +181,12 @@ export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
     await supabase
       .from('user_language_preferences')
       .delete()
-      .eq('user_id', userId);
+      .eq('user_id', profile.id);
 
     // Insert new preferences with priority order
     if (selectedLanguages.length > 0) {
       const inserts = selectedLanguages.map((code, index) => ({
-        user_id: userId,
+        user_id: profile.id,
         language_code: code,
         priority_order: index + 1
       }));
@@ -208,8 +210,7 @@ export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
   };
 
   const savePlatformPreferences = async () => {
-    const userId = localStorage.getItem('viib_user_id');
-    if (!userId) return;
+    if (!profile?.id) return;
 
     setIsSaving(true);
 
@@ -217,12 +218,12 @@ export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
     await supabase
       .from('user_streaming_subscriptions')
       .delete()
-      .eq('user_id', userId);
+      .eq('user_id', profile.id);
 
     // Insert new subscriptions
     if (selectedPlatforms.length > 0) {
       const subscriptions = selectedPlatforms.map(serviceId => ({
-        user_id: userId,
+        user_id: profile.id,
         streaming_service_id: serviceId,
         is_active: true
       }));
@@ -268,8 +269,7 @@ export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
   };
 
   const saveVibePreference = async (vibeId: string) => {
-    const userId = localStorage.getItem('viib_user_id');
-    if (!userId) {
+    if (!profile?.id) {
       toast.error('User not found');
       return;
     }
@@ -280,7 +280,7 @@ export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
     const { data: existingData, error: selectError } = await supabase
       .from('user_vibe_preferences')
       .select('id')
-      .eq('user_id', userId)
+      .eq('user_id', profile.id)
       .maybeSingle();
 
     let error;
@@ -293,14 +293,14 @@ export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
           vibe_type: vibeId,
           updated_at: new Date().toISOString()
         })
-        .eq('user_id', userId);
+        .eq('user_id', profile.id);
       error = result.error;
     } else {
       // Insert new record
       const result = await supabase
         .from('user_vibe_preferences')
         .insert({
-          user_id: userId,
+          user_id: profile.id,
           vibe_type: vibeId
         });
       error = result.error;
