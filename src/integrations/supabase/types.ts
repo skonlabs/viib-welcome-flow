@@ -2790,6 +2790,7 @@ export type Database = {
           emotion_score: number
           final_score: number
           historical_score: number
+          intent_score: number
           novelty_score: number
           poster_path: string
           quality_score: number

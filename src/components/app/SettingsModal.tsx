@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Bell, Moon, Globe, Shield, Trash2, Tv, Check, ChevronRight } from 'lucide-react';
+import { Bell, Moon, Globe, Shield, Trash2, Tv, Check, ChevronRight, Sparkles } from 'lucide-react';
 import { DeleteAccountDialog } from '@/components/DeleteAccountDialog';
 
 interface SettingsModalProps {
@@ -52,15 +52,32 @@ export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
   const [showLanguageEditor, setShowLanguageEditor] = useState(false);
   const [showPlatformEditor, setShowPlatformEditor] = useState(false);
+  const [showVibeEditor, setShowVibeEditor] = useState(false);
   const [loadingPrefs, setLoadingPrefs] = useState(true);
+
+  // Vibe states
+  const [vibes, setVibes] = useState<{ id: string; label: string; description: string }[]>([]);
+  const [selectedVibe, setSelectedVibe] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
       fetchLanguages();
       fetchStreamingServices();
+      fetchVibes();
       fetchUserPreferences();
     }
   }, [open]);
+
+  const fetchVibes = async () => {
+    const { data, error } = await supabase
+      .from('vibes')
+      .select('id, label, description')
+      .order('label');
+
+    if (!error && data) {
+      setVibes(data);
+    }
+  };
 
   const fetchStreamingServices = async () => {
     const { data, error } = await supabase
@@ -120,6 +137,17 @@ export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
 
     if (streamData) {
       setSelectedPlatforms(streamData.map(s => s.streaming_service_id));
+    }
+
+    // Fetch vibe preference
+    const { data: vibeData } = await supabase
+      .from('user_vibe_preferences')
+      .select('vibe_type')
+      .eq('user_id', userId)
+      .single();
+
+    if (vibeData) {
+      setSelectedVibe(vibeData.vibe_type);
     }
 
     setLoadingPrefs(false);
@@ -234,6 +262,38 @@ export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
       .join(', ') + (selectedPlatforms.length > 3 ? ` +${selectedPlatforms.length - 3}` : '');
   };
 
+  const getSelectedVibeName = () => {
+    const vibe = vibes.find(v => v.id === selectedVibe);
+    return vibe?.label || 'Select your vibe';
+  };
+
+  const saveVibePreference = async (vibeId: string) => {
+    const userId = localStorage.getItem('viib_user_id');
+    if (!userId) return;
+
+    setIsSaving(true);
+
+    const { error } = await supabase
+      .from('user_vibe_preferences')
+      .upsert({
+        user_id: userId,
+        vibe_type: vibeId,
+        updated_at: new Date().toISOString()
+      }, {
+        onConflict: 'user_id'
+      });
+
+    if (error) {
+      toast.error('Failed to save vibe preference');
+    } else {
+      setSelectedVibe(vibeId);
+      toast.success('Vibe updated successfully');
+      setShowVibeEditor(false);
+    }
+
+    setIsSaving(false);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -310,6 +370,75 @@ export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
                   onCheckedChange={setDarkMode}
                 />
               </div>
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* Vibe Preference Section */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-muted-foreground" />
+              <h3 className="font-semibold text-lg">Your Vibe</h3>
+            </div>
+            <div className="space-y-4 pl-7">
+              {!showVibeEditor ? (
+                <Button
+                  variant="outline"
+                  className="w-full justify-between"
+                  onClick={() => setShowVibeEditor(true)}
+                >
+                  <span className="text-left">
+                    {loadingPrefs ? 'Loading...' : getSelectedVibeName()}
+                  </span>
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              ) : (
+                <div className="space-y-4 p-4 border rounded-lg bg-muted/30">
+                  <Label className="text-base font-medium">Choose Your Vibe</Label>
+                  <p className="text-sm text-muted-foreground">
+                    This affects the type of content recommendations you receive
+                  </p>
+                  <div className="space-y-2">
+                    {vibes.map(vibe => {
+                      const isSelected = selectedVibe === vibe.id;
+                      return (
+                        <button
+                          key={vibe.id}
+                          onClick={() => saveVibePreference(vibe.id)}
+                          disabled={isSaving}
+                          className={`w-full p-3 rounded-lg text-left transition-all border ${
+                            isSelected
+                              ? 'border-primary bg-primary/10 ring-1 ring-primary'
+                              : 'border-border bg-muted/50 hover:bg-muted hover:border-primary/50'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <span className="font-medium">{vibe.label}</span>
+                              {vibe.description && (
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                  {vibe.description}
+                                </p>
+                              )}
+                            </div>
+                            {isSelected && (
+                              <Check className="w-4 h-4 text-primary" />
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowVibeEditor(false)}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
 
