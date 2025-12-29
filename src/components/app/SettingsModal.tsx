@@ -269,21 +269,45 @@ export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
 
   const saveVibePreference = async (vibeId: string) => {
     const userId = localStorage.getItem('viib_user_id');
-    if (!userId) return;
+    if (!userId) {
+      toast.error('User not found');
+      return;
+    }
 
     setIsSaving(true);
 
-    const { error } = await supabase
+    // First try to update existing preference
+    const { data: existingData, error: selectError } = await supabase
       .from('user_vibe_preferences')
-      .upsert({
-        user_id: userId,
-        vibe_type: vibeId,
-        updated_at: new Date().toISOString()
-      }, {
-        onConflict: 'user_id'
-      });
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    let error;
+    
+    if (existingData) {
+      // Update existing record
+      const result = await supabase
+        .from('user_vibe_preferences')
+        .update({
+          vibe_type: vibeId,
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', userId);
+      error = result.error;
+    } else {
+      // Insert new record
+      const result = await supabase
+        .from('user_vibe_preferences')
+        .insert({
+          user_id: userId,
+          vibe_type: vibeId
+        });
+      error = result.error;
+    }
 
     if (error) {
+      console.error('Vibe save error:', error);
       toast.error('Failed to save vibe preference');
     } else {
       setSelectedVibe(vibeId);
