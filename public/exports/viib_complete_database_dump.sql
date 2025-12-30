@@ -1,77 +1,56 @@
 -- ============================================================================
--- ViiB Complete Database Schema Dump
--- Generated: 2025-12-30
+-- ViiB COMPLETE DATABASE DUMP
+-- Generated: 2024-12-30
+-- Description: Complete database schema including ENUMs, tables, functions,
+--              indexes, constraints, triggers, and RLS policies
 -- ============================================================================
 
 -- ============================================================================
--- SECTION 1: ENUM TYPES
+-- PART 1: ENUM TYPES
 -- ============================================================================
 
 CREATE TYPE public.app_role AS ENUM ('admin', 'moderator', 'user');
-
-CREATE TYPE public.content_type AS ENUM ('movie', 'tv_show', 'documentary', 'short_film');
-
-CREATE TYPE public.device_type AS ENUM ('mobile', 'tablet', 'desktop', 'tv', 'unknown');
-
-CREATE TYPE public.discovery_source AS ENUM ('viib_recommendation', 'friend_recommendation', 'search', 'browse', 'external', 'social_feed');
-
-CREATE TYPE public.emotion_category AS ENUM ('user_state', 'content_state', 'transformation_goal');
-
-CREATE TYPE public.engagement_action AS ENUM ('view', 'click', 'scroll', 'hover', 'share', 'save');
-
-CREATE TYPE public.environment_tag AS ENUM ('solo', 'date_night', 'family', 'friends', 'party', 'background');
-
-CREATE TYPE public.feedback_type AS ENUM ('bug', 'feature_request', 'general', 'support');
-
-CREATE TYPE public.interaction_type AS ENUM ('started', 'completed', 'rated', 'liked', 'disliked', 'browsed', 'wishlisted', 'ignored');
-
-CREATE TYPE public.model_type AS ENUM ('collaborative', 'content_based', 'hybrid', 'emotion_based');
-
+CREATE TYPE public.content_type AS ENUM ('movie', 'series', 'documentary', 'short', 'other');
+CREATE TYPE public.device_type AS ENUM ('mobile', 'tv', 'tablet', 'web', 'other');
+CREATE TYPE public.discovery_source AS ENUM ('recommendation', 'search', 'friend', 'trending', 'external_link', 'notification', 'other');
+CREATE TYPE public.emotion_category AS ENUM ('user_state', 'content_state', 'content_tone');
+CREATE TYPE public.engagement_action AS ENUM ('click', 'preview', 'watch_start', 'watch_complete', 'abandon');
+CREATE TYPE public.environment_tag AS ENUM ('alone', 'family', 'friends', 'commute', 'work', 'public', 'other');
+CREATE TYPE public.feedback_type AS ENUM ('bug', 'suggestion', 'emotional_response', 'feature_request', 'other');
+CREATE TYPE public.interaction_type AS ENUM ('started', 'completed', 'liked', 'disliked', 'browsed', 'wishlisted', 'ignored');
+CREATE TYPE public.model_type AS ENUM ('collaborative', 'content_based', 'hybrid', 'deep_learning', 'reinforcement', 'other');
 CREATE TYPE public.network_type AS ENUM ('wifi', 'cellular', 'offline', 'unknown');
-
 CREATE TYPE public.notification_type AS ENUM ('recommendation', 'friend_activity', 'system', 'reminder');
-
-CREATE TYPE public.provider_type_enum AS ENUM ('flatrate', 'rent', 'buy', 'ads', 'free');
-
-CREATE TYPE public.rating_value AS ENUM ('love_it', 'like_it', 'ok', 'dislike_it');
-
-CREATE TYPE public.relationship_type AS ENUM ('friend', 'family', 'colleague', 'acquaintance');
-
-CREATE TYPE public.signup_method AS ENUM ('phone', 'email', 'google', 'apple');
-
+CREATE TYPE public.provider_type_enum AS ENUM ('buy', 'rent', 'stream', 'free');
+CREATE TYPE public.rating_value AS ENUM ('love_it', 'like_it', 'ok', 'dislike_it', 'not_rated');
+CREATE TYPE public.relationship_type AS ENUM ('friend', 'family', 'partner', 'colleague', 'acquaintance', 'other');
+CREATE TYPE public.signup_method AS ENUM ('email', 'phone', 'google', 'apple', 'github', 'linkedin', 'other');
 CREATE TYPE public.time_of_day AS ENUM ('morning', 'afternoon', 'evening', 'night', 'late_night');
-
 CREATE TYPE public.title_type_enum AS ENUM ('movie', 'tv');
-
-CREATE TYPE public.transformation_type AS ENUM ('amplify', 'soothe', 'energize', 'calm', 'inspire', 'comfort', 'challenge', 'escape', 'validate', 'transform');
-
-CREATE TYPE public.viib_intent_type AS ENUM ('escape', 'thrill', 'comfort', 'inspire', 'learn', 'laugh', 'cry', 'reflect', 'bond', 'background');
+CREATE TYPE public.transformation_type AS ENUM ('soothe', 'stabilize', 'validate', 'amplify', 'complementary', 'reinforcing', 'neutral_balancing');
+CREATE TYPE public.viib_intent_type AS ENUM ('adrenaline_rush', 'background_passive', 'comfort_escape', 'deep_thought', 'discovery', 'emotional_release', 'family_bonding', 'light_entertainment', 'romance', 'social_bonding', 'suspense_thrill');
 
 -- ============================================================================
--- SECTION 2: TABLES
+-- PART 2: TABLES
 -- ============================================================================
 
--- ----------------------------------------------------------------------------
--- Table: activation_codes
--- ----------------------------------------------------------------------------
+-- activation_codes
 CREATE TABLE public.activation_codes (
     id uuid NOT NULL DEFAULT gen_random_uuid(),
-    code character varying(50) NOT NULL,
-    is_used boolean DEFAULT false,
+    code text NOT NULL,
+    is_used boolean NOT NULL DEFAULT false,
     used_by uuid,
     used_at timestamp with time zone,
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
     expires_at timestamp with time zone,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    max_uses integer DEFAULT 1,
+    current_uses integer NOT NULL DEFAULT 0,
     notes text,
-    max_uses integer,
-    current_uses integer DEFAULT 0 NOT NULL,
     CONSTRAINT activation_codes_pkey PRIMARY KEY (id),
     CONSTRAINT activation_codes_code_key UNIQUE (code)
 );
 
--- ----------------------------------------------------------------------------
--- Table: app_settings
--- ----------------------------------------------------------------------------
+-- app_settings
 CREATE TABLE public.app_settings (
     id uuid NOT NULL DEFAULT gen_random_uuid(),
     setting_key text NOT NULL,
@@ -83,17 +62,15 @@ CREATE TABLE public.app_settings (
     CONSTRAINT app_settings_setting_key_key UNIQUE (setting_key)
 );
 
--- ----------------------------------------------------------------------------
--- Table: email_config
--- ----------------------------------------------------------------------------
+-- email_config
 CREATE TABLE public.email_config (
     id uuid NOT NULL DEFAULT gen_random_uuid(),
-    smtp_host character varying(255) NOT NULL,
+    smtp_host text NOT NULL,
     smtp_port integer NOT NULL,
-    smtp_user character varying(255) NOT NULL,
-    smtp_password character varying(255) NOT NULL,
-    from_email character varying(255) NOT NULL,
-    from_name character varying(255),
+    smtp_user text NOT NULL,
+    smtp_password text NOT NULL,
+    from_email text NOT NULL,
+    from_name text,
     use_ssl boolean DEFAULT true,
     is_active boolean DEFAULT true,
     created_at timestamp with time zone DEFAULT now(),
@@ -101,301 +78,713 @@ CREATE TABLE public.email_config (
     CONSTRAINT email_config_pkey PRIMARY KEY (id)
 );
 
--- ----------------------------------------------------------------------------
--- Table: email_templates
--- ----------------------------------------------------------------------------
+-- email_templates
 CREATE TABLE public.email_templates (
     id uuid NOT NULL DEFAULT gen_random_uuid(),
-    template_type character varying(50) NOT NULL,
-    name character varying(255) NOT NULL,
-    subject character varying(255) NOT NULL,
+    name text NOT NULL,
+    subject text NOT NULL,
     body text NOT NULL,
+    template_type text NOT NULL,
     variables jsonb,
     is_active boolean DEFAULT true,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
     CONSTRAINT email_templates_pkey PRIMARY KEY (id),
-    CONSTRAINT email_templates_template_type_key UNIQUE (template_type)
+    CONSTRAINT email_templates_name_key UNIQUE (name)
 );
 
--- ----------------------------------------------------------------------------
--- Table: email_verifications
--- ----------------------------------------------------------------------------
+-- email_verifications
 CREATE TABLE public.email_verifications (
     id uuid NOT NULL DEFAULT gen_random_uuid(),
-    email character varying(255) NOT NULL,
-    otp_code character varying(10) NOT NULL,
-    expires_at timestamp with time zone NOT NULL,
-    verified boolean DEFAULT false NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    email text NOT NULL,
+    otp_code text NOT NULL,
     otp_hash text,
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    expires_at timestamp with time zone NOT NULL,
+    verified boolean NOT NULL DEFAULT false,
     attempt_count integer DEFAULT 0,
     is_locked boolean DEFAULT false,
     CONSTRAINT email_verifications_pkey PRIMARY KEY (id)
 );
 
--- ----------------------------------------------------------------------------
--- Table: emotion_display_phrases
--- ----------------------------------------------------------------------------
-CREATE TABLE public.emotion_display_phrases (
-    id uuid NOT NULL DEFAULT gen_random_uuid(),
-    emotion_id uuid NOT NULL,
-    min_intensity numeric(3,2) NOT NULL,
-    max_intensity numeric(3,2) NOT NULL,
-    display_phrase text NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT emotion_display_phrases_pkey PRIMARY KEY (id)
-);
-
--- ----------------------------------------------------------------------------
--- Table: emotion_master
--- ----------------------------------------------------------------------------
+-- emotion_master
 CREATE TABLE public.emotion_master (
     id uuid NOT NULL DEFAULT gen_random_uuid(),
-    emotion_label character varying(100) NOT NULL,
-    category character varying(50) NOT NULL,
+    emotion_label text NOT NULL,
+    category text NOT NULL,
+    description text,
     valence real,
     arousal real,
     dominance real,
     intensity_multiplier real DEFAULT 1.0,
-    description text,
-    created_at timestamp with time zone DEFAULT now(),
+    created_at timestamp without time zone,
     CONSTRAINT emotion_master_pkey PRIMARY KEY (id),
-    CONSTRAINT emotion_master_emotion_label_key UNIQUE (emotion_label)
+    CONSTRAINT uq_emotion_label_category UNIQUE (emotion_label, category)
 );
 
--- ----------------------------------------------------------------------------
--- Table: emotion_to_intent_map
--- ----------------------------------------------------------------------------
+-- emotion_display_phrases
+CREATE TABLE public.emotion_display_phrases (
+    id uuid NOT NULL DEFAULT gen_random_uuid(),
+    emotion_id uuid NOT NULL,
+    display_phrase text NOT NULL,
+    min_intensity real NOT NULL,
+    max_intensity real NOT NULL,
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    CONSTRAINT emotion_display_phrases_pkey PRIMARY KEY (id),
+    CONSTRAINT emotion_display_phrases_emotion_phrase_unique UNIQUE (emotion_id, display_phrase),
+    CONSTRAINT uq_emotion_display_range UNIQUE (emotion_id, min_intensity, max_intensity),
+    CONSTRAINT emotion_display_phrases_emotion_id_fkey FOREIGN KEY (emotion_id) REFERENCES public.emotion_master(id)
+);
+
+-- emotion_to_intent_map
 CREATE TABLE public.emotion_to_intent_map (
     id uuid NOT NULL DEFAULT gen_random_uuid(),
     emotion_id uuid NOT NULL,
-    intent_type character varying(50) NOT NULL,
+    intent_type text NOT NULL,
     weight real NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
     CONSTRAINT emotion_to_intent_map_pkey PRIMARY KEY (id),
-    CONSTRAINT emotion_to_intent_map_emotion_id_intent_type_key UNIQUE (emotion_id, intent_type)
+    CONSTRAINT emotion_to_intent_map_emotion_intent_unique UNIQUE (emotion_id, intent_type),
+    CONSTRAINT emotion_to_intent_unique UNIQUE (emotion_id, intent_type),
+    CONSTRAINT emotion_to_intent_map_emotion_id_fkey FOREIGN KEY (emotion_id) REFERENCES public.emotion_master(id)
 );
 
--- ----------------------------------------------------------------------------
--- Table: emotion_transformation_map
--- ----------------------------------------------------------------------------
+-- emotion_transformation_map
 CREATE TABLE public.emotion_transformation_map (
     id uuid NOT NULL DEFAULT gen_random_uuid(),
     user_emotion_id uuid NOT NULL,
     content_emotion_id uuid NOT NULL,
-    transformation_type character varying(50) NOT NULL,
+    transformation_type text NOT NULL,
     confidence_score real NOT NULL,
-    priority_rank integer,
+    priority_rank smallint,
     CONSTRAINT emotion_transformation_map_pkey PRIMARY KEY (id),
-    CONSTRAINT emotion_transformation_map_user_emotion_id_content_emotion__key UNIQUE (user_emotion_id, content_emotion_id)
+    CONSTRAINT emotion_transformation_map_user_content_unique UNIQUE (user_emotion_id, content_emotion_id),
+    CONSTRAINT emotion_transformation_map_from_emotion_id_fkey FOREIGN KEY (user_emotion_id) REFERENCES public.emotion_master(id),
+    CONSTRAINT emotion_transformation_map_to_emotion_id_fkey FOREIGN KEY (content_emotion_id) REFERENCES public.emotion_master(id)
 );
 
--- ----------------------------------------------------------------------------
--- Table: enabled_countries
--- ----------------------------------------------------------------------------
+-- enabled_countries
 CREATE TABLE public.enabled_countries (
     id uuid NOT NULL DEFAULT gen_random_uuid(),
-    country_code character varying(2) NOT NULL,
-    country_name character varying(100) NOT NULL,
-    dial_code character varying(10) NOT NULL,
-    flag_emoji character varying(10),
+    country_code text NOT NULL,
+    country_name text NOT NULL,
+    dial_code text NOT NULL,
+    flag_emoji text,
     is_active boolean DEFAULT true,
     created_at timestamp with time zone DEFAULT now(),
     CONSTRAINT enabled_countries_pkey PRIMARY KEY (id),
     CONSTRAINT enabled_countries_country_code_key UNIQUE (country_code)
 );
 
--- ----------------------------------------------------------------------------
--- Table: episodes
--- ----------------------------------------------------------------------------
+-- genres
+CREATE TABLE public.genres (
+    id uuid NOT NULL DEFAULT gen_random_uuid(),
+    genre_name text NOT NULL,
+    tmdb_genre_id integer,
+    CONSTRAINT genres_pkey PRIMARY KEY (id)
+);
+
+-- keywords
+CREATE TABLE public.keywords (
+    id uuid NOT NULL DEFAULT gen_random_uuid(),
+    name text NOT NULL,
+    tmdb_keyword_id integer,
+    CONSTRAINT keywords_pkey PRIMARY KEY (id)
+);
+
+-- spoken_languages
+CREATE TABLE public.spoken_languages (
+    iso_639_1 character varying NOT NULL,
+    language_name text NOT NULL,
+    flag_emoji text,
+    CONSTRAINT spoken_languages_pkey PRIMARY KEY (iso_639_1)
+);
+
+-- streaming_services
+CREATE TABLE public.streaming_services (
+    id uuid NOT NULL DEFAULT gen_random_uuid(),
+    service_name text NOT NULL,
+    logo_url text,
+    website_url text,
+    is_active boolean NOT NULL DEFAULT true,
+    CONSTRAINT streaming_services_pkey PRIMARY KEY (id)
+);
+
+-- titles
+CREATE TABLE public.titles (
+    id uuid NOT NULL DEFAULT gen_random_uuid(),
+    name text,
+    original_name text,
+    title_type text,
+    overview text,
+    poster_path text,
+    backdrop_path text,
+    release_date date,
+    first_air_date date,
+    last_air_date date,
+    runtime integer,
+    episode_run_time integer[],
+    status text,
+    original_language text,
+    popularity double precision,
+    vote_average double precision,
+    tmdb_id integer,
+    imdb_id text,
+    is_adult boolean DEFAULT false,
+    trailer_url text,
+    trailer_transcript text,
+    is_tmdb_trailer boolean DEFAULT true,
+    certification text,
+    rt_cscore integer,
+    rt_ccount integer,
+    rt_ascore integer,
+    rt_acount integer,
+    title_genres json,
+    classification_status text DEFAULT 'pending'::text,
+    last_classified_at timestamp with time zone,
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now(),
+    CONSTRAINT titles_pkey PRIMARY KEY (id)
+);
+
+-- seasons
+CREATE TABLE public.seasons (
+    id uuid NOT NULL DEFAULT gen_random_uuid(),
+    title_id uuid NOT NULL,
+    season_number integer NOT NULL,
+    name text,
+    overview text,
+    poster_path text,
+    air_date date,
+    episode_count integer,
+    trailer_url text,
+    trailer_transcript text,
+    is_tmdb_trailer boolean DEFAULT true,
+    rt_cscore integer,
+    rt_ccount integer,
+    rt_ascore integer,
+    rt_acount integer,
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    CONSTRAINT seasons_pkey PRIMARY KEY (id),
+    CONSTRAINT seasons_title_id_fkey FOREIGN KEY (title_id) REFERENCES public.titles(id)
+);
+
+-- episodes
 CREATE TABLE public.episodes (
     id uuid NOT NULL DEFAULT gen_random_uuid(),
     season_id uuid NOT NULL,
     episode_number integer NOT NULL,
     name text,
     overview text,
+    still_path text,
     air_date date,
     runtime integer,
-    still_path text,
-    vote_average numeric(3,1),
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT episodes_pkey PRIMARY KEY (id)
+    vote_average double precision,
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    CONSTRAINT episodes_pkey PRIMARY KEY (id),
+    CONSTRAINT episodes_season_id_fkey FOREIGN KEY (season_id) REFERENCES public.seasons(id)
 );
 
--- ----------------------------------------------------------------------------
--- Table: feedback
--- ----------------------------------------------------------------------------
-CREATE TABLE public.feedback (
+-- title_genres
+CREATE TABLE public.title_genres (
+    title_id uuid NOT NULL,
+    genre_id uuid NOT NULL,
+    CONSTRAINT title_genres_pkey PRIMARY KEY (title_id, genre_id),
+    CONSTRAINT title_genres_genre_id_fkey FOREIGN KEY (genre_id) REFERENCES public.genres(id),
+    CONSTRAINT title_genres_title_id_fkey FOREIGN KEY (title_id) REFERENCES public.titles(id)
+);
+
+-- title_streaming_availability
+CREATE TABLE public.title_streaming_availability (
+    title_id uuid NOT NULL,
+    streaming_service_id uuid NOT NULL,
+    region_code text NOT NULL,
+    CONSTRAINT title_streaming_availability_pkey PRIMARY KEY (title_id, streaming_service_id, region_code),
+    CONSTRAINT title_streaming_availability_streaming_service_id_fkey FOREIGN KEY (streaming_service_id) REFERENCES public.streaming_services(id),
+    CONSTRAINT title_streaming_availability_title_id_fkey FOREIGN KEY (title_id) REFERENCES public.titles(id)
+);
+
+-- title_emotion_vectors
+CREATE TABLE public.title_emotion_vectors (
+    title_id uuid NOT NULL,
+    valence real NOT NULL,
+    arousal real NOT NULL,
+    dominance real NOT NULL,
+    emotion_strength real NOT NULL,
+    updated_at timestamp with time zone DEFAULT now(),
+    CONSTRAINT title_emotion_vectors_pkey PRIMARY KEY (title_id),
+    CONSTRAINT title_emotion_vectors_title_id_fkey FOREIGN KEY (title_id) REFERENCES public.titles(id)
+);
+
+-- title_transformation_scores
+CREATE TABLE public.title_transformation_scores (
+    title_id uuid NOT NULL,
+    user_emotion_id uuid NOT NULL,
+    transformation_score real NOT NULL,
+    updated_at timestamp with time zone DEFAULT now(),
+    CONSTRAINT title_transformation_scores_pkey PRIMARY KEY (title_id, user_emotion_id),
+    CONSTRAINT title_transformation_scores_title_id_fkey FOREIGN KEY (title_id) REFERENCES public.titles(id),
+    CONSTRAINT title_transformation_scores_user_emotion_id_fkey FOREIGN KEY (user_emotion_id) REFERENCES public.emotion_master(id)
+);
+
+-- title_intent_alignment_scores
+CREATE TABLE public.title_intent_alignment_scores (
+    title_id uuid NOT NULL,
+    user_emotion_id uuid NOT NULL,
+    alignment_score real NOT NULL,
+    updated_at timestamp with time zone DEFAULT now(),
+    CONSTRAINT title_intent_alignment_scores_pkey PRIMARY KEY (title_id, user_emotion_id),
+    CONSTRAINT title_intent_alignment_scores_title_id_fkey FOREIGN KEY (title_id) REFERENCES public.titles(id),
+    CONSTRAINT title_intent_alignment_scores_user_emotion_id_fkey FOREIGN KEY (user_emotion_id) REFERENCES public.emotion_master(id)
+);
+
+-- title_social_summary
+CREATE TABLE public.title_social_summary (
+    title_id uuid NOT NULL,
+    social_mean_rating real,
+    social_rec_power real,
+    updated_at timestamp with time zone DEFAULT now(),
+    CONSTRAINT title_social_summary_pkey PRIMARY KEY (title_id),
+    CONSTRAINT title_social_summary_title_id_fkey FOREIGN KEY (title_id) REFERENCES public.titles(id)
+);
+
+-- title_user_emotion_match_cache
+CREATE TABLE public.title_user_emotion_match_cache (
+    title_id uuid NOT NULL,
+    user_emotion_id uuid NOT NULL,
+    cosine_score real NOT NULL,
+    transformation_score real,
+    updated_at timestamp with time zone NOT NULL DEFAULT now(),
+    CONSTRAINT title_user_emotion_match_cache_pkey PRIMARY KEY (title_id, user_emotion_id),
+    CONSTRAINT title_user_emotion_match_cache_title_id_fkey FOREIGN KEY (title_id) REFERENCES public.titles(id),
+    CONSTRAINT title_user_emotion_match_cache_user_emotion_id_fkey FOREIGN KEY (user_emotion_id) REFERENCES public.emotion_master(id)
+);
+
+-- viib_emotion_classified_titles
+CREATE TABLE public.viib_emotion_classified_titles (
+    title_id uuid NOT NULL,
+    emotion_id uuid NOT NULL,
+    intensity_level integer NOT NULL,
+    source text,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now(),
+    CONSTRAINT viib_emotion_classified_titles_pkey PRIMARY KEY (title_id, emotion_id),
+    CONSTRAINT viib_emotion_classified_titles_emotion_id_fkey FOREIGN KEY (emotion_id) REFERENCES public.emotion_master(id),
+    CONSTRAINT viib_emotion_classified_titles_title_id_fkey FOREIGN KEY (title_id) REFERENCES public.titles(id)
+);
+
+-- viib_emotion_classified_titles_staging
+CREATE TABLE public.viib_emotion_classified_titles_staging (
+    title_id uuid NOT NULL,
+    emotion_id uuid NOT NULL,
+    intensity_level integer NOT NULL,
+    source text,
+    created_at timestamp with time zone DEFAULT now(),
+    CONSTRAINT viib_emotion_classified_titles_staging_pkey PRIMARY KEY (title_id, emotion_id)
+);
+
+-- viib_intent_classified_titles
+CREATE TABLE public.viib_intent_classified_titles (
+    title_id uuid NOT NULL,
+    intent_type text NOT NULL,
+    confidence_score real NOT NULL,
+    source text,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now(),
+    CONSTRAINT viib_intent_classified_titles_pkey PRIMARY KEY (title_id, intent_type),
+    CONSTRAINT viib_intent_classified_titles_title_id_fkey FOREIGN KEY (title_id) REFERENCES public.titles(id)
+);
+
+-- viib_intent_classified_titles_staging
+CREATE TABLE public.viib_intent_classified_titles_staging (
+    title_id uuid NOT NULL,
+    intent_type text NOT NULL,
+    confidence_score real NOT NULL,
+    source text,
+    created_at timestamp with time zone DEFAULT now(),
+    CONSTRAINT viib_intent_classified_titles_staging_pkey PRIMARY KEY (title_id, intent_type)
+);
+
+-- viib_title_intent_stats
+CREATE TABLE public.viib_title_intent_stats (
+    title_id uuid NOT NULL,
+    primary_intent text,
+    secondary_intent text,
+    intent_diversity_score real,
+    updated_at timestamp with time zone DEFAULT now(),
+    CONSTRAINT viib_title_intent_stats_pkey PRIMARY KEY (title_id),
+    CONSTRAINT viib_title_intent_stats_title_id_fkey FOREIGN KEY (title_id) REFERENCES public.titles(id)
+);
+
+-- viib_weight_config
+CREATE TABLE public.viib_weight_config (
     id uuid NOT NULL DEFAULT gen_random_uuid(),
-    user_id uuid,
-    type character varying(50) NOT NULL,
-    title character varying(255) NOT NULL,
-    message text NOT NULL,
-    status character varying(20) DEFAULT 'pending'::character varying NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT feedback_pkey PRIMARY KEY (id)
+    emotional_weight real NOT NULL DEFAULT 0.35,
+    social_weight real NOT NULL DEFAULT 0.20,
+    historical_weight real NOT NULL DEFAULT 0.25,
+    context_weight real NOT NULL DEFAULT 0.10,
+    novelty_weight real NOT NULL DEFAULT 0.10,
+    is_active boolean NOT NULL DEFAULT false,
+    notes text,
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    CONSTRAINT viib_weight_config_pkey PRIMARY KEY (id)
 );
 
--- ----------------------------------------------------------------------------
--- Table: friend_connections
--- ----------------------------------------------------------------------------
+-- vibes
+CREATE TABLE public.vibes (
+    id uuid NOT NULL,
+    label text NOT NULL,
+    canonical_key text,
+    description text,
+    component_ratios jsonb NOT NULL DEFAULT '{}'::jsonb,
+    base_weight real NOT NULL DEFAULT 1.0,
+    decay_half_life_days real NOT NULL DEFAULT 7,
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    updated_at timestamp with time zone NOT NULL DEFAULT now(),
+    CONSTRAINT vibes_pkey PRIMARY KEY (id),
+    CONSTRAINT vibes_canonical_key_key UNIQUE (canonical_key)
+);
+
+-- vibe_emotion_weights
+CREATE TABLE public.vibe_emotion_weights (
+    vibe_id uuid NOT NULL,
+    emotion_id uuid NOT NULL,
+    weight real NOT NULL,
+    CONSTRAINT vibe_emotion_weights_pkey PRIMARY KEY (vibe_id, emotion_id),
+    CONSTRAINT vibe_emotion_weights_emotion_id_fkey FOREIGN KEY (emotion_id) REFERENCES public.emotion_master(id)
+);
+
+-- vibe_genre_weights
+CREATE TABLE public.vibe_genre_weights (
+    vibe_id uuid NOT NULL,
+    genre_id uuid NOT NULL,
+    weight real NOT NULL,
+    CONSTRAINT vibe_genre_weights_pkey PRIMARY KEY (vibe_id, genre_id),
+    CONSTRAINT vibe_genre_weights_genre_id_fkey FOREIGN KEY (genre_id) REFERENCES public.genres(id)
+);
+
+-- vibe_genre_weights_key
+CREATE TABLE public.vibe_genre_weights_key (
+    canonical_key text NOT NULL,
+    genre_id uuid NOT NULL,
+    weight real NOT NULL,
+    CONSTRAINT vibe_genre_weights_key_pkey PRIMARY KEY (canonical_key, genre_id),
+    CONSTRAINT vibe_genre_weights_key_canonical_fk FOREIGN KEY (canonical_key) REFERENCES public.vibes(canonical_key)
+);
+
+-- users
+CREATE TABLE public.users (
+    id uuid NOT NULL DEFAULT gen_random_uuid(),
+    auth_id uuid,
+    email text,
+    phone_number text,
+    full_name text,
+    username text,
+    password_hash text,
+    country text,
+    timezone text,
+    language_preference text,
+    is_active boolean NOT NULL DEFAULT true,
+    is_phone_verified boolean NOT NULL DEFAULT false,
+    is_email_verified boolean NOT NULL DEFAULT false,
+    is_age_over_18 boolean NOT NULL,
+    signup_method text,
+    onboarding_completed boolean NOT NULL DEFAULT false,
+    last_onboarding_step text,
+    ip_address text,
+    ip_country text,
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    CONSTRAINT users_pkey PRIMARY KEY (id)
+);
+
+-- user_roles
+CREATE TABLE public.user_roles (
+    id uuid NOT NULL DEFAULT gen_random_uuid(),
+    user_id uuid NOT NULL,
+    role public.app_role NOT NULL,
+    created_at timestamp with time zone DEFAULT now(),
+    CONSTRAINT user_roles_pkey PRIMARY KEY (id),
+    CONSTRAINT user_roles_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
+
+-- user_vibe_preferences
+CREATE TABLE public.user_vibe_preferences (
+    id uuid NOT NULL DEFAULT gen_random_uuid(),
+    user_id uuid NOT NULL,
+    vibe_id uuid,
+    vibe_type text NOT NULL,
+    canonical_key text,
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    updated_at timestamp with time zone NOT NULL DEFAULT now(),
+    CONSTRAINT user_vibe_preferences_pkey PRIMARY KEY (id),
+    CONSTRAINT user_vibe_preferences_user_id_key UNIQUE (user_id),
+    CONSTRAINT user_vibe_preferences_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
+
+-- user_language_preferences
+CREATE TABLE public.user_language_preferences (
+    user_id uuid NOT NULL,
+    language_code text NOT NULL,
+    priority_order integer,
+    CONSTRAINT user_language_preferences_pkey PRIMARY KEY (user_id, language_code),
+    CONSTRAINT user_language_preferences_language_code_fkey FOREIGN KEY (language_code) REFERENCES public.spoken_languages(iso_639_1),
+    CONSTRAINT user_language_preferences_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
+
+-- user_streaming_subscriptions
+CREATE TABLE public.user_streaming_subscriptions (
+    user_id uuid NOT NULL,
+    streaming_service_id uuid NOT NULL,
+    is_active boolean NOT NULL DEFAULT true,
+    CONSTRAINT user_streaming_subscriptions_pkey PRIMARY KEY (user_id, streaming_service_id),
+    CONSTRAINT user_streaming_subscriptions_streaming_service_id_fkey FOREIGN KEY (streaming_service_id) REFERENCES public.streaming_services(id),
+    CONSTRAINT user_streaming_subscriptions_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
+
+-- user_emotion_states
+CREATE TABLE public.user_emotion_states (
+    id uuid NOT NULL DEFAULT gen_random_uuid(),
+    user_id uuid NOT NULL,
+    emotion_id uuid NOT NULL,
+    intensity real NOT NULL DEFAULT 0.1,
+    valence real,
+    arousal real,
+    dominance real,
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    CONSTRAINT user_emotion_states_pkey PRIMARY KEY (id),
+    CONSTRAINT user_emotion_states_emotion_id_fkey FOREIGN KEY (emotion_id) REFERENCES public.emotion_master(id),
+    CONSTRAINT user_emotion_states_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
+
+-- user_title_interactions
+CREATE TABLE public.user_title_interactions (
+    id uuid NOT NULL DEFAULT gen_random_uuid(),
+    user_id uuid NOT NULL,
+    title_id uuid NOT NULL,
+    interaction_type public.interaction_type NOT NULL,
+    rating_value public.rating_value DEFAULT 'not_rated'::public.rating_value,
+    watch_duration_percentage real,
+    season_number integer,
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    CONSTRAINT user_title_interactions_pkey PRIMARY KEY (id),
+    CONSTRAINT user_title_interactions_title_id_fkey FOREIGN KEY (title_id) REFERENCES public.titles(id),
+    CONSTRAINT user_title_interactions_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
+
+-- user_title_social_scores
+CREATE TABLE public.user_title_social_scores (
+    user_id uuid NOT NULL,
+    title_id uuid NOT NULL,
+    social_priority_score real NOT NULL,
+    social_component_score real NOT NULL,
+    updated_at timestamp with time zone NOT NULL DEFAULT now(),
+    CONSTRAINT user_title_social_scores_pkey PRIMARY KEY (user_id, title_id),
+    CONSTRAINT user_title_social_scores_title_id_fkey FOREIGN KEY (title_id) REFERENCES public.titles(id)
+);
+
+-- user_context_logs
+CREATE TABLE public.user_context_logs (
+    id uuid NOT NULL DEFAULT gen_random_uuid(),
+    user_id uuid NOT NULL,
+    device_type text,
+    location_type text,
+    time_of_day_bucket text,
+    session_length_seconds integer,
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    CONSTRAINT user_context_logs_pkey PRIMARY KEY (id),
+    CONSTRAINT user_context_logs_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
+
+-- friend_connections
 CREATE TABLE public.friend_connections (
     id uuid NOT NULL DEFAULT gen_random_uuid(),
     user_id uuid NOT NULL,
     friend_user_id uuid NOT NULL,
-    relationship_type character varying(50),
-    trust_score real DEFAULT 0.5 NOT NULL,
-    is_muted boolean DEFAULT false NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    relationship_type text,
+    trust_score real NOT NULL DEFAULT 0.5,
+    is_muted boolean NOT NULL DEFAULT false,
     is_blocked boolean DEFAULT false,
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
     CONSTRAINT friend_connections_pkey PRIMARY KEY (id),
-    CONSTRAINT friend_connections_user_id_friend_user_id_key UNIQUE (user_id, friend_user_id)
+    CONSTRAINT friend_connections_friend_user_id_fkey FOREIGN KEY (friend_user_id) REFERENCES public.users(id),
+    CONSTRAINT friend_connections_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
 );
 
--- ----------------------------------------------------------------------------
--- Table: genres
--- ----------------------------------------------------------------------------
-CREATE TABLE public.genres (
+-- user_social_recommendations
+CREATE TABLE public.user_social_recommendations (
     id uuid NOT NULL DEFAULT gen_random_uuid(),
-    genre_name character varying(100) NOT NULL,
-    tmdb_genre_id integer,
-    CONSTRAINT genres_pkey PRIMARY KEY (id),
-    CONSTRAINT genres_genre_name_key UNIQUE (genre_name)
+    sender_user_id uuid NOT NULL,
+    receiver_user_id uuid NOT NULL,
+    title_id uuid NOT NULL,
+    message text,
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    CONSTRAINT user_social_recommendations_pkey PRIMARY KEY (id),
+    CONSTRAINT user_social_recommendations_receiver_user_id_fkey FOREIGN KEY (receiver_user_id) REFERENCES public.users(id),
+    CONSTRAINT user_social_recommendations_sender_user_id_fkey FOREIGN KEY (sender_user_id) REFERENCES public.users(id),
+    CONSTRAINT user_social_recommendations_title_id_fkey FOREIGN KEY (title_id) REFERENCES public.titles(id)
 );
 
--- ----------------------------------------------------------------------------
--- Table: ip_rate_limits
--- ----------------------------------------------------------------------------
-CREATE TABLE public.ip_rate_limits (
+-- recommendation_notifications
+CREATE TABLE public.recommendation_notifications (
     id uuid NOT NULL DEFAULT gen_random_uuid(),
-    ip_address text NOT NULL,
-    endpoint text NOT NULL,
-    request_count integer DEFAULT 1,
-    window_start timestamp with time zone DEFAULT now(),
+    sender_user_id uuid NOT NULL,
+    receiver_user_id uuid NOT NULL,
+    title_id uuid NOT NULL,
+    notification_type text NOT NULL,
+    is_read boolean DEFAULT false,
     created_at timestamp with time zone DEFAULT now(),
-    CONSTRAINT ip_rate_limits_pkey PRIMARY KEY (id),
-    CONSTRAINT ip_rate_limits_ip_address_endpoint_key UNIQUE (ip_address, endpoint)
+    CONSTRAINT recommendation_notifications_pkey PRIMARY KEY (id),
+    CONSTRAINT recommendation_notifications_receiver_user_id_fkey FOREIGN KEY (receiver_user_id) REFERENCES public.users(id),
+    CONSTRAINT recommendation_notifications_sender_user_id_fkey FOREIGN KEY (sender_user_id) REFERENCES public.users(id),
+    CONSTRAINT recommendation_notifications_title_id_fkey FOREIGN KEY (title_id) REFERENCES public.titles(id)
 );
 
--- ----------------------------------------------------------------------------
--- Table: jobs
--- ----------------------------------------------------------------------------
-CREATE TABLE public.jobs (
+-- recommendation_outcomes
+CREATE TABLE public.recommendation_outcomes (
     id uuid NOT NULL DEFAULT gen_random_uuid(),
-    job_name character varying(255) NOT NULL,
-    job_type character varying(50) NOT NULL,
-    status character varying(20) DEFAULT 'idle'::character varying NOT NULL,
-    last_run_at timestamp with time zone,
-    next_run_at timestamp with time zone,
-    error_message text,
-    configuration jsonb,
-    is_active boolean DEFAULT true NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    total_titles_processed integer DEFAULT 0,
-    last_run_duration_seconds integer,
-    CONSTRAINT jobs_pkey PRIMARY KEY (id),
-    CONSTRAINT jobs_job_type_key UNIQUE (job_type)
+    user_id uuid NOT NULL,
+    title_id uuid NOT NULL,
+    was_selected boolean NOT NULL,
+    watch_duration_percentage real,
+    rating_value public.rating_value,
+    recommended_at timestamp with time zone NOT NULL DEFAULT now(),
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    CONSTRAINT recommendation_outcomes_pkey PRIMARY KEY (id),
+    CONSTRAINT recommendation_outcomes_title_id_fkey FOREIGN KEY (title_id) REFERENCES public.titles(id),
+    CONSTRAINT recommendation_outcomes_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
 );
 
--- ----------------------------------------------------------------------------
--- Table: keywords
--- ----------------------------------------------------------------------------
-CREATE TABLE public.keywords (
+-- personality_profiles
+CREATE TABLE public.personality_profiles (
     id uuid NOT NULL DEFAULT gen_random_uuid(),
-    name character varying(255) NOT NULL,
-    tmdb_keyword_id integer,
-    CONSTRAINT keywords_pkey PRIMARY KEY (id),
-    CONSTRAINT keywords_name_key UNIQUE (name)
+    user_id uuid NOT NULL,
+    type_name text,
+    description text,
+    introversion_score real,
+    emotional_sensitivity real,
+    sensation_seeking real,
+    analytical_thinking real,
+    empathy_level real,
+    risk_tolerance real,
+    updated_at timestamp with time zone NOT NULL DEFAULT now(),
+    CONSTRAINT personality_profiles_pkey PRIMARY KEY (id),
+    CONSTRAINT personality_profiles_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
 );
 
--- ----------------------------------------------------------------------------
--- Table: login_attempts
--- ----------------------------------------------------------------------------
+-- vibe_lists
+CREATE TABLE public.vibe_lists (
+    id uuid NOT NULL DEFAULT gen_random_uuid(),
+    user_id uuid NOT NULL,
+    name text NOT NULL,
+    description text,
+    visibility text NOT NULL DEFAULT 'private'::text,
+    mood_tags text[],
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    updated_at timestamp with time zone NOT NULL DEFAULT now(),
+    CONSTRAINT vibe_lists_pkey PRIMARY KEY (id),
+    CONSTRAINT vibe_lists_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
+
+-- vibe_list_items
+CREATE TABLE public.vibe_list_items (
+    id uuid NOT NULL DEFAULT gen_random_uuid(),
+    vibe_list_id uuid NOT NULL,
+    title_id uuid NOT NULL,
+    added_at timestamp with time zone NOT NULL DEFAULT now(),
+    CONSTRAINT vibe_list_items_pkey PRIMARY KEY (id),
+    CONSTRAINT vibe_list_items_vibe_list_id_fkey FOREIGN KEY (vibe_list_id) REFERENCES public.vibe_lists(id)
+);
+
+-- vibe_list_followers
+CREATE TABLE public.vibe_list_followers (
+    id uuid NOT NULL DEFAULT gen_random_uuid(),
+    vibe_list_id uuid NOT NULL,
+    follower_user_id uuid NOT NULL,
+    followed_at timestamp with time zone NOT NULL DEFAULT now(),
+    CONSTRAINT vibe_list_followers_pkey PRIMARY KEY (id),
+    CONSTRAINT vibe_list_followers_follower_user_id_fkey FOREIGN KEY (follower_user_id) REFERENCES public.users(id),
+    CONSTRAINT vibe_list_followers_vibe_list_id_fkey FOREIGN KEY (vibe_list_id) REFERENCES public.vibe_lists(id)
+);
+
+-- vibe_list_shared_with
+CREATE TABLE public.vibe_list_shared_with (
+    id uuid NOT NULL DEFAULT gen_random_uuid(),
+    vibe_list_id uuid NOT NULL,
+    shared_with_user_id uuid NOT NULL,
+    shared_at timestamp with time zone NOT NULL DEFAULT now(),
+    CONSTRAINT vibe_list_shared_with_pkey PRIMARY KEY (id),
+    CONSTRAINT vibe_list_shared_with_shared_with_user_id_fkey FOREIGN KEY (shared_with_user_id) REFERENCES public.users(id),
+    CONSTRAINT vibe_list_shared_with_vibe_list_id_fkey FOREIGN KEY (vibe_list_id) REFERENCES public.vibe_lists(id)
+);
+
+-- vibe_list_views
+CREATE TABLE public.vibe_list_views (
+    id uuid NOT NULL DEFAULT gen_random_uuid(),
+    vibe_list_id uuid NOT NULL,
+    viewer_user_id uuid,
+    viewed_at timestamp with time zone NOT NULL DEFAULT now(),
+    CONSTRAINT vibe_list_views_pkey PRIMARY KEY (id),
+    CONSTRAINT vibe_list_views_vibe_list_id_fkey FOREIGN KEY (vibe_list_id) REFERENCES public.vibe_lists(id),
+    CONSTRAINT vibe_list_views_viewer_user_id_fkey FOREIGN KEY (viewer_user_id) REFERENCES public.users(id)
+);
+
+-- phone_verifications
+CREATE TABLE public.phone_verifications (
+    id uuid NOT NULL DEFAULT gen_random_uuid(),
+    phone_number text NOT NULL,
+    otp_code text NOT NULL,
+    otp_hash text,
+    expires_at timestamp with time zone NOT NULL,
+    verified boolean NOT NULL DEFAULT false,
+    attempt_count integer DEFAULT 0,
+    max_attempts integer DEFAULT 5,
+    is_locked boolean DEFAULT false,
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    CONSTRAINT phone_verifications_pkey PRIMARY KEY (id)
+);
+
+-- session_tokens
+CREATE TABLE public.session_tokens (
+    id uuid NOT NULL DEFAULT gen_random_uuid(),
+    user_id uuid NOT NULL,
+    token_hash text NOT NULL,
+    issued_at timestamp with time zone NOT NULL DEFAULT now(),
+    expires_at timestamp with time zone NOT NULL,
+    revoked_at timestamp with time zone,
+    is_remember_me boolean DEFAULT false,
+    ip_address text,
+    user_agent text,
+    created_at timestamp with time zone DEFAULT now(),
+    CONSTRAINT session_tokens_pkey PRIMARY KEY (id),
+    CONSTRAINT session_tokens_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
+
+-- login_attempts
 CREATE TABLE public.login_attempts (
     id uuid NOT NULL DEFAULT gen_random_uuid(),
     identifier text NOT NULL,
-    ip_address text,
-    attempt_type text DEFAULT 'password'::text NOT NULL,
+    attempt_type text NOT NULL DEFAULT 'password'::text,
     success boolean DEFAULT false,
+    ip_address text,
     requires_captcha boolean DEFAULT false,
     created_at timestamp with time zone DEFAULT now(),
     CONSTRAINT login_attempts_pkey PRIMARY KEY (id)
 );
 
--- ----------------------------------------------------------------------------
--- Table: official_trailer_channels
--- ----------------------------------------------------------------------------
-CREATE TABLE public.official_trailer_channels (
-    id uuid NOT NULL DEFAULT gen_random_uuid(),
-    channel_name character varying(255) NOT NULL,
-    channel_id character varying(100),
-    language_code character varying(10) NOT NULL,
-    region character varying(50),
-    category character varying(50),
-    priority integer DEFAULT 1 NOT NULL,
-    is_active boolean DEFAULT true NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT official_trailer_channels_pkey PRIMARY KEY (id)
-);
-
--- ----------------------------------------------------------------------------
--- Table: personality_profiles
--- ----------------------------------------------------------------------------
-CREATE TABLE public.personality_profiles (
-    id uuid NOT NULL DEFAULT gen_random_uuid(),
-    user_id uuid NOT NULL,
-    type_name character varying(50),
-    introversion_score real,
-    emotional_sensitivity real,
-    analytical_thinking real,
-    risk_tolerance real,
-    sensation_seeking real,
-    empathy_level real,
-    description text,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT personality_profiles_pkey PRIMARY KEY (id),
-    CONSTRAINT personality_profiles_user_id_key UNIQUE (user_id)
-);
-
--- ----------------------------------------------------------------------------
--- Table: phone_verifications
--- ----------------------------------------------------------------------------
-CREATE TABLE public.phone_verifications (
-    id uuid NOT NULL DEFAULT gen_random_uuid(),
-    phone_number character varying(20) NOT NULL,
-    otp_code character varying(10) NOT NULL,
-    expires_at timestamp with time zone NOT NULL,
-    verified boolean DEFAULT false NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    otp_hash text,
-    attempt_count integer DEFAULT 0,
-    is_locked boolean DEFAULT false,
-    max_attempts integer DEFAULT 5,
-    CONSTRAINT phone_verifications_pkey PRIMARY KEY (id)
-);
-
--- ----------------------------------------------------------------------------
--- Table: rate_limit_config
--- ----------------------------------------------------------------------------
+-- rate_limit_config
 CREATE TABLE public.rate_limit_config (
     id uuid NOT NULL DEFAULT gen_random_uuid(),
-    endpoint character varying(255) NOT NULL,
+    endpoint text NOT NULL,
     max_requests integer NOT NULL,
     window_seconds integer NOT NULL,
     description text,
     is_active boolean DEFAULT true,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
-    CONSTRAINT rate_limit_config_pkey PRIMARY KEY (id),
-    CONSTRAINT rate_limit_config_endpoint_key UNIQUE (endpoint)
+    CONSTRAINT rate_limit_config_pkey PRIMARY KEY (id)
 );
 
--- ----------------------------------------------------------------------------
--- Table: rate_limit_entries
--- ----------------------------------------------------------------------------
+-- rate_limit_entries
 CREATE TABLE public.rate_limit_entries (
     id uuid NOT NULL DEFAULT gen_random_uuid(),
     key text NOT NULL,
@@ -406,847 +795,345 @@ CREATE TABLE public.rate_limit_entries (
     CONSTRAINT rate_limit_entries_key_key UNIQUE (key)
 );
 
--- ----------------------------------------------------------------------------
--- Table: recommendation_notifications
--- ----------------------------------------------------------------------------
-CREATE TABLE public.recommendation_notifications (
+-- ip_rate_limits
+CREATE TABLE public.ip_rate_limits (
     id uuid NOT NULL DEFAULT gen_random_uuid(),
-    sender_user_id uuid NOT NULL,
-    receiver_user_id uuid NOT NULL,
-    title_id uuid NOT NULL,
-    notification_type text NOT NULL,
-    is_read boolean DEFAULT false,
+    ip_address text NOT NULL,
+    endpoint text NOT NULL,
+    request_count integer DEFAULT 1,
+    window_start timestamp with time zone DEFAULT now(),
     created_at timestamp with time zone DEFAULT now(),
-    CONSTRAINT recommendation_notifications_pkey PRIMARY KEY (id)
+    CONSTRAINT ip_rate_limits_pkey PRIMARY KEY (id),
+    CONSTRAINT ip_rate_limits_ip_endpoint_unique UNIQUE (ip_address, endpoint)
 );
 
--- ----------------------------------------------------------------------------
--- Table: recommendation_outcomes
--- ----------------------------------------------------------------------------
-CREATE TABLE public.recommendation_outcomes (
+-- feedback
+CREATE TABLE public.feedback (
     id uuid NOT NULL DEFAULT gen_random_uuid(),
-    user_id uuid NOT NULL,
-    title_id uuid NOT NULL,
-    was_selected boolean NOT NULL,
-    watch_duration_percentage real,
-    rating_value public.rating_value,
-    recommended_at timestamp with time zone DEFAULT now() NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT recommendation_outcomes_pkey PRIMARY KEY (id)
+    user_id uuid,
+    type text NOT NULL,
+    title text NOT NULL,
+    message text NOT NULL,
+    status text NOT NULL DEFAULT 'pending'::text,
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    updated_at timestamp with time zone NOT NULL DEFAULT now(),
+    CONSTRAINT feedback_pkey PRIMARY KEY (id),
+    CONSTRAINT feedback_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
 );
 
--- ----------------------------------------------------------------------------
--- Table: seasons
--- ----------------------------------------------------------------------------
-CREATE TABLE public.seasons (
-    id uuid NOT NULL DEFAULT gen_random_uuid(),
-    title_id uuid NOT NULL,
-    season_number integer NOT NULL,
-    name text,
-    overview text,
-    poster_path text,
-    air_date date,
-    episode_count integer,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    trailer_url text,
-    trailer_transcript text,
-    is_tmdb_trailer boolean,
-    rt_cscore integer,
-    rt_ccount integer,
-    rt_ascore integer,
-    rt_acount integer,
-    CONSTRAINT seasons_pkey PRIMARY KEY (id),
-    CONSTRAINT seasons_title_id_season_number_key UNIQUE (title_id, season_number)
-);
-
--- ----------------------------------------------------------------------------
--- Table: session_tokens
--- ----------------------------------------------------------------------------
-CREATE TABLE public.session_tokens (
-    id uuid NOT NULL DEFAULT gen_random_uuid(),
-    user_id uuid NOT NULL,
-    token_hash text NOT NULL,
-    issued_at timestamp with time zone DEFAULT now() NOT NULL,
-    expires_at timestamp with time zone NOT NULL,
-    revoked_at timestamp with time zone,
-    ip_address text,
-    user_agent text,
-    is_remember_me boolean DEFAULT false,
-    created_at timestamp with time zone DEFAULT now(),
-    CONSTRAINT session_tokens_pkey PRIMARY KEY (id),
-    CONSTRAINT session_tokens_token_hash_key UNIQUE (token_hash)
-);
-
--- ----------------------------------------------------------------------------
--- Table: spoken_languages
--- ----------------------------------------------------------------------------
-CREATE TABLE public.spoken_languages (
-    iso_639_1 character varying(10) NOT NULL,
-    language_name character varying(100) NOT NULL,
-    flag_emoji character varying(10),
-    CONSTRAINT spoken_languages_pkey PRIMARY KEY (iso_639_1)
-);
-
--- ----------------------------------------------------------------------------
--- Table: streaming_services
--- ----------------------------------------------------------------------------
-CREATE TABLE public.streaming_services (
-    id uuid NOT NULL DEFAULT gen_random_uuid(),
-    service_name character varying(100) NOT NULL,
-    logo_url text,
-    website_url text,
-    is_active boolean DEFAULT true NOT NULL,
-    CONSTRAINT streaming_services_pkey PRIMARY KEY (id),
-    CONSTRAINT streaming_services_service_name_key UNIQUE (service_name)
-);
-
--- ----------------------------------------------------------------------------
--- Table: system_logs
--- ----------------------------------------------------------------------------
+-- system_logs
 CREATE TABLE public.system_logs (
     id uuid NOT NULL DEFAULT gen_random_uuid(),
     user_id uuid,
-    severity character varying(20) DEFAULT 'error'::character varying NOT NULL,
-    screen character varying(100),
-    operation character varying(100),
+    severity text NOT NULL DEFAULT 'error'::text,
     error_message text NOT NULL,
     error_stack text,
+    screen text,
+    operation text,
     context jsonb,
     http_status integer,
-    resolved boolean DEFAULT false NOT NULL,
-    resolved_by uuid,
+    resolved boolean NOT NULL DEFAULT false,
     resolved_at timestamp with time zone,
+    resolved_by uuid,
     notes text,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT system_logs_pkey PRIMARY KEY (id)
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    CONSTRAINT system_logs_pkey PRIMARY KEY (id),
+    CONSTRAINT system_logs_resolved_by_fkey FOREIGN KEY (resolved_by) REFERENCES public.users(id),
+    CONSTRAINT system_logs_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
 );
 
--- ----------------------------------------------------------------------------
--- Table: title_emotion_vectors
--- ----------------------------------------------------------------------------
-CREATE TABLE public.title_emotion_vectors (
-    title_id uuid NOT NULL,
-    valence real NOT NULL,
-    arousal real NOT NULL,
-    dominance real NOT NULL,
-    emotion_strength real NOT NULL,
-    updated_at timestamp with time zone DEFAULT now(),
-    CONSTRAINT title_emotion_vectors_pkey PRIMARY KEY (title_id)
-);
-
--- ----------------------------------------------------------------------------
--- Table: title_genres
--- ----------------------------------------------------------------------------
-CREATE TABLE public.title_genres (
-    title_id uuid NOT NULL,
-    genre_id uuid NOT NULL,
-    CONSTRAINT title_genres_pkey PRIMARY KEY (title_id, genre_id)
-);
-
--- ----------------------------------------------------------------------------
--- Table: title_intent_alignment_scores
--- ----------------------------------------------------------------------------
-CREATE TABLE public.title_intent_alignment_scores (
-    title_id uuid NOT NULL,
-    user_emotion_id uuid NOT NULL,
-    alignment_score real NOT NULL,
-    updated_at timestamp with time zone DEFAULT now(),
-    CONSTRAINT title_intent_alignment_scores_pkey PRIMARY KEY (title_id, user_emotion_id)
-);
-
--- ----------------------------------------------------------------------------
--- Table: title_keywords
--- ----------------------------------------------------------------------------
-CREATE TABLE public.title_keywords (
-    title_id uuid NOT NULL,
-    keyword_id uuid NOT NULL,
-    CONSTRAINT title_keywords_pkey PRIMARY KEY (title_id, keyword_id)
-);
-
--- ----------------------------------------------------------------------------
--- Table: title_social_summary
--- ----------------------------------------------------------------------------
-CREATE TABLE public.title_social_summary (
-    title_id uuid NOT NULL,
-    social_mean_rating real,
-    social_rec_power real,
-    updated_at timestamp with time zone DEFAULT now(),
-    CONSTRAINT title_social_summary_pkey PRIMARY KEY (title_id)
-);
-
--- ----------------------------------------------------------------------------
--- Table: title_spoken_languages
--- ----------------------------------------------------------------------------
-CREATE TABLE public.title_spoken_languages (
-    title_id uuid NOT NULL,
-    language_code character varying(10) NOT NULL,
-    CONSTRAINT title_spoken_languages_pkey PRIMARY KEY (title_id, language_code)
-);
-
--- ----------------------------------------------------------------------------
--- Table: title_streaming_availability
--- ----------------------------------------------------------------------------
-CREATE TABLE public.title_streaming_availability (
-    title_id uuid NOT NULL,
-    streaming_service_id uuid NOT NULL,
-    region_code character varying(10) NOT NULL,
-    CONSTRAINT title_streaming_availability_pkey PRIMARY KEY (title_id, streaming_service_id, region_code)
-);
-
--- ----------------------------------------------------------------------------
--- Table: title_transformation_scores
--- ----------------------------------------------------------------------------
-CREATE TABLE public.title_transformation_scores (
-    title_id uuid NOT NULL,
-    user_emotion_id uuid NOT NULL,
-    transformation_score real NOT NULL,
-    updated_at timestamp with time zone DEFAULT now(),
-    CONSTRAINT title_transformation_scores_pkey PRIMARY KEY (title_id, user_emotion_id)
-);
-
--- ----------------------------------------------------------------------------
--- Table: title_user_emotion_match_cache
--- ----------------------------------------------------------------------------
-CREATE TABLE public.title_user_emotion_match_cache (
-    title_id uuid NOT NULL,
-    user_emotion_id uuid NOT NULL,
-    cosine_score real NOT NULL,
-    transformation_score real,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT title_user_emotion_match_cache_pkey PRIMARY KEY (title_id, user_emotion_id)
-);
-
--- ----------------------------------------------------------------------------
--- Table: titles
--- ----------------------------------------------------------------------------
-CREATE TABLE public.titles (
+-- jobs
+CREATE TABLE public.jobs (
     id uuid NOT NULL DEFAULT gen_random_uuid(),
-    tmdb_id integer,
-    title_type character varying(10),
-    name text,
-    original_name text,
-    original_language character varying(10),
-    overview text,
-    poster_path text,
-    backdrop_path text,
-    release_date date,
-    first_air_date date,
-    last_air_date date,
-    runtime integer,
-    episode_run_time integer[],
-    status character varying(50),
-    popularity numeric(10,3),
-    vote_average numeric(3,1),
-    is_adult boolean DEFAULT false,
-    imdb_id character varying(20),
-    certification character varying(20),
-    trailer_url text,
-    trailer_transcript text,
-    is_tmdb_trailer boolean,
-    classification_status character varying(50),
-    last_classified_at timestamp with time zone,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now(),
-    title_genres jsonb,
-    rt_cscore integer,
-    rt_ccount integer,
-    rt_ascore integer,
-    rt_acount integer,
-    CONSTRAINT titles_pkey PRIMARY KEY (id),
-    CONSTRAINT titles_tmdb_id_title_type_key UNIQUE (tmdb_id, title_type)
+    job_name text NOT NULL,
+    job_type text NOT NULL,
+    status text NOT NULL DEFAULT 'idle'::text,
+    is_active boolean NOT NULL DEFAULT true,
+    configuration jsonb DEFAULT '{}'::jsonb,
+    last_run_at timestamp with time zone,
+    last_run_duration_seconds integer,
+    next_run_at timestamp with time zone,
+    total_titles_processed integer DEFAULT 0,
+    error_message text,
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    updated_at timestamp with time zone NOT NULL DEFAULT now(),
+    CONSTRAINT jobs_pkey PRIMARY KEY (id)
 );
 
--- ----------------------------------------------------------------------------
--- Table: tmdb_genre_mappings
--- ----------------------------------------------------------------------------
+-- official_trailer_channels
+CREATE TABLE public.official_trailer_channels (
+    id uuid NOT NULL DEFAULT gen_random_uuid(),
+    channel_name text NOT NULL,
+    channel_id text,
+    language_code text NOT NULL,
+    region text,
+    category text,
+    priority integer NOT NULL DEFAULT 1,
+    is_active boolean NOT NULL DEFAULT true,
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    CONSTRAINT official_trailer_channels_pkey PRIMARY KEY (id)
+);
+
+-- tmdb_genre_mappings
 CREATE TABLE public.tmdb_genre_mappings (
     id uuid NOT NULL DEFAULT gen_random_uuid(),
     tmdb_genre_id integer NOT NULL,
     genre_name text NOT NULL,
-    media_type text DEFAULT 'movie'::text NOT NULL,
+    media_type text NOT NULL DEFAULT 'both'::text,
     tv_equivalent_id integer,
-    is_active boolean DEFAULT true NOT NULL,
+    is_active boolean NOT NULL DEFAULT true,
     created_at timestamp with time zone DEFAULT now(),
-    CONSTRAINT tmdb_genre_mappings_pkey PRIMARY KEY (id),
-    CONSTRAINT tmdb_genre_mappings_tmdb_genre_id_media_type_key UNIQUE (tmdb_genre_id, media_type)
+    CONSTRAINT tmdb_genre_mappings_pkey PRIMARY KEY (id)
 );
 
--- ----------------------------------------------------------------------------
--- Table: tmdb_provider_mappings
--- ----------------------------------------------------------------------------
+-- tmdb_provider_mappings
 CREATE TABLE public.tmdb_provider_mappings (
     id uuid NOT NULL DEFAULT gen_random_uuid(),
     tmdb_provider_id integer NOT NULL,
     service_name text NOT NULL,
-    region_code text DEFAULT 'US'::text NOT NULL,
-    is_active boolean DEFAULT true NOT NULL,
+    region_code text NOT NULL DEFAULT 'US'::text,
+    is_active boolean NOT NULL DEFAULT true,
     created_at timestamp with time zone DEFAULT now(),
-    CONSTRAINT tmdb_provider_mappings_pkey PRIMARY KEY (id),
-    CONSTRAINT tmdb_provider_mappings_tmdb_provider_id_region_code_key UNIQUE (tmdb_provider_id, region_code)
-);
-
--- ----------------------------------------------------------------------------
--- Table: user_context_logs
--- ----------------------------------------------------------------------------
-CREATE TABLE public.user_context_logs (
-    id uuid NOT NULL DEFAULT gen_random_uuid(),
-    user_id uuid NOT NULL,
-    device_type character varying(50),
-    time_of_day_bucket character varying(20),
-    location_type character varying(50),
-    session_length_seconds integer,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT user_context_logs_pkey PRIMARY KEY (id)
-);
-
--- ----------------------------------------------------------------------------
--- Table: user_emotion_states
--- ----------------------------------------------------------------------------
-CREATE TABLE public.user_emotion_states (
-    id uuid NOT NULL DEFAULT gen_random_uuid(),
-    user_id uuid NOT NULL,
-    emotion_id uuid NOT NULL,
-    intensity real DEFAULT 0.5 NOT NULL,
-    valence real,
-    arousal real,
-    dominance real,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT user_emotion_states_pkey PRIMARY KEY (id)
-);
-
--- ----------------------------------------------------------------------------
--- Table: user_language_preferences
--- ----------------------------------------------------------------------------
-CREATE TABLE public.user_language_preferences (
-    user_id uuid NOT NULL,
-    language_code character varying(10) NOT NULL,
-    priority_order integer,
-    CONSTRAINT user_language_preferences_pkey PRIMARY KEY (user_id, language_code)
-);
-
--- ----------------------------------------------------------------------------
--- Table: user_roles
--- ----------------------------------------------------------------------------
-CREATE TABLE public.user_roles (
-    id uuid NOT NULL DEFAULT gen_random_uuid(),
-    user_id uuid NOT NULL,
-    role public.app_role NOT NULL,
-    created_at timestamp with time zone DEFAULT now(),
-    CONSTRAINT user_roles_pkey PRIMARY KEY (id),
-    CONSTRAINT user_roles_user_id_role_key UNIQUE (user_id, role)
-);
-
--- ----------------------------------------------------------------------------
--- Table: user_social_recommendations
--- ----------------------------------------------------------------------------
-CREATE TABLE public.user_social_recommendations (
-    id uuid NOT NULL DEFAULT gen_random_uuid(),
-    sender_user_id uuid NOT NULL,
-    receiver_user_id uuid NOT NULL,
-    title_id uuid NOT NULL,
-    message text,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT user_social_recommendations_pkey PRIMARY KEY (id)
-);
-
--- ----------------------------------------------------------------------------
--- Table: user_streaming_subscriptions
--- ----------------------------------------------------------------------------
-CREATE TABLE public.user_streaming_subscriptions (
-    user_id uuid NOT NULL,
-    streaming_service_id uuid NOT NULL,
-    is_active boolean DEFAULT true NOT NULL,
-    CONSTRAINT user_streaming_subscriptions_pkey PRIMARY KEY (user_id, streaming_service_id)
-);
-
--- ----------------------------------------------------------------------------
--- Table: user_title_interactions
--- ----------------------------------------------------------------------------
-CREATE TABLE public.user_title_interactions (
-    id uuid NOT NULL DEFAULT gen_random_uuid(),
-    user_id uuid NOT NULL,
-    title_id uuid NOT NULL,
-    interaction_type public.interaction_type NOT NULL,
-    rating_value public.rating_value,
-    watch_duration_percentage real,
-    season_number integer,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT user_title_interactions_pkey PRIMARY KEY (id)
-);
-
--- ----------------------------------------------------------------------------
--- Table: user_title_social_scores
--- ----------------------------------------------------------------------------
-CREATE TABLE public.user_title_social_scores (
-    user_id uuid NOT NULL,
-    title_id uuid NOT NULL,
-    social_priority_score real NOT NULL,
-    social_component_score real NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT user_title_social_scores_pkey PRIMARY KEY (user_id, title_id)
-);
-
--- ----------------------------------------------------------------------------
--- Table: user_vibe_preferences
--- ----------------------------------------------------------------------------
-CREATE TABLE public.user_vibe_preferences (
-    id uuid NOT NULL DEFAULT gen_random_uuid(),
-    user_id uuid NOT NULL,
-    vibe_id uuid,
-    vibe_type character varying(100) NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    canonical_key text,
-    CONSTRAINT user_vibe_preferences_pkey PRIMARY KEY (id),
-    CONSTRAINT user_vibe_preferences_user_id_key UNIQUE (user_id)
-);
-
--- ----------------------------------------------------------------------------
--- Table: users
--- ----------------------------------------------------------------------------
-CREATE TABLE public.users (
-    id uuid NOT NULL DEFAULT gen_random_uuid(),
-    phone_number character varying(20),
-    email character varying(255),
-    full_name character varying(255),
-    username character varying(100),
-    is_phone_verified boolean DEFAULT false NOT NULL,
-    is_email_verified boolean DEFAULT false NOT NULL,
-    is_age_over_18 boolean NOT NULL,
-    onboarding_completed boolean DEFAULT false NOT NULL,
-    last_onboarding_step character varying(50),
-    is_active boolean DEFAULT true NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    country character varying(100),
-    language_preference character varying(10),
-    timezone character varying(50),
-    auth_id uuid,
-    signup_method character varying(20),
-    ip_address text,
-    ip_country text,
-    password_hash text,
-    CONSTRAINT users_pkey PRIMARY KEY (id),
-    CONSTRAINT users_auth_id_key UNIQUE (auth_id),
-    CONSTRAINT users_email_key UNIQUE (email),
-    CONSTRAINT users_phone_number_key UNIQUE (phone_number),
-    CONSTRAINT users_username_key UNIQUE (username)
-);
-
--- ----------------------------------------------------------------------------
--- Table: vibe_emotion_weights
--- ----------------------------------------------------------------------------
-CREATE TABLE public.vibe_emotion_weights (
-    vibe_id uuid NOT NULL,
-    emotion_id uuid NOT NULL,
-    weight real NOT NULL,
-    CONSTRAINT vibe_emotion_weights_pkey PRIMARY KEY (vibe_id, emotion_id)
-);
-
--- ----------------------------------------------------------------------------
--- Table: vibe_genre_weights
--- ----------------------------------------------------------------------------
-CREATE TABLE public.vibe_genre_weights (
-    vibe_id uuid NOT NULL,
-    genre_id uuid NOT NULL,
-    weight real NOT NULL,
-    CONSTRAINT vibe_genre_weights_pkey PRIMARY KEY (vibe_id, genre_id)
-);
-
--- ----------------------------------------------------------------------------
--- Table: vibe_genre_weights_key
--- ----------------------------------------------------------------------------
-CREATE TABLE public.vibe_genre_weights_key (
-    canonical_key text NOT NULL,
-    genre_id uuid NOT NULL,
-    weight real NOT NULL,
-    CONSTRAINT vibe_genre_weights_key_pkey PRIMARY KEY (canonical_key, genre_id)
-);
-
--- ----------------------------------------------------------------------------
--- Table: vibe_list_followers
--- ----------------------------------------------------------------------------
-CREATE TABLE public.vibe_list_followers (
-    id uuid NOT NULL DEFAULT gen_random_uuid(),
-    vibe_list_id uuid NOT NULL,
-    follower_user_id uuid NOT NULL,
-    followed_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT vibe_list_followers_pkey PRIMARY KEY (id),
-    CONSTRAINT vibe_list_followers_vibe_list_id_follower_user_id_key UNIQUE (vibe_list_id, follower_user_id)
-);
-
--- ----------------------------------------------------------------------------
--- Table: vibe_list_items
--- ----------------------------------------------------------------------------
-CREATE TABLE public.vibe_list_items (
-    id uuid NOT NULL DEFAULT gen_random_uuid(),
-    vibe_list_id uuid NOT NULL,
-    title_id uuid NOT NULL,
-    added_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT vibe_list_items_pkey PRIMARY KEY (id),
-    CONSTRAINT vibe_list_items_vibe_list_id_title_id_key UNIQUE (vibe_list_id, title_id)
-);
-
--- ----------------------------------------------------------------------------
--- Table: vibe_list_shared_with
--- ----------------------------------------------------------------------------
-CREATE TABLE public.vibe_list_shared_with (
-    id uuid NOT NULL DEFAULT gen_random_uuid(),
-    vibe_list_id uuid NOT NULL,
-    shared_with_user_id uuid NOT NULL,
-    shared_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT vibe_list_shared_with_pkey PRIMARY KEY (id),
-    CONSTRAINT vibe_list_shared_with_vibe_list_id_shared_with_user_id_key UNIQUE (vibe_list_id, shared_with_user_id)
-);
-
--- ----------------------------------------------------------------------------
--- Table: vibe_list_views
--- ----------------------------------------------------------------------------
-CREATE TABLE public.vibe_list_views (
-    id uuid NOT NULL DEFAULT gen_random_uuid(),
-    vibe_list_id uuid NOT NULL,
-    viewer_user_id uuid NOT NULL,
-    viewed_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT vibe_list_views_pkey PRIMARY KEY (id)
-);
-
--- ----------------------------------------------------------------------------
--- Table: vibe_lists
--- ----------------------------------------------------------------------------
-CREATE TABLE public.vibe_lists (
-    id uuid NOT NULL DEFAULT gen_random_uuid(),
-    user_id uuid NOT NULL,
-    name character varying(255) NOT NULL,
-    description text,
-    is_public boolean DEFAULT false NOT NULL,
-    is_collaborative boolean DEFAULT false NOT NULL,
-    cover_image_url text,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT vibe_lists_pkey PRIMARY KEY (id)
-);
-
--- ----------------------------------------------------------------------------
--- Table: vibes
--- ----------------------------------------------------------------------------
-CREATE TABLE public.vibes (
-    id uuid NOT NULL DEFAULT gen_random_uuid(),
-    name text NOT NULL,
-    description text,
-    icon_name text,
-    color_hex text,
-    is_active boolean DEFAULT true NOT NULL,
-    canonical_key text NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT vibes_pkey PRIMARY KEY (id),
-    CONSTRAINT vibes_canonical_key_key UNIQUE (canonical_key),
-    CONSTRAINT vibes_name_key UNIQUE (name)
-);
-
--- ----------------------------------------------------------------------------
--- Table: viib_emotion_classified_titles
--- ----------------------------------------------------------------------------
-CREATE TABLE public.viib_emotion_classified_titles (
-    title_id uuid NOT NULL,
-    emotion_id uuid NOT NULL,
-    intensity_level integer NOT NULL,
-    source character varying(50),
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now(),
-    CONSTRAINT viib_emotion_classified_titles_pkey PRIMARY KEY (title_id, emotion_id),
-    CONSTRAINT viib_emotion_classified_titles_intensity_level_check CHECK (((intensity_level >= 1) AND (intensity_level <= 10)))
-);
-
--- ----------------------------------------------------------------------------
--- Table: viib_emotion_classified_titles_staging
--- ----------------------------------------------------------------------------
-CREATE TABLE public.viib_emotion_classified_titles_staging (
-    title_id uuid NOT NULL,
-    emotion_id uuid NOT NULL,
-    intensity_level integer NOT NULL,
-    source character varying(50),
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT viib_emotion_classified_titles_staging_pkey PRIMARY KEY (title_id, emotion_id),
-    CONSTRAINT viib_emotion_classified_titles_staging_intensity_level_check CHECK (((intensity_level >= 1) AND (intensity_level <= 10)))
-);
-
--- ----------------------------------------------------------------------------
--- Table: viib_intent_classified_titles
--- ----------------------------------------------------------------------------
-CREATE TABLE public.viib_intent_classified_titles (
-    title_id uuid NOT NULL,
-    intent_type character varying(50) NOT NULL,
-    confidence_score real NOT NULL,
-    source character varying(50),
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now(),
-    CONSTRAINT viib_intent_classified_titles_pkey PRIMARY KEY (title_id, intent_type)
-);
-
--- ----------------------------------------------------------------------------
--- Table: viib_intent_classified_titles_staging
--- ----------------------------------------------------------------------------
-CREATE TABLE public.viib_intent_classified_titles_staging (
-    title_id uuid NOT NULL,
-    intent_type character varying(50) NOT NULL,
-    confidence_score real NOT NULL,
-    source character varying(50),
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT viib_intent_classified_titles_staging_pkey PRIMARY KEY (title_id, intent_type)
-);
-
--- ----------------------------------------------------------------------------
--- Table: viib_title_intent_stats
--- ----------------------------------------------------------------------------
-CREATE TABLE public.viib_title_intent_stats (
-    title_id uuid NOT NULL,
-    dominant_intent character varying(50),
-    intent_diversity_score real,
-    top_intent_confidence real,
-    updated_at timestamp with time zone DEFAULT now(),
-    CONSTRAINT viib_title_intent_stats_pkey PRIMARY KEY (title_id)
-);
-
--- ----------------------------------------------------------------------------
--- Table: viib_weight_config
--- ----------------------------------------------------------------------------
-CREATE TABLE public.viib_weight_config (
-    id uuid NOT NULL DEFAULT gen_random_uuid(),
-    emotional_weight real DEFAULT 0.35 NOT NULL,
-    social_weight real DEFAULT 0.2 NOT NULL,
-    historical_weight real DEFAULT 0.25 NOT NULL,
-    context_weight real DEFAULT 0.1 NOT NULL,
-    novelty_weight real DEFAULT 0.1 NOT NULL,
-    is_active boolean DEFAULT false NOT NULL,
-    notes text,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT viib_weight_config_pkey PRIMARY KEY (id)
+    CONSTRAINT tmdb_provider_mappings_pkey PRIMARY KEY (id)
 );
 
 -- ============================================================================
--- SECTION 3: FOREIGN KEY CONSTRAINTS
+-- PART 3: INDEXES
 -- ============================================================================
 
-ALTER TABLE public.activation_codes ADD CONSTRAINT activation_codes_used_by_fkey FOREIGN KEY (used_by) REFERENCES public.users(id);
-
-ALTER TABLE public.emotion_display_phrases ADD CONSTRAINT emotion_display_phrases_emotion_id_fkey FOREIGN KEY (emotion_id) REFERENCES public.emotion_master(id);
-
-ALTER TABLE public.emotion_to_intent_map ADD CONSTRAINT emotion_to_intent_map_emotion_id_fkey FOREIGN KEY (emotion_id) REFERENCES public.emotion_master(id);
-
-ALTER TABLE public.emotion_transformation_map ADD CONSTRAINT emotion_transformation_map_from_emotion_id_fkey FOREIGN KEY (user_emotion_id) REFERENCES public.emotion_master(id);
-
-ALTER TABLE public.emotion_transformation_map ADD CONSTRAINT emotion_transformation_map_to_emotion_id_fkey FOREIGN KEY (content_emotion_id) REFERENCES public.emotion_master(id);
-
-ALTER TABLE public.episodes ADD CONSTRAINT episodes_season_id_fkey FOREIGN KEY (season_id) REFERENCES public.seasons(id);
-
-ALTER TABLE public.feedback ADD CONSTRAINT feedback_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id);
-
-ALTER TABLE public.friend_connections ADD CONSTRAINT friend_connections_friend_user_id_fkey FOREIGN KEY (friend_user_id) REFERENCES public.users(id);
-
-ALTER TABLE public.friend_connections ADD CONSTRAINT friend_connections_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id);
-
-ALTER TABLE public.personality_profiles ADD CONSTRAINT personality_profiles_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id);
-
-ALTER TABLE public.recommendation_notifications ADD CONSTRAINT recommendation_notifications_receiver_user_id_fkey FOREIGN KEY (receiver_user_id) REFERENCES public.users(id);
-
-ALTER TABLE public.recommendation_notifications ADD CONSTRAINT recommendation_notifications_sender_user_id_fkey FOREIGN KEY (sender_user_id) REFERENCES public.users(id);
-
-ALTER TABLE public.recommendation_notifications ADD CONSTRAINT recommendation_notifications_title_id_fkey FOREIGN KEY (title_id) REFERENCES public.titles(id);
-
-ALTER TABLE public.recommendation_outcomes ADD CONSTRAINT recommendation_outcomes_title_id_fkey FOREIGN KEY (title_id) REFERENCES public.titles(id);
-
-ALTER TABLE public.recommendation_outcomes ADD CONSTRAINT recommendation_outcomes_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id);
-
-ALTER TABLE public.seasons ADD CONSTRAINT seasons_title_id_fkey FOREIGN KEY (title_id) REFERENCES public.titles(id);
-
-ALTER TABLE public.session_tokens ADD CONSTRAINT session_tokens_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id);
-
-ALTER TABLE public.system_logs ADD CONSTRAINT system_logs_resolved_by_fkey FOREIGN KEY (resolved_by) REFERENCES public.users(id);
-
-ALTER TABLE public.system_logs ADD CONSTRAINT system_logs_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id);
-
-ALTER TABLE public.title_emotion_vectors ADD CONSTRAINT title_emotion_vectors_title_id_fkey FOREIGN KEY (title_id) REFERENCES public.titles(id);
-
-ALTER TABLE public.title_genres ADD CONSTRAINT title_genres_genre_id_fkey FOREIGN KEY (genre_id) REFERENCES public.genres(id);
-
-ALTER TABLE public.title_genres ADD CONSTRAINT title_genres_title_id_fkey FOREIGN KEY (title_id) REFERENCES public.titles(id);
-
-ALTER TABLE public.title_intent_alignment_scores ADD CONSTRAINT title_intent_alignment_scores_title_id_fkey FOREIGN KEY (title_id) REFERENCES public.titles(id);
-
-ALTER TABLE public.title_intent_alignment_scores ADD CONSTRAINT title_intent_alignment_scores_user_emotion_id_fkey FOREIGN KEY (user_emotion_id) REFERENCES public.emotion_master(id);
-
-ALTER TABLE public.title_keywords ADD CONSTRAINT title_keywords_keyword_id_fkey FOREIGN KEY (keyword_id) REFERENCES public.keywords(id);
-
-ALTER TABLE public.title_keywords ADD CONSTRAINT title_keywords_title_id_fkey FOREIGN KEY (title_id) REFERENCES public.titles(id);
-
-ALTER TABLE public.title_social_summary ADD CONSTRAINT title_social_summary_title_id_fkey FOREIGN KEY (title_id) REFERENCES public.titles(id);
-
-ALTER TABLE public.title_spoken_languages ADD CONSTRAINT title_spoken_languages_language_code_fkey FOREIGN KEY (language_code) REFERENCES public.spoken_languages(iso_639_1);
-
-ALTER TABLE public.title_spoken_languages ADD CONSTRAINT title_spoken_languages_title_id_fkey FOREIGN KEY (title_id) REFERENCES public.titles(id);
-
-ALTER TABLE public.title_streaming_availability ADD CONSTRAINT title_streaming_availability_streaming_service_id_fkey FOREIGN KEY (streaming_service_id) REFERENCES public.streaming_services(id);
-
-ALTER TABLE public.title_streaming_availability ADD CONSTRAINT title_streaming_availability_title_id_fkey FOREIGN KEY (title_id) REFERENCES public.titles(id);
-
-ALTER TABLE public.title_transformation_scores ADD CONSTRAINT title_transformation_scores_title_id_fkey FOREIGN KEY (title_id) REFERENCES public.titles(id);
-
-ALTER TABLE public.title_transformation_scores ADD CONSTRAINT title_transformation_scores_user_emotion_id_fkey FOREIGN KEY (user_emotion_id) REFERENCES public.emotion_master(id);
-
-ALTER TABLE public.title_user_emotion_match_cache ADD CONSTRAINT title_user_emotion_match_cache_title_id_fkey FOREIGN KEY (title_id) REFERENCES public.titles(id);
-
-ALTER TABLE public.title_user_emotion_match_cache ADD CONSTRAINT title_user_emotion_match_cache_user_emotion_id_fkey FOREIGN KEY (user_emotion_id) REFERENCES public.emotion_master(id);
-
-ALTER TABLE public.user_context_logs ADD CONSTRAINT user_context_logs_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id);
-
-ALTER TABLE public.user_emotion_states ADD CONSTRAINT user_emotion_states_emotion_id_fkey FOREIGN KEY (emotion_id) REFERENCES public.emotion_master(id);
-
-ALTER TABLE public.user_emotion_states ADD CONSTRAINT user_emotion_states_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id);
-
-ALTER TABLE public.user_language_preferences ADD CONSTRAINT user_language_preferences_language_code_fkey FOREIGN KEY (language_code) REFERENCES public.spoken_languages(iso_639_1);
-
-ALTER TABLE public.user_language_preferences ADD CONSTRAINT user_language_preferences_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id);
-
-ALTER TABLE public.user_roles ADD CONSTRAINT user_roles_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id);
-
-ALTER TABLE public.user_social_recommendations ADD CONSTRAINT user_social_recommendations_receiver_user_id_fkey FOREIGN KEY (receiver_user_id) REFERENCES public.users(id);
-
-ALTER TABLE public.user_social_recommendations ADD CONSTRAINT user_social_recommendations_sender_user_id_fkey FOREIGN KEY (sender_user_id) REFERENCES public.users(id);
-
-ALTER TABLE public.user_social_recommendations ADD CONSTRAINT user_social_recommendations_title_id_fkey FOREIGN KEY (title_id) REFERENCES public.titles(id);
-
-ALTER TABLE public.user_streaming_subscriptions ADD CONSTRAINT user_streaming_subscriptions_streaming_service_id_fkey FOREIGN KEY (streaming_service_id) REFERENCES public.streaming_services(id);
-
-ALTER TABLE public.user_streaming_subscriptions ADD CONSTRAINT user_streaming_subscriptions_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id);
-
-ALTER TABLE public.user_title_interactions ADD CONSTRAINT user_title_interactions_title_id_fkey FOREIGN KEY (title_id) REFERENCES public.titles(id);
-
-ALTER TABLE public.user_title_interactions ADD CONSTRAINT user_title_interactions_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id);
-
-ALTER TABLE public.user_title_social_scores ADD CONSTRAINT user_title_social_scores_title_id_fkey FOREIGN KEY (title_id) REFERENCES public.titles(id);
-
-ALTER TABLE public.user_vibe_preferences ADD CONSTRAINT user_vibe_preferences_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id);
-
-ALTER TABLE public.vibe_emotion_weights ADD CONSTRAINT vibe_emotion_weights_emotion_id_fkey FOREIGN KEY (emotion_id) REFERENCES public.emotion_master(id);
-
-ALTER TABLE public.vibe_genre_weights ADD CONSTRAINT vibe_genre_weights_genre_id_fkey FOREIGN KEY (genre_id) REFERENCES public.genres(id);
-
-ALTER TABLE public.vibe_genre_weights_key ADD CONSTRAINT vibe_genre_weights_key_canonical_fk FOREIGN KEY (canonical_key) REFERENCES public.vibes(canonical_key);
-
-ALTER TABLE public.vibe_list_followers ADD CONSTRAINT vibe_list_followers_follower_user_id_fkey FOREIGN KEY (follower_user_id) REFERENCES public.users(id);
-
-ALTER TABLE public.vibe_list_followers ADD CONSTRAINT vibe_list_followers_vibe_list_id_fkey FOREIGN KEY (vibe_list_id) REFERENCES public.vibe_lists(id);
-
-ALTER TABLE public.vibe_list_items ADD CONSTRAINT vibe_list_items_vibe_list_id_fkey FOREIGN KEY (vibe_list_id) REFERENCES public.vibe_lists(id);
-
-ALTER TABLE public.vibe_list_shared_with ADD CONSTRAINT vibe_list_shared_with_shared_with_user_id_fkey FOREIGN KEY (shared_with_user_id) REFERENCES public.users(id);
-
-ALTER TABLE public.vibe_list_shared_with ADD CONSTRAINT vibe_list_shared_with_vibe_list_id_fkey FOREIGN KEY (vibe_list_id) REFERENCES public.vibe_lists(id);
-
-ALTER TABLE public.vibe_list_views ADD CONSTRAINT vibe_list_views_vibe_list_id_fkey FOREIGN KEY (vibe_list_id) REFERENCES public.vibe_lists(id);
-
-ALTER TABLE public.vibe_list_views ADD CONSTRAINT vibe_list_views_viewer_user_id_fkey FOREIGN KEY (viewer_user_id) REFERENCES public.users(id);
-
-ALTER TABLE public.vibe_lists ADD CONSTRAINT vibe_lists_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id);
-
-ALTER TABLE public.viib_emotion_classified_titles ADD CONSTRAINT viib_emotion_classified_titles_emotion_id_fkey FOREIGN KEY (emotion_id) REFERENCES public.emotion_master(id);
-
-ALTER TABLE public.viib_emotion_classified_titles ADD CONSTRAINT viib_emotion_classified_titles_title_id_fkey FOREIGN KEY (title_id) REFERENCES public.titles(id);
-
-ALTER TABLE public.viib_emotion_classified_titles_staging ADD CONSTRAINT viib_emotion_classified_titles_staging_emotion_id_fkey FOREIGN KEY (emotion_id) REFERENCES public.emotion_master(id);
-
-ALTER TABLE public.viib_emotion_classified_titles_staging ADD CONSTRAINT viib_emotion_classified_titles_staging_title_id_fkey FOREIGN KEY (title_id) REFERENCES public.titles(id);
-
-ALTER TABLE public.viib_intent_classified_titles ADD CONSTRAINT viib_intent_classified_titles_title_id_fkey FOREIGN KEY (title_id) REFERENCES public.titles(id);
-
-ALTER TABLE public.viib_intent_classified_titles_staging ADD CONSTRAINT viib_intent_classified_titles_staging_title_id_fkey FOREIGN KEY (title_id) REFERENCES public.titles(id);
-
-ALTER TABLE public.viib_title_intent_stats ADD CONSTRAINT viib_title_intent_stats_title_id_fkey FOREIGN KEY (title_id) REFERENCES public.titles(id);
+-- activation_codes indexes
+CREATE INDEX idx_activation_codes_code ON public.activation_codes USING btree (code);
+CREATE INDEX idx_activation_codes_created_at ON public.activation_codes USING btree (created_at DESC);
+CREATE INDEX idx_activation_codes_used ON public.activation_codes USING btree (is_used);
+
+-- app_settings indexes
+CREATE INDEX idx_app_settings_key ON public.app_settings USING btree (setting_key);
+
+-- email indexes
+CREATE INDEX idx_email_config_active ON public.email_config USING btree (is_active);
+CREATE INDEX idx_email_templates_active ON public.email_templates USING btree (is_active);
+CREATE INDEX idx_email_templates_type ON public.email_templates USING btree (template_type);
+CREATE INDEX idx_email_verifications_email ON public.email_verifications USING btree (email);
+CREATE INDEX idx_email_verifications_expires ON public.email_verifications USING btree (expires_at);
+CREATE INDEX idx_email_verifications_expires_at ON public.email_verifications USING btree (expires_at);
+
+-- emotion indexes
+CREATE INDEX idx_e2i_intent_type ON public.emotion_to_intent_map USING btree (intent_type);
+
+-- episodes indexes
+CREATE INDEX idx_episodes_season ON public.episodes USING btree (season_id);
+
+-- feedback indexes
+CREATE INDEX idx_feedback_status ON public.feedback USING btree (status);
+CREATE INDEX idx_feedback_type ON public.feedback USING btree (type);
+CREATE INDEX idx_feedback_user ON public.feedback USING btree (user_id);
+
+-- friend_connections indexes
+CREATE INDEX idx_friend_connections_friend ON public.friend_connections USING btree (friend_user_id);
+CREATE INDEX idx_friend_connections_user ON public.friend_connections USING btree (user_id);
+
+-- genres indexes
+CREATE INDEX idx_genres_tmdb ON public.genres USING btree (tmdb_genre_id);
+
+-- ip_rate_limits indexes
+CREATE INDEX idx_ip_rate_limits_lookup ON public.ip_rate_limits USING btree (ip_address, endpoint);
+
+-- jobs indexes
+CREATE INDEX idx_jobs_active ON public.jobs USING btree (is_active);
+CREATE INDEX idx_jobs_status ON public.jobs USING btree (status);
+CREATE INDEX idx_jobs_type ON public.jobs USING btree (job_type);
+
+-- keywords indexes
+CREATE INDEX idx_keywords_name ON public.keywords USING btree (name);
+CREATE INDEX idx_keywords_tmdb ON public.keywords USING btree (tmdb_keyword_id);
+
+-- login_attempts indexes
+CREATE INDEX idx_login_attempts_created_at ON public.login_attempts USING btree (created_at);
+CREATE INDEX idx_login_attempts_identifier ON public.login_attempts USING btree (identifier);
+CREATE INDEX idx_login_attempts_ip ON public.login_attempts USING btree (ip_address);
+
+-- phone_verifications indexes
+CREATE INDEX idx_phone_verifications_expires ON public.phone_verifications USING btree (expires_at);
+CREATE INDEX idx_phone_verifications_expires_at ON public.phone_verifications USING btree (expires_at);
+CREATE INDEX idx_phone_verifications_phone ON public.phone_verifications USING btree (phone_number);
+
+-- rate_limit indexes
+CREATE INDEX idx_rate_limit_config_endpoint ON public.rate_limit_config USING btree (endpoint);
+CREATE INDEX idx_rate_limit_entries_expires ON public.rate_limit_entries USING btree (expires_at);
+CREATE INDEX idx_rate_limit_entries_key ON public.rate_limit_entries USING btree (key);
+
+-- recommendation indexes
+CREATE INDEX idx_rec_notifications_receiver ON public.recommendation_notifications USING btree (receiver_user_id);
+CREATE INDEX idx_rec_notifications_title ON public.recommendation_notifications USING btree (title_id);
+CREATE INDEX idx_rec_outcomes_title ON public.recommendation_outcomes USING btree (title_id);
+CREATE INDEX idx_rec_outcomes_user ON public.recommendation_outcomes USING btree (user_id);
+
+-- seasons indexes
+CREATE INDEX idx_seasons_title ON public.seasons USING btree (title_id);
+
+-- session_tokens indexes
+CREATE INDEX idx_session_tokens_expires ON public.session_tokens USING btree (expires_at);
+CREATE INDEX idx_session_tokens_token ON public.session_tokens USING btree (token_hash);
+CREATE INDEX idx_session_tokens_user ON public.session_tokens USING btree (user_id);
+
+-- system_logs indexes
+CREATE INDEX idx_system_logs_created_at ON public.system_logs USING btree (created_at DESC);
+CREATE INDEX idx_system_logs_resolved ON public.system_logs USING btree (resolved);
+CREATE INDEX idx_system_logs_severity ON public.system_logs USING btree (severity);
+CREATE INDEX idx_system_logs_user ON public.system_logs USING btree (user_id);
+
+-- title indexes
+CREATE INDEX idx_title_emotion_vectors_title ON public.title_emotion_vectors USING btree (title_id);
+CREATE INDEX idx_title_genres_genre ON public.title_genres USING btree (genre_id);
+CREATE INDEX idx_title_genres_title ON public.title_genres USING btree (title_id);
+CREATE INDEX idx_title_intent_alignment_emotion ON public.title_intent_alignment_scores USING btree (user_emotion_id);
+CREATE INDEX idx_title_intent_alignment_title ON public.title_intent_alignment_scores USING btree (title_id);
+CREATE INDEX idx_title_social_summary_title ON public.title_social_summary USING btree (title_id);
+CREATE INDEX idx_title_streaming_region ON public.title_streaming_availability USING btree (region_code);
+CREATE INDEX idx_title_streaming_service ON public.title_streaming_availability USING btree (streaming_service_id);
+CREATE INDEX idx_title_streaming_title ON public.title_streaming_availability USING btree (title_id);
+CREATE INDEX idx_title_transformation_emotion ON public.title_transformation_scores USING btree (user_emotion_id);
+CREATE INDEX idx_title_transformation_title ON public.title_transformation_scores USING btree (title_id);
+CREATE INDEX idx_titles_classification ON public.titles USING btree (classification_status);
+CREATE INDEX idx_titles_name ON public.titles USING btree (name);
+CREATE INDEX idx_titles_popularity ON public.titles USING btree (popularity DESC);
+CREATE INDEX idx_titles_tmdb ON public.titles USING btree (tmdb_id);
+CREATE INDEX idx_titles_type ON public.titles USING btree (title_type);
+
+-- user indexes
+CREATE INDEX idx_user_context_logs_user ON public.user_context_logs USING btree (user_id);
+CREATE INDEX idx_user_emotion_states_created ON public.user_emotion_states USING btree (created_at DESC);
+CREATE INDEX idx_user_emotion_states_emotion ON public.user_emotion_states USING btree (emotion_id);
+CREATE INDEX idx_user_emotion_states_user ON public.user_emotion_states USING btree (user_id);
+CREATE INDEX idx_user_language_prefs_lang ON public.user_language_preferences USING btree (language_code);
+CREATE INDEX idx_user_language_prefs_user ON public.user_language_preferences USING btree (user_id);
+CREATE INDEX idx_user_roles_role ON public.user_roles USING btree (role);
+CREATE INDEX idx_user_roles_user ON public.user_roles USING btree (user_id);
+CREATE INDEX idx_user_social_recs_receiver ON public.user_social_recommendations USING btree (receiver_user_id);
+CREATE INDEX idx_user_social_recs_sender ON public.user_social_recommendations USING btree (sender_user_id);
+CREATE INDEX idx_user_social_recs_title ON public.user_social_recommendations USING btree (title_id);
+CREATE INDEX idx_user_streaming_service ON public.user_streaming_subscriptions USING btree (streaming_service_id);
+CREATE INDEX idx_user_streaming_user ON public.user_streaming_subscriptions USING btree (user_id);
+CREATE INDEX idx_user_title_interactions_created ON public.user_title_interactions USING btree (created_at DESC);
+CREATE INDEX idx_user_title_interactions_title ON public.user_title_interactions USING btree (title_id);
+CREATE INDEX idx_user_title_interactions_type ON public.user_title_interactions USING btree (interaction_type);
+CREATE INDEX idx_user_title_interactions_user ON public.user_title_interactions USING btree (user_id);
+CREATE INDEX idx_user_title_social_scores_title ON public.user_title_social_scores USING btree (title_id);
+CREATE INDEX idx_user_title_social_scores_user ON public.user_title_social_scores USING btree (user_id);
+CREATE INDEX idx_user_vibe_prefs_canonical ON public.user_vibe_preferences USING btree (canonical_key);
+CREATE INDEX idx_user_vibe_prefs_user ON public.user_vibe_preferences USING btree (user_id);
+CREATE INDEX idx_users_auth ON public.users USING btree (auth_id);
+CREATE INDEX idx_users_email ON public.users USING btree (email);
+CREATE INDEX idx_users_phone ON public.users USING btree (phone_number);
+
+-- vibe indexes
+CREATE INDEX idx_vibe_list_followers_list ON public.vibe_list_followers USING btree (vibe_list_id);
+CREATE INDEX idx_vibe_list_followers_user ON public.vibe_list_followers USING btree (follower_user_id);
+CREATE INDEX idx_vibe_list_items_list ON public.vibe_list_items USING btree (vibe_list_id);
+CREATE INDEX idx_vibe_list_items_title ON public.vibe_list_items USING btree (title_id);
+CREATE INDEX idx_vibe_list_shared_list ON public.vibe_list_shared_with USING btree (vibe_list_id);
+CREATE INDEX idx_vibe_list_shared_user ON public.vibe_list_shared_with USING btree (shared_with_user_id);
+CREATE INDEX idx_vibe_list_views_list ON public.vibe_list_views USING btree (vibe_list_id);
+CREATE INDEX idx_vibe_lists_user ON public.vibe_lists USING btree (user_id);
+CREATE INDEX idx_vibe_lists_visibility ON public.vibe_lists USING btree (visibility);
+
+-- viib classification indexes
+CREATE INDEX idx_viib_ect_emotion ON public.viib_emotion_classified_titles USING btree (emotion_id);
+CREATE INDEX idx_viib_ect_title ON public.viib_emotion_classified_titles USING btree (title_id);
+CREATE INDEX idx_viib_ict_intent ON public.viib_intent_classified_titles USING btree (intent_type);
+CREATE INDEX idx_viib_ict_title ON public.viib_intent_classified_titles USING btree (title_id);
 
 -- ============================================================================
--- SECTION 4: INDEXES
+-- PART 4: DATABASE FUNCTIONS
 -- ============================================================================
 
-CREATE INDEX IF NOT EXISTS idx_email_verifications_email ON public.email_verifications USING btree (email);
-CREATE INDEX IF NOT EXISTS idx_email_verifications_lookup ON public.email_verifications USING btree (email, verified, expires_at);
-CREATE INDEX IF NOT EXISTS idx_episodes_season_id ON public.episodes USING btree (season_id);
-CREATE INDEX IF NOT EXISTS idx_friend_connections_friend_user_id ON public.friend_connections USING btree (friend_user_id);
-CREATE INDEX IF NOT EXISTS idx_friend_connections_user_id ON public.friend_connections USING btree (user_id);
-CREATE INDEX IF NOT EXISTS idx_login_attempts_identifier_created ON public.login_attempts USING btree (identifier, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_phone_verifications_phone ON public.phone_verifications USING btree (phone_number);
-CREATE INDEX IF NOT EXISTS idx_phone_verifications_phone_lookup ON public.phone_verifications USING btree (phone_number, verified, expires_at);
-CREATE INDEX IF NOT EXISTS idx_recommendation_outcomes_user_title ON public.recommendation_outcomes USING btree (user_id, title_id);
-CREATE INDEX IF NOT EXISTS idx_seasons_title_id ON public.seasons USING btree (title_id);
-CREATE INDEX IF NOT EXISTS idx_session_tokens_expires ON public.session_tokens USING btree (expires_at);
-CREATE INDEX IF NOT EXISTS idx_session_tokens_user_id ON public.session_tokens USING btree (user_id);
-CREATE INDEX IF NOT EXISTS idx_system_logs_created_at ON public.system_logs USING btree (created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_system_logs_resolved ON public.system_logs USING btree (resolved);
-CREATE INDEX IF NOT EXISTS idx_system_logs_severity ON public.system_logs USING btree (severity);
-CREATE INDEX IF NOT EXISTS idx_system_logs_user_id ON public.system_logs USING btree (user_id);
-CREATE INDEX IF NOT EXISTS idx_title_genres_genre_id ON public.title_genres USING btree (genre_id);
-CREATE INDEX IF NOT EXISTS idx_title_genres_title_id ON public.title_genres USING btree (title_id);
-CREATE INDEX IF NOT EXISTS idx_title_keywords_keyword_id ON public.title_keywords USING btree (keyword_id);
-CREATE INDEX IF NOT EXISTS idx_title_keywords_title_id ON public.title_keywords USING btree (title_id);
-CREATE INDEX IF NOT EXISTS idx_title_streaming_availability_region ON public.title_streaming_availability USING btree (region_code);
-CREATE INDEX IF NOT EXISTS idx_title_streaming_availability_service ON public.title_streaming_availability USING btree (streaming_service_id);
-CREATE INDEX IF NOT EXISTS idx_title_streaming_availability_title ON public.title_streaming_availability USING btree (title_id);
-CREATE INDEX IF NOT EXISTS idx_titles_classification_status ON public.titles USING btree (classification_status);
-CREATE INDEX IF NOT EXISTS idx_titles_original_language ON public.titles USING btree (original_language);
-CREATE INDEX IF NOT EXISTS idx_titles_popularity ON public.titles USING btree (popularity DESC);
-CREATE INDEX IF NOT EXISTS idx_titles_tmdb_id ON public.titles USING btree (tmdb_id);
-CREATE INDEX IF NOT EXISTS idx_titles_type ON public.titles USING btree (title_type);
-CREATE INDEX IF NOT EXISTS idx_user_context_logs_user_id ON public.user_context_logs USING btree (user_id);
-CREATE INDEX IF NOT EXISTS idx_user_emotion_states_created_at ON public.user_emotion_states USING btree (created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_user_emotion_states_user_emotion ON public.user_emotion_states USING btree (user_id, emotion_id);
-CREATE INDEX IF NOT EXISTS idx_user_emotion_states_user_id ON public.user_emotion_states USING btree (user_id);
-CREATE INDEX IF NOT EXISTS idx_user_roles_user_id ON public.user_roles USING btree (user_id);
-CREATE INDEX IF NOT EXISTS idx_user_streaming_subscriptions_user_id ON public.user_streaming_subscriptions USING btree (user_id);
-CREATE INDEX IF NOT EXISTS idx_user_title_interactions_created_at ON public.user_title_interactions USING btree (created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_user_title_interactions_title_id ON public.user_title_interactions USING btree (title_id);
-CREATE INDEX IF NOT EXISTS idx_user_title_interactions_type ON public.user_title_interactions USING btree (interaction_type);
-CREATE INDEX IF NOT EXISTS idx_user_title_interactions_user_id ON public.user_title_interactions USING btree (user_id);
-CREATE INDEX IF NOT EXISTS idx_user_title_interactions_user_title ON public.user_title_interactions USING btree (user_id, title_id);
-CREATE INDEX IF NOT EXISTS idx_user_vibe_preferences_user_id ON public.user_vibe_preferences USING btree (user_id);
-CREATE INDEX IF NOT EXISTS idx_users_auth_id ON public.users USING btree (auth_id);
-CREATE INDEX IF NOT EXISTS idx_users_email ON public.users USING btree (email);
-CREATE INDEX IF NOT EXISTS idx_users_phone ON public.users USING btree (phone_number);
-CREATE INDEX IF NOT EXISTS idx_vibe_list_items_title_id ON public.vibe_list_items USING btree (title_id);
-CREATE INDEX IF NOT EXISTS idx_vibe_list_items_vibe_list_id ON public.vibe_list_items USING btree (vibe_list_id);
-CREATE INDEX IF NOT EXISTS idx_vibe_lists_user_id ON public.vibe_lists USING btree (user_id);
-CREATE INDEX IF NOT EXISTS idx_viib_emotion_classified_titles_emotion ON public.viib_emotion_classified_titles USING btree (emotion_id);
-CREATE INDEX IF NOT EXISTS idx_viib_emotion_classified_titles_title ON public.viib_emotion_classified_titles USING btree (title_id);
-CREATE INDEX IF NOT EXISTS idx_viib_intent_classified_titles_intent ON public.viib_intent_classified_titles USING btree (intent_type);
-CREATE INDEX IF NOT EXISTS idx_viib_intent_classified_titles_title ON public.viib_intent_classified_titles USING btree (title_id);
-
--- ============================================================================
--- SECTION 5: DATABASE FUNCTIONS
--- ============================================================================
-
--- ----------------------------------------------------------------------------
--- Function: has_role
--- ----------------------------------------------------------------------------
+-- Helper function: has_role
 CREATE OR REPLACE FUNCTION public.has_role(_user_id uuid, _role app_role)
- RETURNS boolean
- LANGUAGE sql
- STABLE SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
+RETURNS boolean
+LANGUAGE sql
+STABLE SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
   SELECT EXISTS (
     SELECT 1
     FROM public.user_roles
     WHERE user_id = _user_id
       AND role = _role
   )
-$function$;
+$$;
 
--- ----------------------------------------------------------------------------
--- Function: calculate_emotion_distance_score
--- ----------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION public.calculate_emotion_distance_score(p_user_valence real, p_user_arousal real, p_user_dominance real, p_title_valence real, p_title_arousal real, p_title_dominance real)
- RETURNS real
- LANGUAGE plpgsql
- IMMUTABLE
- SET search_path TO 'public'
-AS $function$
+-- Helper function: get_user_id_from_auth
+CREATE OR REPLACE FUNCTION public.get_user_id_from_auth()
+RETURNS uuid
+LANGUAGE plpgsql
+STABLE SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+DECLARE v_user_id UUID;
+BEGIN
+    SELECT id INTO v_user_id FROM public.users WHERE auth_id = auth.uid();
+    RETURN v_user_id;
+END;
+$$;
+
+-- Helper function: get_app_setting
+CREATE OR REPLACE FUNCTION public.get_app_setting(p_key text, p_default text DEFAULT NULL)
+RETURNS text
+LANGUAGE plpgsql
+STABLE SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+DECLARE
+  v_value text;
+BEGIN
+  SELECT setting_value::text INTO v_value
+  FROM app_settings
+  WHERE setting_key = p_key
+  LIMIT 1;
+  
+  RETURN COALESCE(v_value, p_default);
+END;
+$$;
+
+-- Emotion function: calculate_user_emotion_intensity
+CREATE OR REPLACE FUNCTION public.calculate_user_emotion_intensity(p_emotion_id uuid, p_energy_percentage real)
+RETURNS real
+LANGUAGE plpgsql
+SET search_path TO 'public'
+AS $$
+DECLARE
+    v_multiplier REAL;
+    v_normalized_energy REAL;
+    v_intensity REAL;
+BEGIN
+    v_normalized_energy := GREATEST(LEAST(p_energy_percentage / 100.0, 1.0), 0.0);
+
+    SELECT intensity_multiplier
+    INTO v_multiplier
+    FROM emotion_master
+    WHERE id = p_emotion_id;
+
+    IF v_multiplier IS NULL THEN
+        v_multiplier := 1.0;
+    END IF;
+
+    v_intensity := v_normalized_energy * v_multiplier;
+    v_intensity := LEAST(GREATEST(v_intensity, 0.1), 1.0);
+
+    RETURN v_intensity;
+END;
+$$;
+
+-- Emotion function: calculate_emotion_distance_score
+CREATE OR REPLACE FUNCTION public.calculate_emotion_distance_score(
+    p_user_valence real, p_user_arousal real, p_user_dominance real,
+    p_title_valence real, p_title_arousal real, p_title_dominance real
+)
+RETURNS real
+LANGUAGE plpgsql
+IMMUTABLE
+SET search_path TO 'public'
+AS $$
 DECLARE
     v_euclidean_dist REAL;
     v_max_dist REAL := 1.732;
@@ -1260,37 +1147,15 @@ BEGIN
     v_similarity := 1.0 - (v_euclidean_dist / v_max_dist);
     RETURN LEAST(GREATEST(v_similarity, 0.0), 1.0);
 END;
-$function$;
+$$;
 
--- ----------------------------------------------------------------------------
--- Function: get_app_setting
--- ----------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION public.get_app_setting(p_key text, p_default text DEFAULT NULL::text)
- RETURNS text
- LANGUAGE plpgsql
- STABLE SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-DECLARE
-  v_value text;
-BEGIN
-  SELECT setting_value::text INTO v_value
-  FROM app_settings
-  WHERE setting_key = p_key
-  LIMIT 1;
-  RETURN COALESCE(v_value, p_default);
-END;
-$function$;
-
--- ----------------------------------------------------------------------------
--- Function: calculate_taste_similarity
--- ----------------------------------------------------------------------------
+-- Social function: calculate_taste_similarity
 CREATE OR REPLACE FUNCTION public.calculate_taste_similarity(p_user_a uuid, p_user_b uuid)
- RETURNS real
- LANGUAGE sql
- STABLE
- SET search_path TO 'public'
-AS $function$
+RETURNS real
+LANGUAGE sql
+STABLE
+SET search_path TO 'public'
+AS $$
 with common_titles as (
     select distinct a.title_id
     from user_title_interactions a
@@ -1314,143 +1179,90 @@ select coalesce(
     nullif((select count(*)::real from common_titles), 0.0),
     0.0
 );
-$function$;
+$$;
 
--- ----------------------------------------------------------------------------
--- Function: invalidate_old_otps
--- ----------------------------------------------------------------------------
+-- Ownership check function
+CREATE OR REPLACE FUNCTION public.check_list_ownership(p_list_id uuid, p_user_id uuid)
+RETURNS boolean
+LANGUAGE plpgsql
+STABLE SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+BEGIN
+    RETURN EXISTS (SELECT 1 FROM vibe_lists WHERE id = p_list_id AND user_id = p_user_id);
+END;
+$$;
+
+-- OTP invalidation functions
 CREATE OR REPLACE FUNCTION public.invalidate_old_otps(p_email text)
- RETURNS void
- LANGUAGE plpgsql
- SET search_path TO 'public'
-AS $function$
+RETURNS void
+LANGUAGE plpgsql
+SET search_path TO 'public'
+AS $$
 BEGIN
     UPDATE email_verifications
     SET verified = true
     WHERE email = p_email AND verified = false AND expires_at > NOW();
 END;
-$function$;
+$$;
 
--- ----------------------------------------------------------------------------
--- Function: invalidate_old_phone_otps
--- ----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.invalidate_old_phone_otps(p_phone text)
- RETURNS void
- LANGUAGE plpgsql
- SET search_path TO 'public'
-AS $function$
+RETURNS void
+LANGUAGE plpgsql
+SET search_path TO 'public'
+AS $$
 BEGIN
     UPDATE phone_verifications
     SET verified = true
     WHERE phone_number = p_phone AND verified = false AND expires_at > NOW();
 END;
-$function$;
+$$;
 
--- ----------------------------------------------------------------------------
--- Function: check_list_ownership
--- ----------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION public.check_list_ownership(p_list_id uuid, p_user_id uuid)
- RETURNS boolean
- LANGUAGE plpgsql
- STABLE SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-BEGIN
-    RETURN EXISTS (SELECT 1 FROM vibe_lists WHERE id = p_list_id AND user_id = p_user_id);
-END;
-$function$;
-
--- ----------------------------------------------------------------------------
--- Function: get_user_id_from_auth
--- ----------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION public.get_user_id_from_auth()
- RETURNS uuid
- LANGUAGE plpgsql
- STABLE SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-DECLARE v_user_id UUID;
-BEGIN
-    SELECT id INTO v_user_id FROM public.users WHERE auth_id = auth.uid();
-    RETURN v_user_id;
-END;
-$function$;
-
--- ----------------------------------------------------------------------------
--- Function: link_auth_user_to_profile
--- ----------------------------------------------------------------------------
+-- Auth linking function
 CREATE OR REPLACE FUNCTION public.link_auth_user_to_profile(p_auth_id uuid, p_user_id uuid)
- RETURNS void
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
 BEGIN UPDATE users SET auth_id = p_auth_id WHERE id = p_user_id; END;
-$function$;
+$$;
 
--- ----------------------------------------------------------------------------
--- Function: calculate_user_emotion_intensity
--- ----------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION public.calculate_user_emotion_intensity(p_emotion_id uuid, p_energy_percentage real)
- RETURNS real
- LANGUAGE plpgsql
- SET search_path TO 'public'
-AS $function$
-DECLARE
-    v_multiplier REAL;
-    v_normalized_energy REAL;
-    v_intensity REAL;
-BEGIN
-    v_normalized_energy := GREATEST(LEAST(p_energy_percentage / 100.0, 1.0), 0.0);
-    SELECT intensity_multiplier INTO v_multiplier FROM emotion_master WHERE id = p_emotion_id;
-    IF v_multiplier IS NULL THEN v_multiplier := 1.0; END IF;
-    v_intensity := v_normalized_energy * v_multiplier;
-    v_intensity := LEAST(GREATEST(v_intensity, 0.1), 1.0);
-    RETURN v_intensity;
-END;
-$function$;
-
--- ----------------------------------------------------------------------------
--- Function: get_active_viib_weights
--- ----------------------------------------------------------------------------
+-- ViiB Weight Config function
 CREATE OR REPLACE FUNCTION public.get_active_viib_weights()
- RETURNS TABLE(id uuid, emotional_weight real, social_weight real, historical_weight real, context_weight real, novelty_weight real)
- LANGUAGE plpgsql
- STABLE
- SET search_path TO 'public'
-AS $function$
+RETURNS TABLE(id uuid, emotional_weight real, social_weight real, historical_weight real, context_weight real, novelty_weight real)
+LANGUAGE plpgsql
+STABLE
+SET search_path TO 'public'
+AS $$
 BEGIN
     RETURN QUERY
     SELECT vwc.id, vwc.emotional_weight, vwc.social_weight, vwc.historical_weight, vwc.context_weight, vwc.novelty_weight
     FROM viib_weight_config vwc WHERE vwc.is_active = true LIMIT 1;
 END;
-$function$;
+$$;
 
--- ----------------------------------------------------------------------------
--- Function: get_titles_by_ids
--- ----------------------------------------------------------------------------
+-- Title lookup function
 CREATE OR REPLACE FUNCTION public.get_titles_by_ids(p_title_ids uuid[])
- RETURNS TABLE(id uuid, name text, title_type text, poster_path text, backdrop_path text, trailer_url text, runtime integer, release_date date, first_air_date date, tmdb_id integer, overview text)
- LANGUAGE plpgsql
- STABLE
- SET search_path TO 'public'
-AS $function$
+RETURNS TABLE(id uuid, name text, title_type text, poster_path text, backdrop_path text, trailer_url text, runtime integer, release_date date, first_air_date date, tmdb_id integer, overview text)
+LANGUAGE plpgsql
+STABLE
+SET search_path TO 'public'
+AS $$
 BEGIN
     RETURN QUERY
     SELECT t.id, t.name, t.title_type, t.poster_path, t.backdrop_path, t.trailer_url, t.runtime, t.release_date, t.first_air_date, t.tmdb_id, t.overview
     FROM titles t WHERE t.id = ANY(p_title_ids);
 END;
-$function$;
+$$;
 
--- ----------------------------------------------------------------------------
--- Function: get_vibe_list_stats
--- ----------------------------------------------------------------------------
+-- Vibe list stats function
 CREATE OR REPLACE FUNCTION public.get_vibe_list_stats(p_list_ids uuid[])
- RETURNS TABLE(list_id uuid, item_count bigint, view_count bigint, follower_count bigint)
- LANGUAGE plpgsql
- STABLE
- SET search_path TO 'public'
-AS $function$
+RETURNS TABLE(list_id uuid, item_count bigint, view_count bigint, follower_count bigint)
+LANGUAGE plpgsql
+STABLE
+SET search_path TO 'public'
+AS $$
 BEGIN
     RETURN QUERY
     SELECT vl.id AS list_id,
@@ -1462,262 +1274,63 @@ BEGIN
     LEFT JOIN LATERAL (SELECT COUNT(*) AS cnt FROM vibe_list_views WHERE vibe_list_id = vl.id) views ON true
     LEFT JOIN LATERAL (SELECT COUNT(*) AS cnt FROM vibe_list_followers WHERE vibe_list_id = vl.id) followers ON true;
 END;
-$function$;
+$$;
 
--- ----------------------------------------------------------------------------
--- Function: get_titles_with_all_streaming_services
--- ----------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION public.get_titles_with_all_streaming_services(p_limit integer DEFAULT 100, p_cursor uuid DEFAULT NULL::uuid)
- RETURNS TABLE(id uuid, tmdb_id integer, title_type text, name text)
- LANGUAGE sql
- STABLE
- SET search_path TO 'public'
-AS $function$
-  WITH service_counts AS (
-    SELECT tsa.title_id, COUNT(DISTINCT tsa.streaming_service_id) as service_count
-    FROM title_streaming_availability tsa WHERE tsa.region_code = 'US' GROUP BY tsa.title_id
-  ),
-  active_services AS (SELECT COUNT(*) as total FROM streaming_services WHERE is_active = true),
-  corrupted_title_ids AS (
-    SELECT sc.title_id FROM service_counts sc, active_services act WHERE sc.service_count >= act.total - 1
-  )
-  SELECT t.id, t.tmdb_id::integer, t.title_type, t.name
-  FROM titles t JOIN corrupted_title_ids cti ON cti.title_id = t.id
-  WHERE t.tmdb_id IS NOT NULL AND (p_cursor IS NULL OR t.id > p_cursor)
-  ORDER BY t.id LIMIT p_limit;
-$function$;
+-- Cron job progress function
+CREATE OR REPLACE FUNCTION public.get_cron_job_progress()
+RETURNS TABLE(vector_count bigint, transform_count bigint, intent_count bigint, social_count bigint, vector_updated_at timestamp with time zone, transform_updated_at timestamp with time zone, intent_updated_at timestamp with time zone, social_updated_at timestamp with time zone)
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path TO 'public'
+SET statement_timeout TO '120s'
+AS $$
+    SELECT 
+        (SELECT COUNT(*) FROM title_emotion_vectors) as vector_count,
+        (SELECT COUNT(*) FROM title_transformation_scores) as transform_count,
+        (SELECT COUNT(*) FROM title_intent_alignment_scores) as intent_count,
+        (SELECT COUNT(*) FROM title_social_summary) as social_count,
+        (SELECT MAX(updated_at) FROM title_emotion_vectors) as vector_updated_at,
+        (SELECT MAX(updated_at) FROM title_transformation_scores) as transform_updated_at,
+        (SELECT MAX(updated_at) FROM title_intent_alignment_scores) as intent_updated_at,
+        (SELECT MAX(updated_at) FROM title_social_summary) as social_updated_at;
+$$;
 
--- ----------------------------------------------------------------------------
--- Function: get_corrupted_streaming_count
--- ----------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION public.get_corrupted_streaming_count()
- RETURNS integer
- LANGUAGE sql
- STABLE
- SET statement_timeout TO '60s'
- SET search_path TO 'public'
-AS $function$
-  WITH service_counts AS (
-    SELECT tsa.title_id, COUNT(DISTINCT tsa.streaming_service_id) as service_count
-    FROM title_streaming_availability tsa WHERE tsa.region_code = 'US' GROUP BY tsa.title_id
-  ),
-  active_services AS (SELECT COUNT(*) as total FROM streaming_services WHERE is_active = true)
-  SELECT COUNT(*)::integer FROM service_counts sc, active_services act WHERE sc.service_count >= act.total - 1;
-$function$;
-
--- ----------------------------------------------------------------------------
--- Function: viib_score_components
--- ----------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION public.viib_score_components(p_user_id uuid, p_title_id uuid)
- RETURNS TABLE(emotional_component real, social_component real, historical_component real, context_component real, novelty_component real)
- LANGUAGE plpgsql
- STABLE
- SET search_path TO 'public'
-AS $function$
-DECLARE
-    v_user_emotion_id uuid;
-    v_user_valence real;
-    v_user_arousal real;
-    v_user_dominance real;
-    v_user_intensity real;
-    v_title_valence real;
-    v_title_arousal real;
-    v_title_dominance real;
-    v_has_emotion_data boolean := false;
-    v_user_norm real;
-    v_title_norm real;
-    v_direct_cosine real := 0.5;
-    v_transformation_score real := 0.5;
-    v_emotional_score real := 0.5;
-    v_friend_rating_score real := 0.0;
-    v_friend_recommendation_score real := 0.0;
-    v_has_strong_history boolean := false;
-    v_has_wishlist boolean := false;
-    v_last_interaction_days real;
-    v_avg_session_minutes real;
-    v_runtime_minutes real;
-    v_diff_ratio real;
-    v_interaction_exists boolean := false;
+-- Run cron job function
+CREATE OR REPLACE FUNCTION public.run_cron_job_now(p_command text)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+SET statement_timeout TO '300s'
+AS $$
 BEGIN
-    emotional_component := 0.5;
-    social_component := 0.0;
-    historical_component := 0.0;
-    context_component := 0.5;
-    novelty_component := 1.0;
-
-    SELECT ues.emotion_id, ues.valence, ues.arousal, ues.dominance, COALESCE(ues.intensity, 0.5)
-    INTO v_user_emotion_id, v_user_valence, v_user_arousal, v_user_dominance, v_user_intensity
-    FROM user_emotion_states ues
-    WHERE ues.user_id = p_user_id
-    ORDER BY created_at DESC LIMIT 1;
-
-    IF v_user_emotion_id IS NOT NULL THEN
-        SELECT COALESCE(AVG(em.valence * (vec.intensity_level / 10.0)), 0),
-               COALESCE(AVG(em.arousal * (vec.intensity_level / 10.0)), 0),
-               COALESCE(AVG(em.dominance * (vec.intensity_level / 10.0)), 0)
-        INTO v_title_valence, v_title_arousal, v_title_dominance
-        FROM viib_emotion_classified_titles vec
-        JOIN emotion_master em ON em.id = vec.emotion_id
-        WHERE vec.title_id = p_title_id;
-
-        SELECT EXISTS (SELECT 1 FROM viib_emotion_classified_titles vec2 WHERE vec2.title_id = p_title_id) INTO v_has_emotion_data;
-
-        IF v_has_emotion_data THEN
-            v_user_norm := sqrt(power(v_user_valence,2) + power(v_user_arousal,2) + power(v_user_dominance,2));
-            v_title_norm := sqrt(power(v_title_valence,2) + power(v_title_arousal,2) + power(v_title_dominance,2));
-
-            IF v_user_norm > 0.001 AND v_title_norm > 0.001 THEN
-                v_direct_cosine := (v_user_valence * v_title_valence + v_user_arousal * v_title_arousal + v_user_dominance * v_title_dominance) / (v_user_norm * v_title_norm);
-                v_direct_cosine := (v_direct_cosine + 1.0) / 2.0;
-            END IF;
-
-            SELECT COALESCE(tts.transformation_score, 0.5) INTO v_transformation_score
-            FROM title_transformation_scores tts
-            WHERE tts.user_emotion_id = v_user_emotion_id AND tts.title_id = p_title_id;
-
-            IF v_transformation_score IS NULL OR v_transformation_score = 0.5 THEN
-                SELECT COALESCE(
-                    SUM(etm.confidence_score *
-                        CASE etm.transformation_type
-                            WHEN 'amplify' THEN 1.0 WHEN 'complementary' THEN 0.95 WHEN 'soothe' THEN 0.9
-                            WHEN 'validate' THEN 0.85 WHEN 'reinforcing' THEN 0.8 WHEN 'neutral_balancing' THEN 0.7
-                            WHEN 'stabilize' THEN 0.65 ELSE 0.5
-                        END * (vec.intensity_level / 10.0)
-                    ) / NULLIF(SUM(etm.confidence_score), 0), 0.5
-                ) INTO v_transformation_score
-                FROM emotion_transformation_map etm
-                JOIN viib_emotion_classified_titles vec ON vec.emotion_id = etm.content_emotion_id AND vec.title_id = p_title_id
-                WHERE etm.user_emotion_id = v_user_emotion_id;
-            END IF;
-
-            IF v_user_valence < 0.5 THEN
-                v_emotional_score := 0.35 * v_direct_cosine + 0.65 * COALESCE(v_transformation_score, 0.5);
-            ELSE
-                v_emotional_score := 0.5 * v_direct_cosine + 0.5 * COALESCE(v_transformation_score, 0.5);
-            END IF;
-
-            emotional_component := LEAST(GREATEST(v_emotional_score, 0.0), 1.0);
-        END IF;
-    END IF;
-
-    SELECT COALESCE(AVG(
-        CASE uti.rating_value WHEN 'love_it' THEN 1.0 WHEN 'like_it' THEN 0.75 WHEN 'ok' THEN 0.5 ELSE 0.0 END * fc.trust_score
-    ), 0) INTO v_friend_rating_score
-    FROM friend_connections fc
-    JOIN user_title_interactions uti ON uti.user_id = fc.friend_user_id AND uti.title_id = p_title_id AND uti.rating_value IS NOT NULL
-    WHERE fc.user_id = p_user_id AND (fc.is_blocked IS NULL OR fc.is_blocked = FALSE);
-
-    SELECT COALESCE(AVG(fc.trust_score * 0.85), 0) INTO v_friend_recommendation_score
-    FROM user_social_recommendations usr
-    JOIN friend_connections fc ON fc.user_id = p_user_id AND fc.friend_user_id = usr.sender_user_id AND (fc.is_blocked IS NULL OR fc.is_blocked = FALSE)
-    WHERE usr.receiver_user_id = p_user_id AND usr.title_id = p_title_id;
-
-    IF v_friend_rating_score > 0 AND v_friend_recommendation_score > 0 THEN
-        social_component := (v_friend_rating_score + v_friend_recommendation_score) / 2.0;
-    ELSE
-        social_component := GREATEST(v_friend_rating_score, v_friend_recommendation_score);
-    END IF;
-    social_component := LEAST(GREATEST(social_component, 0.0), 1.0);
-
-    SELECT BOOL_OR(interaction_type IN ('completed','liked') AND rating_value IN ('love_it','like_it')),
-           BOOL_OR(interaction_type = 'wishlisted'), EXTRACT(DAY FROM (NOW() - MAX(created_at)))
-    INTO v_has_strong_history, v_has_wishlist, v_last_interaction_days
-    FROM user_title_interactions WHERE user_id = p_user_id AND title_id = p_title_id;
-
-    IF v_has_strong_history THEN
-        historical_component := EXP(-COALESCE(v_last_interaction_days, 0) / 180.0);
-    ELSIF v_has_wishlist THEN
-        historical_component := 0.6;
-    ELSE
-        historical_component := 0.0;
-    END IF;
-
-    SELECT COALESCE(AVG(session_length_seconds) / 60.0, NULL) INTO v_avg_session_minutes
-    FROM user_context_logs WHERE user_id = p_user_id;
-
-    SELECT t.runtime::real INTO v_runtime_minutes FROM titles t WHERE t.id = p_title_id;
-
-    IF v_avg_session_minutes IS NOT NULL AND v_runtime_minutes IS NOT NULL AND v_runtime_minutes > 0 THEN
-        v_diff_ratio := ABS(v_runtime_minutes - v_avg_session_minutes) / GREATEST(v_runtime_minutes, v_avg_session_minutes);
-        context_component := LEAST(GREATEST(1.0 - v_diff_ratio, 0.0), 1.0);
-    ELSE
-        context_component := 0.5;
-    END IF;
-
-    SELECT EXISTS (SELECT 1 FROM user_title_interactions WHERE user_id = p_user_id AND title_id = p_title_id) INTO v_interaction_exists;
-    IF v_interaction_exists THEN novelty_component := 0.3; ELSE novelty_component := 1.0; END IF;
-
-    RETURN QUERY SELECT emotional_component, social_component, historical_component, context_component, novelty_component;
+  EXECUTE p_command;
 END;
-$function$;
+$$;
 
--- ----------------------------------------------------------------------------
--- Function: viib_score
--- ----------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION public.viib_score(p_user_id uuid, p_title_id uuid)
- RETURNS real
- LANGUAGE plpgsql
- STABLE
- SET search_path TO 'public'
-AS $function$
-declare
-    w_emotional real := 0.35; w_social real := 0.20; w_historical real := 0.25;
-    w_context real := 0.10; w_novelty real := 0.10;
-    c_emotional real; c_social real; c_historical real; c_context real; c_novelty real;
-begin
-    select emotional_weight, social_weight, historical_weight, context_weight, novelty_weight
-    into w_emotional, w_social, w_historical, w_context, w_novelty
-    from viib_weight_config where is_active = true order by created_at desc limit 1;
+-- Increment job titles function
+CREATE OR REPLACE FUNCTION public.increment_job_titles(p_job_type text, p_increment integer)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+BEGIN
+  UPDATE jobs
+  SET 
+    total_titles_processed = COALESCE(total_titles_processed, 0) + p_increment,
+    last_run_at = NOW()
+  WHERE job_type = p_job_type;
+END;
+$$;
 
-    select emotional_component, social_component, historical_component, context_component, novelty_component
-    into c_emotional, c_social, c_historical, c_context, c_novelty
-    from viib_score_components(p_user_id, p_title_id);
-
-    return c_emotional * w_emotional + c_social * w_social + c_historical * w_historical 
-         + c_context * w_context + c_novelty * w_novelty;
-end;
-$function$;
-
--- ----------------------------------------------------------------------------
--- Function: viib_score_with_intent
--- ----------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION public.viib_score_with_intent(p_user_id uuid, p_title_id uuid)
- RETURNS real
- LANGUAGE plpgsql
- STABLE
- SET search_path TO 'public'
-AS $function$
-declare v_base real; v_intent real;
-begin
-    v_base := viib_score(p_user_id, p_title_id);
-    v_intent := viib_intent_alignment_score(p_user_id, p_title_id);
-    return v_base * v_intent;
-end;
-$function$;
-
--- ----------------------------------------------------------------------------
--- Function: log_recommendation_outcome
--- ----------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION public.log_recommendation_outcome(p_user_id uuid, p_title_id uuid, p_was_selected boolean, p_watch_duration_percentage real, p_rating_value rating_value)
- RETURNS void
- LANGUAGE plpgsql
- SET search_path TO 'public'
-AS $function$
-begin
-    insert into recommendation_outcomes (user_id, title_id, was_selected, watch_duration_percentage, rating_value)
-    values (p_user_id, p_title_id, p_was_selected, p_watch_duration_percentage, p_rating_value);
-end;
-$function$;
-
--- ----------------------------------------------------------------------------
--- Function: promote_title_intents
--- ----------------------------------------------------------------------------
+-- Promote title intents function
 CREATE OR REPLACE FUNCTION public.promote_title_intents(p_limit integer DEFAULT 500)
- RETURNS integer
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
+RETURNS integer
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
 DECLARE r RECORD; c INTEGER := 0;
 BEGIN
   FOR r IN SELECT DISTINCT title_id FROM viib_intent_classified_titles_staging ORDER BY title_id LIMIT p_limit
@@ -1731,71 +1344,15 @@ BEGIN
   END LOOP;
   RETURN c;
 END;
-$function$;
+$$;
 
--- ----------------------------------------------------------------------------
--- Function: run_cron_job_now
--- ----------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION public.run_cron_job_now(p_command text)
- RETURNS void
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public'
- SET statement_timeout TO '300s'
-AS $function$
-BEGIN
-  EXECUTE p_command;
-END;
-$function$;
-
--- ----------------------------------------------------------------------------
--- Function: get_cron_job_progress
--- ----------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION public.get_cron_job_progress()
- RETURNS TABLE(vector_count bigint, transform_count bigint, intent_count bigint, social_count bigint, vector_updated_at timestamp with time zone, transform_updated_at timestamp with time zone, intent_updated_at timestamp with time zone, social_updated_at timestamp with time zone)
- LANGUAGE sql
- SECURITY DEFINER
- SET search_path TO 'public'
- SET statement_timeout TO '120s'
-AS $function$
-    SELECT 
-        (SELECT COUNT(*) FROM title_emotion_vectors) as vector_count,
-        (SELECT COUNT(*) FROM title_transformation_scores) as transform_count,
-        (SELECT COUNT(*) FROM title_intent_alignment_scores) as intent_count,
-        (SELECT COUNT(*) FROM title_social_summary) as social_count,
-        (SELECT MAX(updated_at) FROM title_emotion_vectors) as vector_updated_at,
-        (SELECT MAX(updated_at) FROM title_transformation_scores) as transform_updated_at,
-        (SELECT MAX(updated_at) FROM title_intent_alignment_scores) as intent_updated_at,
-        (SELECT MAX(updated_at) FROM title_social_summary) as social_updated_at;
-$function$;
-
--- ----------------------------------------------------------------------------
--- Function: increment_job_titles
--- ----------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION public.increment_job_titles(p_job_type text, p_increment integer)
- RETURNS void
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-BEGIN
-  UPDATE jobs
-  SET 
-    total_titles_processed = COALESCE(total_titles_processed, 0) + p_increment,
-    last_run_at = NOW()
-  WHERE job_type = p_job_type;
-END;
-$function$;
-
--- ----------------------------------------------------------------------------
--- Function: refresh_title_transformation_scores
--- ----------------------------------------------------------------------------
+-- Refresh transformation scores function
 CREATE OR REPLACE FUNCTION public.refresh_title_transformation_scores()
- RETURNS void
- LANGUAGE plpgsql
- SET statement_timeout TO '300s'
- SET search_path TO 'public'
-AS $function$
+RETURNS void
+LANGUAGE plpgsql
+SET statement_timeout TO '300s'
+SET search_path TO 'public'
+AS $$
 BEGIN
     INSERT INTO public.title_transformation_scores (title_id, user_emotion_id, transformation_score, updated_at)
     SELECT
@@ -1813,320 +1370,456 @@ BEGIN
     ON CONFLICT (title_id, user_emotion_id) DO UPDATE SET
         transformation_score = EXCLUDED.transformation_score, updated_at = now();
 END;
-$function$;
+$$;
 
--- ----------------------------------------------------------------------------
--- Function: refresh_viib_reco_materializations
--- ----------------------------------------------------------------------------
+-- Refresh all materializations function
 CREATE OR REPLACE FUNCTION public.refresh_viib_reco_materializations()
- RETURNS void
- LANGUAGE plpgsql
- SET search_path TO 'public'
-AS $function$
+RETURNS void
+LANGUAGE plpgsql
+SET search_path TO 'public'
+AS $$
 BEGIN
     PERFORM refresh_title_emotion_vectors();
     PERFORM refresh_title_transformation_scores();
     PERFORM refresh_title_intent_alignment_scores();
     PERFORM refresh_title_social_summary();
 END;
-$function$;
+$$;
 
--- ----------------------------------------------------------------------------
--- Function: viib_autotune_weights
--- ----------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION public.viib_autotune_weights(p_days integer DEFAULT 30)
- RETURNS uuid
- LANGUAGE plpgsql
- SET search_path TO 'public'
-AS $function$
-DECLARE
-    r_outcome recommendation_outcomes%ROWTYPE;
-    s_count INTEGER := 0; f_count INTEGER := 0;
-    s_emotional REAL := 0; s_social REAL := 0; s_historical REAL := 0; s_context REAL := 0; s_novelty REAL := 0;
-    f_emotional REAL := 0; f_social REAL := 0; f_historical REAL := 0; f_context REAL := 0; f_novelty REAL := 0;
-    c_emotional REAL; c_social REAL; c_historical REAL; c_context REAL; c_novelty REAL;
-    avg_s_emotional REAL; avg_s_social REAL; avg_s_hist REAL; avg_s_context REAL; avg_s_novelty REAL;
-    avg_f_emotional REAL; avg_f_social REAL; avg_f_hist REAL; avg_f_context REAL; avg_f_novelty REAL;
-    d_emotional REAL; d_social REAL; d_hist REAL; d_context REAL; d_novelty REAL; sum_delta REAL;
-    new_w_emotional REAL; new_w_social REAL; new_w_hist REAL; new_w_context REAL; new_w_novelty REAL;
-    v_new_id UUID;
+-- Rate limit functions
+CREATE OR REPLACE FUNCTION public.cleanup_rate_limit_data()
+RETURNS void
+LANGUAGE plpgsql
+SET search_path TO 'public'
+AS $$
 BEGIN
-    FOR r_outcome IN SELECT * FROM recommendation_outcomes WHERE created_at >= (now() - (p_days || ' days')::INTERVAL)
-    LOOP
-        SELECT emotional_component, social_component, historical_component, context_component, novelty_component
-        INTO c_emotional, c_social, c_historical, c_context, c_novelty
-        FROM viib_score_components(r_outcome.user_id, r_outcome.title_id);
-
-        IF r_outcome.was_selected = TRUE OR r_outcome.rating_value IN ('love_it','like_it') THEN
-            s_count := s_count + 1;
-            s_emotional := s_emotional + c_emotional; s_social := s_social + c_social;
-            s_historical := s_historical + c_historical; s_context := s_context + c_context; s_novelty := s_novelty + c_novelty;
-        ELSE
-            f_count := f_count + 1;
-            f_emotional := f_emotional + c_emotional; f_social := f_social + c_social;
-            f_historical := f_historical + c_historical; f_context := f_context + c_context; f_novelty := f_novelty + c_novelty;
-        END IF;
-    END LOOP;
-
-    IF s_count = 0 AND f_count = 0 THEN RETURN NULL; END IF;
-
-    IF s_count > 0 THEN
-        avg_s_emotional := s_emotional / s_count; avg_s_social := s_social / s_count;
-        avg_s_hist := s_historical / s_count; avg_s_context := s_context / s_count; avg_s_novelty := s_novelty / s_count;
-    ELSE
-        avg_s_emotional := 0; avg_s_social := 0; avg_s_hist := 0; avg_s_context := 0; avg_s_novelty := 0;
-    END IF;
-
-    IF f_count > 0 THEN
-        avg_f_emotional := f_emotional / f_count; avg_f_social := f_social / f_count;
-        avg_f_hist := f_historical / f_count; avg_f_context := f_context / f_count; avg_f_novelty := f_novelty / f_count;
-    ELSE
-        avg_f_emotional := 0; avg_f_social := 0; avg_f_hist := 0; avg_f_context := 0; avg_f_novelty := 0;
-    END IF;
-
-    d_emotional := GREATEST(avg_s_emotional - avg_f_emotional, 0);
-    d_social := GREATEST(avg_s_social - avg_f_social, 0);
-    d_hist := GREATEST(avg_s_hist - avg_f_hist, 0);
-    d_context := GREATEST(avg_s_context - avg_f_context, 0);
-    d_novelty := GREATEST(avg_s_novelty - avg_f_novelty, 0);
-    sum_delta := d_emotional + d_social + d_hist + d_context + d_novelty;
-
-    IF sum_delta <= 0 THEN RETURN NULL; END IF;
-
-    new_w_emotional := d_emotional / sum_delta; new_w_social := d_social / sum_delta;
-    new_w_hist := d_hist / sum_delta; new_w_context := d_context / sum_delta; new_w_novelty := d_novelty / sum_delta;
-
-    UPDATE viib_weight_config SET is_active = FALSE WHERE is_active = TRUE;
-
-    INSERT INTO viib_weight_config (emotional_weight, social_weight, historical_weight, context_weight, novelty_weight, is_active, notes)
-    VALUES (new_w_emotional, new_w_social, new_w_hist, new_w_context, new_w_novelty, TRUE,
-        'Auto-tuned from recommendation_outcomes over last ' || p_days || ' days')
-    RETURNING id INTO v_new_id;
-
-    RETURN v_new_id;
+    DELETE FROM ip_rate_limits WHERE window_start < NOW() - INTERVAL '1 hour';
+    DELETE FROM login_attempts WHERE created_at < NOW() - INTERVAL '24 hours';
 END;
-$function$;
+$$;
 
--- ----------------------------------------------------------------------------
--- Trigger Functions
--- ----------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.cleanup_rate_limit_entries()
+RETURNS integer
+LANGUAGE plpgsql
+SET search_path TO 'public'
+AS $$
+DECLARE
+    v_count INTEGER;
+BEGIN
+    DELETE FROM rate_limit_entries
+    WHERE expires_at < NOW();
+
+    GET DIAGNOSTICS v_count = ROW_COUNT;
+    RETURN v_count;
+END;
+$$;
+
+-- Streaming corruption detection functions
+CREATE OR REPLACE FUNCTION public.get_corrupted_streaming_count()
+RETURNS integer
+LANGUAGE sql
+STABLE
+SET statement_timeout TO '60s'
+SET search_path TO 'public'
+AS $$
+  WITH service_counts AS (
+    SELECT tsa.title_id, COUNT(DISTINCT tsa.streaming_service_id) as service_count
+    FROM title_streaming_availability tsa WHERE tsa.region_code = 'US' GROUP BY tsa.title_id
+  ),
+  active_services AS (SELECT COUNT(*) as total FROM streaming_services WHERE is_active = true)
+  SELECT COUNT(*)::integer FROM service_counts sc, active_services act WHERE sc.service_count >= act.total - 1;
+$$;
+
+CREATE OR REPLACE FUNCTION public.get_titles_with_all_streaming_services(p_limit integer DEFAULT 100, p_cursor uuid DEFAULT NULL)
+RETURNS TABLE(id uuid, tmdb_id integer, title_type text, name text)
+LANGUAGE sql
+STABLE
+SET search_path TO 'public'
+AS $$
+  WITH service_counts AS (
+    SELECT tsa.title_id, COUNT(DISTINCT tsa.streaming_service_id) as service_count
+    FROM title_streaming_availability tsa WHERE tsa.region_code = 'US' GROUP BY tsa.title_id
+  ),
+  active_services AS (SELECT COUNT(*) as total FROM streaming_services WHERE is_active = true),
+  corrupted_title_ids AS (
+    SELECT sc.title_id FROM service_counts sc, active_services act WHERE sc.service_count >= act.total - 1
+  )
+  SELECT t.id, t.tmdb_id::integer, t.title_type, t.name
+  FROM titles t JOIN corrupted_title_ids cti ON cti.title_id = t.id
+  WHERE t.tmdb_id IS NOT NULL AND (p_cursor IS NULL OR t.id > p_cursor)
+  ORDER BY t.id LIMIT p_limit;
+$$;
+
+-- ViiB Score functions
+CREATE OR REPLACE FUNCTION public.viib_score(p_user_id uuid, p_title_id uuid)
+RETURNS real
+LANGUAGE plpgsql
+STABLE
+SET search_path TO 'public'
+AS $$
+declare
+    w_emotional real := 0.35; w_social real := 0.20; w_historical real := 0.25;
+    w_context real := 0.10; w_novelty real := 0.10;
+    c_emotional real; c_social real; c_historical real; c_context real; c_novelty real;
+begin
+    select emotional_weight, social_weight, historical_weight, context_weight, novelty_weight
+    into w_emotional, w_social, w_historical, w_context, w_novelty
+    from viib_weight_config where is_active = true order by created_at desc limit 1;
+
+    select emotional_component, social_component, historical_component, context_component, novelty_component
+    into c_emotional, c_social, c_historical, c_context, c_novelty
+    from viib_score_components(p_user_id, p_title_id);
+
+    return c_emotional * w_emotional + c_social * w_social + c_historical * w_historical 
+         + c_context * w_context + c_novelty * w_novelty;
+end;
+$$;
+
+CREATE OR REPLACE FUNCTION public.viib_score_with_intent(p_user_id uuid, p_title_id uuid)
+RETURNS real
+LANGUAGE plpgsql
+STABLE
+SET search_path TO 'public'
+AS $$
+declare v_base real; v_intent real;
+begin
+    v_base := viib_score(p_user_id, p_title_id);
+    v_intent := viib_intent_alignment_score(p_user_id, p_title_id);
+    return v_base * v_intent;
+end;
+$$;
+
+CREATE OR REPLACE FUNCTION public.log_recommendation_outcome(p_user_id uuid, p_title_id uuid, p_was_selected boolean, p_watch_duration_percentage real, p_rating_value rating_value)
+RETURNS void
+LANGUAGE plpgsql
+SET search_path TO 'public'
+AS $$
+begin
+    insert into recommendation_outcomes (user_id, title_id, was_selected, watch_duration_percentage, rating_value)
+    values (p_user_id, p_title_id, p_was_selected, p_watch_duration_percentage, p_rating_value);
+end;
+$$;
+
+-- Trigger functions for updated_at timestamps
 CREATE OR REPLACE FUNCTION public.update_feedback_updated_at()
- RETURNS trigger
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-BEGIN NEW.updated_at = now(); RETURN NEW; END;
-$function$;
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$;
 
 CREATE OR REPLACE FUNCTION public.update_jobs_updated_at()
- RETURNS trigger
- LANGUAGE plpgsql
- SET search_path TO 'public'
-AS $function$
-BEGIN NEW.updated_at = now(); RETURN NEW; END;
-$function$;
-
-CREATE OR REPLACE FUNCTION public.update_vibe_preferences_updated_at()
- RETURNS trigger
- LANGUAGE plpgsql
- SET search_path TO 'public'
-AS $function$
-BEGIN NEW.updated_at = now(); RETURN NEW; END;
-$function$;
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path TO 'public'
+AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$;
 
 CREATE OR REPLACE FUNCTION public.update_email_config_updated_at()
- RETURNS trigger
- LANGUAGE plpgsql
- SET search_path TO 'public'
-AS $function$
-BEGIN NEW.updated_at = now(); RETURN NEW; END;
-$function$;
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path TO 'public'
+AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$;
 
 CREATE OR REPLACE FUNCTION public.update_email_templates_updated_at()
- RETURNS trigger
- LANGUAGE plpgsql
- SET search_path TO 'public'
-AS $function$
-BEGIN NEW.updated_at = now(); RETURN NEW; END;
-$function$;
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path TO 'public'
+AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$;
 
 CREATE OR REPLACE FUNCTION public.update_rate_limit_config_updated_at()
- RETURNS trigger
- LANGUAGE plpgsql
- SET search_path TO 'public'
-AS $function$
-BEGIN NEW.updated_at = now(); RETURN NEW; END;
-$function$;
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path TO 'public'
+AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.update_vibe_preferences_updated_at()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path TO 'public'
+AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$;
 
 CREATE OR REPLACE FUNCTION public.update_vibe_lists_updated_at()
- RETURNS trigger
- LANGUAGE plpgsql
- SET search_path TO 'public'
-AS $function$
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path TO 'public'
+AS $$
 BEGIN NEW.updated_at = now(); RETURN NEW; END;
-$function$;
-
-CREATE OR REPLACE FUNCTION public.update_title_emotional_signatures_updated_at()
- RETURNS trigger
- LANGUAGE plpgsql
- SET search_path TO 'public'
-AS $function$
-BEGIN NEW.updated_at = now(); RETURN NEW; END;
-$function$;
-
-CREATE OR REPLACE FUNCTION public.update_viib_intent_classified_titles_updated_at()
- RETURNS trigger
- LANGUAGE plpgsql
- SET search_path TO 'public'
-AS $function$
-BEGIN NEW.updated_at = now(); RETURN NEW; END;
-$function$;
+$$;
 
 CREATE OR REPLACE FUNCTION public.update_app_settings_updated_at()
- RETURNS trigger
- LANGUAGE plpgsql
- SET search_path TO 'public'
-AS $function$
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path TO 'public'
+AS $$
 BEGIN NEW.updated_at = NOW(); RETURN NEW; END;
-$function$;
+$$;
+
+CREATE OR REPLACE FUNCTION public.update_viib_intent_classified_titles_updated_at()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path TO 'public'
+AS $$
+BEGIN NEW.updated_at = now(); RETURN NEW; END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.update_title_emotional_signatures_updated_at()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path TO 'public'
+AS $$
+BEGIN NEW.updated_at = now(); RETURN NEW; END;
+$$;
 
 -- ============================================================================
--- SECTION 6: TRIGGERS
+-- PART 5: TRIGGERS
 -- ============================================================================
 
-CREATE TRIGGER update_feedback_updated_at BEFORE UPDATE ON public.feedback FOR EACH ROW EXECUTE FUNCTION update_feedback_updated_at();
-CREATE TRIGGER update_jobs_updated_at BEFORE UPDATE ON public.jobs FOR EACH ROW EXECUTE FUNCTION update_jobs_updated_at();
-CREATE TRIGGER update_vibe_preferences_updated_at BEFORE UPDATE ON public.user_vibe_preferences FOR EACH ROW EXECUTE FUNCTION update_vibe_preferences_updated_at();
-CREATE TRIGGER update_email_config_updated_at BEFORE UPDATE ON public.email_config FOR EACH ROW EXECUTE FUNCTION update_email_config_updated_at();
-CREATE TRIGGER update_email_templates_updated_at BEFORE UPDATE ON public.email_templates FOR EACH ROW EXECUTE FUNCTION update_email_templates_updated_at();
-CREATE TRIGGER update_rate_limit_config_updated_at BEFORE UPDATE ON public.rate_limit_config FOR EACH ROW EXECUTE FUNCTION update_rate_limit_config_updated_at();
-CREATE TRIGGER update_vibe_lists_updated_at BEFORE UPDATE ON public.vibe_lists FOR EACH ROW EXECUTE FUNCTION update_vibe_lists_updated_at();
-CREATE TRIGGER update_viib_intent_classified_titles_updated_at BEFORE UPDATE ON public.viib_intent_classified_titles FOR EACH ROW EXECUTE FUNCTION update_viib_intent_classified_titles_updated_at();
-CREATE TRIGGER update_app_settings_updated_at BEFORE UPDATE ON public.app_settings FOR EACH ROW EXECUTE FUNCTION update_app_settings_updated_at();
+CREATE TRIGGER update_feedback_updated_at_trigger
+    BEFORE UPDATE ON public.feedback
+    FOR EACH ROW EXECUTE FUNCTION public.update_feedback_updated_at();
+
+CREATE TRIGGER update_jobs_updated_at_trigger
+    BEFORE UPDATE ON public.jobs
+    FOR EACH ROW EXECUTE FUNCTION public.update_jobs_updated_at();
+
+CREATE TRIGGER update_email_config_updated_at_trigger
+    BEFORE UPDATE ON public.email_config
+    FOR EACH ROW EXECUTE FUNCTION public.update_email_config_updated_at();
+
+CREATE TRIGGER update_email_templates_updated_at_trigger
+    BEFORE UPDATE ON public.email_templates
+    FOR EACH ROW EXECUTE FUNCTION public.update_email_templates_updated_at();
+
+CREATE TRIGGER update_rate_limit_config_updated_at_trigger
+    BEFORE UPDATE ON public.rate_limit_config
+    FOR EACH ROW EXECUTE FUNCTION public.update_rate_limit_config_updated_at();
+
+CREATE TRIGGER update_user_vibe_preferences_updated_at_trigger
+    BEFORE UPDATE ON public.user_vibe_preferences
+    FOR EACH ROW EXECUTE FUNCTION public.update_vibe_preferences_updated_at();
+
+CREATE TRIGGER update_vibe_lists_updated_at_trigger
+    BEFORE UPDATE ON public.vibe_lists
+    FOR EACH ROW EXECUTE FUNCTION public.update_vibe_lists_updated_at();
+
+CREATE TRIGGER update_app_settings_updated_at_trigger
+    BEFORE UPDATE ON public.app_settings
+    FOR EACH ROW EXECUTE FUNCTION public.update_app_settings_updated_at();
+
+CREATE TRIGGER update_viib_intent_classified_updated_at_trigger
+    BEFORE UPDATE ON public.viib_intent_classified_titles
+    FOR EACH ROW EXECUTE FUNCTION public.update_viib_intent_classified_titles_updated_at();
 
 -- ============================================================================
--- SECTION 7: ROW LEVEL SECURITY POLICIES
+-- PART 6: ROW LEVEL SECURITY (RLS) POLICIES
 -- ============================================================================
 
--- Enable RLS on tables
-ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.user_roles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.user_vibe_preferences ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.user_streaming_subscriptions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.user_language_preferences ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.user_title_interactions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.user_emotion_states ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.user_context_logs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.user_social_recommendations ENABLE ROW LEVEL SECURITY;
+-- Enable RLS on all tables
+ALTER TABLE public.activation_codes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.app_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.email_config ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.email_templates ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.email_verifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.emotion_display_phrases ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.emotion_master ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.emotion_to_intent_map ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.emotion_transformation_map ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.enabled_countries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.episodes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.feedback ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.friend_connections ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.vibe_lists ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.vibe_list_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.genres ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ip_rate_limits ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.jobs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.keywords ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.login_attempts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.official_trailer_channels ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.personality_profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.phone_verifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.rate_limit_config ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.rate_limit_entries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.recommendation_notifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.recommendation_outcomes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.seasons ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.session_tokens ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.spoken_languages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.streaming_services ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.system_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.title_emotion_vectors ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.title_genres ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.title_intent_alignment_scores ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.title_social_summary ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.title_streaming_availability ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.title_transformation_scores ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.title_user_emotion_match_cache ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.titles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.tmdb_genre_mappings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.tmdb_provider_mappings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_context_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_emotion_states ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_language_preferences ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_roles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_social_recommendations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_streaming_subscriptions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_title_interactions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_title_social_scores ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_vibe_preferences ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.vibe_emotion_weights ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.vibe_genre_weights ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.vibe_list_followers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.vibe_list_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.vibe_list_shared_with ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.vibe_list_views ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.recommendation_outcomes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.recommendation_notifications ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.feedback ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.session_tokens ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.system_logs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.personality_profiles ENABLE ROW LEVEL SECURITY;
-
--- Users table policies
-CREATE POLICY "Users can read own profile" ON public.users FOR SELECT USING (auth.uid() = auth_id);
-CREATE POLICY "Users can update own profile" ON public.users FOR UPDATE USING (auth.uid() = auth_id);
-CREATE POLICY "Allow insert during registration" ON public.users FOR INSERT WITH CHECK (true);
-CREATE POLICY "Allow public phone lookup" ON public.users FOR SELECT USING (true);
-CREATE POLICY "Allow public email lookup" ON public.users FOR SELECT USING (true);
-CREATE POLICY "Admins can view all users" ON public.users FOR SELECT USING (has_role(get_user_id_from_auth(), 'admin'::app_role));
-CREATE POLICY "Admins can update any user" ON public.users FOR UPDATE USING (has_role(get_user_id_from_auth(), 'admin'::app_role));
-
--- User roles policies
-CREATE POLICY "Users can view own roles" ON public.user_roles FOR SELECT USING (user_id = get_user_id_from_auth());
-CREATE POLICY "Admins can manage roles" ON public.user_roles FOR ALL USING (has_role(get_user_id_from_auth(), 'admin'::app_role));
-
--- User preferences policies
-CREATE POLICY "Users can manage own vibe preferences" ON public.user_vibe_preferences FOR ALL USING (user_id = get_user_id_from_auth());
-CREATE POLICY "Users can manage own streaming subscriptions" ON public.user_streaming_subscriptions FOR ALL USING (user_id = get_user_id_from_auth());
-CREATE POLICY "Users can manage own language preferences" ON public.user_language_preferences FOR ALL USING (user_id = get_user_id_from_auth());
-
--- User interactions policies
-CREATE POLICY "Users can manage own interactions" ON public.user_title_interactions FOR ALL USING (user_id = get_user_id_from_auth());
-CREATE POLICY "Users can manage own emotion states" ON public.user_emotion_states FOR ALL USING (user_id = get_user_id_from_auth());
-CREATE POLICY "Users can manage own context logs" ON public.user_context_logs FOR ALL USING (user_id = get_user_id_from_auth());
-
--- Social recommendations policies
-CREATE POLICY "Users can send recommendations" ON public.user_social_recommendations FOR INSERT WITH CHECK (sender_user_id = get_user_id_from_auth());
-CREATE POLICY "Users can view received recommendations" ON public.user_social_recommendations FOR SELECT USING (receiver_user_id = get_user_id_from_auth() OR sender_user_id = get_user_id_from_auth());
-
--- Friend connections policies
-CREATE POLICY "Users can manage own friend connections" ON public.friend_connections FOR ALL USING (user_id = get_user_id_from_auth());
-CREATE POLICY "Users can view connections where they are the friend" ON public.friend_connections FOR SELECT USING (friend_user_id = get_user_id_from_auth());
-
--- Vibe lists policies
-CREATE POLICY "Users can manage own lists" ON public.vibe_lists FOR ALL USING (user_id = get_user_id_from_auth());
-CREATE POLICY "Users can view public lists" ON public.vibe_lists FOR SELECT USING (is_public = true);
-CREATE POLICY "Users can view shared lists" ON public.vibe_lists FOR SELECT USING (
-    EXISTS (SELECT 1 FROM vibe_list_shared_with WHERE vibe_list_id = id AND shared_with_user_id = get_user_id_from_auth())
-);
-
--- Vibe list items policies
-CREATE POLICY "List owners can manage items" ON public.vibe_list_items FOR ALL USING (check_list_ownership(vibe_list_id, get_user_id_from_auth()));
-CREATE POLICY "Users can view items of accessible lists" ON public.vibe_list_items FOR SELECT USING (
-    EXISTS (SELECT 1 FROM vibe_lists WHERE id = vibe_list_id AND (is_public = true OR user_id = get_user_id_from_auth()))
-);
-
--- Vibe list followers policies
-CREATE POLICY "Users can follow/unfollow lists" ON public.vibe_list_followers FOR ALL USING (follower_user_id = get_user_id_from_auth());
-CREATE POLICY "List owners can view followers" ON public.vibe_list_followers FOR SELECT USING (check_list_ownership(vibe_list_id, get_user_id_from_auth()));
-
--- Vibe list shared_with policies
-CREATE POLICY "List owners can manage sharing" ON public.vibe_list_shared_with FOR ALL USING (check_list_ownership(vibe_list_id, get_user_id_from_auth()));
-CREATE POLICY "Users can view lists shared with them" ON public.vibe_list_shared_with FOR SELECT USING (shared_with_user_id = get_user_id_from_auth());
-
--- Vibe list views policies
-CREATE POLICY "Users can log views" ON public.vibe_list_views FOR INSERT WITH CHECK (viewer_user_id = get_user_id_from_auth());
-CREATE POLICY "List owners can view stats" ON public.vibe_list_views FOR SELECT USING (check_list_ownership(vibe_list_id, get_user_id_from_auth()));
-
--- Recommendation outcomes policies
-CREATE POLICY "Users can manage own recommendation outcomes" ON public.recommendation_outcomes FOR ALL USING (user_id = get_user_id_from_auth());
-
--- Recommendation notifications policies
-CREATE POLICY "Users can view own notifications" ON public.recommendation_notifications FOR SELECT USING (receiver_user_id = get_user_id_from_auth());
-CREATE POLICY "Users can create notifications" ON public.recommendation_notifications FOR INSERT WITH CHECK (sender_user_id = get_user_id_from_auth());
-CREATE POLICY "Users can update own notifications" ON public.recommendation_notifications FOR UPDATE USING (receiver_user_id = get_user_id_from_auth());
-
--- Feedback policies
-CREATE POLICY "Users can submit feedback" ON public.feedback FOR INSERT WITH CHECK (true);
-CREATE POLICY "Users can view own feedback" ON public.feedback FOR SELECT USING (user_id = get_user_id_from_auth());
-CREATE POLICY "Admins can manage all feedback" ON public.feedback FOR ALL USING (has_role(get_user_id_from_auth(), 'admin'::app_role));
-
--- Session tokens policies
-CREATE POLICY "Users can manage own sessions" ON public.session_tokens FOR ALL USING (user_id = get_user_id_from_auth());
-
--- System logs policies
-CREATE POLICY "Admins can view system logs" ON public.system_logs FOR SELECT USING (has_role(get_user_id_from_auth(), 'admin'::app_role));
-CREATE POLICY "Admins can manage system logs" ON public.system_logs FOR ALL USING (has_role(get_user_id_from_auth(), 'admin'::app_role));
-CREATE POLICY "Allow system log inserts" ON public.system_logs FOR INSERT WITH CHECK (true);
-
--- Personality profiles policies
-CREATE POLICY "Users can manage own personality profile" ON public.personality_profiles FOR ALL USING (user_id = get_user_id_from_auth());
-
--- Public read access for reference tables
-ALTER TABLE public.titles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.genres ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.streaming_services ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.spoken_languages ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.emotion_master ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.vibe_lists ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.vibes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.viib_emotion_classified_titles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.viib_intent_classified_titles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.viib_weight_config ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Public read access" ON public.titles FOR SELECT USING (true);
-CREATE POLICY "Public read access" ON public.genres FOR SELECT USING (true);
-CREATE POLICY "Public read access" ON public.streaming_services FOR SELECT USING (true);
-CREATE POLICY "Public read access" ON public.spoken_languages FOR SELECT USING (true);
-CREATE POLICY "Public read access" ON public.emotion_master FOR SELECT USING (true);
-CREATE POLICY "Public read access" ON public.vibes FOR SELECT USING (true);
+-- Service role policies (full access)
+CREATE POLICY activation_codes_service ON public.activation_codes FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY app_settings_service ON public.app_settings FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY email_config_service ON public.email_config FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY email_templates_service ON public.email_templates FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY email_verifications_service_role_all ON public.email_verifications FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY emotion_display_phrases_service ON public.emotion_display_phrases FOR ALL TO public USING (true) WITH CHECK (true);
+CREATE POLICY emotion_master_service_write ON public.emotion_master FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY emotion_to_intent_map_service ON public.emotion_to_intent_map FOR ALL TO public USING (true) WITH CHECK (true);
+CREATE POLICY emotion_transformation_map_service ON public.emotion_transformation_map FOR ALL TO public USING (true) WITH CHECK (true);
+CREATE POLICY episodes_service_write ON public.episodes FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY feedback_service ON public.feedback FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY friend_connections_service ON public.friend_connections FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY genres_service_write ON public.genres FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY ip_rate_limits_service ON public.ip_rate_limits FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY jobs_service ON public.jobs FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY keywords_service_write ON public.keywords FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY login_attempts_service ON public.login_attempts FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY official_trailer_channels_service_write ON public.official_trailer_channels FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY personality_profiles_service ON public.personality_profiles FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY phone_verifications_service_role_all ON public.phone_verifications FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY rate_limit_config_service ON public.rate_limit_config FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY rate_limit_entries_service ON public.rate_limit_entries FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY recommendation_outcomes_service ON public.recommendation_outcomes FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY seasons_service_write ON public.seasons FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY session_tokens_service ON public.session_tokens FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY spoken_languages_service_write ON public.spoken_languages FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY streaming_services_service_write ON public.streaming_services FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY system_logs_service ON public.system_logs FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY title_emotion_vectors_service ON public.title_emotion_vectors FOR ALL TO public USING (true) WITH CHECK (true);
+CREATE POLICY title_genres_service_write ON public.title_genres FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY title_intent_alignment_scores_service ON public.title_intent_alignment_scores FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY title_social_summary_service ON public.title_social_summary FOR ALL TO public USING (true) WITH CHECK (true);
+CREATE POLICY title_streaming_availability_service_write ON public.title_streaming_availability FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY title_transformation_scores_service ON public.title_transformation_scores FOR ALL TO public USING (true) WITH CHECK (true);
+CREATE POLICY title_user_emotion_match_cache_service ON public.title_user_emotion_match_cache FOR ALL TO public USING (true) WITH CHECK (true);
+CREATE POLICY titles_service_write ON public.titles FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY user_context_logs_service ON public.user_context_logs FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY user_emotion_states_service ON public.user_emotion_states FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY user_language_preferences_service ON public.user_language_preferences FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY user_roles_service ON public.user_roles FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY user_social_recommendations_service ON public.user_social_recommendations FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY user_streaming_subscriptions_service ON public.user_streaming_subscriptions FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY user_title_interactions_service ON public.user_title_interactions FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY user_title_social_scores_service ON public.user_title_social_scores FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY user_vibe_preferences_service ON public.user_vibe_preferences FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY users_service_role_all ON public.users FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY vibe_emotion_weights_service_role ON public.vibe_emotion_weights FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY vibe_genre_weights_service_role ON public.vibe_genre_weights FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY vibe_list_followers_service ON public.vibe_list_followers FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY vibe_list_items_service ON public.vibe_list_items FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY vibe_list_shared_with_service ON public.vibe_list_shared_with FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY vibe_list_views_service ON public.vibe_list_views FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY vibe_lists_service ON public.vibe_lists FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+-- Public read policies
+CREATE POLICY app_settings_anon_read ON public.app_settings FOR SELECT TO anon USING ((setting_key !~~ '%secret%') AND (setting_key !~~ '%key%') AND (setting_key !~~ '%password%') AND (setting_key !~~ '%token%'));
+CREATE POLICY emotion_display_phrases_public_read ON public.emotion_display_phrases FOR SELECT TO public USING (true);
+CREATE POLICY emotion_master_public_read ON public.emotion_master FOR SELECT TO anon, authenticated USING (true);
+CREATE POLICY emotion_to_intent_map_public_read ON public.emotion_to_intent_map FOR SELECT TO public USING (true);
+CREATE POLICY emotion_transformation_map_public_read ON public.emotion_transformation_map FOR SELECT TO public USING (true);
+CREATE POLICY "Anyone can read enabled countries" ON public.enabled_countries FOR SELECT TO public USING (true);
+CREATE POLICY episodes_public_read ON public.episodes FOR SELECT TO anon, authenticated USING (true);
+CREATE POLICY genres_public_read ON public.genres FOR SELECT TO anon, authenticated USING (true);
+CREATE POLICY keywords_public_read ON public.keywords FOR SELECT TO anon, authenticated USING (true);
+CREATE POLICY official_trailer_channels_public_read ON public.official_trailer_channels FOR SELECT TO anon, authenticated USING (true);
+CREATE POLICY seasons_public_read ON public.seasons FOR SELECT TO anon, authenticated USING (true);
+CREATE POLICY spoken_languages_public_read ON public.spoken_languages FOR SELECT TO anon, authenticated USING (true);
+CREATE POLICY streaming_services_public_read ON public.streaming_services FOR SELECT TO anon, authenticated USING (true);
+CREATE POLICY title_emotion_vectors_public_read ON public.title_emotion_vectors FOR SELECT TO public USING (true);
+CREATE POLICY title_genres_public_read ON public.title_genres FOR SELECT TO anon, authenticated USING (true);
+CREATE POLICY title_social_summary_public_read ON public.title_social_summary FOR SELECT TO public USING (true);
+CREATE POLICY title_streaming_availability_public_read ON public.title_streaming_availability FOR SELECT TO anon, authenticated USING (true);
+CREATE POLICY title_transformation_scores_public_read ON public.title_transformation_scores FOR SELECT TO public USING (true);
+CREATE POLICY title_user_emotion_match_cache_public_read ON public.title_user_emotion_match_cache FOR SELECT TO public USING (true);
+CREATE POLICY titles_public_read ON public.titles FOR SELECT TO anon, authenticated USING (true);
+CREATE POLICY "Anyone can read tmdb_genre_mappings" ON public.tmdb_genre_mappings FOR SELECT TO public USING (true);
+CREATE POLICY "Anyone can read tmdb_provider_mappings" ON public.tmdb_provider_mappings FOR SELECT TO public USING (true);
+CREATE POLICY vibe_emotion_weights_read_authenticated ON public.vibe_emotion_weights FOR SELECT TO authenticated USING (true);
+CREATE POLICY vibe_genre_weights_read_authenticated ON public.vibe_genre_weights FOR SELECT TO authenticated USING (true);
+
+-- Admin policies
+CREATE POLICY "Admins can manage enabled countries" ON public.enabled_countries FOR ALL TO public USING (has_role(auth.uid(), 'admin'::app_role));
+CREATE POLICY "Admins can manage tmdb_genre_mappings" ON public.tmdb_genre_mappings FOR ALL TO public USING (has_role(auth.uid(), 'admin'::app_role));
+CREATE POLICY "Admins can manage tmdb_provider_mappings" ON public.tmdb_provider_mappings FOR ALL TO public USING (has_role(auth.uid(), 'admin'::app_role));
+
+-- Authenticated user policies (own data access)
+CREATE POLICY feedback_insert_auth ON public.feedback FOR INSERT TO authenticated WITH CHECK (user_id = get_user_id_from_auth());
+CREATE POLICY feedback_select_own ON public.feedback FOR SELECT TO authenticated USING (user_id = get_user_id_from_auth());
+CREATE POLICY friend_connections_auth ON public.friend_connections FOR ALL TO authenticated USING ((user_id = get_user_id_from_auth()) OR (friend_user_id = get_user_id_from_auth())) WITH CHECK (user_id = get_user_id_from_auth());
+CREATE POLICY personality_profiles_auth ON public.personality_profiles FOR ALL TO authenticated USING (user_id = get_user_id_from_auth()) WITH CHECK (user_id = get_user_id_from_auth());
+CREATE POLICY recommendation_outcomes_auth ON public.recommendation_outcomes FOR ALL TO authenticated USING (user_id = get_user_id_from_auth()) WITH CHECK (user_id = get_user_id_from_auth());
+CREATE POLICY user_context_logs_auth ON public.user_context_logs FOR ALL TO authenticated USING (user_id = get_user_id_from_auth()) WITH CHECK (user_id = get_user_id_from_auth());
+CREATE POLICY user_emotion_states_auth ON public.user_emotion_states FOR ALL TO authenticated USING (user_id = get_user_id_from_auth()) WITH CHECK (user_id = get_user_id_from_auth());
+CREATE POLICY user_language_preferences_auth ON public.user_language_preferences FOR ALL TO authenticated USING (user_id = get_user_id_from_auth()) WITH CHECK (user_id = get_user_id_from_auth());
+CREATE POLICY user_roles_select_own ON public.user_roles FOR SELECT TO authenticated USING (user_id = get_user_id_from_auth());
+CREATE POLICY user_social_recommendations_auth ON public.user_social_recommendations FOR ALL TO authenticated USING ((sender_user_id = get_user_id_from_auth()) OR (receiver_user_id = get_user_id_from_auth())) WITH CHECK (sender_user_id = get_user_id_from_auth());
+CREATE POLICY user_streaming_subscriptions_auth ON public.user_streaming_subscriptions FOR ALL TO authenticated USING (user_id = get_user_id_from_auth()) WITH CHECK (user_id = get_user_id_from_auth());
+CREATE POLICY user_title_interactions_auth ON public.user_title_interactions FOR ALL TO authenticated USING (user_id = get_user_id_from_auth()) WITH CHECK (user_id = get_user_id_from_auth());
+CREATE POLICY user_title_social_scores_auth ON public.user_title_social_scores FOR ALL TO authenticated USING (user_id = get_user_id_from_auth()) WITH CHECK (user_id = get_user_id_from_auth());
+CREATE POLICY user_vibe_preferences_auth ON public.user_vibe_preferences FOR ALL TO authenticated USING (user_id = get_user_id_from_auth()) WITH CHECK (user_id = get_user_id_from_auth());
+CREATE POLICY users_select_own ON public.users FOR SELECT TO authenticated USING (auth_id = auth.uid());
+CREATE POLICY users_update_own ON public.users FOR UPDATE TO authenticated USING (auth_id = auth.uid()) WITH CHECK (auth_id = auth.uid());
+CREATE POLICY vibe_list_followers_auth ON public.vibe_list_followers FOR ALL TO authenticated USING (follower_user_id = get_user_id_from_auth()) WITH CHECK (follower_user_id = get_user_id_from_auth());
+CREATE POLICY vibe_list_items_auth ON public.vibe_list_items FOR ALL TO authenticated USING (EXISTS (SELECT 1 FROM vibe_lists WHERE vibe_lists.id = vibe_list_items.vibe_list_id AND vibe_lists.user_id = get_user_id_from_auth())) WITH CHECK (EXISTS (SELECT 1 FROM vibe_lists WHERE vibe_lists.id = vibe_list_items.vibe_list_id AND vibe_lists.user_id = get_user_id_from_auth()));
+CREATE POLICY vibe_list_shared_with_auth ON public.vibe_list_shared_with FOR ALL TO authenticated USING ((shared_with_user_id = get_user_id_from_auth()) OR EXISTS (SELECT 1 FROM vibe_lists WHERE vibe_lists.id = vibe_list_shared_with.vibe_list_id AND vibe_lists.user_id = get_user_id_from_auth())) WITH CHECK (EXISTS (SELECT 1 FROM vibe_lists WHERE vibe_lists.id = vibe_list_shared_with.vibe_list_id AND vibe_lists.user_id = get_user_id_from_auth()));
+CREATE POLICY vibe_lists_auth ON public.vibe_lists FOR ALL TO authenticated USING (user_id = get_user_id_from_auth()) WITH CHECK (user_id = get_user_id_from_auth());
+
+-- Notification policies
+CREATE POLICY "Users can read their own notifications" ON public.recommendation_notifications FOR SELECT TO public USING (receiver_user_id = (SELECT users.id FROM users WHERE users.auth_id = auth.uid()));
+CREATE POLICY "Users can update their notifications" ON public.recommendation_notifications FOR UPDATE TO public USING (receiver_user_id = (SELECT users.id FROM users WHERE users.auth_id = auth.uid()));
+CREATE POLICY "Users can create notifications" ON public.recommendation_notifications FOR INSERT TO public WITH CHECK ((sender_user_id = (SELECT users.id FROM users WHERE users.auth_id = auth.uid())) OR (receiver_user_id IN (SELECT user_social_recommendations.sender_user_id FROM user_social_recommendations WHERE user_social_recommendations.receiver_user_id = (SELECT users.id FROM users WHERE users.auth_id = auth.uid()))));
 
 -- ============================================================================
--- END OF SCHEMA DUMP
+-- END OF COMPLETE DATABASE DUMP
 -- ============================================================================
