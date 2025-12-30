@@ -1997,13 +1997,6 @@ export type Database = {
             referencedRelation: "emotion_master"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "vibe_emotion_weights_vibe_id_fkey"
-            columns: ["vibe_id"]
-            isOneToOne: false
-            referencedRelation: "vibes"
-            referencedColumns: ["id"]
-          },
         ]
       }
       vibe_genre_weights: {
@@ -2028,13 +2021,6 @@ export type Database = {
             columns: ["genre_id"]
             isOneToOne: false
             referencedRelation: "genres"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "vibe_genre_weights_vibe_id_fkey"
-            columns: ["vibe_id"]
-            isOneToOne: false
-            referencedRelation: "vibes"
             referencedColumns: ["id"]
           },
         ]
