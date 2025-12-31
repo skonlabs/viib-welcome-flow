@@ -2799,6 +2799,16 @@ export type Database = {
           vibe_boost: number
         }[]
       }
+      get_top_recommendations_v7: {
+        Args: { p_limit?: number; p_user_id: string }
+        Returns: {
+          details: Json
+          final_score: number
+          rank: number
+          slate_slot: string
+          title_id: string
+        }[]
+      }
       get_top_recommendations_with_intent: {
         Args: { p_limit: number; p_user_id: string }
         Returns: {
