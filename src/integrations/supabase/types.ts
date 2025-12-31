@@ -2843,6 +2843,17 @@ export type Database = {
           title_id: string
         }[]
       }
+      get_top_recommendations_v6: {
+        Args: { p_limit?: number; p_mode?: string; p_user_id: string }
+        Returns: {
+          components: Json
+          final_score: number
+          rank: number
+          reasons: Json
+          slate_slot: string
+          title_id: string
+        }[]
+      }
       get_top_recommendations_with_intent: {
         Args: { p_limit: number; p_user_id: string }
         Returns: {
