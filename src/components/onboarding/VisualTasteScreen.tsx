@@ -138,10 +138,36 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
           .maybeSingle();
         
         if (userData?.id) {
-          await supabase.from('user_vibe_preferences').upsert({
-            user_id: userData.id,
-            vibe_type: selectedGenres.join(',')
-          }, { onConflict: 'user_id' });
+          // Get genre UUIDs from genre names/ids
+          const genreNames = selectedGenres.map(id => {
+            const option = options.find(o => o.genre_id === id);
+            return option?.genre_name;
+          }).filter(Boolean);
+          
+          const { data: genres } = await supabase
+            .from('genres')
+            .select('id, genre_name')
+            .in('genre_name', genreNames);
+          
+          if (genres && genres.length > 0) {
+            // Delete existing preferences first
+            await supabase
+              .from('user_genre_preferences')
+              .delete()
+              .eq('user_id', userData.id);
+            
+            // Insert new preferences
+            const preferences = genres.map(genre => ({
+              user_id: userData.id,
+              genre_id: genre.id
+            }));
+            
+            await supabase
+              .from('user_genre_preferences')
+              .insert(preferences);
+            
+            console.log('[VisualTaste] Saved genre preferences:', genres.map(g => g.genre_name));
+          }
         }
       } catch (err) {
         console.error('Failed to save taste preferences:', err);
