@@ -1160,6 +1160,7 @@ export type Database = {
         Row: {
           arousal: number
           dominance: number
+          emotion_score: number | null
           emotion_strength: number
           title_id: string
           updated_at: string | null
@@ -1168,6 +1169,7 @@ export type Database = {
         Insert: {
           arousal: number
           dominance: number
+          emotion_score?: number | null
           emotion_strength: number
           title_id: string
           updated_at?: string | null
@@ -1176,6 +1178,7 @@ export type Database = {
         Update: {
           arousal?: number
           dominance?: number
+          emotion_score?: number | null
           emotion_strength?: number
           title_id?: string
           updated_at?: string | null
@@ -1838,6 +1841,7 @@ export type Database = {
         Row: {
           social_component_score: number
           social_priority_score: number
+          social_score: number | null
           title_id: string
           updated_at: string
           user_id: string
@@ -1845,6 +1849,7 @@ export type Database = {
         Insert: {
           social_component_score: number
           social_priority_score: number
+          social_score?: number | null
           title_id: string
           updated_at?: string
           user_id: string
@@ -1852,6 +1857,7 @@ export type Database = {
         Update: {
           social_component_score?: number
           social_priority_score?: number
+          social_score?: number | null
           title_id?: string
           updated_at?: string
           user_id?: string
@@ -2785,6 +2791,20 @@ export type Database = {
           title: string
           title_id: string
           vibe_boost: number
+        }[]
+      }
+      get_top_recommendations_v5: {
+        Args: { p_limit?: number; p_user_id: string }
+        Returns: {
+          emotion_score: number
+          final_score: number
+          historical_score: number
+          intent_score: number
+          novelty_score: number
+          quality_score: number
+          rank: number
+          social_score: number
+          title_id: string
         }[]
       }
       get_top_recommendations_with_intent: {
