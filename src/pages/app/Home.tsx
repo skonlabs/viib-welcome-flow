@@ -115,40 +115,50 @@ const Home = () => {
         return;
       }
 
-      // The RPC now returns all title data directly - no need for extra fetch
+      // Fetch full title details including release dates
+      const titleIds = recData.map((rec: any) => rec.title_id).filter(Boolean);
+      const { data: titlesData } = await supabase
+        .from('titles')
+        .select('id, tmdb_id, title_type, release_date, first_air_date, backdrop_path, trailer_url, runtime, overview, title_genres')
+        .in('id', titleIds);
+
+      const titlesMap = new Map(titlesData?.map(t => [t.id, t]) || []);
+
       const enrichedRecs: RecommendedTitle[] = recData
         .map((rec: any) => {
           if (!rec.title_id) return null;
 
-          // Parse genres from the RPC response
-          const genres = Array.isArray(rec.genres) 
-            ? rec.genres 
+          const titleDetails = titlesMap.get(rec.title_id);
+
+          // Parse genres from title_genres JSON
+          const genres = Array.isArray(titleDetails?.title_genres) 
+            ? (titleDetails.title_genres as any[]).map((g: any) => g.name || g).filter(Boolean)
             : [];
 
           // Get release year from release_date or first_air_date
-          const releaseYear = rec.release_date 
-            ? new Date(rec.release_date).getFullYear()
-            : rec.first_air_date 
-              ? new Date(rec.first_air_date).getFullYear()
+          const releaseYear = titleDetails?.release_date 
+            ? new Date(titleDetails.release_date).getFullYear()
+            : titleDetails?.first_air_date 
+              ? new Date(titleDetails.first_air_date).getFullYear()
               : undefined;
 
           return {
             id: rec.title_id,
-            tmdb_id: rec.tmdb_id,
+            tmdb_id: titleDetails?.tmdb_id,
             title: rec.title || 'Unknown Title',
-            type: rec.title_type === 'tv' ? 'series' : 'movie',
+            type: titleDetails?.title_type === 'tv' ? 'series' : 'movie',
             year: releaseYear,
             poster_path: rec.poster_path,
-            backdrop_path: rec.backdrop_path,
-            trailer_url: rec.trailer_url,
-            runtime: rec.runtime,
+            backdrop_path: titleDetails?.backdrop_path,
+            trailer_url: titleDetails?.trailer_url,
+            runtime: titleDetails?.runtime,
             genres,
-            overview: rec.overview,
+            overview: titleDetails?.overview,
             final_score: rec.final_score,
             base_viib_score: rec.emotion_score,
             intent_alignment_score: rec.emotion_score,
             social_priority_score: rec.social_score,
-            transformation_score: rec.vibe_score,
+            transformation_score: rec.vibe_boost,
             recommendation_reason: rec.recommendation_reason || '',
           };
         })
