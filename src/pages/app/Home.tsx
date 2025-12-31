@@ -91,7 +91,7 @@ const Home = () => {
       
       const { data: recData, error: recError } = await supabase.rpc(
         'get_top_recommendations_v6',
-        { p_user_id: profile.id, p_limit: 10 }
+        { p_user_id: profile.id, p_limit: 10, p_mode: 'auto' }
       );
 
       console.log('Recommendation RPC response:', { 
