@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Bell, Moon, Globe, Shield, Trash2, Tv, Check, ChevronRight, Sparkles } from 'lucide-react';
+import { Bell, Moon, Globe, Shield, Trash2, Tv, Check, ChevronRight, Sparkles, Palette } from 'lucide-react';
 import { DeleteAccountDialog } from '@/components/DeleteAccountDialog';
 
 interface SettingsModalProps {
@@ -53,17 +53,23 @@ export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
   const [showLanguageEditor, setShowLanguageEditor] = useState(false);
   const [showPlatformEditor, setShowPlatformEditor] = useState(false);
   const [showVibeEditor, setShowVibeEditor] = useState(false);
+  const [showVisualTasteEditor, setShowVisualTasteEditor] = useState(false);
   const [loadingPrefs, setLoadingPrefs] = useState(true);
 
   // Vibe states
   const [vibes, setVibes] = useState<{ id: string; label: string; description: string }[]>([]);
   const [selectedVibe, setSelectedVibe] = useState<string | null>(null);
 
+  // Visual Taste (Genre) states
+  const [genres, setGenres] = useState<{ id: string; name: string }[]>([]);
+  const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
+
   useEffect(() => {
     if (open) {
       fetchLanguages();
       fetchStreamingServices();
       fetchVibes();
+      fetchGenres();
       if (profile?.id) {
         fetchUserPreferences();
       } else {
@@ -71,6 +77,17 @@ export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
       }
     }
   }, [open, profile?.id]);
+
+  const fetchGenres = async () => {
+    const { data, error } = await supabase
+      .from('genres')
+      .select('id, genre_name')
+      .order('genre_name');
+
+    if (!error && data) {
+      setGenres(data.map(g => ({ id: g.id, name: g.genre_name })));
+    }
+  };
 
   const fetchVibes = async () => {
     const { data, error } = await supabase
@@ -153,6 +170,16 @@ export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
       setSelectedVibe(vibeData.vibe_type);
     }
 
+    // Fetch genre preferences (visual taste)
+    const { data: genreData } = await supabase
+      .from('user_genre_preferences')
+      .select('genre_id')
+      .eq('user_id', profile.id);
+
+    if (genreData) {
+      setSelectedGenres(genreData.map(g => g.genre_id));
+    }
+
     setLoadingPrefs(false);
   };
 
@@ -166,6 +193,14 @@ export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
 
   const togglePlatform = (id: string) => {
     setSelectedPlatforms(prev =>
+      prev.includes(id)
+        ? prev.filter(p => p !== id)
+        : [...prev, id]
+    );
+  };
+
+  const toggleGenre = (id: string) => {
+    setSelectedGenres(prev =>
       prev.includes(id)
         ? prev.filter(p => p !== id)
         : [...prev, id]
@@ -266,6 +301,50 @@ export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
   const getSelectedVibeName = () => {
     const vibe = vibes.find(v => v.id === selectedVibe);
     return vibe?.label || 'Select your vibe';
+  };
+
+  const getSelectedGenreNames = () => {
+    return selectedGenres
+      .map(id => genres.find(g => g.id === id)?.name)
+      .filter(Boolean)
+      .slice(0, 3)
+      .join(', ') + (selectedGenres.length > 3 ? ` +${selectedGenres.length - 3}` : '');
+  };
+
+  const saveGenrePreferences = async () => {
+    if (!profile?.id) return;
+
+    setIsSaving(true);
+
+    // Delete existing preferences
+    await supabase
+      .from('user_genre_preferences')
+      .delete()
+      .eq('user_id', profile.id);
+
+    // Insert new preferences
+    if (selectedGenres.length > 0) {
+      const preferences = selectedGenres.map(genreId => ({
+        user_id: profile.id,
+        genre_id: genreId
+      }));
+
+      const { error } = await supabase
+        .from('user_genre_preferences')
+        .insert(preferences);
+
+      if (error) {
+        toast.error('Failed to save visual taste preferences');
+      } else {
+        toast.success('Visual taste preferences saved');
+        setShowVisualTasteEditor(false);
+      }
+    } else {
+      toast.success('Visual taste preferences cleared');
+      setShowVisualTasteEditor(false);
+    }
+
+    setIsSaving(false);
   };
 
   const saveVibePreference = async (vibeId: string) => {
@@ -461,6 +540,84 @@ export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
                   >
                     Cancel
                   </Button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* Visual Taste Section */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Palette className="w-5 h-5 text-muted-foreground" />
+              <h3 className="font-semibold text-lg">Visual Taste</h3>
+            </div>
+            <div className="space-y-4 pl-7">
+              {!showVisualTasteEditor ? (
+                <Button
+                  variant="outline"
+                  className="w-full justify-between"
+                  onClick={() => setShowVisualTasteEditor(true)}
+                >
+                  <span className="text-left">
+                    {loadingPrefs ? 'Loading...' : 
+                      selectedGenres.length > 0 
+                        ? getSelectedGenreNames() 
+                        : 'Select your preferred genres'}
+                  </span>
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              ) : (
+                <div className="space-y-4 p-4 border rounded-lg bg-muted/30">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-base font-medium">Select Genres</Label>
+                    <span className="text-xs text-muted-foreground">
+                      {selectedGenres.length} selected
+                    </span>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Choose genres that match your visual taste preferences
+                  </p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-64 overflow-y-auto">
+                    {genres.map(genre => {
+                      const isSelected = selectedGenres.includes(genre.id);
+                      return (
+                        <button
+                          key={genre.id}
+                          onClick={() => toggleGenre(genre.id)}
+                          className={`relative p-3 rounded-lg text-center transition-all border ${
+                            isSelected
+                              ? 'border-primary bg-primary/10 ring-1 ring-primary'
+                              : 'border-border bg-muted/50 hover:bg-muted hover:border-primary/50'
+                          }`}
+                        >
+                          {isSelected && (
+                            <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-primary flex items-center justify-center">
+                              <Check className="w-2.5 h-2.5 text-primary-foreground" />
+                            </span>
+                          )}
+                          <span className="text-sm font-medium">{genre.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowVisualTasteEditor(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={saveGenrePreferences}
+                      disabled={isSaving}
+                    >
+                      {isSaving ? 'Saving...' : 'Save Genres'}
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>
