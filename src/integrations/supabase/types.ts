@@ -1645,6 +1645,42 @@ export type Database = {
           },
         ]
       }
+      user_genre_preferences: {
+        Row: {
+          created_at: string
+          genre_id: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          genre_id: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          genre_id?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_genre_preferences_genre_id_fkey"
+            columns: ["genre_id"]
+            isOneToOne: false
+            referencedRelation: "genres"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_genre_preferences_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_language_preferences: {
         Row: {
           language_code: string
