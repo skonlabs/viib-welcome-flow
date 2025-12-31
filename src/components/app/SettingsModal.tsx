@@ -57,7 +57,7 @@ export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
   const [loadingPrefs, setLoadingPrefs] = useState(true);
 
   // Vibe states
-  const [vibes, setVibes] = useState<{ id: string; label: string; description: string }[]>([]);
+  const [vibes, setVibes] = useState<{ id: string; label: string; description: string; canonical_key: string }[]>([]);
   const [selectedVibe, setSelectedVibe] = useState<string | null>(null);
 
   // Visual Taste (Genre) states
@@ -92,11 +92,11 @@ export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
   const fetchVibes = async () => {
     const { data, error } = await supabase
       .from('vibes')
-      .select('id, label, description')
+      .select('id, label, description, canonical_key')
       .order('label');
 
     if (!error && data) {
-      setVibes(data);
+      setVibes(data.map(v => ({ ...v, canonical_key: v.canonical_key || v.id })));
     }
   };
 
@@ -299,7 +299,7 @@ export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
   };
 
   const getSelectedVibeName = () => {
-    const vibe = vibes.find(v => v.id === selectedVibe);
+    const vibe = vibes.find(v => v.canonical_key === selectedVibe);
     return vibe?.label || 'Select your vibe';
   };
 
@@ -347,7 +347,7 @@ export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
     setIsSaving(false);
   };
 
-  const saveVibePreference = async (vibeId: string) => {
+  const saveVibePreference = async (canonicalKey: string) => {
     if (!profile?.id) {
       toast.error('User not found');
       return;
@@ -369,7 +369,7 @@ export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
       const result = await supabase
         .from('user_vibe_preferences')
         .update({
-          vibe_type: vibeId,
+          vibe_type: canonicalKey,
           updated_at: new Date().toISOString()
         })
         .eq('user_id', profile.id);
@@ -380,7 +380,7 @@ export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
         .from('user_vibe_preferences')
         .insert({
           user_id: profile.id,
-          vibe_type: vibeId
+          vibe_type: canonicalKey
         });
       error = result.error;
     }
@@ -389,7 +389,7 @@ export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
       console.error('Vibe save error:', error);
       toast.error('Failed to save vibe preference');
     } else {
-      setSelectedVibe(vibeId);
+      setSelectedVibe(canonicalKey);
       toast.success('Vibe updated successfully');
       setShowVibeEditor(false);
     }
@@ -504,11 +504,11 @@ export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
                   </p>
                   <div className="space-y-2">
                     {vibes.map(vibe => {
-                      const isSelected = selectedVibe === vibe.id;
+                      const isSelected = selectedVibe === vibe.canonical_key;
                       return (
                         <button
                           key={vibe.id}
-                          onClick={() => saveVibePreference(vibe.id)}
+                          onClick={() => saveVibePreference(vibe.canonical_key)}
                           disabled={isSaving}
                           className={`w-full p-3 rounded-lg text-left transition-all border ${
                             isSelected
