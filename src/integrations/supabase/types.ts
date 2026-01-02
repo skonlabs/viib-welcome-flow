@@ -88,6 +88,45 @@ export type Database = {
         }
         Relationships: []
       }
+      cold_start_title_priors: {
+        Row: {
+          language_code: string
+          prior_score: number
+          streaming_service_id: string
+          title_id: string
+          updated_at: string
+        }
+        Insert: {
+          language_code: string
+          prior_score: number
+          streaming_service_id: string
+          title_id: string
+          updated_at?: string
+        }
+        Update: {
+          language_code?: string
+          prior_score?: number
+          streaming_service_id?: string
+          title_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cold_start_title_priors_streaming_service_id_fkey"
+            columns: ["streaming_service_id"]
+            isOneToOne: false
+            referencedRelation: "streaming_services"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cold_start_title_priors_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: false
+            referencedRelation: "titles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_config: {
         Row: {
           created_at: string | null
@@ -836,6 +875,69 @@ export type Database = {
         }
         Relationships: []
       }
+      recommendation_impressions: {
+        Row: {
+          context_score: number | null
+          created_at: string
+          emotion_id: string | null
+          emotion_score: number | null
+          final_score: number
+          historical_score: number | null
+          id: string
+          intent_score: number | null
+          novelty_score: number | null
+          quality_score: number | null
+          rank: number
+          rec_mode: string
+          slate_slot: string
+          social_score: number | null
+          taste_score: number | null
+          title_id: string
+          user_id: string
+          vibe_score: number | null
+        }
+        Insert: {
+          context_score?: number | null
+          created_at?: string
+          emotion_id?: string | null
+          emotion_score?: number | null
+          final_score: number
+          historical_score?: number | null
+          id?: string
+          intent_score?: number | null
+          novelty_score?: number | null
+          quality_score?: number | null
+          rank: number
+          rec_mode: string
+          slate_slot: string
+          social_score?: number | null
+          taste_score?: number | null
+          title_id: string
+          user_id: string
+          vibe_score?: number | null
+        }
+        Update: {
+          context_score?: number | null
+          created_at?: string
+          emotion_id?: string | null
+          emotion_score?: number | null
+          final_score?: number
+          historical_score?: number | null
+          id?: string
+          intent_score?: number | null
+          novelty_score?: number | null
+          quality_score?: number | null
+          rank?: number
+          rec_mode?: string
+          slate_slot?: string
+          social_score?: number | null
+          taste_score?: number | null
+          title_id?: string
+          user_id?: string
+          vibe_score?: number | null
+        }
+        Relationships: []
+      }
       recommendation_notifications: {
         Row: {
           created_at: string | null
@@ -935,6 +1037,71 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      recommendation_outcomes_daily: {
+        Row: {
+          avg_watch_pct: number | null
+          day: string
+          impressions: number
+          selected: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          avg_watch_pct?: number | null
+          day: string
+          impressions?: number
+          selected?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          avg_watch_pct?: number | null
+          day?: string
+          impressions?: number
+          selected?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recommendation_outcomes_daily_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recommendation_refresh_runs: {
+        Row: {
+          error_message: string | null
+          finished_at: string | null
+          id: string
+          metrics: Json
+          mode: string
+          started_at: string
+          status: string
+        }
+        Insert: {
+          error_message?: string | null
+          finished_at?: string | null
+          id?: string
+          metrics?: Json
+          mode: string
+          started_at?: string
+          status?: string
+        }
+        Update: {
+          error_message?: string | null
+          finished_at?: string | null
+          id?: string
+          metrics?: Json
+          mode?: string
+          started_at?: string
+          status?: string
+        }
+        Relationships: []
       }
       seasons: {
         Row: {
@@ -1818,6 +1985,51 @@ export type Database = {
           },
           {
             foreignKeyName: "user_streaming_subscriptions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_title_fatigue_scores: {
+        Row: {
+          fatigue_penalty: number
+          impressions_30d: number
+          impressions_7d: number
+          last_shown_at: string | null
+          title_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          fatigue_penalty?: number
+          impressions_30d?: number
+          impressions_7d?: number
+          last_shown_at?: string | null
+          title_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          fatigue_penalty?: number
+          impressions_30d?: number
+          impressions_7d?: number
+          last_shown_at?: string | null
+          title_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_title_fatigue_scores_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: false
+            referencedRelation: "titles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_title_fatigue_scores_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
@@ -2809,6 +3021,16 @@ export type Database = {
           title_id: string
         }[]
       }
+      get_top_recommendations_v8: {
+        Args: { p_limit?: number; p_user_id: string }
+        Returns: {
+          details: Json
+          final_score: number
+          rank: number
+          slate_slot: string
+          title_id: string
+        }[]
+      }
       get_top_recommendations_with_intent: {
         Args: { p_limit: number; p_user_id: string }
         Returns: {
@@ -2861,6 +3083,10 @@ export type Database = {
         Args: { p_auth_id: string; p_user_id: string }
         Returns: undefined
       }
+      log_recommendation_impressions: {
+        Args: { p_recs: Json; p_user_id: string }
+        Returns: undefined
+      }
       log_recommendation_outcome: {
         Args: {
           p_rating_value: Database["public"]["Enums"]["rating_value"]
@@ -2872,6 +3098,10 @@ export type Database = {
         Returns: undefined
       }
       promote_title_intents: { Args: { p_limit?: number }; Returns: number }
+      prune_old_recommendation_logs: {
+        Args: { p_impressions_days?: number; p_outcomes_days?: number }
+        Returns: undefined
+      }
       record_login_attempt: {
         Args: {
           p_attempt_type?: string
@@ -2889,6 +3119,10 @@ export type Database = {
           status: string
           step: string
         }[]
+      }
+      refresh_cold_start_fallbacks: {
+        Args: { p_top_n?: number }
+        Returns: undefined
       }
       refresh_title_emotion_vectors: { Args: never; Returns: undefined }
       refresh_title_intent_alignment_scores: { Args: never; Returns: undefined }
@@ -2908,10 +3142,10 @@ export type Database = {
           processed_count: number
         }[]
       }
-      refresh_title_user_emotion_match_cache: {
-        Args: never
-        Returns: undefined
-      }
+      refresh_title_user_emotion_match_cache:
+        | { Args: never; Returns: undefined }
+        | { Args: { p_title_ids?: string[] }; Returns: undefined }
+      refresh_user_title_fatigue_scores: { Args: never; Returns: undefined }
       refresh_user_title_social_scores_recent_users: {
         Args: never
         Returns: undefined
@@ -2921,8 +3155,14 @@ export type Database = {
         Args: { p_title_id: string }
         Returns: undefined
       }
+      refresh_viib_weight_config_from_outcomes: {
+        Args: { p_days?: number }
+        Returns: undefined
+      }
+      release_recommendation_refresh_lock: { Args: never; Returns: undefined }
       revoke_all_user_sessions: { Args: { p_user_id: string }; Returns: number }
       run_cron_job_now: { Args: { p_command: string }; Returns: undefined }
+      run_recommendation_refresh: { Args: { p_mode?: string }; Returns: Json }
       store_user_emotion_vector: {
         Args: {
           p_emotion_label: string
@@ -2931,6 +3171,10 @@ export type Database = {
           p_raw_valence?: number
           p_user_id: string
         }
+        Returns: undefined
+      }
+      summarize_recommendation_outcomes_daily: {
+        Args: { p_days?: number }
         Returns: undefined
       }
       toggle_cron_job: {
@@ -2950,8 +3194,21 @@ export type Database = {
           emotion_label: string
         }[]
       }
+      try_acquire_recommendation_refresh_lock: { Args: never; Returns: boolean }
       update_cron_schedule: {
         Args: { p_jobid: number; p_schedule: string }
+        Returns: undefined
+      }
+      validate_recommendation_data_health: {
+        Args: { p_strict?: boolean }
+        Returns: Json
+      }
+      validate_viib_weight_stability: {
+        Args: {
+          p_max_drift?: number
+          p_max_weight?: number
+          p_min_weight?: number
+        }
         Returns: undefined
       }
       verify_otp_secure: {
