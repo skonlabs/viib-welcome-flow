@@ -1427,6 +1427,59 @@ export type Database = {
           },
         ]
       }
+      title_quality_metrics: {
+        Row: {
+          ai_proxy_confidence: number | null
+          ai_proxy_quality_score: number | null
+          ai_proxy_rt_audience_score: number | null
+          ai_proxy_rt_critic_score: number | null
+          analyzed_at: string
+          blended_quality_score: number | null
+          expires_at: string | null
+          model_version: string
+          quality_explainability: string | null
+          rationale: string | null
+          source: string
+          title_id: string
+        }
+        Insert: {
+          ai_proxy_confidence?: number | null
+          ai_proxy_quality_score?: number | null
+          ai_proxy_rt_audience_score?: number | null
+          ai_proxy_rt_critic_score?: number | null
+          analyzed_at?: string
+          blended_quality_score?: number | null
+          expires_at?: string | null
+          model_version?: string
+          quality_explainability?: string | null
+          rationale?: string | null
+          source?: string
+          title_id: string
+        }
+        Update: {
+          ai_proxy_confidence?: number | null
+          ai_proxy_quality_score?: number | null
+          ai_proxy_rt_audience_score?: number | null
+          ai_proxy_rt_critic_score?: number | null
+          analyzed_at?: string
+          blended_quality_score?: number | null
+          expires_at?: string | null
+          model_version?: string
+          quality_explainability?: string | null
+          rationale?: string | null
+          source?: string
+          title_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "title_quality_metrics_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: true
+            referencedRelation: "titles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       title_social_summary: {
         Row: {
           social_mean_rating: number | null
@@ -2866,6 +2919,28 @@ export type Database = {
       }
       cleanup_rate_limit_data: { Args: never; Returns: undefined }
       cleanup_rate_limit_entries: { Args: never; Returns: number }
+      compute_ai_proxy_quality_score: {
+        Args: { p_audience: number; p_critic: number }
+        Returns: number
+      }
+      compute_fallback_quality_score:
+        | {
+            Args: { p_popularity: number; p_vote_average: number }
+            Returns: number
+          }
+        | {
+            Args: { p_popularity: number; p_vote_average: number }
+            Returns: number
+          }
+      compute_quality_explainability: {
+        Args: {
+          p_audience: number
+          p_blended: number
+          p_confidence: number
+          p_critic: number
+        }
+        Returns: string
+      }
       explain_recommendation: {
         Args: { p_title_id: string; p_user_id: string }
         Returns: {
@@ -2972,6 +3047,18 @@ export type Database = {
           title_genres: Json
           title_type: string
           trailer_transcript: string
+        }[]
+      }
+      get_titles_needing_quality_proxy_refresh: {
+        Args: {
+          p_limit?: number
+          p_min_confidence?: number
+          p_model_version?: string
+        }
+        Returns: {
+          overview: string
+          title: string
+          title_id: string
         }[]
       }
       get_titles_with_all_streaming_services:
@@ -3197,6 +3284,18 @@ export type Database = {
       try_acquire_recommendation_refresh_lock: { Args: never; Returns: boolean }
       update_cron_schedule: {
         Args: { p_jobid: number; p_schedule: string }
+        Returns: undefined
+      }
+      upsert_title_quality_proxy: {
+        Args: {
+          p_audience: number
+          p_confidence: number
+          p_critic: number
+          p_model_version?: string
+          p_rationale?: string
+          p_title_id: string
+          p_ttl_days?: number
+        }
         Returns: undefined
       }
       validate_recommendation_data_health: {
