@@ -119,7 +119,7 @@ const Home = () => {
       const titleIds = recData.map((rec: any) => rec.title_id).filter(Boolean);
       const { data: titlesData } = await supabase
         .from('titles')
-        .select('id, tmdb_id, title_type, release_date, first_air_date, backdrop_path, trailer_url, runtime, overview, title_genres')
+        .select('id, tmdb_id, name, poster_path, title_type, release_date, first_air_date, backdrop_path, trailer_url, runtime, overview, title_genres')
         .in('id', titleIds);
 
       const titlesMap = new Map(titlesData?.map(t => [t.id, t]) || []);
@@ -129,6 +129,8 @@ const Home = () => {
           if (!rec.title_id) return null;
 
           const titleDetails = titlesMap.get(rec.title_id);
+          // v8 returns details as a nested object
+          const details = rec.details || {};
 
           // Parse genres from title_genres JSON
           const genres = Array.isArray(titleDetails?.title_genres) 
@@ -145,21 +147,21 @@ const Home = () => {
           return {
             id: rec.title_id,
             tmdb_id: titleDetails?.tmdb_id,
-            title: rec.title || 'Unknown Title',
+            title: details.title || titleDetails?.name || 'Unknown Title',
             type: titleDetails?.title_type === 'tv' ? 'series' : 'movie',
             year: releaseYear,
-            poster_path: rec.poster_path,
+            poster_path: details.poster_path || titleDetails?.poster_path,
             backdrop_path: titleDetails?.backdrop_path,
             trailer_url: titleDetails?.trailer_url,
             runtime: titleDetails?.runtime,
             genres,
             overview: titleDetails?.overview,
             final_score: rec.final_score,
-            base_viib_score: rec.emotion_score,
-            intent_alignment_score: rec.emotion_score,
-            social_priority_score: rec.social_score,
-            transformation_score: rec.vibe_boost,
-            recommendation_reason: rec.recommendation_reason || '',
+            base_viib_score: details.emotion_score || 0,
+            intent_alignment_score: details.intent_score || 0,
+            social_priority_score: details.social_score || 0,
+            transformation_score: 0,
+            recommendation_reason: details.quality_reason || '',
           };
         })
         .filter(Boolean) as RecommendedTitle[];
