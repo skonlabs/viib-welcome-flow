@@ -86,11 +86,11 @@ const Home = () => {
     }
 
     try {
-      // Call the ViiB recommendation engine (v8)
+      // Call the ViiB recommendation engine (v11)
       console.log('Fetching recommendations for user:', profile.id);
       
       const { data: recData, error: recError } = await supabase.rpc(
-        'get_top_recommendations_v8',
+        'get_top_recommendations_v11',
         { p_user_id: profile.id, p_limit: 10 }
       );
 

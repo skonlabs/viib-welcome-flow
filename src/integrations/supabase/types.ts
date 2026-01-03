@@ -1480,6 +1480,41 @@ export type Database = {
           },
         ]
       }
+      title_rt_ai_estimates: {
+        Row: {
+          confidence: number
+          created_at: string
+          rt_ascore: number | null
+          rt_cscore: number | null
+          title_id: string
+          updated_at: string
+        }
+        Insert: {
+          confidence?: number
+          created_at?: string
+          rt_ascore?: number | null
+          rt_cscore?: number | null
+          title_id: string
+          updated_at?: string
+        }
+        Update: {
+          confidence?: number
+          created_at?: string
+          rt_ascore?: number | null
+          rt_cscore?: number | null
+          title_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "title_rt_ai_estimates_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: true
+            referencedRelation: "titles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       title_social_summary: {
         Row: {
           social_mean_rating: number | null
@@ -2941,6 +2976,25 @@ export type Database = {
         }
         Returns: string
       }
+      compute_quality_score_v2:
+        | {
+            Args: {
+              p_popularity: number
+              p_title_id: string
+              p_vote_average: number
+            }
+            Returns: number
+          }
+        | {
+            Args: {
+              p_popularity: number
+              p_rt_ascore: number
+              p_rt_cscore: number
+              p_title_id: string
+              p_vote_average: number
+            }
+            Returns: number
+          }
       explain_recommendation: {
         Args: { p_title_id: string; p_user_id: string }
         Returns: {
@@ -3080,25 +3134,7 @@ export type Database = {
               tmdb_id: number
             }[]
           }
-      get_top_recommendations_v6: {
-        Args: { p_limit?: number; p_user_id: string }
-        Returns: {
-          context_score: number
-          emotion_score: number
-          final_score: number
-          historical_score: number
-          intent_score: number
-          novelty_score: number
-          poster_path: string
-          quality_score: number
-          recommendation_reason: string
-          social_score: number
-          title: string
-          title_id: string
-          vibe_boost: number
-        }[]
-      }
-      get_top_recommendations_v7: {
+      get_top_recommendations_v10: {
         Args: { p_limit?: number; p_user_id: string }
         Returns: {
           details: Json
@@ -3108,7 +3144,7 @@ export type Database = {
           title_id: string
         }[]
       }
-      get_top_recommendations_v8: {
+      get_top_recommendations_v11: {
         Args: { p_limit?: number; p_user_id: string }
         Returns: {
           details: Json
