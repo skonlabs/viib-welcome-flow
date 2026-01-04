@@ -586,35 +586,65 @@ export const Jobs = () => {
         return;
       }
 
-      let functionName: string;
+      let functionName: string | null = null;
+      let rpcName: string | null = null;
+      let rpcParams: any = {};
       let functionBody: any = {};
       let resetConfig = false;
 
-      if (job.job_type === "sync_delta") {
-        functionName = "sync-titles-delta";
-      } else if (job.job_type === "enrich_trailers") {
-        functionName = "enrich-title-trailers";
-        functionBody = { jobId: job.id };
-      } else if (job.job_type === "transcribe_trailers") {
-        functionName = "transcribe-trailers";
-        functionBody = { jobId: job.id };
-      } else if (job.job_type === "classify_ai") {
-        functionName = "classify-title-ai";
-        functionBody = { jobId: job.id };
-        resetConfig = true; // Reset cursor to start fresh
-      } else if (job.job_type === "promote_ai") {
-        functionName = "promote-title-ai";
-        const config = job.configuration || {};
-        functionBody = { batchSize: config.batch_size || 50 };
-      } else if (job.job_type === "enrich_details") {
-        functionName = "enrich-title-details-batch";
-        functionBody = { jobId: job.id };
-      } else if (job.job_type === "fix_streaming") {
-        // Fix streaming uses a loop-based approach - handle separately
-        await handleFixStreamingJob(job);
-        return;
-      } else {
-        throw new Error(`Unknown job type: ${job.job_type}`);
+      // Map job types to their execution method (edge function or RPC)
+      switch (job.job_type) {
+        case "sync_delta":
+          functionName = "sync-titles-delta";
+          break;
+        case "enrich_trailers":
+          functionName = "enrich-title-trailers";
+          functionBody = { jobId: job.id };
+          break;
+        case "transcribe_trailers":
+          functionName = "transcribe-trailers";
+          functionBody = { jobId: job.id };
+          break;
+        case "classify_ai":
+          functionName = "classify-title-ai";
+          functionBody = { jobId: job.id };
+          resetConfig = true;
+          break;
+        case "promote_ai":
+          functionName = "promote-title-ai";
+          functionBody = { batchSize: job.configuration?.batch_size || 50 };
+          break;
+        case "enrich_details":
+          functionName = "enrich-title-details-batch";
+          functionBody = { jobId: job.id };
+          break;
+        case "fix_streaming":
+          // Uses cursor-based loop - handle separately
+          await handleFixStreamingJob(job);
+          return;
+        case "reco_orchestrator":
+        case "refresh_reco_caches":
+          // These run RPC functions
+          rpcName = "run_recommendation_refresh";
+          rpcParams = { p_mode: job.configuration?.mode || "hot" };
+          break;
+        case "rt_quality_estimation":
+          // RT quality estimation uses an RPC
+          rpcName = "upsert_title_quality_proxy";
+          rpcParams = {};
+          break;
+        default:
+          toast({
+            title: "Unsupported Job",
+            description: `Job type "${job.job_type}" is not yet implemented for manual execution.`,
+            variant: "destructive",
+          });
+          setRunningJobs((prev) => {
+            const newSet = new Set(prev);
+            newSet.delete(job.id);
+            return newSet;
+          });
+          return;
       }
 
       // Reset job status and counter before starting
@@ -638,19 +668,59 @@ export const Jobs = () => {
         description: `${job.job_name} is now running. This may take several minutes...`,
       });
 
-      const { data, error } = await supabase.functions.invoke(functionName, {
-        body: functionBody,
-      });
+      // Execute either edge function or RPC based on job type
+      if (functionName) {
+        const { data, error } = await supabase.functions.invoke(functionName, {
+          body: functionBody,
+        });
 
-      if (error) throw error;
+        if (error) throw error;
 
-      toast({
-        title: "Job Completed",
-        description: data?.message || `${job.job_name} completed successfully.`,
-      });
+        // Update job status on completion
+        await supabase
+          .from("jobs")
+          .update({
+            status: "completed",
+            error_message: null,
+          })
+          .eq("id", job.id);
+
+        toast({
+          title: "Job Completed",
+          description: data?.message || `${job.job_name} completed successfully.`,
+        });
+      } else if (rpcName) {
+        const { data, error } = await supabase.rpc(rpcName as any, rpcParams);
+
+        if (error) throw error;
+
+        // Update job status on completion
+        await supabase
+          .from("jobs")
+          .update({
+            status: "completed",
+            error_message: null,
+            total_titles_processed: typeof data === "number" ? data : 0,
+          })
+          .eq("id", job.id);
+
+        toast({
+          title: "Job Completed",
+          description: `${job.job_name} completed successfully.${typeof data === "number" ? ` Processed ${data} items.` : ""}`,
+        });
+      }
 
       await fetchJobs();
-    } catch (error) {
+    } catch (error: any) {
+      // Mark job as failed
+      await supabase
+        .from("jobs")
+        .update({
+          status: "failed",
+          error_message: error?.message || "Unknown error",
+        })
+        .eq("id", job.id);
+
       await errorLogger.log(error, {
         operation: "run_job",
         jobId: job.id,
@@ -658,9 +728,10 @@ export const Jobs = () => {
       });
       toast({
         title: "Job Failed",
-        description: "Failed to run the job. Please check the logs.",
+        description: error?.message || "Failed to run the job. Please check the logs.",
         variant: "destructive",
       });
+      await fetchJobs();
     } finally {
       setRunningJobs((prev) => {
         const newSet = new Set(prev);
@@ -1927,23 +1998,23 @@ export const Jobs = () => {
                 />
               )}
 
-              {/* Actions */}
-              <div className="flex gap-2 pt-2">
-                {/* Detect orphaned job: status is 'running' in DB but frontend loop isn't running */}
+              {/* Actions - Consistent for ALL jobs */}
+              <div className="flex flex-wrap gap-2 pt-2">
+                {/* Run/Stop/Resume button - First priority action */}
                 {job.status === "running" && !runningJobs.has(job.id) ? (
+                  // Orphaned running job - show Resume/Reset buttons
                   <>
-                    {/* Orphaned running job - show Resume button */}
                     <Button
                       onClick={async () => {
-                        // Reset status to idle first, then run
                         await supabase.from("jobs").update({ status: "idle" }).eq("id", job.id);
                         await fetchJobs();
                         handleRunJob({ ...job, status: "idle" });
                       }}
                       className="flex-1 bg-orange-500 hover:bg-orange-600"
+                      size="sm"
                     >
                       <Play className="w-4 h-4 mr-2" />
-                      Resume (orphaned)
+                      Resume
                     </Button>
                     <Button
                       onClick={async () => {
@@ -1951,19 +2022,22 @@ export const Jobs = () => {
                         await fetchJobs();
                       }}
                       variant="outline"
+                      size="sm"
                     >
                       <XCircle className="w-4 h-4 mr-2" />
                       Reset
                     </Button>
                   </>
                 ) : job.status === "running" ? (
-                  <Button onClick={() => confirmStopJob(job)} variant="destructive" className="flex-1">
+                  // Running job - show Stop button
+                  <Button onClick={() => confirmStopJob(job)} variant="destructive" className="flex-1" size="sm">
                     <XCircle className="w-4 h-4 mr-2" />
-                    Stop Job
+                    Stop
                   </Button>
                 ) : (
+                  // Idle/completed/failed job - show Run Now or Resume button
                   <>
-                    {/* Show Resume button for full_refresh with progress */}
+                    {/* Resume button for jobs with progress */}
                     {job.job_type === "full_refresh" &&
                     job.configuration?.completed_work_units?.length > 0 &&
                     job.status !== "completed" ? (
@@ -1971,6 +2045,7 @@ export const Jobs = () => {
                         onClick={() => handleResumeJob(job)}
                         disabled={runningJobs.has(job.id)}
                         className="flex-1"
+                        size="sm"
                       >
                         {runningJobs.has(job.id) ? (
                           <>
@@ -1985,7 +2060,7 @@ export const Jobs = () => {
                         )}
                       </Button>
                     ) : job.job_type === "fix_streaming" && job.configuration?.last_cursor ? (
-                      <Button onClick={() => handleRunJob(job)} disabled={runningJobs.has(job.id)} className="flex-1">
+                      <Button onClick={() => handleRunJob(job)} disabled={runningJobs.has(job.id)} className="flex-1" size="sm">
                         {runningJobs.has(job.id) ? (
                           <>
                             <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
@@ -1994,12 +2069,12 @@ export const Jobs = () => {
                         ) : (
                           <>
                             <Play className="w-4 h-4 mr-2" />
-                            Resume (from cursor)
+                            Resume
                           </>
                         )}
                       </Button>
                     ) : (
-                      <Button onClick={() => handleRunJob(job)} disabled={runningJobs.has(job.id)} className="flex-1">
+                      <Button onClick={() => handleRunJob(job)} disabled={runningJobs.has(job.id)} className="flex-1" size="sm">
                         {runningJobs.has(job.id) ? (
                           <>
                             <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
@@ -2013,32 +2088,28 @@ export const Jobs = () => {
                         )}
                       </Button>
                     )}
-                    {job.job_type === "full_refresh" && (
-                      <Button
-                        onClick={() => handleRunParallel(job)}
-                        disabled={runningJobs.has(job.id)}
-                        variant="secondary"
-                      >
-                        <Layers className="w-4 h-4 mr-2" />
-                        {job.configuration?.completed_work_units?.length > 0 ? "Restart" : "Parallel"}
-                      </Button>
-                    )}
                   </>
                 )}
+
+                {/* Pause/Continue toggle - Always visible */}
                 <Button
                   onClick={() => handleToggleActive(job)}
                   variant={job.is_active ? "outline" : "default"}
                   size="sm"
                   disabled={job.status === "running"}
-                  title={job.is_active ? "Pause automatic scheduling" : "Enable automatic scheduling"}
+                  title={job.is_active ? "Pause scheduling" : "Enable scheduling"}
                 >
                   {job.is_active ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
                 </Button>
+
+                {/* Schedule button - Always visible */}
                 <JobScheduleDialog
                   jobName={job.job_name}
                   currentNextRun={job.next_run_at}
                   onSchedule={(nextRunAt, recurrence) => handleScheduleJob(job, nextRunAt, recurrence)}
                 />
+
+                {/* Settings button - Always visible */}
                 <JobConfigDialog job={job} onUpdate={handleUpdateConfig} />
               </div>
             </CardContent>
@@ -2230,7 +2301,7 @@ const JobConfigDialog = ({ job, onUpdate }: JobConfigDialogProps) => {
           {/* Configuration Section */}
           <div className="space-y-4">
             <h4 className="font-semibold text-sm">Configuration</h4>
-            {job.job_type === "full_refresh" ? (
+            {job.job_type === "full_refresh" && (
               <>
                 <div className="space-y-2">
                   <Label>Minimum Rating</Label>
@@ -2239,50 +2310,51 @@ const JobConfigDialog = ({ job, onUpdate }: JobConfigDialogProps) => {
                     step="0.1"
                     min="0"
                     max="10"
-                    value={config.min_rating}
+                    value={config.min_rating ?? 0}
                     onChange={(e) => setConfig({ ...config, min_rating: parseFloat(e.target.value) })}
                   />
                   <p className="text-xs text-muted-foreground">Only fetch titles with rating ≥ this value (0-10)</p>
                 </div>
-                <div className="space-y-2">
-                  <Label>Titles Per Batch</Label>
-                  <Input
-                    type="number"
-                    min="10"
-                    max="500"
-                    value={config.titles_per_batch}
-                    onChange={(e) => setConfig({ ...config, titles_per_batch: parseInt(e.target.value) })}
-                  />
-                  <p className="text-xs text-muted-foreground">Number of titles to fetch per API request (10-500)</p>
-                </div>
-                <div className="border-t pt-4">
-                  <h5 className="font-semibold text-sm mb-3">Year Range</h5>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Start Year</Label>
-                      <Input
-                        type="number"
-                        min="1900"
-                        max={new Date().getFullYear()}
-                        value={config.start_year || 2020}
-                        onChange={(e) => setConfig({ ...config, start_year: parseInt(e.target.value) })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>End Year</Label>
-                      <Input
-                        type="number"
-                        min="1900"
-                        max={new Date().getFullYear()}
-                        value={config.end_year || new Date().getFullYear()}
-                        onChange={(e) => setConfig({ ...config, end_year: parseInt(e.target.value) })}
-                      />
-                    </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Start Year</Label>
+                    <Input
+                      type="number"
+                      min="1900"
+                      max={new Date().getFullYear()}
+                      value={config.start_year || 2020}
+                      onChange={(e) => setConfig({ ...config, start_year: parseInt(e.target.value) })}
+                    />
                   </div>
-                  <p className="text-xs text-muted-foreground mt-2">Fetch titles released between these years</p>
+                  <div className="space-y-2">
+                    <Label>End Year</Label>
+                    <Input
+                      type="number"
+                      min="1900"
+                      max={new Date().getFullYear()}
+                      value={config.end_year || new Date().getFullYear()}
+                      onChange={(e) => setConfig({ ...config, end_year: parseInt(e.target.value) })}
+                    />
+                  </div>
                 </div>
               </>
-            ) : job.job_type === "enrich_trailers" ? (
+            )}
+
+            {(job.job_type === "classify_ai" || job.job_type === "promote_ai") && (
+              <div className="space-y-2">
+                <Label>Batch Size</Label>
+                <Input
+                  type="number"
+                  min="10"
+                  max="100"
+                  value={config.batch_size || 50}
+                  onChange={(e) => setConfig({ ...config, batch_size: parseInt(e.target.value) })}
+                />
+                <p className="text-xs text-muted-foreground">Number of titles to process per batch</p>
+              </div>
+            )}
+
+            {(job.job_type === "enrich_trailers" || job.job_type === "enrich_details" || job.job_type === "transcribe_trailers") && (
               <>
                 <div className="space-y-2">
                   <Label>Batch Size</Label>
@@ -2293,23 +2365,49 @@ const JobConfigDialog = ({ job, onUpdate }: JobConfigDialogProps) => {
                     value={config.batch_size || 50}
                     onChange={(e) => setConfig({ ...config, batch_size: parseInt(e.target.value) })}
                   />
-                  <p className="text-xs text-muted-foreground">Number of titles to process per batch (10-100)</p>
+                  <p className="text-xs text-muted-foreground">Number of titles to process per batch</p>
                 </div>
                 <div className="space-y-2">
-                  <Label>Start Offset</Label>
+                  <Label>Max Runtime (ms)</Label>
                   <Input
                     type="number"
-                    min="0"
-                    value={config.start_offset || 0}
-                    onChange={(e) => setConfig({ ...config, start_offset: parseInt(e.target.value) })}
+                    min="10000"
+                    max="85000"
+                    value={config.max_runtime_ms || 55000}
+                    onChange={(e) => setConfig({ ...config, max_runtime_ms: parseInt(e.target.value) })}
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Starting position in the titles table (0 = from beginning)
-                  </p>
+                  <p className="text-xs text-muted-foreground">Maximum execution time in milliseconds</p>
                 </div>
               </>
-            ) : (
+            )}
+
+            {job.job_type === "fix_streaming" && (
+              <div className="space-y-2">
+                <Label>Batch Size</Label>
+                <Input
+                  type="number"
+                  min="10"
+                  max="200"
+                  value={config.batch_size || 100}
+                  onChange={(e) => setConfig({ ...config, batch_size: parseInt(e.target.value) })}
+                />
+                <p className="text-xs text-muted-foreground">Number of titles to process per batch</p>
+              </div>
+            )}
+
+            {job.job_type === "sync_delta" && (
               <>
+                <div className="space-y-2">
+                  <Label>Lookback Days</Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    max="365"
+                    value={config.lookback_days || 7}
+                    onChange={(e) => setConfig({ ...config, lookback_days: parseInt(e.target.value) })}
+                  />
+                  <p className="text-xs text-muted-foreground">Number of days to look back for new titles</p>
+                </div>
                 <div className="space-y-2">
                   <Label>Minimum Rating</Label>
                   <Input
@@ -2317,51 +2415,69 @@ const JobConfigDialog = ({ job, onUpdate }: JobConfigDialogProps) => {
                     step="0.1"
                     min="0"
                     max="10"
-                    value={config.min_rating}
+                    value={config.min_rating ?? 0}
                     onChange={(e) => setConfig({ ...config, min_rating: parseFloat(e.target.value) })}
                   />
-                  <p className="text-xs text-muted-foreground">Only fetch titles with rating ≥ this value (0-10)</p>
-                </div>
-                <div className="space-y-2">
-                  <Label>Lookback Days</Label>
-                  <Input
-                    type="number"
-                    min="1"
-                    max="365"
-                    value={config.lookback_days}
-                    onChange={(e) => setConfig({ ...config, lookback_days: parseInt(e.target.value) })}
-                  />
-                  <p className="text-xs text-muted-foreground">Number of days to look back for new titles (1-365)</p>
-                </div>
-                <div className="border-t pt-4">
-                  <h5 className="font-semibold text-sm mb-3">Year Range (Optional)</h5>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Start Year</Label>
-                      <Input
-                        type="number"
-                        min="1900"
-                        max={new Date().getFullYear()}
-                        value={config.start_year || new Date().getFullYear() - 2}
-                        onChange={(e) => setConfig({ ...config, start_year: parseInt(e.target.value) })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>End Year</Label>
-                      <Input
-                        type="number"
-                        min="1900"
-                        max={new Date().getFullYear()}
-                        value={config.end_year || new Date().getFullYear()}
-                        onChange={(e) => setConfig({ ...config, end_year: parseInt(e.target.value) })}
-                      />
-                    </div>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Filter titles released between these years (optional)
-                  </p>
+                  <p className="text-xs text-muted-foreground">Only fetch titles with rating ≥ this value</p>
                 </div>
               </>
+            )}
+
+            {(job.job_type === "reco_orchestrator" || job.job_type === "refresh_reco_caches") && (
+              <div className="space-y-2">
+                <Label>Refresh Mode</Label>
+                <Select value={config.mode || "hot"} onValueChange={(v) => setConfig({ ...config, mode: v })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="hot">Hot (recent data only)</SelectItem>
+                    <SelectItem value="warm">Warm (moderate refresh)</SelectItem>
+                    <SelectItem value="full">Full (complete refresh)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">Controls how much data is refreshed</p>
+              </div>
+            )}
+
+            {job.job_type === "refresh_reco_v11" && (
+              <>
+                <div className="space-y-2">
+                  <Label>User ID (optional)</Label>
+                  <Input
+                    type="text"
+                    placeholder="UUID of specific user"
+                    value={config.user_id || ""}
+                    onChange={(e) => setConfig({ ...config, user_id: e.target.value || undefined })}
+                  />
+                  <p className="text-xs text-muted-foreground">Leave empty for batch refresh, or specify user UUID for single-user refresh</p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Candidate Limit</Label>
+                  <Input
+                    type="number"
+                    min="50"
+                    max="1000"
+                    value={config.candidate_limit || 300}
+                    onChange={(e) => setConfig({ ...config, candidate_limit: parseInt(e.target.value) })}
+                  />
+                  <p className="text-xs text-muted-foreground">Maximum candidates per user</p>
+                </div>
+              </>
+            )}
+
+            {job.job_type === "rt_quality_estimation" && (
+              <div className="space-y-2">
+                <Label>Batch Size</Label>
+                <Input
+                  type="number"
+                  min="10"
+                  max="200"
+                  value={config.batch_size || 50}
+                  onChange={(e) => setConfig({ ...config, batch_size: parseInt(e.target.value) })}
+                />
+                <p className="text-xs text-muted-foreground">Number of titles to estimate per batch</p>
+              </div>
             )}
           </div>
         </div>
