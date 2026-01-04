@@ -1969,6 +1969,95 @@ export type Database = {
           },
         ]
       }
+      user_recommendation_candidates_v11: {
+        Row: {
+          computed_at: string
+          context_score: number
+          emotion_score: number
+          genre_ids: string[] | null
+          historical_score: number
+          intent_score: number
+          is_stale: boolean
+          novelty_score: number
+          poster_path: string | null
+          primary_genre_id: string | null
+          quality_score: number
+          reason_count: number
+          reasons: Json
+          score_mood_lock: number
+          score_soft_stretch: number
+          score_taste_anchor: number
+          slate_slot: string
+          slot_score: number
+          social_score: number
+          taste_score: number
+          title_id: string
+          title_name: string | null
+          user_id: string
+          vibe_score: number
+        }
+        Insert: {
+          computed_at?: string
+          context_score?: number
+          emotion_score?: number
+          genre_ids?: string[] | null
+          historical_score?: number
+          intent_score?: number
+          is_stale?: boolean
+          novelty_score?: number
+          poster_path?: string | null
+          primary_genre_id?: string | null
+          quality_score?: number
+          reason_count: number
+          reasons: Json
+          score_mood_lock?: number
+          score_soft_stretch?: number
+          score_taste_anchor?: number
+          slate_slot: string
+          slot_score: number
+          social_score?: number
+          taste_score?: number
+          title_id: string
+          title_name?: string | null
+          user_id: string
+          vibe_score?: number
+        }
+        Update: {
+          computed_at?: string
+          context_score?: number
+          emotion_score?: number
+          genre_ids?: string[] | null
+          historical_score?: number
+          intent_score?: number
+          is_stale?: boolean
+          novelty_score?: number
+          poster_path?: string | null
+          primary_genre_id?: string | null
+          quality_score?: number
+          reason_count?: number
+          reasons?: Json
+          score_mood_lock?: number
+          score_soft_stretch?: number
+          score_taste_anchor?: number
+          slate_slot?: string
+          slot_score?: number
+          social_score?: number
+          taste_score?: number
+          title_id?: string
+          title_name?: string | null
+          user_id?: string
+          vibe_score?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "urc_v11_title_fk"
+            columns: ["title_id"]
+            isOneToOne: false
+            referencedRelation: "titles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string | null
@@ -2976,6 +3065,15 @@ export type Database = {
         }
         Returns: string
       }
+      compute_quality_score_v11: {
+        Args: {
+          p_popularity: number
+          p_rt_ascore: number
+          p_rt_cscore: number
+          p_vote_average: number
+        }
+        Returns: number
+      }
       compute_quality_score_v2:
         | {
             Args: {
@@ -3268,6 +3366,10 @@ export type Database = {
       refresh_title_user_emotion_match_cache:
         | { Args: never; Returns: undefined }
         | { Args: { p_title_ids?: string[] }; Returns: undefined }
+      refresh_user_recommendation_candidates_v11: {
+        Args: { p_k?: number; p_user_id: string }
+        Returns: number
+      }
       refresh_user_title_fatigue_scores: { Args: never; Returns: undefined }
       refresh_user_title_social_scores_recent_users: {
         Args: never
