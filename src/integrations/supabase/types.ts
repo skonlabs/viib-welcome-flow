@@ -3247,6 +3247,7 @@ export type Database = {
         Returns: {
           details: Json
           final_score: number
+          match_percent: number
           rank: number
           slate_slot: string
           title_id: string
