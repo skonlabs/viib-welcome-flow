@@ -156,7 +156,8 @@ const Home = () => {
             runtime: titleDetails?.runtime,
             genres,
             overview: titleDetails?.overview,
-            final_score: rec.final_score,
+            // Use match_percent from RPC which is already 0-100, fallback to details.match_percent
+            final_score: rec.match_percent ?? details.match_percent ?? 0,
             base_viib_score: details.emotion_score || 0,
             intent_alignment_score: details.intent_score || 0,
             social_priority_score: details.social_score || 0,
@@ -353,7 +354,7 @@ const Home = () => {
                 runtime_minutes: title.runtime,
                 genres: title.genres,
               }}
-              viibScore={title.final_score != null ? Math.round(title.final_score * 100) : undefined}
+              viibScore={title.final_score != null ? Math.round(title.final_score) : undefined}
               isInWatchlist={userWatchlist.has(title.id)}
               onClick={() => {
                 setSelectedTitle(title);
