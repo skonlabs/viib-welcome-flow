@@ -565,8 +565,8 @@ export const Jobs = () => {
 
         if (rpcError) throw rpcError;
 
-        // Clear stale flag (best effort)
-        await supabase.from("user_recommendation_candidates_v11").update({ is_stale: false }).eq("user_id", userId);
+        // Clear stale flag (best effort) - use type assertion since table may not be in types
+        await (supabase.from("user_recommendation_candidates_v11" as any) as any).update({ is_stale: false }).eq("user_id", userId);
 
         await supabase
           .from("jobs")
