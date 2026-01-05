@@ -40,6 +40,11 @@ type FlexibleTitle = {
   }>;
 };
 
+interface ExplainabilityData {
+  reasons: string[];
+  scores: Record<string, number>;
+}
+
 interface TitleCardProps {
   title: FlexibleTitle;
   onClick?: () => void;
@@ -51,6 +56,7 @@ interface TitleCardProps {
   isInWatchlist?: boolean;
   compactRecommend?: boolean;
   userRating?: 'love_it' | 'like_it' | 'ok' | 'dislike_it' | 'not_rated' | null;
+  explainability?: ExplainabilityData;
   actions?: {
     onWatched?: () => void;
     onWatchlist?: () => void;
@@ -70,14 +76,21 @@ export function TitleCard({
   isInWatchlist = false,
   compactRecommend = false,
   userRating,
+  explainability: passedExplainability,
   actions 
 }: TitleCardProps) {
   const [trailerOpen, setTrailerOpen] = useState(false);
   const [explanationOpen, setExplanationOpen] = useState(false);
-  const [explanation, setExplanation] = useState<{ reasons: string[]; scores: Record<string, number> } | null>(null);
+  // Use passed explainability data directly, or fetch if not provided
+  const [fetchedExplanation, setFetchedExplanation] = useState<{ reasons: string[]; scores: Record<string, number> } | null>(null);
   const [loadingExplanation, setLoadingExplanation] = useState(false);
   const { profile } = useAuth();
   const trailerUrl = title.trailer_url;
+
+  // Use passed explainability if available, otherwise use fetched
+  const explanation = passedExplainability && (passedExplainability.reasons.length > 0 || Object.keys(passedExplainability.scores).length > 0)
+    ? passedExplainability
+    : fetchedExplanation;
 
   const handleTrailerClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -87,6 +100,7 @@ export function TitleCard({
   };
 
   const fetchExplanation = async () => {
+    // Skip if we already have passed or fetched explanation
     if (!profile || !title.id || explanation) return;
     
     setLoadingExplanation(true);
@@ -122,13 +136,13 @@ export function TitleCard({
       if (typeof row?.social_score === 'number') scores['social'] = row.social_score;
       if (typeof row?.transformation_score === 'number') scores['transformation'] = row.transformation_score;
       
-      setExplanation({ 
+      setFetchedExplanation({ 
         reasons: reasons.length > 0 ? reasons : ['Recommended based on your preferences.'], 
         scores 
       });
     } catch (err) {
       console.error('Failed to load explanation:', err);
-      setExplanation({ reasons: ['Unable to load explanation'], scores: {} });
+      setFetchedExplanation({ reasons: ['Unable to load explanation'], scores: {} });
     } finally {
       setLoadingExplanation(false);
     }
