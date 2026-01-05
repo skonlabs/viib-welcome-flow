@@ -98,22 +98,32 @@ export function TitleCard({
       
       if (error) throw error;
       
-      const parsed = data as {
-        reasons?: string[];
-        components?: Record<string, { value: number; weight: number }>;
-      };
+      // Cast to any for flexible access - the RPC returns an array with one row
+      const rawData = data as any;
+      const row = Array.isArray(rawData) && rawData.length > 0 ? rawData[0] : rawData;
       
-      const scores: Record<string, number> = {};
-      if (parsed.components) {
-        Object.entries(parsed.components).forEach(([key, val]) => {
-          if (val && typeof val.value === 'number') {
-            scores[key] = val.value;
-          }
-        });
+      // Build reasons from primary_reason and secondary_reasons
+      const reasons: string[] = [];
+      if (row?.primary_reason) {
+        reasons.push(row.primary_reason);
+      }
+      if (row?.secondary_reasons && Array.isArray(row.secondary_reasons)) {
+        reasons.push(...row.secondary_reasons.filter((r: string) => r));
+      }
+      if (row?.full_explanation && reasons.length === 0) {
+        reasons.push(row.full_explanation);
       }
       
+      // Build scores from the returned metrics (already 0-1 scale)
+      const scores: Record<string, number> = {};
+      if (typeof row?.emotional_match === 'number') scores['emotion'] = row.emotional_match;
+      if (typeof row?.taste_similarity === 'number') scores['taste'] = row.taste_similarity;
+      if (typeof row?.intent_confidence === 'number') scores['intent'] = row.intent_confidence;
+      if (typeof row?.social_score === 'number') scores['social'] = row.social_score;
+      if (typeof row?.transformation_score === 'number') scores['transformation'] = row.transformation_score;
+      
       setExplanation({ 
-        reasons: parsed.reasons || ['Recommended based on your preferences.'], 
+        reasons: reasons.length > 0 ? reasons : ['Recommended based on your preferences.'], 
         scores 
       });
     } catch (err) {
