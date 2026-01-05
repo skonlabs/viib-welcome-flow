@@ -8,6 +8,12 @@ import { DismissTitleDialog } from '@/components/DismissTitleDialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 
+interface Explainability {
+  summary?: Array<{ label: string; value: string; reason: string }>;
+  reason_count?: number;
+  raw_reasons?: Record<string, unknown>;
+}
+
 interface RecommendedTitle {
   id: string;
   tmdb_id?: number;
@@ -26,6 +32,8 @@ interface RecommendedTitle {
   social_priority_score: number;
   transformation_score: number;
   recommendation_reason: string;
+  explainability?: Explainability;
+  normalized_components?: Record<string, number>;
 }
 
 const Home = () => {
@@ -163,6 +171,8 @@ const Home = () => {
             social_priority_score: details.social_score || 0,
             transformation_score: 0,
             recommendation_reason: details.quality_reason || '',
+            explainability: details.explainability,
+            normalized_components: details.normalized_components,
           };
         })
         .filter(Boolean) as RecommendedTitle[];
@@ -353,6 +363,10 @@ const Home = () => {
                 trailer_url: title.trailer_url,
                 runtime_minutes: title.runtime,
                 genres: title.genres,
+              }}
+              explainability={{
+                reasons: title.explainability?.summary?.map(s => s.reason).filter(Boolean) || [],
+                scores: title.normalized_components || {},
               }}
               viibScore={title.final_score != null ? Math.round(title.final_score) : undefined}
               isInWatchlist={userWatchlist.has(title.id)}
