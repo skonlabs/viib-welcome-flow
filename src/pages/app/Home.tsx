@@ -117,8 +117,9 @@ const Home = () => {
       }
 
       if (!recData || recData.length === 0) {
-        console.log('No recommendations returned');
-        setRecommendations([]);
+        console.log('No recommendations returned - keeping existing recommendations');
+        // Keep existing recommendations instead of clearing them
+        // This handles the case where cache is stale but not yet refreshed
         setLoading(false);
         return;
       }
