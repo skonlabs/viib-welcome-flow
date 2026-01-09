@@ -1969,11 +1969,36 @@ export type Database = {
           },
         ]
       }
+      user_reco_cache_state: {
+        Row: {
+          is_stale: boolean
+          stale_at: string
+          stale_reason: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          is_stale?: boolean
+          stale_at?: string
+          stale_reason?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          is_stale?: boolean
+          stale_at?: string
+          stale_reason?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_recommendation_candidates_v11: {
         Row: {
           computed_at: string
           context_score: number
           emotion_score: number
+          final_score: number
           genre_ids: string[] | null
           historical_score: number
           intent_score: number
@@ -1984,48 +2009,17 @@ export type Database = {
           quality_score: number
           reason_count: number
           reasons: Json
-          score_mood_lock: number
-          score_soft_stretch: number
-          score_taste_anchor: number
-          slate_slot: string
-          slot_score: number
           social_score: number
-          taste_score: number
           title_id: string
           title_name: string | null
           user_id: string
-          vibe_score: number
+          vibe_boost: number
         }
         Insert: {
           computed_at?: string
           context_score?: number
           emotion_score?: number
-          genre_ids?: string[] | null
-          historical_score?: number
-          intent_score?: number
-          is_stale?: boolean
-          novelty_score?: number
-          poster_path?: string | null
-          primary_genre_id?: string | null
-          quality_score?: number
-          reason_count: number
-          reasons: Json
-          score_mood_lock?: number
-          score_soft_stretch?: number
-          score_taste_anchor?: number
-          slate_slot: string
-          slot_score: number
-          social_score?: number
-          taste_score?: number
-          title_id: string
-          title_name?: string | null
-          user_id: string
-          vibe_score?: number
-        }
-        Update: {
-          computed_at?: string
-          context_score?: number
-          emotion_score?: number
+          final_score?: number
           genre_ids?: string[] | null
           historical_score?: number
           intent_score?: number
@@ -2036,27 +2030,112 @@ export type Database = {
           quality_score?: number
           reason_count?: number
           reasons?: Json
-          score_mood_lock?: number
-          score_soft_stretch?: number
-          score_taste_anchor?: number
-          slate_slot?: string
-          slot_score?: number
+          social_score?: number
+          title_id: string
+          title_name?: string | null
+          user_id: string
+          vibe_boost?: number
+        }
+        Update: {
+          computed_at?: string
+          context_score?: number
+          emotion_score?: number
+          final_score?: number
+          genre_ids?: string[] | null
+          historical_score?: number
+          intent_score?: number
+          is_stale?: boolean
+          novelty_score?: number
+          poster_path?: string | null
+          primary_genre_id?: string | null
+          quality_score?: number
+          reason_count?: number
+          reasons?: Json
+          social_score?: number
+          title_id?: string
+          title_name?: string | null
+          user_id?: string
+          vibe_boost?: number
+        }
+        Relationships: []
+      }
+      user_recommendation_candidates_v12: {
+        Row: {
+          computed_at: string
+          diversity_vec: number[] | null
+          emotion_score: number
+          genre_ids: string[] | null
+          historical_score: number
+          intent_score: number
+          is_stale: boolean
+          novelty_score: number
+          pick_prob_est: number
+          poster_path: string | null
+          primary_genre_id: string | null
+          quality_score: number
+          rank_score: number
+          reason_count: number
+          reasons: Json
+          release_or_first_air_date: string | null
+          social_score: number
+          taste_score: number
+          title_id: string
+          title_name: string | null
+          title_type: string | null
+          user_id: string
+          vibe_boost: number
+        }
+        Insert: {
+          computed_at?: string
+          diversity_vec?: number[] | null
+          emotion_score?: number
+          genre_ids?: string[] | null
+          historical_score?: number
+          intent_score?: number
+          is_stale?: boolean
+          novelty_score?: number
+          pick_prob_est?: number
+          poster_path?: string | null
+          primary_genre_id?: string | null
+          quality_score?: number
+          rank_score?: number
+          reason_count?: number
+          reasons?: Json
+          release_or_first_air_date?: string | null
+          social_score?: number
+          taste_score?: number
+          title_id: string
+          title_name?: string | null
+          title_type?: string | null
+          user_id: string
+          vibe_boost?: number
+        }
+        Update: {
+          computed_at?: string
+          diversity_vec?: number[] | null
+          emotion_score?: number
+          genre_ids?: string[] | null
+          historical_score?: number
+          intent_score?: number
+          is_stale?: boolean
+          novelty_score?: number
+          pick_prob_est?: number
+          poster_path?: string | null
+          primary_genre_id?: string | null
+          quality_score?: number
+          rank_score?: number
+          reason_count?: number
+          reasons?: Json
+          release_or_first_air_date?: string | null
           social_score?: number
           taste_score?: number
           title_id?: string
           title_name?: string | null
+          title_type?: string | null
           user_id?: string
-          vibe_score?: number
+          vibe_boost?: number
         }
-        Relationships: [
-          {
-            foreignKeyName: "urc_v11_title_fk"
-            columns: ["title_id"]
-            isOneToOne: false
-            referencedRelation: "titles"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       user_roles: {
         Row: {
@@ -3041,6 +3120,19 @@ export type Database = {
           row_count: number
         }[]
       }
+      clamp01:
+        | {
+            Args: { p: number }
+            Returns: {
+              error: true
+            } & "Could not choose the best candidate function between: public.clamp01(p => float4), public.clamp01(p => float8). Try renaming the parameters or the function itself in the database so function overloading can be resolved"
+          }
+        | {
+            Args: { p: number }
+            Returns: {
+              error: true
+            } & "Could not choose the best candidate function between: public.clamp01(p => float4), public.clamp01(p => float8). Try renaming the parameters or the function itself in the database so function overloading can be resolved"
+          }
       cleanup_rate_limit_data: { Args: never; Returns: undefined }
       cleanup_rate_limit_entries: { Args: never; Returns: number }
       compute_ai_proxy_quality_score: {
@@ -3093,6 +3185,11 @@ export type Database = {
             }
             Returns: number
           }
+      compute_title_quality_score: {
+        Args: { p_title_id: string }
+        Returns: number
+      }
+      cosine_sim_4d: { Args: { a: number[]; b: number[] }; Returns: number }
       explain_recommendation: {
         Args: { p_title_id: string; p_user_id: string }
         Returns: {
@@ -3232,16 +3329,6 @@ export type Database = {
               tmdb_id: number
             }[]
           }
-      get_top_recommendations_v10: {
-        Args: { p_limit?: number; p_user_id: string }
-        Returns: {
-          details: Json
-          final_score: number
-          rank: number
-          slate_slot: string
-          title_id: string
-        }[]
-      }
       get_top_recommendations_v11: {
         Args: { p_limit?: number; p_user_id: string }
         Returns: {
@@ -3249,6 +3336,17 @@ export type Database = {
           final_score: number
           match_percent: number
           rank: number
+          slate_slot: string
+          title_id: string
+        }[]
+      }
+      get_top_recommendations_v12: {
+        Args: { p_limit?: number; p_user_id: string }
+        Returns: {
+          details: Json
+          match_percent: number
+          rank: number
+          rank_score: number
           slate_slot: string
           title_id: string
         }[]
@@ -3319,6 +3417,14 @@ export type Database = {
         }
         Returns: undefined
       }
+      mark_user_reco_cache_stale: {
+        Args: { p_reason?: string; p_user_id: string }
+        Returns: undefined
+      }
+      mark_user_reco_stale: {
+        Args: { p_reason?: string; p_user_id: string }
+        Returns: undefined
+      }
       promote_title_intents: { Args: { p_limit?: number }; Returns: number }
       prune_old_recommendation_logs: {
         Args: { p_impressions_days?: number; p_outcomes_days?: number }
@@ -3369,7 +3475,11 @@ export type Database = {
         | { Args: { p_title_ids?: string[] }; Returns: undefined }
       refresh_user_recommendation_candidates_v11: {
         Args: { p_k?: number; p_user_id: string }
-        Returns: number
+        Returns: undefined
+      }
+      refresh_user_recommendation_candidates_v12: {
+        Args: { p_k?: number; p_user_id: string }
+        Returns: undefined
       }
       refresh_user_title_fatigue_scores: { Args: never; Returns: undefined }
       refresh_user_title_social_scores_recent_users: {
