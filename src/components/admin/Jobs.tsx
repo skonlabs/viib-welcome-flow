@@ -529,15 +529,15 @@ export const Jobs = () => {
         return;
       }
 
-      // v11 recommendation cache refresh: only run per-user jobs from UI
-      if (job.job_type === "refresh_reco_v11") {
+      // v12 recommendation cache refresh: only run per-user jobs from UI
+      if (job.job_type === "refresh_reco_v12") {
         const config = job.configuration || {};
         const userId = config.user_id;
-        const candidateLimit = Number(config.candidate_limit ?? 300);
+        const candidateLimit = config.candidate_limit ?? 500;
 
         if (!userId) {
           throw new Error(
-            "refresh_reco_v11 batch jobs should be executed by the server-side orchestrator. Set configuration.user_id to run a per-user refresh from the admin UI.",
+            "refresh_reco_v12 batch jobs should be executed by the server-side orchestrator. Set configuration.user_id to run a per-user refresh from the admin UI.",
           );
         }
 
@@ -559,14 +559,14 @@ export const Jobs = () => {
         });
 
         const { data: refreshedCount, error: rpcError } = await supabase.rpc(
-          "refresh_user_recommendation_candidates_v11" as any,
+          "refresh_user_recommendation_candidates_v12" as any,
           { p_user_id: userId, p_k: candidateLimit },
         );
 
         if (rpcError) throw rpcError;
 
         // Clear stale flag (best effort) - use type assertion since table may not be in types
-        await (supabase.from("user_recommendation_candidates_v11" as any) as any).update({ is_stale: false }).eq("user_id", userId);
+        await (supabase.from("user_recommendation_candidates_v12" as any) as any).update({ is_stale: false }).eq("user_id", userId);
 
         await supabase
           .from("jobs")
@@ -1695,8 +1695,8 @@ export const Jobs = () => {
                   <CardDescription>
                     {job.job_type === "full_refresh"
                       ? "Manual full refresh of title catalog"
-                      : job.job_type === "refresh_reco_v11"
-                        ? "Refresh v11 recommendation cache (per-user in UI; batch via orchestrator)"
+                      : job.job_type === "refresh_reco_v12"
+                        ? "Refresh v12 recommendation cache (per-user in UI; batch via orchestrator)"
                         : job.job_type === "enrich_trailers"
                           ? "Enrich titles with trailer URLs"
                           : job.job_type === "transcribe_trailers"
@@ -2440,7 +2440,7 @@ const JobConfigDialog = ({ job, onUpdate }: JobConfigDialogProps) => {
               </div>
             )}
 
-            {job.job_type === "refresh_reco_v11" && (
+            {job.job_type === "refresh_reco_v12" && (
               <>
                 <div className="space-y-2">
                   <Label>User ID (optional)</Label>
