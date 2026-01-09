@@ -2076,7 +2076,6 @@ export type Database = {
           rank_score: number
           reason_count: number
           reasons: Json
-          release_or_first_air_date: string | null
           social_score: number
           taste_score: number
           title_id: string
@@ -2101,7 +2100,6 @@ export type Database = {
           rank_score?: number
           reason_count?: number
           reasons?: Json
-          release_or_first_air_date?: string | null
           social_score?: number
           taste_score?: number
           title_id: string
@@ -2126,7 +2124,6 @@ export type Database = {
           rank_score?: number
           reason_count?: number
           reasons?: Json
-          release_or_first_air_date?: string | null
           social_score?: number
           taste_score?: number
           title_id?: string
@@ -3157,7 +3154,7 @@ export type Database = {
         }
         Returns: string
       }
-      compute_quality_score_v11: {
+      compute_quality_score_v12: {
         Args: {
           p_popularity: number
           p_rt_ascore: number
@@ -3190,6 +3187,10 @@ export type Database = {
         Returns: number
       }
       cosine_sim_4d: { Args: { a: number[]; b: number[] }; Returns: number }
+      cosine_sim_real_array: {
+        Args: { a: number[]; b: number[] }
+        Returns: number
+      }
       explain_recommendation: {
         Args: { p_title_id: string; p_user_id: string }
         Returns: {
@@ -3329,17 +3330,6 @@ export type Database = {
               tmdb_id: number
             }[]
           }
-      get_top_recommendations_v11: {
-        Args: { p_limit?: number; p_user_id: string }
-        Returns: {
-          details: Json
-          final_score: number
-          match_percent: number
-          rank: number
-          slate_slot: string
-          title_id: string
-        }[]
-      }
       get_top_recommendations_v12: {
         Args: { p_limit?: number; p_user_id: string }
         Returns: {
@@ -3473,10 +3463,6 @@ export type Database = {
       refresh_title_user_emotion_match_cache:
         | { Args: never; Returns: undefined }
         | { Args: { p_title_ids?: string[] }; Returns: undefined }
-      refresh_user_recommendation_candidates_v11: {
-        Args: { p_k?: number; p_user_id: string }
-        Returns: undefined
-      }
       refresh_user_recommendation_candidates_v12: {
         Args: { p_k?: number; p_user_id: string }
         Returns: undefined
