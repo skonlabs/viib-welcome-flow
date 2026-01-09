@@ -1993,72 +1993,6 @@ export type Database = {
         }
         Relationships: []
       }
-      user_recommendation_candidates_v11: {
-        Row: {
-          computed_at: string
-          context_score: number
-          emotion_score: number
-          final_score: number
-          genre_ids: string[] | null
-          historical_score: number
-          intent_score: number
-          is_stale: boolean
-          novelty_score: number
-          poster_path: string | null
-          primary_genre_id: string | null
-          quality_score: number
-          reason_count: number
-          reasons: Json
-          social_score: number
-          title_id: string
-          title_name: string | null
-          user_id: string
-          vibe_boost: number
-        }
-        Insert: {
-          computed_at?: string
-          context_score?: number
-          emotion_score?: number
-          final_score?: number
-          genre_ids?: string[] | null
-          historical_score?: number
-          intent_score?: number
-          is_stale?: boolean
-          novelty_score?: number
-          poster_path?: string | null
-          primary_genre_id?: string | null
-          quality_score?: number
-          reason_count?: number
-          reasons?: Json
-          social_score?: number
-          title_id: string
-          title_name?: string | null
-          user_id: string
-          vibe_boost?: number
-        }
-        Update: {
-          computed_at?: string
-          context_score?: number
-          emotion_score?: number
-          final_score?: number
-          genre_ids?: string[] | null
-          historical_score?: number
-          intent_score?: number
-          is_stale?: boolean
-          novelty_score?: number
-          poster_path?: string | null
-          primary_genre_id?: string | null
-          quality_score?: number
-          reason_count?: number
-          reasons?: Json
-          social_score?: number
-          title_id?: string
-          title_name?: string | null
-          user_id?: string
-          vibe_boost?: number
-        }
-        Relationships: []
-      }
       user_recommendation_candidates_v12: {
         Row: {
           computed_at: string
@@ -3389,6 +3323,7 @@ export type Database = {
           valid: boolean
         }[]
       }
+      is_uuid: { Args: { p_text: string }; Returns: boolean }
       link_auth_user_to_profile: {
         Args: { p_auth_id: string; p_user_id: string }
         Returns: undefined
