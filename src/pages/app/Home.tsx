@@ -172,8 +172,11 @@ const Home = () => {
             social_priority_score: details.social_score || 0,
             transformation_score: 0,
             recommendation_reason: details.quality_reason || '',
-            explainability: details.explainability,
-            // Use details.scores (from get_top_recommendations_v12) for component breakdown
+            // Build explainability from details.reasons and details.scores (from get_top_recommendations_v12)
+            explainability: {
+              reasons: Array.isArray(details.reasons) ? details.reasons : [],
+              scores: details.scores || {}
+            },
             normalized_components: details.scores || details.normalized_components,
           };
         })
