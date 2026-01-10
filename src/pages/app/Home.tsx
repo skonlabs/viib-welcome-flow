@@ -10,6 +10,8 @@ import { toast } from 'sonner';
 
 interface Explainability {
   summary?: Array<{ label: string; value: string; reason: string }>;
+  reasons?: string[];
+  scores?: Record<string, number>;
   reason_count?: number;
   raw_reasons?: Record<string, unknown>;
 }
@@ -370,7 +372,7 @@ const Home = () => {
                 genres: title.genres,
               }}
               explainability={{
-                reasons: title.explainability?.summary?.map(s => s.reason).filter(Boolean) || [],
+                reasons: title.explainability?.reasons || [],
                 scores: title.normalized_components || {},
               }}
               viibScore={title.final_score != null ? Math.round(title.final_score) : undefined}
