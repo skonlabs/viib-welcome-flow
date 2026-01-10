@@ -875,6 +875,63 @@ export type Database = {
         }
         Relationships: []
       }
+      reco_refresh_log_v12: {
+        Row: {
+          created_at: string
+          detail: string | null
+          id: number
+          status: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          detail?: string | null
+          id?: number
+          status: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          detail?: string | null
+          id?: number
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      reco_refresh_queue_v12: {
+        Row: {
+          attempts: number
+          id: number
+          last_error: string | null
+          not_before: string
+          processed_at: string | null
+          reason: string
+          requested_at: string
+          user_id: string
+        }
+        Insert: {
+          attempts?: number
+          id?: number
+          last_error?: string | null
+          not_before?: string
+          processed_at?: string | null
+          reason?: string
+          requested_at?: string
+          user_id: string
+        }
+        Update: {
+          attempts?: number
+          id?: number
+          last_error?: string | null
+          not_before?: string
+          processed_at?: string | null
+          reason?: string
+          requested_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       recommendation_impressions: {
         Row: {
           context_score: number | null
@@ -1254,6 +1311,39 @@ export type Database = {
           logo_url?: string | null
           service_name?: string
           website_url?: string | null
+        }
+        Relationships: []
+      }
+      system_jobs_v12: {
+        Row: {
+          description: string
+          is_enabled: boolean
+          job_key: string
+          last_error: string | null
+          last_run_at: string | null
+          next_run_at: string
+          schedule_every_seconds: number
+          sql_command: string
+        }
+        Insert: {
+          description: string
+          is_enabled?: boolean
+          job_key: string
+          last_error?: string | null
+          last_run_at?: string | null
+          next_run_at?: string
+          schedule_every_seconds: number
+          sql_command: string
+        }
+        Update: {
+          description?: string
+          is_enabled?: boolean
+          job_key?: string
+          last_error?: string | null
+          last_run_at?: string | null
+          next_run_at?: string
+          schedule_every_seconds?: number
+          sql_command?: string
         }
         Relationships: []
       }
@@ -3070,18 +3160,10 @@ export type Database = {
         }[]
       }
       clamp01:
-        | {
-            Args: { p: number }
-            Returns: {
-              error: true
-            } & "Could not choose the best candidate function between: public.clamp01(p => float4), public.clamp01(p => float8). Try renaming the parameters or the function itself in the database so function overloading can be resolved"
-          }
-        | {
-            Args: { p: number }
-            Returns: {
-              error: true
-            } & "Could not choose the best candidate function between: public.clamp01(p => float4), public.clamp01(p => float8). Try renaming the parameters or the function itself in the database so function overloading can be resolved"
-          }
+        | { Args: { p: number }; Returns: number }
+        | { Args: { x: number }; Returns: number }
+      clamp01_real_v12: { Args: { x: number }; Returns: number }
+      clamp01r: { Args: { x: number }; Returns: number }
       cleanup_rate_limit_data: { Args: never; Returns: undefined }
       cleanup_rate_limit_entries: { Args: never; Returns: number }
       compute_ai_proxy_quality_score: {
@@ -3143,6 +3225,20 @@ export type Database = {
         Args: { a: number[]; b: number[] }
         Returns: number
       }
+      enqueue_and_stale_reco_v12: {
+        Args: { p_user_id: string }
+        Returns: undefined
+      }
+      enqueue_reco_refresh_v12:
+        | { Args: { p_user_id: string }; Returns: undefined }
+        | {
+            Args: {
+              p_delay_seconds?: number
+              p_reason?: string
+              p_user_id: string
+            }
+            Returns: undefined
+          }
       ensure_cron_job: {
         Args: { p_command: string; p_jobname: string; p_schedule: string }
         Returns: undefined
@@ -3311,6 +3407,13 @@ export type Database = {
           title_id: string
         }[]
       }
+      get_user_emotion_context_v12: {
+        Args: { p_user_id: string }
+        Returns: {
+          emotion_id: string
+          intensity: number
+        }[]
+      }
       get_user_id_from_auth: { Args: never; Returns: string }
       get_vibe_list_stats: {
         Args: { p_list_ids: string[] }
@@ -3372,6 +3475,10 @@ export type Database = {
         Args: { p_reason?: string; p_user_id: string }
         Returns: undefined
       }
+      mark_user_candidates_stale_v12: {
+        Args: { p_reason?: string; p_user_id: string }
+        Returns: undefined
+      }
       mark_user_reco_cache_stale: {
         Args: { p_reason?: string; p_user_id: string }
         Returns: undefined
@@ -3380,8 +3487,12 @@ export type Database = {
         Args: { p_reason?: string; p_user_id: string }
         Returns: undefined
       }
+      mark_user_reco_stale_v12: {
+        Args: { p_user_id: string }
+        Returns: undefined
+      }
       process_reco_refresh_queue_v12: {
-        Args: { p_batch?: number; p_k?: number }
+        Args: { p_batch_size?: number; p_k?: number }
         Returns: number
       }
       promote_title_intents: { Args: { p_limit?: number }; Returns: number }
@@ -3434,7 +3545,7 @@ export type Database = {
         | { Args: { p_title_ids?: string[] }; Returns: undefined }
       refresh_user_recommendation_candidates_v12: {
         Args: { p_k?: number; p_user_id: string }
-        Returns: undefined
+        Returns: number
       }
       refresh_user_title_fatigue_scores: { Args: never; Returns: undefined }
       refresh_user_title_social_scores_recent_users: {
@@ -3450,11 +3561,27 @@ export type Database = {
         Args: { p_days?: number }
         Returns: undefined
       }
+      register_job_v12: {
+        Args: {
+          p_description: string
+          p_enabled?: boolean
+          p_every_seconds: number
+          p_job_key: string
+          p_sql_command: string
+        }
+        Returns: undefined
+      }
       release_recommendation_refresh_lock: { Args: never; Returns: undefined }
       revoke_all_user_sessions: { Args: { p_user_id: string }; Returns: number }
       run_cron_job_now: { Args: { p_command: string }; Returns: undefined }
+      run_due_jobs_v12: { Args: { p_max_jobs?: number }; Returns: number }
       run_recommendation_refresh: { Args: { p_mode?: string }; Returns: Json }
+      safe_title_quality_score_v12: {
+        Args: { p_title_id: string }
+        Returns: number
+      }
       safe_uuid: { Args: { p_text: string }; Returns: string }
+      setup_reco_cron_jobs_v12: { Args: never; Returns: boolean }
       store_user_emotion_vector: {
         Args: {
           p_emotion_label: string
