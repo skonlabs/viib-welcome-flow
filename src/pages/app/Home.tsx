@@ -173,7 +173,8 @@ const Home = () => {
             transformation_score: 0,
             recommendation_reason: details.quality_reason || '',
             explainability: details.explainability,
-            normalized_components: details.normalized_components,
+            // Use details.scores (from get_top_recommendations_v12) for component breakdown
+            normalized_components: details.scores || details.normalized_components,
           };
         })
         .filter(Boolean) as RecommendedTitle[];

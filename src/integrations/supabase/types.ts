@@ -1993,6 +1993,24 @@ export type Database = {
         }
         Relationships: []
       }
+      user_reco_refresh_queue: {
+        Row: {
+          reason: string | null
+          requested_at: string
+          user_id: string
+        }
+        Insert: {
+          reason?: string | null
+          requested_at?: string
+          user_id: string
+        }
+        Update: {
+          reason?: string | null
+          requested_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_recommendation_candidates_v12: {
         Row: {
           computed_at: string
@@ -3125,6 +3143,10 @@ export type Database = {
         Args: { a: number[]; b: number[] }
         Returns: number
       }
+      ensure_cron_job: {
+        Args: { p_command: string; p_jobname: string; p_schedule: string }
+        Returns: undefined
+      }
       explain_recommendation: {
         Args: { p_title_id: string; p_user_id: string }
         Returns: {
@@ -3142,6 +3164,10 @@ export type Database = {
           transformation_score: number
           transformation_type: string
         }[]
+      }
+      extract_trigger_user_id: {
+        Args: { p_new: unknown; p_old: unknown }
+        Returns: string
       }
       get_active_viib_weights: {
         Args: never
@@ -3342,6 +3368,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      mark_reco_stale_and_enqueue: {
+        Args: { p_reason?: string; p_user_id: string }
+        Returns: undefined
+      }
       mark_user_reco_cache_stale: {
         Args: { p_reason?: string; p_user_id: string }
         Returns: undefined
@@ -3349,6 +3379,10 @@ export type Database = {
       mark_user_reco_stale: {
         Args: { p_reason?: string; p_user_id: string }
         Returns: undefined
+      }
+      process_reco_refresh_queue_v12: {
+        Args: { p_batch?: number; p_k?: number }
+        Returns: number
       }
       promote_title_intents: { Args: { p_limit?: number }; Returns: number }
       prune_old_recommendation_logs: {
@@ -3420,6 +3454,7 @@ export type Database = {
       revoke_all_user_sessions: { Args: { p_user_id: string }; Returns: number }
       run_cron_job_now: { Args: { p_command: string }; Returns: undefined }
       run_recommendation_refresh: { Args: { p_mode?: string }; Returns: Json }
+      safe_uuid: { Args: { p_text: string }; Returns: string }
       store_user_emotion_vector: {
         Args: {
           p_emotion_label: string
