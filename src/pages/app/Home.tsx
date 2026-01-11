@@ -158,7 +158,10 @@ const Home = () => {
           return {
             id: rec.title_id,
             tmdb_id: titleDetails?.tmdb_id,
-            title: details.title || titleDetails?.name || 'Unknown Title',
+            // details.title is an object with {id, name, title_type, poster_path} - extract name
+            title: (typeof details.title === 'object' && details.title?.name) 
+              ? details.title.name 
+              : (typeof details.title === 'string' ? details.title : titleDetails?.name) || 'Unknown Title',
             type: titleDetails?.title_type === 'tv' ? 'series' : 'movie',
             year: releaseYear,
             poster_path: details.poster_path || titleDetails?.poster_path,
