@@ -904,6 +904,9 @@ export type Database = {
           attempts: number
           id: number
           last_error: string | null
+          last_reason: string | null
+          lock_token: string | null
+          locked_at: string | null
           not_before: string
           processed_at: string | null
           reason: string
@@ -914,6 +917,9 @@ export type Database = {
           attempts?: number
           id?: number
           last_error?: string | null
+          last_reason?: string | null
+          lock_token?: string | null
+          locked_at?: string | null
           not_before?: string
           processed_at?: string | null
           reason?: string
@@ -924,6 +930,9 @@ export type Database = {
           attempts?: number
           id?: number
           last_error?: string | null
+          last_reason?: string | null
+          lock_token?: string | null
+          locked_at?: string | null
           not_before?: string
           processed_at?: string | null
           reason?: string
@@ -1050,7 +1059,10 @@ export type Database = {
       recommendation_outcomes: {
         Row: {
           created_at: string
+          event_type: string | null
+          event_value: number | null
           id: string
+          impression_id: string | null
           rating_value: Database["public"]["Enums"]["rating_value"] | null
           recommended_at: string
           title_id: string
@@ -1060,7 +1072,10 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          event_type?: string | null
+          event_value?: number | null
           id?: string
+          impression_id?: string | null
           rating_value?: Database["public"]["Enums"]["rating_value"] | null
           recommended_at?: string
           title_id: string
@@ -1070,7 +1085,10 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          event_type?: string | null
+          event_value?: number | null
           id?: string
+          impression_id?: string | null
           rating_value?: Database["public"]["Enums"]["rating_value"] | null
           recommended_at?: string
           title_id?: string
@@ -2176,6 +2194,99 @@ export type Database = {
         }
         Relationships: []
       }
+      user_recommendation_candidates_v13: {
+        Row: {
+          availability_score: number
+          computed_at: string
+          context_score: number
+          diversity_vec: number[] | null
+          emotion_score: number
+          fatigue_penalty: number
+          genre_ids: string[] | null
+          historical_score: number
+          intent_score: number
+          is_stale: boolean
+          language_score: number
+          novelty_score: number
+          pick_prob_est: number
+          poster_path: string | null
+          primary_genre_id: string | null
+          quality_score: number
+          rank_score: number
+          reason_count: number
+          reasons: Json
+          recency_score: number
+          social_score: number
+          taste_score: number
+          title_id: string
+          title_name: string | null
+          title_type: string | null
+          user_id: string
+          vibe_boost: number
+          vibe_score: number
+        }
+        Insert: {
+          availability_score?: number
+          computed_at?: string
+          context_score?: number
+          diversity_vec?: number[] | null
+          emotion_score?: number
+          fatigue_penalty?: number
+          genre_ids?: string[] | null
+          historical_score?: number
+          intent_score?: number
+          is_stale?: boolean
+          language_score?: number
+          novelty_score?: number
+          pick_prob_est?: number
+          poster_path?: string | null
+          primary_genre_id?: string | null
+          quality_score?: number
+          rank_score?: number
+          reason_count?: number
+          reasons?: Json
+          recency_score?: number
+          social_score?: number
+          taste_score?: number
+          title_id: string
+          title_name?: string | null
+          title_type?: string | null
+          user_id: string
+          vibe_boost?: number
+          vibe_score?: number
+        }
+        Update: {
+          availability_score?: number
+          computed_at?: string
+          context_score?: number
+          diversity_vec?: number[] | null
+          emotion_score?: number
+          fatigue_penalty?: number
+          genre_ids?: string[] | null
+          historical_score?: number
+          intent_score?: number
+          is_stale?: boolean
+          language_score?: number
+          novelty_score?: number
+          pick_prob_est?: number
+          poster_path?: string | null
+          primary_genre_id?: string | null
+          quality_score?: number
+          rank_score?: number
+          reason_count?: number
+          reasons?: Json
+          recency_score?: number
+          social_score?: number
+          taste_score?: number
+          title_id?: string
+          title_name?: string | null
+          title_type?: string | null
+          user_id?: string
+          vibe_boost?: number
+          vibe_score?: number
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string | null
@@ -3232,6 +3343,10 @@ export type Database = {
       enqueue_reco_refresh_v12:
         | { Args: { p_user_id: string }; Returns: undefined }
         | {
+            Args: { p_not_before?: string; p_user_id: string }
+            Returns: undefined
+          }
+        | {
             Args: {
               p_delay_seconds?: number
               p_reason?: string
@@ -3239,10 +3354,12 @@ export type Database = {
             }
             Returns: undefined
           }
+        | { Args: { p_reason?: string; p_user_id: string }; Returns: undefined }
       ensure_cron_job: {
         Args: { p_command: string; p_jobname: string; p_schedule: string }
         Returns: undefined
       }
+      ensure_reco_jobs_v12: { Args: never; Returns: undefined }
       explain_recommendation: {
         Args: { p_title_id: string; p_user_id: string }
         Returns: {
@@ -3259,6 +3376,26 @@ export type Database = {
           title_id: string
           transformation_score: number
           transformation_type: string
+        }[]
+      }
+      explain_viib_recommendation_reason: {
+        Args: {
+          p_age_multiplier: number
+          p_age_years: number
+          p_emotion_score: number
+          p_intent_score: number
+          p_is_cold_start?: boolean
+          p_max_secondary?: number
+          p_novelty_score: number
+          p_quality_score: number
+          p_social_score: number
+          p_taste_score: number
+          p_vibe_boost: number
+        }
+        Returns: {
+          primary_reason: string
+          reason_codes: string[]
+          secondary_reasons: string[]
         }[]
       }
       extract_trigger_user_id: {
@@ -3397,6 +3534,17 @@ export type Database = {
           title_id: string
         }[]
       }
+      get_top_recommendations_v13: {
+        Args: { p_limit?: number; p_user_id: string }
+        Returns: {
+          details: Json
+          match_percent: number
+          rank: number
+          rank_score: number
+          slate_slot: string
+          title_id: string
+        }[]
+      }
       get_top_recommendations_with_intent: {
         Args: { p_limit: number; p_user_id: string }
         Returns: {
@@ -3492,7 +3640,7 @@ export type Database = {
         Returns: undefined
       }
       process_reco_refresh_queue_v12: {
-        Args: { p_batch_size?: number; p_k?: number }
+        Args: { p_batch_size?: number; p_candidate_limit?: number }
         Returns: number
       }
       promote_title_intents: { Args: { p_limit?: number }; Returns: number }
@@ -3545,7 +3693,11 @@ export type Database = {
         | { Args: { p_title_ids?: string[] }; Returns: undefined }
       refresh_user_recommendation_candidates_v12: {
         Args: { p_k?: number; p_user_id: string }
-        Returns: number
+        Returns: undefined
+      }
+      refresh_user_recommendation_candidates_v13: {
+        Args: { p_candidate_limit?: number; p_user_id: string }
+        Returns: undefined
       }
       refresh_user_title_fatigue_scores: { Args: never; Returns: undefined }
       refresh_user_title_social_scores_recent_users: {

@@ -96,11 +96,11 @@ const Home = () => {
     }
 
     try {
-      // Call the ViiB recommendation engine (v12)
+      // Call the ViiB recommendation engine (v13)
       console.log('Fetching recommendations for user:', profile.id);
       
       const { data: recData, error: recError } = await supabase.rpc(
-        'get_top_recommendations_v12',
+        'get_top_recommendations_v13',
         { p_user_id: profile.id, p_limit: 10 }
       );
 
@@ -174,7 +174,7 @@ const Home = () => {
             social_priority_score: details.social_score || 0,
             transformation_score: 0,
             recommendation_reason: details.quality_reason || '',
-            // Build explainability from details.reasons and details.scores (from get_top_recommendations_v12)
+            // Build explainability from details.reasons and details.scores (from get_top_recommendations_v13)
             explainability: {
               reasons: Array.isArray(details.reasons) ? details.reasons : [],
               scores: details.scores || {}
