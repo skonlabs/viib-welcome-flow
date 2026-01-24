@@ -125,7 +125,74 @@ export type Database = {
             referencedRelation: "titles"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "cold_start_title_priors_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: false
+            referencedRelation: "v_title_pipeline_health"
+            referencedColumns: ["title_id"]
+          },
         ]
+      }
+      cron_config: {
+        Row: {
+          auth_header: string
+          base_url: string
+          id: number
+          updated_at: string
+        }
+        Insert: {
+          auth_header: string
+          base_url: string
+          id?: number
+          updated_at?: string
+        }
+        Update: {
+          auth_header?: string
+          base_url?: string
+          id?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      cron_jobs_backup: {
+        Row: {
+          active: boolean | null
+          backed_up_at: string | null
+          command: string | null
+          database: string | null
+          jobid: number | null
+          jobname: string | null
+          nodename: string | null
+          nodeport: number | null
+          schedule: string | null
+          username: string | null
+        }
+        Insert: {
+          active?: boolean | null
+          backed_up_at?: string | null
+          command?: string | null
+          database?: string | null
+          jobid?: number | null
+          jobname?: string | null
+          nodename?: string | null
+          nodeport?: number | null
+          schedule?: string | null
+          username?: string | null
+        }
+        Update: {
+          active?: boolean | null
+          backed_up_at?: string | null
+          command?: string | null
+          database?: string | null
+          jobid?: number | null
+          jobname?: string | null
+          nodename?: string | null
+          nodeport?: number | null
+          schedule?: string | null
+          username?: string | null
+        }
+        Relationships: []
       }
       email_config: {
         Row: {
@@ -645,6 +712,57 @@ export type Database = {
         }
         Relationships: []
       }
+      jobs_deleted_backup: {
+        Row: {
+          configuration: Json | null
+          created_at: string
+          deleted_at: string
+          error_message: string | null
+          id: string
+          is_active: boolean
+          job_name: string
+          job_type: string
+          last_run_at: string | null
+          last_run_duration_seconds: number | null
+          next_run_at: string | null
+          status: string
+          total_titles_processed: number | null
+          updated_at: string
+        }
+        Insert: {
+          configuration?: Json | null
+          created_at?: string
+          deleted_at?: string
+          error_message?: string | null
+          id?: string
+          is_active?: boolean
+          job_name: string
+          job_type: string
+          last_run_at?: string | null
+          last_run_duration_seconds?: number | null
+          next_run_at?: string | null
+          status?: string
+          total_titles_processed?: number | null
+          updated_at?: string
+        }
+        Update: {
+          configuration?: Json | null
+          created_at?: string
+          deleted_at?: string
+          error_message?: string | null
+          id?: string
+          is_active?: boolean
+          job_name?: string
+          job_type?: string
+          last_run_at?: string | null
+          last_run_duration_seconds?: number | null
+          next_run_at?: string | null
+          status?: string
+          total_titles_processed?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       keywords: {
         Row: {
           id: string
@@ -1054,6 +1172,13 @@ export type Database = {
             referencedRelation: "titles"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "recommendation_notifications_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: false
+            referencedRelation: "v_title_pipeline_health"
+            referencedColumns: ["title_id"]
+          },
         ]
       }
       recommendation_outcomes: {
@@ -1103,6 +1228,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "titles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recommendation_outcomes_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: false
+            referencedRelation: "v_title_pipeline_health"
+            referencedColumns: ["title_id"]
           },
           {
             foreignKeyName: "recommendation_outcomes_user_id_fkey"
@@ -1240,6 +1372,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "titles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seasons_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: false
+            referencedRelation: "v_title_pipeline_health"
+            referencedColumns: ["title_id"]
           },
         ]
       }
@@ -1467,6 +1606,13 @@ export type Database = {
             referencedRelation: "titles"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "title_emotion_vectors_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: true
+            referencedRelation: "v_title_pipeline_health"
+            referencedColumns: ["title_id"]
+          },
         ]
       }
       title_genres: {
@@ -1496,6 +1642,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "titles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "title_genres_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: false
+            referencedRelation: "v_title_pipeline_health"
+            referencedColumns: ["title_id"]
           },
         ]
       }
@@ -1527,6 +1680,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "title_intent_alignment_scores_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: false
+            referencedRelation: "v_title_pipeline_health"
+            referencedColumns: ["title_id"]
+          },
+          {
             foreignKeyName: "title_intent_alignment_scores_user_emotion_id_fkey"
             columns: ["user_emotion_id"]
             isOneToOne: false
@@ -1534,6 +1694,48 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      title_pipeline_queue: {
+        Row: {
+          attempt_count: number
+          created_at: string
+          id: string
+          last_error: string | null
+          locked_at: string | null
+          locked_by: string | null
+          not_before: string
+          priority: number
+          stage: string
+          title_id: string
+          updated_at: string
+        }
+        Insert: {
+          attempt_count?: number
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          locked_at?: string | null
+          locked_by?: string | null
+          not_before?: string
+          priority?: number
+          stage: string
+          title_id: string
+          updated_at?: string
+        }
+        Update: {
+          attempt_count?: number
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          locked_at?: string | null
+          locked_by?: string | null
+          not_before?: string
+          priority?: number
+          stage?: string
+          title_id?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       title_quality_metrics: {
         Row: {
@@ -1543,12 +1745,18 @@ export type Database = {
           ai_proxy_rt_critic_score: number | null
           analyzed_at: string
           blended_quality_score: number | null
+          confidence: number | null
           expires_at: string | null
           model_version: string
           quality_explainability: string | null
           rationale: string | null
+          rt_audience_count: number | null
+          rt_audience_score: number | null
+          rt_critic_count: number | null
+          rt_critic_score: number | null
           source: string
           title_id: string
+          updated_at: string | null
         }
         Insert: {
           ai_proxy_confidence?: number | null
@@ -1557,12 +1765,18 @@ export type Database = {
           ai_proxy_rt_critic_score?: number | null
           analyzed_at?: string
           blended_quality_score?: number | null
+          confidence?: number | null
           expires_at?: string | null
           model_version?: string
           quality_explainability?: string | null
           rationale?: string | null
+          rt_audience_count?: number | null
+          rt_audience_score?: number | null
+          rt_critic_count?: number | null
+          rt_critic_score?: number | null
           source?: string
           title_id: string
+          updated_at?: string | null
         }
         Update: {
           ai_proxy_confidence?: number | null
@@ -1571,12 +1785,18 @@ export type Database = {
           ai_proxy_rt_critic_score?: number | null
           analyzed_at?: string
           blended_quality_score?: number | null
+          confidence?: number | null
           expires_at?: string | null
           model_version?: string
           quality_explainability?: string | null
           rationale?: string | null
+          rt_audience_count?: number | null
+          rt_audience_score?: number | null
+          rt_critic_count?: number | null
+          rt_critic_score?: number | null
           source?: string
           title_id?: string
+          updated_at?: string | null
         }
         Relationships: [
           {
@@ -1585,6 +1805,13 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "titles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "title_quality_metrics_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: true
+            referencedRelation: "v_title_pipeline_health"
+            referencedColumns: ["title_id"]
           },
         ]
       }
@@ -1621,6 +1848,13 @@ export type Database = {
             referencedRelation: "titles"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "title_rt_ai_estimates_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: true
+            referencedRelation: "v_title_pipeline_health"
+            referencedColumns: ["title_id"]
+          },
         ]
       }
       title_social_summary: {
@@ -1649,6 +1883,13 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "titles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "title_social_summary_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: true
+            referencedRelation: "v_title_pipeline_health"
+            referencedColumns: ["title_id"]
           },
         ]
       }
@@ -1683,6 +1924,13 @@ export type Database = {
             referencedRelation: "titles"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "title_streaming_availability_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: false
+            referencedRelation: "v_title_pipeline_health"
+            referencedColumns: ["title_id"]
+          },
         ]
       }
       title_transformation_scores: {
@@ -1711,6 +1959,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "titles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "title_transformation_scores_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: false
+            referencedRelation: "v_title_pipeline_health"
+            referencedColumns: ["title_id"]
           },
           {
             foreignKeyName: "title_transformation_scores_user_emotion_id_fkey"
@@ -1752,6 +2007,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "title_user_emotion_match_cache_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: false
+            referencedRelation: "v_title_pipeline_health"
+            referencedColumns: ["title_id"]
+          },
+          {
             foreignKeyName: "title_user_emotion_match_cache_user_emotion_id_fkey"
             columns: ["user_emotion_id"]
             isOneToOne: false
@@ -1765,21 +2027,31 @@ export type Database = {
           backdrop_path: string | null
           certification: string | null
           classification_status: string | null
+          classification_updated_at: string | null
           created_at: string
+          details_status: string | null
+          details_updated_at: string | null
           episode_run_time: number[] | null
           first_air_date: string | null
           id: string
           imdb_id: string | null
+          ingest_status: string | null
+          ingest_updated_at: string | null
           is_adult: boolean | null
+          is_reco_eligible: boolean | null
           is_tmdb_trailer: boolean | null
           last_air_date: string | null
           last_classified_at: string | null
+          last_pipeline_audit_at: string | null
           name: string | null
           original_language: string | null
           original_name: string | null
           overview: string | null
+          pipeline_version: string | null
           popularity: number | null
           poster_path: string | null
+          quality_status: string | null
+          quality_updated_at: string | null
           release_date: string | null
           rt_acount: number | null
           rt_ascore: number | null
@@ -1790,8 +2062,12 @@ export type Database = {
           title_genres: Json | null
           title_type: string | null
           tmdb_id: number | null
+          trailer_status: string | null
           trailer_transcript: string | null
+          trailer_updated_at: string | null
           trailer_url: string | null
+          transcript_status: string | null
+          transcript_updated_at: string | null
           updated_at: string | null
           vote_average: number | null
         }
@@ -1799,21 +2075,31 @@ export type Database = {
           backdrop_path?: string | null
           certification?: string | null
           classification_status?: string | null
+          classification_updated_at?: string | null
           created_at?: string
+          details_status?: string | null
+          details_updated_at?: string | null
           episode_run_time?: number[] | null
           first_air_date?: string | null
           id?: string
           imdb_id?: string | null
+          ingest_status?: string | null
+          ingest_updated_at?: string | null
           is_adult?: boolean | null
+          is_reco_eligible?: boolean | null
           is_tmdb_trailer?: boolean | null
           last_air_date?: string | null
           last_classified_at?: string | null
+          last_pipeline_audit_at?: string | null
           name?: string | null
           original_language?: string | null
           original_name?: string | null
           overview?: string | null
+          pipeline_version?: string | null
           popularity?: number | null
           poster_path?: string | null
+          quality_status?: string | null
+          quality_updated_at?: string | null
           release_date?: string | null
           rt_acount?: number | null
           rt_ascore?: number | null
@@ -1824,8 +2110,12 @@ export type Database = {
           title_genres?: Json | null
           title_type?: string | null
           tmdb_id?: number | null
+          trailer_status?: string | null
           trailer_transcript?: string | null
+          trailer_updated_at?: string | null
           trailer_url?: string | null
+          transcript_status?: string | null
+          transcript_updated_at?: string | null
           updated_at?: string | null
           vote_average?: number | null
         }
@@ -1833,21 +2123,31 @@ export type Database = {
           backdrop_path?: string | null
           certification?: string | null
           classification_status?: string | null
+          classification_updated_at?: string | null
           created_at?: string
+          details_status?: string | null
+          details_updated_at?: string | null
           episode_run_time?: number[] | null
           first_air_date?: string | null
           id?: string
           imdb_id?: string | null
+          ingest_status?: string | null
+          ingest_updated_at?: string | null
           is_adult?: boolean | null
+          is_reco_eligible?: boolean | null
           is_tmdb_trailer?: boolean | null
           last_air_date?: string | null
           last_classified_at?: string | null
+          last_pipeline_audit_at?: string | null
           name?: string | null
           original_language?: string | null
           original_name?: string | null
           overview?: string | null
+          pipeline_version?: string | null
           popularity?: number | null
           poster_path?: string | null
+          quality_status?: string | null
+          quality_updated_at?: string | null
           release_date?: string | null
           rt_acount?: number | null
           rt_ascore?: number | null
@@ -1858,8 +2158,12 @@ export type Database = {
           title_genres?: Json | null
           title_type?: string | null
           tmdb_id?: number | null
+          trailer_status?: string | null
           trailer_transcript?: string | null
+          trailer_updated_at?: string | null
           trailer_url?: string | null
+          transcript_status?: string | null
+          transcript_updated_at?: string | null
           updated_at?: string | null
           vote_average?: number | null
         }
@@ -2363,6 +2667,13 @@ export type Database = {
             referencedRelation: "titles"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "user_social_recommendations_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: false
+            referencedRelation: "v_title_pipeline_health"
+            referencedColumns: ["title_id"]
+          },
         ]
       }
       user_streaming_subscriptions: {
@@ -2435,6 +2746,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "user_title_fatigue_scores_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: false
+            referencedRelation: "v_title_pipeline_health"
+            referencedColumns: ["title_id"]
+          },
+          {
             foreignKeyName: "user_title_fatigue_scores_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
@@ -2483,6 +2801,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "user_title_interactions_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: false
+            referencedRelation: "v_title_pipeline_health"
+            referencedColumns: ["title_id"]
+          },
+          {
             foreignKeyName: "user_title_interactions_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
@@ -2523,6 +2848,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "titles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_title_social_scores_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: false
+            referencedRelation: "v_title_pipeline_health"
+            referencedColumns: ["title_id"]
           },
         ]
       }
@@ -2968,6 +3300,13 @@ export type Database = {
             referencedRelation: "titles"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "viib_emotion_classified_titles_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: false
+            referencedRelation: "v_title_pipeline_health"
+            referencedColumns: ["title_id"]
+          },
         ]
       }
       viib_emotion_classified_titles_staging: {
@@ -3013,6 +3352,13 @@ export type Database = {
             referencedRelation: "titles"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "viib_emotion_classified_titles_staging_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: false
+            referencedRelation: "v_title_pipeline_health"
+            referencedColumns: ["title_id"]
+          },
         ]
       }
       viib_intent_classified_titles: {
@@ -3050,6 +3396,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "titles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "viib_intent_classified_titles_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: false
+            referencedRelation: "v_title_pipeline_health"
+            referencedColumns: ["title_id"]
           },
         ]
       }
@@ -3089,6 +3442,13 @@ export type Database = {
             referencedRelation: "titles"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "viib_intent_classified_titles_staging_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: false
+            referencedRelation: "v_title_pipeline_health"
+            referencedColumns: ["title_id"]
+          },
         ]
       }
       viib_title_intent_stats: {
@@ -3120,6 +3480,13 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "titles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "viib_title_intent_stats_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: true
+            referencedRelation: "v_title_pipeline_health"
+            referencedColumns: ["title_id"]
           },
         ]
       }
@@ -3203,6 +3570,34 @@ export type Database = {
       }
     }
     Views: {
+      v_title_pipeline_health: {
+        Row: {
+          classification_status: string | null
+          details_status: string | null
+          has_emotion_vectors: boolean | null
+          has_intent_alignment: boolean | null
+          has_quality_metrics: boolean | null
+          has_streaming_availability: boolean | null
+          has_transform_scores: boolean | null
+          ingest_status: string | null
+          is_reco_eligible: boolean | null
+          missing_availability: boolean | null
+          missing_emotion: boolean | null
+          missing_intent: boolean | null
+          missing_quality: boolean | null
+          missing_transform: boolean | null
+          original_language: string | null
+          popularity: number | null
+          quality_status: string | null
+          title_id: string | null
+          title_name: string | null
+          title_type: string | null
+          trailer_status: string | null
+          transcript_status: string | null
+          updated_at: string | null
+        }
+        Relationships: []
+      }
       viib_recommendation_debug: {
         Row: {
           base_viib_score: number | null
@@ -3215,6 +3610,10 @@ export type Database = {
       }
     }
     Functions: {
+      ack_title_pipeline_work: {
+        Args: { p_queue_id: string }
+        Returns: undefined
+      }
       calculate_emotion_distance_score: {
         Args: {
           p_title_arousal: number
@@ -3251,14 +3650,6 @@ export type Database = {
         Args: { p_list_id: string; p_user_id: string }
         Returns: boolean
       }
-      check_rate_limit_fast: {
-        Args: { p_key: string; p_max_count: number; p_window_seconds: number }
-        Returns: {
-          allowed: boolean
-          current_count: number
-          requires_captcha: boolean
-        }[]
-      }
       check_recommendation_cache_freshness: {
         Args: never
         Returns: {
@@ -3270,26 +3661,25 @@ export type Database = {
           row_count: number
         }[]
       }
-      clamp01:
-        | { Args: { p: number }; Returns: number }
-        | { Args: { x: number }; Returns: number }
-      clamp01_real_v12: { Args: { x: number }; Returns: number }
-      clamp01r: { Args: { x: number }; Returns: number }
+      claim_title_pipeline_work: {
+        Args: { p_batch_size?: number; p_stage: string; p_worker_id?: string }
+        Returns: {
+          attempt_count: number
+          queue_id: string
+          stage: string
+          title_id: string
+        }[]
+      }
+      clamp01: { Args: { p: number }; Returns: number }
       cleanup_rate_limit_data: { Args: never; Returns: undefined }
-      cleanup_rate_limit_entries: { Args: never; Returns: number }
       compute_ai_proxy_quality_score: {
         Args: { p_audience: number; p_critic: number }
         Returns: number
       }
-      compute_fallback_quality_score:
-        | {
-            Args: { p_popularity: number; p_vote_average: number }
-            Returns: number
-          }
-        | {
-            Args: { p_popularity: number; p_vote_average: number }
-            Returns: number
-          }
+      compute_fallback_quality_score: {
+        Args: { p_popularity: number; p_vote_average: number }
+        Returns: number
+      }
       compute_quality_explainability: {
         Args: {
           p_audience: number
@@ -3299,34 +3689,6 @@ export type Database = {
         }
         Returns: string
       }
-      compute_quality_score_v12: {
-        Args: {
-          p_popularity: number
-          p_rt_ascore: number
-          p_rt_cscore: number
-          p_vote_average: number
-        }
-        Returns: number
-      }
-      compute_quality_score_v2:
-        | {
-            Args: {
-              p_popularity: number
-              p_title_id: string
-              p_vote_average: number
-            }
-            Returns: number
-          }
-        | {
-            Args: {
-              p_popularity: number
-              p_rt_ascore: number
-              p_rt_cscore: number
-              p_title_id: string
-              p_vote_average: number
-            }
-            Returns: number
-          }
       compute_title_quality_score: {
         Args: { p_title_id: string }
         Returns: number
@@ -3336,30 +3698,28 @@ export type Database = {
         Args: { a: number[]; b: number[] }
         Returns: number
       }
-      enqueue_and_stale_reco_v12: {
-        Args: { p_user_id: string }
+      enqueue_missing_classifications: {
+        Args: { p_limit?: number; p_priority?: number }
+        Returns: number
+      }
+      enqueue_missing_quality_metrics: {
+        Args: { p_limit?: number; p_priority?: number }
+        Returns: number
+      }
+      enqueue_title_pipeline_work: {
+        Args: {
+          p_delay_seconds?: number
+          p_priority?: number
+          p_reason?: string
+          p_stage: string
+          p_title_id: string
+        }
         Returns: undefined
       }
-      enqueue_reco_refresh_v12:
-        | { Args: { p_user_id: string }; Returns: undefined }
-        | {
-            Args: { p_not_before?: string; p_user_id: string }
-            Returns: undefined
-          }
-        | {
-            Args: {
-              p_delay_seconds?: number
-              p_reason?: string
-              p_user_id: string
-            }
-            Returns: undefined
-          }
-        | { Args: { p_reason?: string; p_user_id: string }; Returns: undefined }
       ensure_cron_job: {
         Args: { p_command: string; p_jobname: string; p_schedule: string }
         Returns: undefined
       }
-      ensure_reco_jobs_v12: { Args: never; Returns: undefined }
       explain_recommendation: {
         Args: { p_title_id: string; p_user_id: string }
         Returns: {
@@ -3378,29 +3738,18 @@ export type Database = {
           transformation_type: string
         }[]
       }
-      explain_viib_recommendation_reason: {
-        Args: {
-          p_age_multiplier: number
-          p_age_years: number
-          p_emotion_score: number
-          p_intent_score: number
-          p_is_cold_start?: boolean
-          p_max_secondary?: number
-          p_novelty_score: number
-          p_quality_score: number
-          p_social_score: number
-          p_taste_score: number
-          p_vibe_boost: number
-        }
-        Returns: {
-          primary_reason: string
-          reason_codes: string[]
-          secondary_reasons: string[]
-        }[]
-      }
       extract_trigger_user_id: {
         Args: { p_new: unknown; p_old: unknown }
         Returns: string
+      }
+      fail_title_pipeline_work: {
+        Args: {
+          p_error: string
+          p_priority_bump?: number
+          p_queue_id: string
+          p_retry_seconds?: number
+        }
+        Returns: undefined
       }
       get_active_viib_weights: {
         Args: never
@@ -3504,34 +3853,13 @@ export type Database = {
           title_id: string
         }[]
       }
-      get_titles_with_all_streaming_services:
-        | {
-            Args: { p_limit?: number }
-            Returns: {
-              id: string
-              name: string
-              title_type: string
-              tmdb_id: number
-            }[]
-          }
-        | {
-            Args: { p_cursor?: string; p_limit?: number }
-            Returns: {
-              id: string
-              name: string
-              title_type: string
-              tmdb_id: number
-            }[]
-          }
-      get_top_recommendations_v12: {
-        Args: { p_limit?: number; p_user_id: string }
+      get_titles_with_all_streaming_services: {
+        Args: { p_cursor?: string; p_limit?: number }
         Returns: {
-          details: Json
-          match_percent: number
-          rank: number
-          rank_score: number
-          slate_slot: string
-          title_id: string
+          id: string
+          name: string
+          title_type: string
+          tmdb_id: number
         }[]
       }
       get_top_recommendations_v13: {
@@ -3543,23 +3871,6 @@ export type Database = {
           rank_score: number
           slate_slot: string
           title_id: string
-        }[]
-      }
-      get_top_recommendations_with_intent: {
-        Args: { p_limit: number; p_user_id: string }
-        Returns: {
-          base_viib_score: number
-          final_score: number
-          intent_alignment_score: number
-          social_priority_score: number
-          title_id: string
-        }[]
-      }
-      get_user_emotion_context_v12: {
-        Args: { p_user_id: string }
-        Returns: {
-          emotion_id: string
-          intensity: number
         }[]
       }
       get_user_id_from_auth: { Args: never; Returns: string }
@@ -3623,10 +3934,6 @@ export type Database = {
         Args: { p_reason?: string; p_user_id: string }
         Returns: undefined
       }
-      mark_user_candidates_stale_v12: {
-        Args: { p_reason?: string; p_user_id: string }
-        Returns: undefined
-      }
       mark_user_reco_cache_stale: {
         Args: { p_reason?: string; p_user_id: string }
         Returns: undefined
@@ -3635,18 +3942,14 @@ export type Database = {
         Args: { p_reason?: string; p_user_id: string }
         Returns: undefined
       }
-      mark_user_reco_stale_v12: {
-        Args: { p_user_id: string }
-        Returns: undefined
-      }
-      process_reco_refresh_queue_v12: {
-        Args: { p_batch_size?: number; p_candidate_limit?: number }
-        Returns: number
-      }
       promote_title_intents: { Args: { p_limit?: number }; Returns: number }
       prune_old_recommendation_logs: {
         Args: { p_impressions_days?: number; p_outcomes_days?: number }
         Returns: undefined
+      }
+      recompute_title_reco_eligibility: {
+        Args: { p_limit?: number }
+        Returns: number
       }
       record_login_attempt: {
         Args: {
@@ -3679,6 +3982,10 @@ export type Database = {
           processed_count: number
         }[]
       }
+      refresh_title_quality_metrics_batch: {
+        Args: { p_limit?: number }
+        Returns: number
+      }
       refresh_title_social_summary: { Args: never; Returns: undefined }
       refresh_title_transformation_scores: { Args: never; Returns: undefined }
       refresh_title_transformation_scores_batch: {
@@ -3688,11 +3995,8 @@ export type Database = {
           processed_count: number
         }[]
       }
-      refresh_title_user_emotion_match_cache:
-        | { Args: never; Returns: undefined }
-        | { Args: { p_title_ids?: string[] }; Returns: undefined }
-      refresh_user_recommendation_candidates_v12: {
-        Args: { p_k?: number; p_user_id: string }
+      refresh_title_user_emotion_match_cache: {
+        Args: { p_title_ids?: string[] }
         Returns: undefined
       }
       refresh_user_recommendation_candidates_v13: {
@@ -3713,27 +4017,20 @@ export type Database = {
         Args: { p_days?: number }
         Returns: undefined
       }
-      register_job_v12: {
-        Args: {
-          p_description: string
-          p_enabled?: boolean
-          p_every_seconds: number
-          p_job_key: string
-          p_sql_command: string
-        }
-        Returns: undefined
-      }
       release_recommendation_refresh_lock: { Args: never; Returns: undefined }
       revoke_all_user_sessions: { Args: { p_user_id: string }; Returns: number }
       run_cron_job_now: { Args: { p_command: string }; Returns: undefined }
-      run_due_jobs_v12: { Args: { p_max_jobs?: number }; Returns: number }
       run_recommendation_refresh: { Args: { p_mode?: string }; Returns: Json }
-      safe_title_quality_score_v12: {
-        Args: { p_title_id: string }
-        Returns: number
-      }
       safe_uuid: { Args: { p_text: string }; Returns: string }
-      setup_reco_cron_jobs_v12: { Args: never; Returns: boolean }
+      schedule_http_job: {
+        Args: {
+          p_body?: Json
+          p_function_name: string
+          p_job_name: string
+          p_schedule: string
+        }
+        Returns: undefined
+      }
       store_user_emotion_vector: {
         Args: {
           p_emotion_label: string
@@ -3766,6 +4063,10 @@ export type Database = {
         }[]
       }
       try_acquire_recommendation_refresh_lock: { Args: never; Returns: boolean }
+      unschedule_job_if_exists: {
+        Args: { p_job_name: string }
+        Returns: undefined
+      }
       update_cron_schedule: {
         Args: { p_jobid: number; p_schedule: string }
         Returns: undefined
@@ -3806,41 +4107,9 @@ export type Database = {
           verification_id: string
         }[]
       }
-      viib_autotune_weights:
-        | { Args: { p_days?: number }; Returns: string }
-        | {
-            Args: { p_days?: number; p_min_samples?: number }
-            Returns: undefined
-          }
-      viib_intent_alignment_score: {
-        Args: { p_title_id: string; p_user_id: string }
-        Returns: number
-      }
-      viib_score: {
-        Args: { p_title_id: string; p_user_id: string }
-        Returns: number
-      }
-      viib_score_components: {
-        Args: { p_title_id: string; p_user_id: string }
-        Returns: {
-          context_component: number
-          emotional_component: number
-          historical_component: number
-          novelty_component: number
-          social_component: number
-        }[]
-      }
-      viib_score_components_old: {
-        Args: { p_title_id: string; p_user_id: string }
-        Returns: Record<string, unknown>
-      }
-      viib_score_with_intent: {
-        Args: { p_title_id: string; p_user_id: string }
-        Returns: number
-      }
-      viib_social_priority_score: {
-        Args: { p_title_id: string; p_user_id: string }
-        Returns: number
+      viib_autotune_weights: {
+        Args: { p_days?: number; p_min_samples?: number }
+        Returns: undefined
       }
     }
     Enums: {
