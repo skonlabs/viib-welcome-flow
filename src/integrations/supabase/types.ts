@@ -3610,6 +3610,12 @@ export type Database = {
       }
     }
     Functions: {
+      _viib_is_kids_cert: { Args: { p_cert: string }; Returns: boolean }
+      _viib_iso2_region: { Args: { p_country: string }; Returns: string }
+      _viib_title_age_years: {
+        Args: { p_first_air: string; p_release: string }
+        Returns: number
+      }
       ack_title_pipeline_work: {
         Args: { p_queue_id: string }
         Returns: undefined
@@ -3670,7 +3676,19 @@ export type Database = {
           title_id: string
         }[]
       }
-      clamp01: { Args: { p: number }; Returns: number }
+      clamp01:
+        | {
+            Args: { p: number }
+            Returns: {
+              error: true
+            } & "Could not choose the best candidate function between: public.clamp01(p => float4), public.clamp01(p => float8). Try renaming the parameters or the function itself in the database so function overloading can be resolved"
+          }
+        | {
+            Args: { p: number }
+            Returns: {
+              error: true
+            } & "Could not choose the best candidate function between: public.clamp01(p => float4), public.clamp01(p => float8). Try renaming the parameters or the function itself in the database so function overloading can be resolved"
+          }
       cleanup_rate_limit_data: { Args: never; Returns: undefined }
       compute_ai_proxy_quality_score: {
         Args: { p_audience: number; p_critic: number }
@@ -3805,6 +3823,16 @@ export type Database = {
           total_titles: number
         }[]
       }
+      get_latest_user_emotion_snapshot: {
+        Args: { p_user_id: string }
+        Returns: {
+          emotion_id: string
+          intensity: number
+          ua: number
+          ud: number
+          uv: number
+        }[]
+      }
       get_lockout_remaining: {
         Args: { p_identifier: string; p_window_minutes?: number }
         Returns: number
@@ -3865,13 +3893,41 @@ export type Database = {
       get_top_recommendations_v13: {
         Args: { p_limit?: number; p_user_id: string }
         Returns: {
-          details: Json
-          match_percent: number
-          rank: number
+          availability_score: number
+          computed_at: string
+          context_score: number
+          diversity_vec: number[] | null
+          emotion_score: number
+          fatigue_penalty: number
+          genre_ids: string[] | null
+          historical_score: number
+          intent_score: number
+          is_stale: boolean
+          language_score: number
+          novelty_score: number
+          pick_prob_est: number
+          poster_path: string | null
+          primary_genre_id: string | null
+          quality_score: number
           rank_score: number
-          slate_slot: string
+          reason_count: number
+          reasons: Json
+          recency_score: number
+          social_score: number
+          taste_score: number
           title_id: string
+          title_name: string | null
+          title_type: string | null
+          user_id: string
+          vibe_boost: number
+          vibe_score: number
         }[]
+        SetofOptions: {
+          from: "*"
+          to: "user_recommendation_candidates_v13"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       get_user_id_from_auth: { Args: never; Returns: string }
       get_vibe_list_stats: {
@@ -4031,6 +4087,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      sigmoid: { Args: { x: number }; Returns: number }
       store_user_emotion_vector: {
         Args: {
           p_emotion_label: string
@@ -4044,6 +4101,10 @@ export type Database = {
       summarize_recommendation_outcomes_daily: {
         Args: { p_days?: number }
         Returns: undefined
+      }
+      title_age_years: {
+        Args: { p_first_air: string; p_release: string }
+        Returns: number
       }
       toggle_cron_job: {
         Args: { p_active: boolean; p_jobid: number }
