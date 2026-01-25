@@ -140,8 +140,6 @@ const Home = () => {
           if (!rec.title_id) return null;
 
           const titleDetails = titlesMap.get(rec.title_id);
-          // v8 returns details as a nested object
-          const details = rec.details || {};
 
           // Parse genres from title_genres JSON
           const genres = Array.isArray(titleDetails?.title_genres) 
@@ -155,34 +153,51 @@ const Home = () => {
               ? new Date(titleDetails.first_air_date).getFullYear()
               : undefined;
 
+          // v13 returns flat structure with pick_prob_est as the match score (0-1)
+          // Convert to percentage (0-100) for display
+          const matchPercent = rec.pick_prob_est != null 
+            ? Math.round(rec.pick_prob_est * 100) 
+            : (rec.rank_score != null ? Math.round(rec.rank_score * 100) : 0);
+
           return {
             id: rec.title_id,
             tmdb_id: titleDetails?.tmdb_id,
-            // details.title is an object with {id, name, title_type, poster_path} - extract name
-            title: (typeof details.title === 'object' && details.title?.name) 
-              ? details.title.name 
-              : (typeof details.title === 'string' ? details.title : titleDetails?.name) || 'Unknown Title',
-            type: titleDetails?.title_type === 'tv' ? 'series' : 'movie',
+            // v13 returns title_name directly at top level
+            title: rec.title_name || titleDetails?.name || 'Unknown Title',
+            type: (rec.title_type || titleDetails?.title_type) === 'tv' ? 'series' : 'movie',
             year: releaseYear,
-            poster_path: details.poster_path || titleDetails?.poster_path,
+            poster_path: rec.poster_path || titleDetails?.poster_path,
             backdrop_path: titleDetails?.backdrop_path,
             trailer_url: titleDetails?.trailer_url,
             runtime: titleDetails?.runtime,
             genres,
             overview: titleDetails?.overview,
-            // Use match_percent from RPC which is already 0-100, fallback to details.match_percent
-            final_score: rec.match_percent ?? details.match_percent ?? 0,
-            base_viib_score: details.emotion_score || 0,
-            intent_alignment_score: details.intent_score || 0,
-            social_priority_score: details.social_score || 0,
+            final_score: matchPercent,
+            base_viib_score: rec.emotion_score || 0,
+            intent_alignment_score: rec.intent_score || 0,
+            social_priority_score: rec.social_score || 0,
             transformation_score: 0,
-            recommendation_reason: details.quality_reason || '',
-            // Build explainability from details.reasons and details.scores (from get_top_recommendations_v13)
+            recommendation_reason: '',
+            // Build explainability from reasons array (filter out nulls)
             explainability: {
-              reasons: Array.isArray(details.reasons) ? details.reasons : [],
-              scores: details.scores || {}
+              reasons: Array.isArray(rec.reasons) ? rec.reasons.filter(Boolean) : [],
+              scores: {
+                emotion: rec.emotion_score,
+                intent: rec.intent_score,
+                taste: rec.taste_score,
+                social: rec.social_score,
+                quality: rec.quality_score,
+                novelty: rec.novelty_score,
+                context: rec.context_score,
+              }
             },
-            normalized_components: details.scores || details.normalized_components,
+            normalized_components: {
+              emotion: rec.emotion_score,
+              intent: rec.intent_score,
+              taste: rec.taste_score,
+              social: rec.social_score,
+              quality: rec.quality_score,
+            },
           };
         })
         .filter(Boolean) as RecommendedTitle[];
