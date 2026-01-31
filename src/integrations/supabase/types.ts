@@ -2405,6 +2405,27 @@ export type Database = {
         }
         Relationships: []
       }
+      user_reco_cache_state_v13: {
+        Row: {
+          is_stale: boolean
+          last_input_change_at: string
+          last_refresh_at: string | null
+          user_id: string
+        }
+        Insert: {
+          is_stale?: boolean
+          last_input_change_at?: string
+          last_refresh_at?: string | null
+          user_id: string
+        }
+        Update: {
+          is_stale?: boolean
+          last_input_change_at?: string
+          last_refresh_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_reco_refresh_queue: {
         Row: {
           reason: string | null
@@ -3677,18 +3698,9 @@ export type Database = {
         }[]
       }
       clamp01:
-        | {
-            Args: { p: number }
-            Returns: {
-              error: true
-            } & "Could not choose the best candidate function between: public.clamp01(p => float4), public.clamp01(p => float8). Try renaming the parameters or the function itself in the database so function overloading can be resolved"
-          }
-        | {
-            Args: { p: number }
-            Returns: {
-              error: true
-            } & "Could not choose the best candidate function between: public.clamp01(p => float4), public.clamp01(p => float8). Try renaming the parameters or the function itself in the database so function overloading can be resolved"
-          }
+        | { Args: { p: number }; Returns: number }
+        | { Args: { p_val: number }; Returns: number }
+        | { Args: { x: number }; Returns: number }
       cleanup_rate_limit_data: { Args: never; Returns: undefined }
       compute_ai_proxy_quality_score: {
         Args: { p_audience: number; p_critic: number }
@@ -3891,43 +3903,34 @@ export type Database = {
         }[]
       }
       get_top_recommendations_v13: {
-        Args: { p_limit?: number; p_user_id: string }
+        Args: {
+          p_cache_ttl_seconds?: number
+          p_limit?: number
+          p_user_id: string
+        }
         Returns: {
           availability_score: number
-          computed_at: string
           context_score: number
-          diversity_vec: number[] | null
           emotion_score: number
           fatigue_penalty: number
-          genre_ids: string[] | null
+          genre_ids: string[]
           historical_score: number
           intent_score: number
-          is_stale: boolean
           language_score: number
           novelty_score: number
           pick_prob_est: number
-          poster_path: string | null
-          primary_genre_id: string | null
+          poster_path: string
           quality_score: number
+          rank: number
           rank_score: number
-          reason_count: number
           reasons: Json
           recency_score: number
           social_score: number
           taste_score: number
           title_id: string
-          title_name: string | null
-          title_type: string | null
-          user_id: string
-          vibe_boost: number
-          vibe_score: number
+          title_name: string
+          title_type: string
         }[]
-        SetofOptions: {
-          from: "*"
-          to: "user_recommendation_candidates_v13"
-          isOneToOne: false
-          isSetofReturn: true
-        }
       }
       get_user_id_from_auth: { Args: never; Returns: string }
       get_vibe_list_stats: {
@@ -4003,6 +4006,7 @@ export type Database = {
         Args: { p_impressions_days?: number; p_outcomes_days?: number }
         Returns: undefined
       }
+      reco_lock_key: { Args: { p_user_id: string }; Returns: number }
       recompute_title_reco_eligibility: {
         Args: { p_limit?: number }
         Returns: number
@@ -4056,6 +4060,10 @@ export type Database = {
         Returns: undefined
       }
       refresh_user_recommendation_candidates_v13: {
+        Args: { p_candidate_limit?: number; p_user_id: string }
+        Returns: undefined
+      }
+      refresh_user_recommendation_candidates_v13_replace: {
         Args: { p_candidate_limit?: number; p_user_id: string }
         Returns: undefined
       }
@@ -4245,6 +4253,7 @@ export type Database = {
         | "linkedin"
         | "other"
       time_of_day: "morning" | "afternoon" | "evening" | "night" | "late_night"
+      title_type: "movie" | "tv"
       title_type_enum: "movie" | "tv"
       transformation_type:
         | "soothe"
@@ -4470,6 +4479,7 @@ export const Constants = {
         "other",
       ],
       time_of_day: ["morning", "afternoon", "evening", "night", "late_night"],
+      title_type: ["movie", "tv"],
       title_type_enum: ["movie", "tv"],
       transformation_type: [
         "soothe",
