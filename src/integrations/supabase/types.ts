@@ -3472,6 +3472,24 @@ export type Database = {
           },
         ]
       }
+      viib_runtime_config: {
+        Row: {
+          key: string
+          updated_at: string
+          value: string
+        }
+        Insert: {
+          key: string
+          updated_at?: string
+          value: string
+        }
+        Update: {
+          key?: string
+          updated_at?: string
+          value?: string
+        }
+        Relationships: []
+      }
       viib_title_intent_stats: {
         Row: {
           intent_count: number
@@ -3513,39 +3531,60 @@ export type Database = {
       }
       viib_weight_config: {
         Row: {
+          availability_weight: number
           context_weight: number
           created_at: string
           emotional_weight: number
+          fatigue_weight: number
           historical_weight: number
           id: string
+          intent_weight: number
           is_active: boolean
+          language_weight: number
           notes: string | null
           novelty_weight: number
+          quality_weight: number
+          recency_weight: number
           social_weight: number
+          taste_weight: number
           vibe_weight: number
         }
         Insert: {
+          availability_weight?: number
           context_weight: number
           created_at?: string
           emotional_weight: number
+          fatigue_weight?: number
           historical_weight: number
           id?: string
+          intent_weight?: number
           is_active?: boolean
+          language_weight?: number
           notes?: string | null
           novelty_weight: number
+          quality_weight?: number
+          recency_weight?: number
           social_weight: number
+          taste_weight?: number
           vibe_weight?: number
         }
         Update: {
+          availability_weight?: number
           context_weight?: number
           created_at?: string
           emotional_weight?: number
+          fatigue_weight?: number
           historical_weight?: number
           id?: string
+          intent_weight?: number
           is_active?: boolean
+          language_weight?: number
           notes?: string | null
           novelty_weight?: number
+          quality_weight?: number
+          recency_weight?: number
           social_weight?: number
+          taste_weight?: number
           vibe_weight?: number
         }
         Relationships: []
@@ -3631,6 +3670,7 @@ export type Database = {
       }
     }
     Functions: {
+      _viib_can_call_edge: { Args: never; Returns: boolean }
       _viib_is_kids_cert: { Args: { p_cert: string }; Returns: boolean }
       _viib_iso2_region: { Args: { p_country: string }; Returns: string }
       _viib_title_age_years: {
@@ -3699,8 +3739,19 @@ export type Database = {
       }
       clamp01:
         | { Args: { p: number }; Returns: number }
-        | { Args: { p_val: number }; Returns: number }
-        | { Args: { x: number }; Returns: number }
+        | {
+            Args: { x: number }
+            Returns: {
+              error: true
+            } & "Could not choose the best candidate function between: public.clamp01(x => float4), public.clamp01(x => float8). Try renaming the parameters or the function itself in the database so function overloading can be resolved"
+          }
+        | {
+            Args: { x: number }
+            Returns: {
+              error: true
+            } & "Could not choose the best candidate function between: public.clamp01(x => float4), public.clamp01(x => float8). Try renaming the parameters or the function itself in the database so function overloading can be resolved"
+          }
+      classify_titles_ai: { Args: never; Returns: undefined }
       cleanup_rate_limit_data: { Args: never; Returns: undefined }
       compute_ai_proxy_quality_score: {
         Args: { p_audience: number; p_critic: number }
@@ -3728,6 +3779,7 @@ export type Database = {
         Args: { a: number[]; b: number[] }
         Returns: number
       }
+      debug_reco_pipeline_v13: { Args: { p_user_id: string }; Returns: Json }
       enqueue_missing_classifications: {
         Args: { p_limit?: number; p_priority?: number }
         Returns: number
@@ -3746,6 +3798,8 @@ export type Database = {
         }
         Returns: undefined
       }
+      enrich_title_details: { Args: never; Returns: undefined }
+      enrich_title_trailers: { Args: never; Returns: undefined }
       ensure_cron_job: {
         Args: { p_command: string; p_jobname: string; p_schedule: string }
         Returns: undefined
@@ -3781,6 +3835,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      fix_streaming_availability: { Args: never; Returns: undefined }
       get_active_viib_weights: {
         Args: never
         Returns: {
@@ -3903,33 +3958,26 @@ export type Database = {
         }[]
       }
       get_top_recommendations_v13: {
-        Args: {
-          p_cache_ttl_seconds?: number
-          p_limit?: number
-          p_user_id: string
-        }
+        Args: { p_limit?: number; p_user_id: string }
         Returns: {
-          availability_score: number
-          context_score: number
-          emotion_score: number
-          fatigue_penalty: number
-          genre_ids: string[]
-          historical_score: number
-          intent_score: number
-          language_score: number
-          novelty_score: number
-          pick_prob_est: number
+          final_score: number
           poster_path: string
-          quality_score: number
           rank: number
-          rank_score: number
           reasons: Json
-          recency_score: number
-          social_score: number
-          taste_score: number
+          slate_slot: string
           title_id: string
           title_name: string
           title_type: string
+        }[]
+      }
+      get_user_emotion_snapshot_v13: {
+        Args: { p_user_id: string }
+        Returns: {
+          arousal: number
+          dominance: number
+          emotion_id: string
+          intensity: number
+          valence: number
         }[]
       }
       get_user_id_from_auth: { Args: never; Returns: string }
@@ -3940,6 +3988,17 @@ export type Database = {
           item_count: number
           list_id: string
           view_count: number
+        }[]
+      }
+      get_viib_autotune_multipliers_v13: {
+        Args: never
+        Returns: {
+          m_context: number
+          m_emotion: number
+          m_historical: number
+          m_novelty: number
+          m_social: number
+          m_vibe: number
         }[]
       }
       has_role: {
@@ -3954,6 +4013,7 @@ export type Database = {
         Args: { p_increment: number; p_job_type: string }
         Returns: undefined
       }
+      install_viib_production_cron_jobs: { Args: never; Returns: undefined }
       invalidate_old_otps: { Args: { p_email: string }; Returns: undefined }
       invalidate_old_phone_otps: {
         Args: { p_phone: string }
@@ -4001,6 +4061,7 @@ export type Database = {
         Args: { p_reason?: string; p_user_id: string }
         Returns: undefined
       }
+      promote_title_ai: { Args: never; Returns: undefined }
       promote_title_intents: { Args: { p_limit?: number }; Returns: number }
       prune_old_recommendation_logs: {
         Args: { p_impressions_days?: number; p_outcomes_days?: number }
@@ -4110,6 +4171,7 @@ export type Database = {
         Args: { p_days?: number }
         Returns: undefined
       }
+      sync_titles_delta: { Args: never; Returns: undefined }
       title_age_years: {
         Args: { p_first_air: string; p_release: string }
         Returns: number
@@ -4118,6 +4180,7 @@ export type Database = {
         Args: { p_active: boolean; p_jobid: number }
         Returns: undefined
       }
+      transcribe_trailers_hot: { Args: never; Returns: undefined }
       translate_mood_to_emotion: {
         Args: {
           p_energy_percentage: number
@@ -4180,6 +4243,10 @@ export type Database = {
         Args: { p_days?: number; p_min_samples?: number }
         Returns: undefined
       }
+      viib_get_runtime_config: { Args: { p_key: string }; Returns: string }
+      viib_healthcheck_v13: { Args: never; Returns: Json }
+      viib_prune_extra_cron_jobs_v13: { Args: never; Returns: number }
+      viib_unschedule_unwanted_jobs_v13: { Args: never; Returns: number }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"

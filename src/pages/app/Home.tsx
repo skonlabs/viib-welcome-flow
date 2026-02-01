@@ -153,11 +153,11 @@ const Home = () => {
               ? new Date(titleDetails.first_air_date).getFullYear()
               : undefined;
 
-          // v13 returns flat structure with pick_prob_est as the match score (0-1)
+          // v13 returns flat structure with final_score as the match score (0-1)
           // Convert to percentage (0-100) for display
-          const matchPercent = rec.pick_prob_est != null 
-            ? Math.round(rec.pick_prob_est * 100) 
-            : (rec.rank_score != null ? Math.round(rec.rank_score * 100) : 0);
+          const matchPercent = rec.final_score != null 
+            ? Math.round(rec.final_score * 100) 
+            : (rec.pick_prob_est != null ? Math.round(rec.pick_prob_est * 100) : 0);
 
           return {
             id: rec.title_id,
