@@ -118,7 +118,7 @@ export const EmailSetup = () => {
                 id="smtp_port"
                 type="number"
                 value={config.smtp_port}
-                onChange={(e) => setConfig({ ...config, smtp_port: parseInt(e.target.value) })}
+                onChange={(e) => setConfig({ ...config, smtp_port: parseInt(e.target.value) || 465 })}
                 placeholder="465"
               />
             </div>

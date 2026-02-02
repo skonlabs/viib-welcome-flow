@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -28,6 +29,7 @@ interface SystemLog {
 }
 
 export default function SystemLogs() {
+  const { profile } = useAuth();
   const [logs, setLogs] = useState<SystemLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedLog, setSelectedLog] = useState<SystemLog | null>(null);
@@ -63,14 +65,12 @@ export default function SystemLogs() {
     if (!resolvingLog) return;
 
     try {
-      const userId = localStorage.getItem('viib_user_id');
-
       const { error } = await supabase
         .from('system_logs')
         .update({
           resolved: true,
           resolved_at: new Date().toISOString(),
-          resolved_by: userId,
+          resolved_by: profile?.id || null,
           notes: notes || null
         })
         .eq('id', resolvingLog.id);
@@ -110,7 +110,7 @@ export default function SystemLogs() {
     }
   };
 
-  const getSeverityColor = (severity: string) => {
+  const getSeverityColor = (severity: string): 'destructive' | 'warning' | 'secondary' => {
     switch (severity) {
       case 'error':
         return 'destructive';
@@ -160,7 +160,7 @@ export default function SystemLogs() {
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
-                        <Badge variant={getSeverityColor(log.severity) as any}>
+                        <Badge variant={getSeverityColor(log.severity)}>
                           {log.severity}
                         </Badge>
                         {log.resolved && (
@@ -317,7 +317,7 @@ export default function SystemLogs() {
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <h4 className="font-semibold mb-1">Severity</h4>
-                  <Badge variant={getSeverityColor(selectedLog.severity) as any}>
+                  <Badge variant={getSeverityColor(selectedLog.severity)}>
                     {selectedLog.severity}
                   </Badge>
                 </div>

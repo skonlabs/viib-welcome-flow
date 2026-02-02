@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Play, Pause, RefreshCw, Clock, Calendar as CalendarIcon, Settings, XCircle, Layers } from "@/icons";
-import { errorLogger } from "@/lib/services/LoggerService";
+import { errorLogger, logger } from "@/lib/services/LoggerService";
 import { CronMetricsDashboard } from "./CronMetricsDashboard";
 import { ThreadMonitor } from "./ThreadMonitor";
 import { JobScheduleDialog, RecurrenceConfig } from "./JobScheduleDialog";
@@ -759,7 +759,7 @@ export const Jobs = () => {
           return data;
         } catch (err: any) {
           lastError = err;
-          console.warn(`[fix_streaming] Attempt ${attempt}/${MAX_RETRIES} failed:`, err.message || err);
+          logger.warn(`[fix_streaming] Attempt ${attempt}/${MAX_RETRIES} failed:`, err.message || err);
 
           // Only retry on network/fetch errors
           if (
@@ -922,7 +922,7 @@ export const Jobs = () => {
       }
 
       if (batchCount >= MAX_BATCHES) {
-        console.warn(`[fix_streaming] Hit max batch limit of ${MAX_BATCHES}`);
+        logger.warn(`[fix_streaming] Hit max batch limit of ${MAX_BATCHES}`);
         toast({
           title: "Job Paused",
           description: `Processed ${MAX_BATCHES} batches. Run again to continue.`,
@@ -2302,7 +2302,7 @@ const JobConfigDialog = ({ job, onUpdate }: JobConfigDialogProps) => {
                       min="1900"
                       max={new Date().getFullYear()}
                       value={config.start_year || 2020}
-                      onChange={(e) => setConfig({ ...config, start_year: parseInt(e.target.value) })}
+                      onChange={(e) => setConfig({ ...config, start_year: parseInt(e.target.value) || 2020 })}
                     />
                   </div>
                   <div className="space-y-2">
@@ -2312,7 +2312,7 @@ const JobConfigDialog = ({ job, onUpdate }: JobConfigDialogProps) => {
                       min="1900"
                       max={new Date().getFullYear()}
                       value={config.end_year || new Date().getFullYear()}
-                      onChange={(e) => setConfig({ ...config, end_year: parseInt(e.target.value) })}
+                      onChange={(e) => setConfig({ ...config, end_year: parseInt(e.target.value) || new Date().getFullYear() })}
                     />
                   </div>
                 </div>
@@ -2327,7 +2327,7 @@ const JobConfigDialog = ({ job, onUpdate }: JobConfigDialogProps) => {
                   min="10"
                   max="100"
                   value={config.batch_size || 50}
-                  onChange={(e) => setConfig({ ...config, batch_size: parseInt(e.target.value) })}
+                  onChange={(e) => setConfig({ ...config, batch_size: parseInt(e.target.value) || 50 })}
                 />
                 <p className="text-xs text-muted-foreground">Number of titles to process per batch</p>
               </div>
@@ -2342,7 +2342,7 @@ const JobConfigDialog = ({ job, onUpdate }: JobConfigDialogProps) => {
                     min="10"
                     max="100"
                     value={config.batch_size || 50}
-                    onChange={(e) => setConfig({ ...config, batch_size: parseInt(e.target.value) })}
+                    onChange={(e) => setConfig({ ...config, batch_size: parseInt(e.target.value) || 50 })}
                   />
                   <p className="text-xs text-muted-foreground">Number of titles to process per batch</p>
                 </div>
@@ -2353,7 +2353,7 @@ const JobConfigDialog = ({ job, onUpdate }: JobConfigDialogProps) => {
                     min="10000"
                     max="85000"
                     value={config.max_runtime_ms || 55000}
-                    onChange={(e) => setConfig({ ...config, max_runtime_ms: parseInt(e.target.value) })}
+                    onChange={(e) => setConfig({ ...config, max_runtime_ms: parseInt(e.target.value) || 55000 })}
                   />
                   <p className="text-xs text-muted-foreground">Maximum execution time in milliseconds</p>
                 </div>
@@ -2368,7 +2368,7 @@ const JobConfigDialog = ({ job, onUpdate }: JobConfigDialogProps) => {
                   min="10"
                   max="200"
                   value={config.batch_size || 100}
-                  onChange={(e) => setConfig({ ...config, batch_size: parseInt(e.target.value) })}
+                  onChange={(e) => setConfig({ ...config, batch_size: parseInt(e.target.value) || 100 })}
                 />
                 <p className="text-xs text-muted-foreground">Number of titles to process per batch</p>
               </div>
@@ -2383,7 +2383,7 @@ const JobConfigDialog = ({ job, onUpdate }: JobConfigDialogProps) => {
                     min="1"
                     max="365"
                     value={config.lookback_days || 7}
-                    onChange={(e) => setConfig({ ...config, lookback_days: parseInt(e.target.value) })}
+                    onChange={(e) => setConfig({ ...config, lookback_days: parseInt(e.target.value) || 7 })}
                   />
                   <p className="text-xs text-muted-foreground">Number of days to look back for new titles</p>
                 </div>
@@ -2438,7 +2438,7 @@ const JobConfigDialog = ({ job, onUpdate }: JobConfigDialogProps) => {
                     min="50"
                     max="1000"
                     value={config.candidate_limit || 300}
-                    onChange={(e) => setConfig({ ...config, candidate_limit: parseInt(e.target.value) })}
+                    onChange={(e) => setConfig({ ...config, candidate_limit: parseInt(e.target.value) || 300 })}
                   />
                   <p className="text-xs text-muted-foreground">Maximum candidates per user</p>
                 </div>
@@ -2453,7 +2453,7 @@ const JobConfigDialog = ({ job, onUpdate }: JobConfigDialogProps) => {
                   min="10"
                   max="200"
                   value={config.batch_size || 50}
-                  onChange={(e) => setConfig({ ...config, batch_size: parseInt(e.target.value) })}
+                  onChange={(e) => setConfig({ ...config, batch_size: parseInt(e.target.value) || 50 })}
                 />
                 <p className="text-xs text-muted-foreground">Number of titles to estimate per batch</p>
               </div>
