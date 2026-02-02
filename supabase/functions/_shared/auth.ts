@@ -71,10 +71,11 @@ export async function validateAuthJWT(request: Request): Promise<AuthResult> {
     // Create client with the user's JWT
     const supabase = createAuthenticatedClient(authHeader);
 
-    // Verify the JWT by getting the user
-    const { data: { user }, error } = await supabase.auth.getUser();
+    // Verify the JWT by getting the user - MUST pass token explicitly in edge functions
+    const { data: { user }, error } = await supabase.auth.getUser(token);
 
     if (error || !user) {
+      console.error('JWT validation failed:', error?.message || 'No user found');
       return {
         authenticated: false,
         error: error?.message || 'Invalid or expired token',
