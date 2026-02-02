@@ -1,12 +1,12 @@
-import { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuthContext } from '@/contexts/AuthContext';
-import { TitleCard } from '@/components/TitleCard';
-import { TitleDetailsModal } from '@/components/TitleDetailsModal';
-import { RatingDialog } from '@/components/RatingDialog';
-import { DismissTitleDialog } from '@/components/DismissTitleDialog';
-import { Skeleton } from '@/components/ui/skeleton';
-import { toast } from 'sonner';
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuthContext } from "@/contexts/AuthContext";
+import { TitleCard } from "@/components/TitleCard";
+import { TitleDetailsModal } from "@/components/TitleDetailsModal";
+import { RatingDialog } from "@/components/RatingDialog";
+import { DismissTitleDialog } from "@/components/DismissTitleDialog";
+import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "sonner";
 
 interface Explainability {
   summary?: Array<{ label: string; value: string; reason: string }>;
@@ -20,7 +20,7 @@ interface RecommendedTitle {
   id: string;
   tmdb_id?: number;
   title: string;
-  type: 'movie' | 'series';
+  type: "movie" | "series";
   year?: number;
   poster_path?: string | null;
   backdrop_path?: string | null;
@@ -53,7 +53,7 @@ const Home = () => {
   // Wait for auth to load, then fetch recommendations
   useEffect(() => {
     if (authLoading) return;
-    
+
     if (profile?.id) {
       fetchRecommendations();
       fetchUserWatchlist();
@@ -70,22 +70,22 @@ const Home = () => {
         fetchRecommendations();
       }
     };
-    
-    window.addEventListener('viib-mood-changed', handleMoodChange);
-    return () => window.removeEventListener('viib-mood-changed', handleMoodChange);
+
+    window.addEventListener("viib-mood-changed", handleMoodChange);
+    return () => window.removeEventListener("viib-mood-changed", handleMoodChange);
   }, [profile?.id]);
 
   const fetchUserWatchlist = async () => {
     if (!profile?.id) return;
 
     const { data } = await supabase
-      .from('user_title_interactions')
-      .select('title_id')
-      .eq('user_id', profile.id)
-      .in('interaction_type', ['wishlisted', 'completed']);
+      .from("user_title_interactions")
+      .select("title_id")
+      .eq("user_id", profile.id)
+      .in("interaction_type", ["wishlisted", "completed"]);
 
     if (data) {
-      setUserWatchlist(new Set(data.map(d => d.title_id)));
+      setUserWatchlist(new Set(data.map((d) => d.title_id)));
     }
   };
 
@@ -97,29 +97,29 @@ const Home = () => {
 
     try {
       // Call the ViiB recommendation engine (v13)
-      console.log('Fetching recommendations for user:', profile.id);
-      
-      const { data: recData, error: recError } = await supabase.rpc(
-        'get_top_recommendations_v13',
-        { p_user_id: profile.id, p_limit: 10 }
-      );
+      console.log("Fetching recommendations for user:", profile.id);
 
-      console.log('Recommendation RPC response:', { 
-        hasData: !!recData, 
+      const { data: recData, error: recError } = await supabase.rpc("get_top_recommendations_v13", {
+        p_user_id: profile.id,
+        p_limit: 10,
+      });
+
+      console.log("Recommendation RPC response:", {
+        hasData: !!recData,
         count: recData?.length,
         error: recError,
-        firstItem: recData?.[0] // Log first item to see structure
+        firstItem: recData?.[0], // Log first item to see structure
       });
 
       if (recError) {
-        console.error('Recommendation function error:', recError);
-        toast.error('Failed to load recommendations');
+        console.error("Recommendation function error:", recError);
+        toast.error("Failed to load recommendations");
         setLoading(false);
         return;
       }
 
       if (!recData || recData.length === 0) {
-        console.log('No recommendations returned - keeping existing recommendations');
+        console.log("No recommendations returned - keeping existing recommendations");
         // Keep existing recommendations instead of clearing them
         // This handles the case where cache is stale but not yet refreshed
         setLoading(false);
@@ -129,11 +129,13 @@ const Home = () => {
       // Fetch full title details including release dates
       const titleIds = recData.map((rec: any) => rec.title_id).filter(Boolean);
       const { data: titlesData } = await supabase
-        .from('titles')
-        .select('id, tmdb_id, name, poster_path, title_type, release_date, first_air_date, backdrop_path, trailer_url, runtime, overview, title_genres')
-        .in('id', titleIds);
+        .from("titles")
+        .select(
+          `id, tmdb_id, name, poster_path, title_type, release_date, first_air_date, backdrop_path, trailer_url, runtime, overview, title_genres(genre:genres(name))`,
+        )
+        .in("id", titleIds);
 
-      const titlesMap = new Map(titlesData?.map(t => [t.id, t]) || []);
+      const titlesMap = new Map(titlesData?.map((t) => [t.id, t]) || []);
 
       const enrichedRecs: RecommendedTitle[] = recData
         .map((rec: any) => {
@@ -141,30 +143,33 @@ const Home = () => {
 
           const titleDetails = titlesMap.get(rec.title_id);
 
-          // Parse genres from title_genres JSON
-          const genres = Array.isArray(titleDetails?.title_genres) 
-            ? (titleDetails.title_genres as any[]).map((g: any) => g.name || g).filter(Boolean)
+          // Parse genres via relationship: title_genres -> genres(name)
+          const genres = Array.isArray((titleDetails as any)?.title_genres)
+            ? ((titleDetails as any).title_genres as any[]).map((tg: any) => tg?.genre?.name).filter(Boolean)
             : [];
 
           // Get release year from release_date or first_air_date
-          const releaseYear = titleDetails?.release_date 
+          const releaseYear = titleDetails?.release_date
             ? new Date(titleDetails.release_date).getFullYear()
-            : titleDetails?.first_air_date 
+            : titleDetails?.first_air_date
               ? new Date(titleDetails.first_air_date).getFullYear()
               : undefined;
 
           // v13 returns flat structure with final_score as the match score (0-1)
           // Convert to percentage (0-100) for display
-          const matchPercent = rec.final_score != null 
-            ? Math.round(rec.final_score * 100) 
-            : (rec.pick_prob_est != null ? Math.round(rec.pick_prob_est * 100) : 0);
+          const matchPercent =
+            rec.final_score != null
+              ? Math.round(rec.final_score * 100)
+              : rec.pick_prob_est != null
+                ? Math.round(rec.pick_prob_est * 100)
+                : 0;
 
           return {
             id: rec.title_id,
             tmdb_id: titleDetails?.tmdb_id,
             // v13 returns title_name directly at top level
-            title: rec.title_name || titleDetails?.name || 'Unknown Title',
-            type: (rec.title_type || titleDetails?.title_type) === 'tv' ? 'series' : 'movie',
+            title: rec.title_name || titleDetails?.name || "Unknown Title",
+            type: (rec.title_type || titleDetails?.title_type) === "tv" ? "series" : "movie",
             year: releaseYear,
             poster_path: rec.poster_path || titleDetails?.poster_path,
             backdrop_path: titleDetails?.backdrop_path,
@@ -177,7 +182,7 @@ const Home = () => {
             intent_alignment_score: rec.intent_score || 0,
             social_priority_score: rec.social_score || 0,
             transformation_score: 0,
-            recommendation_reason: '',
+            recommendation_reason: "",
             // Build explainability from reasons array (filter out nulls)
             explainability: {
               reasons: Array.isArray(rec.reasons) ? rec.reasons.filter(Boolean) : [],
@@ -189,7 +194,7 @@ const Home = () => {
                 quality: rec.quality_score,
                 novelty: rec.novelty_score,
                 context: rec.context_score,
-              }
+              },
             },
             normalized_components: {
               emotion: rec.emotion_score,
@@ -204,8 +209,8 @@ const Home = () => {
 
       setRecommendations(enrichedRecs);
     } catch (error) {
-      console.error('Error in fetchRecommendations:', error);
-      toast.error('Something went wrong');
+      console.error("Error in fetchRecommendations:", error);
+      toast.error("Something went wrong");
     } finally {
       setLoading(false);
     }
@@ -216,27 +221,27 @@ const Home = () => {
 
     // Check if already in watchlist
     if (userWatchlist.has(titleId)) {
-      toast.info('Already in your watchlist');
+      toast.info("Already in your watchlist");
       return;
     }
 
-    const { error } = await supabase.from('user_title_interactions').insert({
+    const { error } = await supabase.from("user_title_interactions").insert({
       user_id: profile.id,
       title_id: titleId,
-      interaction_type: 'wishlisted',
+      interaction_type: "wishlisted",
     });
 
     if (error) {
-      if (error.code === '23505') {
+      if (error.code === "23505") {
         // Unique constraint violation - already exists
-        toast.info('Already in your watchlist');
-        setUserWatchlist(prev => new Set(prev).add(titleId));
+        toast.info("Already in your watchlist");
+        setUserWatchlist((prev) => new Set(prev).add(titleId));
       } else {
-        toast.error('Failed to add to watchlist');
+        toast.error("Failed to add to watchlist");
       }
     } else {
-      toast.success('Added to watchlist');
-      setUserWatchlist(prev => new Set(prev).add(titleId));
+      toast.success("Added to watchlist");
+      setUserWatchlist((prev) => new Set(prev).add(titleId));
     }
   };
 
@@ -246,54 +251,54 @@ const Home = () => {
     setRatingDialogOpen(true);
   };
 
-  const handleRateAndMarkWatched = async (rating: 'love_it' | 'like_it' | 'dislike_it') => {
+  const handleRateAndMarkWatched = async (rating: "love_it" | "like_it" | "dislike_it") => {
     if (!titleToRate || !profile?.id) return;
 
     // Check if already exists
     const { data: existing } = await supabase
-      .from('user_title_interactions')
-      .select('id')
-      .eq('user_id', profile.id)
-      .eq('title_id', titleToRate.id)
-      .eq('interaction_type', 'completed')
+      .from("user_title_interactions")
+      .select("id")
+      .eq("user_id", profile.id)
+      .eq("title_id", titleToRate.id)
+      .eq("interaction_type", "completed")
       .maybeSingle();
 
     if (existing) {
       // Update rating if already marked as watched
       const { error } = await supabase
-        .from('user_title_interactions')
+        .from("user_title_interactions")
         .update({ rating_value: rating })
-        .eq('id', existing.id);
+        .eq("id", existing.id);
 
       if (error) {
-        toast.error('Failed to update rating');
+        toast.error("Failed to update rating");
       } else {
-        toast.success('Rating updated');
+        toast.success("Rating updated");
       }
     } else {
       // Delete any existing wishlisted entry first
       await supabase
-        .from('user_title_interactions')
+        .from("user_title_interactions")
         .delete()
-        .eq('user_id', profile.id)
-        .eq('title_id', titleToRate.id)
-        .eq('interaction_type', 'wishlisted');
+        .eq("user_id", profile.id)
+        .eq("title_id", titleToRate.id)
+        .eq("interaction_type", "wishlisted");
 
       // Insert new completed entry with rating
-      const { error } = await supabase.from('user_title_interactions').insert({
+      const { error } = await supabase.from("user_title_interactions").insert({
         user_id: profile.id,
         title_id: titleToRate.id,
-        interaction_type: 'completed',
+        interaction_type: "completed",
         rating_value: rating,
       });
 
       if (error) {
-        toast.error('Failed to mark as watched');
+        toast.error("Failed to mark as watched");
       } else {
-        const ratingLabel = rating === 'love_it' ? 'Loved it!' : rating === 'like_it' ? 'Liked it!' : 'Noted';
+        const ratingLabel = rating === "love_it" ? "Loved it!" : rating === "like_it" ? "Liked it!" : "Noted";
         toast.success(`Marked as watched - ${ratingLabel}`);
         setRecommendations((prev) => prev.filter((t) => t.id !== titleToRate.id));
-        setUserWatchlist(prev => new Set(prev).add(titleToRate.id));
+        setUserWatchlist((prev) => new Set(prev).add(titleToRate.id));
       }
     }
 
@@ -309,24 +314,24 @@ const Home = () => {
     if (!titleToDismiss || !profile?.id) return;
 
     // Record as disliked interaction
-    const { error } = await supabase.from('user_title_interactions').insert({
+    const { error } = await supabase.from("user_title_interactions").insert({
       user_id: profile.id,
       title_id: titleToDismiss.id,
-      interaction_type: 'disliked',
-      rating_value: 'dislike_it',
+      interaction_type: "disliked",
+      rating_value: "dislike_it",
     });
 
     if (error) {
       // If duplicate, just remove from UI
-      if (error.code === '23505') {
-        toast.success('Got it! We\'ll adjust your recommendations');
+      if (error.code === "23505") {
+        toast.success("Got it! We'll adjust your recommendations");
         setRecommendations((prev) => prev.filter((t) => t.id !== titleToDismiss.id));
       } else {
-        console.error('Error recording preference:', error);
-        toast.error('Failed to record preference');
+        console.error("Error recording preference:", error);
+        toast.error("Failed to record preference");
       }
     } else {
-      toast.success('Got it! We\'ll adjust your recommendations');
+      toast.success("Got it! We'll adjust your recommendations");
       setRecommendations((prev) => prev.filter((t) => t.id !== titleToDismiss.id));
     }
     setTitleToDismiss(null);
@@ -348,9 +353,7 @@ const Home = () => {
   return (
     <div className="container mx-auto px-4 sm:px-6 py-4 sm:py-8">
       <div className="mb-8">
-        <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-foreground mb-2">
-          Your Recommendations
-        </h1>
+        <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-foreground mb-2">Your Recommendations</h1>
         <p className="text-sm sm:text-base text-muted-foreground">
           Personalized picks based on your mood, taste, and social signals.
         </p>
@@ -412,20 +415,24 @@ const Home = () => {
       <TitleDetailsModal
         open={detailsModalOpen}
         onOpenChange={setDetailsModalOpen}
-        title={selectedTitle ? {
-          id: selectedTitle.id,
-          tmdb_id: selectedTitle.tmdb_id,
-          external_id: selectedTitle.id,
-          title: selectedTitle.title,
-          type: selectedTitle.type,
-          year: selectedTitle.year,
-          poster_path: selectedTitle.poster_path,
-          backdrop_path: selectedTitle.backdrop_path,
-          trailer_url: selectedTitle.trailer_url,
-          runtime_minutes: selectedTitle.runtime,
-          genres: selectedTitle.genres,
-          overview: selectedTitle.overview,
-        } : null}
+        title={
+          selectedTitle
+            ? {
+                id: selectedTitle.id,
+                tmdb_id: selectedTitle.tmdb_id,
+                external_id: selectedTitle.id,
+                title: selectedTitle.title,
+                type: selectedTitle.type,
+                year: selectedTitle.year,
+                poster_path: selectedTitle.poster_path,
+                backdrop_path: selectedTitle.backdrop_path,
+                trailer_url: selectedTitle.trailer_url,
+                runtime_minutes: selectedTitle.runtime,
+                genres: selectedTitle.genres,
+                overview: selectedTitle.overview,
+              }
+            : null
+        }
         isInWatchlist={selectedTitle ? userWatchlist.has(selectedTitle.id) : false}
         onAddToWatchlist={(titleId) => handleAddToWatchlist(titleId)}
         onMarkAsWatched={(titleId, titleName) => {
@@ -437,14 +444,14 @@ const Home = () => {
       <RatingDialog
         open={ratingDialogOpen}
         onOpenChange={setRatingDialogOpen}
-        titleName={titleToRate?.name || ''}
+        titleName={titleToRate?.name || ""}
         onRate={handleRateAndMarkWatched}
       />
 
       <DismissTitleDialog
         open={dismissDialogOpen}
         onOpenChange={setDismissDialogOpen}
-        titleName={titleToDismiss?.name || ''}
+        titleName={titleToDismiss?.name || ""}
         onNotMyTaste={handleNotMyTaste}
         onSeenIt={handleSeenItFromDismiss}
         onKeepIt={handleKeepIt}
