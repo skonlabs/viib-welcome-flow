@@ -993,72 +993,6 @@ export type Database = {
         }
         Relationships: []
       }
-      reco_refresh_log_v12: {
-        Row: {
-          created_at: string
-          detail: string | null
-          id: number
-          status: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          detail?: string | null
-          id?: number
-          status: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          detail?: string | null
-          id?: number
-          status?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
-      reco_refresh_queue_v12: {
-        Row: {
-          attempts: number
-          id: number
-          last_error: string | null
-          last_reason: string | null
-          lock_token: string | null
-          locked_at: string | null
-          not_before: string
-          processed_at: string | null
-          reason: string
-          requested_at: string
-          user_id: string
-        }
-        Insert: {
-          attempts?: number
-          id?: number
-          last_error?: string | null
-          last_reason?: string | null
-          lock_token?: string | null
-          locked_at?: string | null
-          not_before?: string
-          processed_at?: string | null
-          reason?: string
-          requested_at?: string
-          user_id: string
-        }
-        Update: {
-          attempts?: number
-          id?: number
-          last_error?: string | null
-          last_reason?: string | null
-          lock_token?: string | null
-          locked_at?: string | null
-          not_before?: string
-          processed_at?: string | null
-          reason?: string
-          requested_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
       recommendation_impressions: {
         Row: {
           context_score: number | null
@@ -1468,39 +1402,6 @@ export type Database = {
           logo_url?: string | null
           service_name?: string
           website_url?: string | null
-        }
-        Relationships: []
-      }
-      system_jobs_v12: {
-        Row: {
-          description: string
-          is_enabled: boolean
-          job_key: string
-          last_error: string | null
-          last_run_at: string | null
-          next_run_at: string
-          schedule_every_seconds: number
-          sql_command: string
-        }
-        Insert: {
-          description: string
-          is_enabled?: boolean
-          job_key: string
-          last_error?: string | null
-          last_run_at?: string | null
-          next_run_at?: string
-          schedule_every_seconds: number
-          sql_command: string
-        }
-        Update: {
-          description?: string
-          is_enabled?: boolean
-          job_key?: string
-          last_error?: string | null
-          last_run_at?: string | null
-          next_run_at?: string
-          schedule_every_seconds?: number
-          sql_command?: string
         }
         Relationships: []
       }
@@ -2441,81 +2342,6 @@ export type Database = {
           reason?: string | null
           requested_at?: string
           user_id?: string
-        }
-        Relationships: []
-      }
-      user_recommendation_candidates_v12: {
-        Row: {
-          computed_at: string
-          diversity_vec: number[] | null
-          emotion_score: number
-          genre_ids: string[] | null
-          historical_score: number
-          intent_score: number
-          is_stale: boolean
-          novelty_score: number
-          pick_prob_est: number
-          poster_path: string | null
-          primary_genre_id: string | null
-          quality_score: number
-          rank_score: number
-          reason_count: number
-          reasons: Json
-          social_score: number
-          taste_score: number
-          title_id: string
-          title_name: string | null
-          title_type: string | null
-          user_id: string
-          vibe_boost: number
-        }
-        Insert: {
-          computed_at?: string
-          diversity_vec?: number[] | null
-          emotion_score?: number
-          genre_ids?: string[] | null
-          historical_score?: number
-          intent_score?: number
-          is_stale?: boolean
-          novelty_score?: number
-          pick_prob_est?: number
-          poster_path?: string | null
-          primary_genre_id?: string | null
-          quality_score?: number
-          rank_score?: number
-          reason_count?: number
-          reasons?: Json
-          social_score?: number
-          taste_score?: number
-          title_id: string
-          title_name?: string | null
-          title_type?: string | null
-          user_id: string
-          vibe_boost?: number
-        }
-        Update: {
-          computed_at?: string
-          diversity_vec?: number[] | null
-          emotion_score?: number
-          genre_ids?: string[] | null
-          historical_score?: number
-          intent_score?: number
-          is_stale?: boolean
-          novelty_score?: number
-          pick_prob_est?: number
-          poster_path?: string | null
-          primary_genre_id?: string | null
-          quality_score?: number
-          rank_score?: number
-          reason_count?: number
-          reasons?: Json
-          social_score?: number
-          taste_score?: number
-          title_id?: string
-          title_name?: string | null
-          title_type?: string | null
-          user_id?: string
-          vibe_boost?: number
         }
         Relationships: []
       }
