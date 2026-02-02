@@ -46,13 +46,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         .maybeSingle();
 
       if (error) {
-        console.error('Error fetching user profile:', error);
         return null;
       }
 
       return data;
-    } catch (error) {
-      console.error('Exception fetching user profile:', error);
+    } catch {
       return null;
     }
   }, []);
@@ -83,7 +81,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
 
         if (sessionError) {
-          console.error('Error getting session:', sessionError);
           if (mounted) {
             setLoading(false);
             setInitialized(true);
@@ -112,8 +109,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               setIsAdmin(adminStatus);
             }
           } else {
-            // User authenticated but no profile found - this can happen for new users
-            console.warn('Authenticated user has no linked profile');
             setProfile(null);
             setIsAdmin(false);
           }
@@ -124,8 +119,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setProfile(null);
           setIsAdmin(false);
         }
-      } catch (error) {
-        console.error('Auth initialization error:', error);
+      } catch {
+        // Auth initialization failed - user will be treated as unauthenticated
       } finally {
         if (mounted) {
           setLoading(false);
@@ -141,8 +136,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, newSession) => {
         if (!mounted) return;
-
-        console.log('Auth state changed:', event);
 
         if (event === 'SIGNED_OUT') {
           setSession(null);
@@ -216,8 +209,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // (session might already be invalidated)
     try {
       await supabase.auth.signOut({ scope: 'local' });
-    } catch (error) {
-      console.log('Sign out completed (session may have been already invalidated)');
+    } catch {
+      // Session may have been already invalidated - continue with redirect
     }
     
     // Always redirect to home

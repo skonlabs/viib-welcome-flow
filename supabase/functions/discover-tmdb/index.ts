@@ -1,12 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { getCorsHeaders } from '../_shared/cors.ts';
 
 const TMDB_API_KEY = Deno.env.get('TMDB_API_KEY');
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
 
 // TMDB Genre ID to Name mapping
 const GENRE_MAP: Record<number, string> = {
@@ -37,8 +33,10 @@ const GENRE_NAME_TO_ID: Record<string, number> = Object.fromEntries(
 );
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response('ok', { headers: corsHeaders });
   }
 
   try {
@@ -63,8 +61,6 @@ serve(async (req) => {
     const minDate = minYear || threeYearsAgo.toISOString().split('T')[0];
 
     const providerFilter = streamingProviderIds.length > 0 ? streamingProviderIds.join('|') : null;
-    
-    console.log(`[discover-tmdb] Fetching movies: languages=${languages}, minDate=${minDate}, minRating=${minRating}, providers=${providerFilter || 'none'}, region=${region}`);
 
     // Fetch multiple pages to get enough movies - track language priority
     const allMovies: any[] = [];
@@ -76,9 +72,7 @@ serve(async (req) => {
       
       // Use lower vote_count threshold for non-English languages (they have fewer votes on TMDB)
       const voteCountThreshold = language === 'en' ? 50 : 20;
-      
-      console.log(`[discover-tmdb] Fetching ${language} movies (priority=${languagePriority}, voteCount>=${voteCountThreshold})`);
-      
+
       for (let page = 1; page <= Math.min(pagesToFetch, 5); page++) {
         const url = new URL(`${TMDB_BASE_URL}/discover/movie`);
         url.searchParams.set('api_key', TMDB_API_KEY);
@@ -111,8 +105,6 @@ serve(async (req) => {
       }
     }
 
-    console.log(`[discover-tmdb] Fetched ${allMovies.length} raw movies`);
-
     // Deduplicate by TMDB ID - keep the one with highest language priority
     const movieMap = new Map<number, any>();
     for (const movie of allMovies) {
@@ -125,8 +117,6 @@ serve(async (req) => {
 
     // Filter by popularity
     const filteredMovies = uniqueMovies.filter(m => (m.popularity || 0) >= minPopularity);
-
-    console.log(`[discover-tmdb] After filtering: ${filteredMovies.length} movies`);
 
     // Sort by language priority first, then by popularity
     const topMovies = filteredMovies
@@ -153,9 +143,6 @@ serve(async (req) => {
       genres: (movie.genre_ids || []).map((id: number) => GENRE_MAP[id]).filter(Boolean),
       overview: movie.overview,
     }));
-
-    console.log(`[discover-tmdb] Returning ${formattedMovies.length} movies. Top 5:`, 
-      formattedMovies.slice(0, 5).map((m: any) => `${m.name} (${m.release_date})`));
 
     return new Response(
       JSON.stringify({ movies: formattedMovies }),

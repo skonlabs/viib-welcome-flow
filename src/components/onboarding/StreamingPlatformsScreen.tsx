@@ -67,7 +67,6 @@ export const StreamingPlatformsScreen = ({ onContinue, onBack, initialPlatforms 
         })));
       }
     } catch (err) {
-      console.error('Failed to fetch streaming services:', err);
       setError('Unable to load streaming platforms. Please try again.');
       toast.error('Failed to load streaming platforms');
     } finally {

@@ -5,7 +5,7 @@ import { BackButton } from "./BackButton";
 import { FloatingParticles } from "./FloatingParticles";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { errorLogger } from "@/lib/services/LoggerService";
@@ -27,6 +27,21 @@ export const SocialConnectionScreen = ({ onInvite, onSkip, onBack }: SocialConne
   const { toast } = useToast();
   
   const userId = localStorage.getItem('viib_user_id');
+
+  useEffect(() => {
+    if (!userId) {
+      toast({
+        title: "Session Error",
+        description: "User session not found. Please sign in again.",
+        variant: "destructive"
+      });
+    }
+  }, [userId, toast]);
+
+  if (!userId) {
+    return null;
+  }
+
   const inviteLink = `${window.location.origin}?invited_by=${userId}`;
 
   const handleAddInvite = () => {

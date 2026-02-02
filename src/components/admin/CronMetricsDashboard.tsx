@@ -79,7 +79,7 @@ export const CronMetricsDashboard = () => {
         setMetrics(newMetrics);
       }
     } catch (error) {
-      console.error('Failed to fetch cron metrics:', error);
+      // Silently handle - metrics will retry on next poll
     } finally {
       setLoading(false);
     }

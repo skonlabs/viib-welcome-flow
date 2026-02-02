@@ -40,8 +40,6 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
         if (userLanguages && userLanguages.length > 0) {
           languageCodes = userLanguages.map(l => l.language_code);
         }
-        console.log('[VisualTaste] Languages:', languageCodes);
-
         // Get user's streaming subscriptions for the AI prompt
         let streamingServices: string[] = ['Netflix', 'Amazon Prime Video']; // Defaults
         
@@ -63,8 +61,6 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
           }
         }
         
-        console.log('[VisualTaste] Streaming services:', streamingServices);
-
         // Call the new AI-powered edge function
         const { data, error } = await supabase.functions.invoke('get-genre-movies-ai', {
           body: {
@@ -75,16 +71,13 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
         });
 
         if (error) {
-          console.error('[VisualTaste] AI edge function error:', error);
           setLoading(false);
           return;
         }
 
         const movies = data?.movies || [];
-        console.log('[VisualTaste] Got', movies.length, 'genre movies from AI, found:', data?.stats?.found);
 
         if (movies.length === 0) {
-          console.log('[VisualTaste] No movies found');
           setLoading(false);
           return;
         }
@@ -104,15 +97,12 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
               poster_path: movie.title.poster_path,
               orderIndex: i
             });
-          } else {
-            console.log(`[VisualTaste] Skipping ${movie.genre}: "${movie.ai_recommendation.title}" - not found in DB`);
           }
         }
 
-        console.log('[VisualTaste] Genre options:', genreOptions.length, genreOptions.map(g => `${g.genre_name}: ${g.title_name}`));
         setOptions(genreOptions);
       } catch (err) {
-        console.error('[VisualTaste] Failed to load genre options:', err);
+        // silently handled
       } finally {
         setLoading(false);
       }
@@ -166,11 +156,10 @@ export const VisualTasteScreen = ({ onContinue, onBack }: VisualTasteScreenProps
               .from('user_genre_preferences')
               .insert(preferences);
             
-            console.log('[VisualTaste] Saved genre preferences:', genres.map(g => g.genre_name));
           }
         }
       } catch (err) {
-        console.error('Failed to save taste preferences:', err);
+        // silently handled
       }
     }
     onContinue(selectedGenres);

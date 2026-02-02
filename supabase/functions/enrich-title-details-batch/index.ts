@@ -6,10 +6,7 @@ declare const EdgeRuntime: {
   waitUntil: (promise: Promise<unknown>) => void;
 };
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import { getCorsHeaders } from '../_shared/cors.ts';
 
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
 const YOUTUBE_SEARCH_URL = 'https://www.googleapis.com/youtube/v3/search';
@@ -66,8 +63,10 @@ const OFFICIAL_CHANNELS = [
 const OFFICIAL_KEYWORDS = ['official', 'trailer', 'studios', 'pictures', 'entertainment', 'films', 'productions'];
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response('ok', { headers: corsHeaders });
   }
 
   const TMDB_API_KEY = Deno.env.get('TMDB_API_KEY');
@@ -137,7 +136,6 @@ serve(async (req) => {
         const hasOfficialKeywords = OFFICIAL_KEYWORDS.some(keyword => channelTitle.includes(keyword));
 
         if (isOfficialChannel || (isOfficialVideo && hasOfficialKeywords)) {
-          console.log(`  ✓ Found YouTube trailer from: "${item.snippet.channelTitle}"`);
           return `https://www.youtube.com/watch?v=${item.id.videoId}`;
         }
       }
@@ -200,7 +198,6 @@ serve(async (req) => {
       if (isEnglishLang) {
         return content;
       } else {
-        console.log(`  ⚠ Non-English transcript (${lang}), translating...`);
         return await translateToEnglish(content);
       }
     } catch (error) {
@@ -311,7 +308,6 @@ Begin now.`;
       jobId = body.jobId || null;
     } catch { /* No body */ }
 
-    console.log('Starting Enrich Title Details Batch job (with YouTube + Transcription)...');
     const startTime = Date.now();
 
     // Check if job was stopped
@@ -323,7 +319,6 @@ Begin now.`;
         .single();
 
       if (jobCheck?.status === 'stopped' || jobCheck?.status === 'idle' || jobCheck?.status === 'failed' || !jobCheck?.is_active) {
-        console.log(`Job stopped/deactivated (status: ${jobCheck?.status}), exiting...`);
         return new Response(
           JSON.stringify({ success: true, message: 'Job stopped by user', processed: 0 }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -341,7 +336,6 @@ Begin now.`;
         .select('status');
 
       if (!updateResult || updateResult.length === 0) {
-        console.log('Job status changed, exiting');
         return new Response(
           JSON.stringify({ success: true, message: 'Job was stopped', processed: 0 }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -350,7 +344,6 @@ Begin now.`;
     }
 
     // ========== PHASE 1: TITLES (Movies & Series) ==========
-    console.log('=== PHASE 1: Processing titles ===');
 
     // Prioritize titles with missing poster/overview/trailer (can always be fetched from TMDB)
     // Split into separate queries to avoid complex OR that causes timeouts
@@ -412,8 +405,6 @@ Begin now.`;
       }
     }
 
-    console.log(`Fetched ${titlesWithMissingBasics.length} titles with missing basics`);
-
     // Fill remaining slots with titles only needing transcripts (if we have capacity)
     let titlesNeedingEnrichment = titlesWithMissingBasics || [];
     let remainingSlots = BATCH_SIZE - titlesNeedingEnrichment.length;
@@ -471,11 +462,8 @@ Begin now.`;
     let errors = 0;
     let wasStoppedByUser = false;
 
-    console.log(`Found ${titlesNeedingEnrichment.length} titles to process (${titlesWithMissingBasics?.length || 0} with missing basics)`);
-
     for (const title of (titlesNeedingEnrichment || [])) {
       if (Date.now() - startTime > MAX_RUNTIME_MS) {
-        console.log(`Runtime limit reached. Processed: ${titlesProcessed}`);
         break;
       }
 
@@ -483,7 +471,6 @@ Begin now.`;
       if (jobId && titlesProcessed % 10 === 0 && titlesProcessed > 0) {
         const { data: jobStatus } = await supabase.from('jobs').select('status').eq('id', jobId).single();
         if (jobStatus?.status === 'stopped' || jobStatus?.status === 'idle') {
-          console.log('Job stopped by user mid-batch');
           wasStoppedByUser = true;
           break;
         }
@@ -510,7 +497,6 @@ Begin now.`;
         if (!detailsRes.ok) {
           // 404 means content was deleted from TMDB - mark with placeholder to skip future attempts
           if (detailsRes.status === 404) {
-            console.log(`⚠ ${title.name}: removed from TMDB (404), marking as unavailable`);
             await supabase.from('titles').update({
               overview: title.overview || '[tmdb-unavailable]',
               poster_path: title.poster_path || '[tmdb-unavailable]',
@@ -608,7 +594,6 @@ Begin now.`;
             updateData.trailer_transcript = transcript;
             updates.push('transcript');
             transcriptsEnriched++;
-            console.log(`  ✓ Transcript: ${transcript.length} chars`);
           } else {
             // Mark as checked so we don't retry endlessly
             updateData.trailer_transcript = '[no-transcript]';
@@ -635,7 +620,6 @@ Begin now.`;
             
             if (rtData.rt_cscore !== null || rtData.rt_ascore !== null) {
               updates.push(`rt(c:${rtData.rt_cscore},a:${rtData.rt_ascore})`);
-              console.log(`  ✓ RT Scores: Critic ${rtData.rt_cscore}%, Audience ${rtData.rt_ascore}%`);
             }
           }
         }
@@ -649,7 +633,6 @@ Begin now.`;
             errors++;
           } else {
             titlesUpdated++;
-            console.log(`✓ ${title.name}: ${updates.join(', ')}`);
           }
         }
 
@@ -667,8 +650,6 @@ Begin now.`;
     let seasonsUpdated = 0;
 
     if (!wasStoppedByUser && Date.now() - startTime < MAX_RUNTIME_MS) {
-      console.log('=== PHASE 2: Processing seasons ===');
-
       const { data: seasonsToEnrich } = await supabase
         .from('seasons')
         .select('id, title_id, season_number, name, trailer_url, trailer_transcript, rt_cscore, rt_ascore, titles!inner(tmdb_id, name)')
@@ -681,8 +662,6 @@ Begin now.`;
         (season.trailer_transcript === null && hasValidTrailer(season.trailer_url)) ||
         (season.rt_cscore === null && OPENAI_API_KEY)
       );
-
-      console.log(`Found ${seasonsNeedingEnrichment.length} seasons to process`);
 
       for (const season of seasonsNeedingEnrichment) {
         if (Date.now() - startTime > MAX_RUNTIME_MS || wasStoppedByUser) break;
@@ -783,7 +762,6 @@ Begin now.`;
               
               if (rtData.rt_cscore !== null || rtData.rt_ascore !== null) {
                 updates.push(`rt(c:${rtData.rt_cscore},a:${rtData.rt_ascore})`);
-                console.log(`  ✓ RT Scores: Critic ${rtData.rt_cscore}%, Audience ${rtData.rt_ascore}%`);
               }
             }
           }
@@ -795,7 +773,6 @@ Begin now.`;
               errors++;
             } else {
               seasonsUpdated++;
-              console.log(`✓ ${titleName} S${season.season_number}: ${updates.join(', ')}`);
             }
           }
 
@@ -850,9 +827,6 @@ Begin now.`;
     const hasMoreWork = (remainingTitles || 0) > 0 || totalMissingTranscripts > 0;
     const isComplete = !hasMoreWork;
 
-    console.log(`Batch completed: ${totalProcessed} processed, ${totalUpdated} updated, ${trailersEnriched} trailers, ${transcriptsEnriched} transcripts, ${errors} errors in ${duration}s`);
-    console.log(`Remaining: ${remainingTitles} titles needing enrichment, ${totalMissingTranscripts} missing transcripts (${titlesMissingTranscripts} titles + ${seasonsMissingTranscripts} seasons)`);
-
     // Update job status
     if (jobId) {
       await supabase
@@ -880,8 +854,6 @@ Begin now.`;
     }
 
     if (shouldScheduleNext && jobId) {
-      console.log('More work remaining, scheduling next batch...');
-
       const invokeNextBatch = async () => {
         try {
           const { data: preInvokeCheck } = await supabase.from('jobs').select('status, is_active').eq('id', jobId).single();

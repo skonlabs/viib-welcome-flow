@@ -145,7 +145,6 @@ const SocialGraph = () => {
       if (usersRes.data) setUsers(usersRes.data);
       if (connectionsRes.data) setConnections(connectionsRes.data);
     } catch (error) {
-      console.error('Error loading data:', error);
       toast.error('Failed to load social graph data');
     } finally {
       setLoading(false);
@@ -288,7 +287,6 @@ const SocialGraph = () => {
       toast.success('5-level sample data generated successfully!');
       await loadData();
     } catch (error) {
-      console.error('Error generating sample data:', error);
       toast.error('Failed to generate sample data');
     } finally {
       setGenerating(false);
@@ -323,7 +321,6 @@ const SocialGraph = () => {
       setShowDeleteDialog(false);
       await loadData();
     } catch (error) {
-      console.error('Error deleting sample data:', error);
       toast.error('Failed to delete sample data');
     } finally {
       setDeleting(false);

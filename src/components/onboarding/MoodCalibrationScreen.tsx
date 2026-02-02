@@ -1,8 +1,10 @@
+import { useEffect } from "react";
 import { motion } from "framer-motion";
 import { BackButton } from "./BackButton";
 import { FloatingParticles } from "./FloatingParticles";
 import { MoodSelector } from "@/components/mood/MoodSelector";
 import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 interface MoodCalibrationScreenProps {
   onContinue: (mood: {
@@ -18,15 +20,36 @@ export const MoodCalibrationScreen = ({
   onContinue,
   onBack,
 }: MoodCalibrationScreenProps) => {
-  const userId = localStorage.getItem('viib_user_id') || '';
+  const { toast } = useToast();
+  const userId = localStorage.getItem('viib_user_id');
+
+  useEffect(() => {
+    if (!userId) {
+      toast({
+        title: "Session Error",
+        description: "User session not found. Please sign in again.",
+        variant: "destructive"
+      });
+    }
+  }, [userId, toast]);
+
+  if (!userId) {
+    return null;
+  }
 
   const handleMoodSaved = async (mood: { valence: number; arousal: number; label: string }) => {
     // Update last onboarding step
-    if (userId) {
-      await supabase
-        .from('users')
-        .update({ last_onboarding_step: '/app/onboarding/mood' })
-        .eq('id', userId);
+    const { error } = await supabase
+      .from('users')
+      .update({ last_onboarding_step: '/app/onboarding/mood' })
+      .eq('id', userId);
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to save progress. Your mood was still recorded.",
+        variant: "destructive"
+      });
     }
 
     // Continue to next step with converted values

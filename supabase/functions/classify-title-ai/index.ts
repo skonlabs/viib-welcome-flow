@@ -26,10 +26,7 @@ const MAX_TRANSCRIPT_CHARS = 6000;
 const AI_TIMEOUT_MS = 30000;
 const MAX_RETRIES = 2;
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { getCorsHeaders } from '../_shared/cors.ts';
 
 const INTENT_TYPES = [
   "adrenaline_rush",
@@ -112,7 +109,6 @@ async function incrementJobTitles(count: number): Promise<void> {
 }
 
 async function markJobComplete(): Promise<void> {
-  console.log("✅ Classification job complete, marking as idle");
   await supabase
     .from("jobs")
     .update({ status: "idle", error_message: null, configuration: {} })
@@ -128,7 +124,6 @@ async function markJobFailed(error: string): Promise<void> {
 
 // FIXED: Only save cursor when we have successfully processed titles
 async function saveCursor(cursor: string): Promise<void> {
-  console.log(`💾 Saving cursor: ${cursor}`);
   await supabase
     .from("jobs")
     .update({ configuration: { last_processed_id: cursor } })
@@ -142,14 +137,12 @@ async function getEmotionVocabulary(): Promise<{
   const now = Date.now();
 
   if (emotionVocabularyCache && now - emotionVocabularyCache.timestamp < EMOTION_CACHE_TTL) {
-    console.log("✅ Using cached emotion vocabulary");
     return {
       labels: emotionVocabularyCache.labels,
       labelToId: emotionVocabularyCache.labelToId,
     };
   }
 
-  console.log("🔄 Loading emotion vocabulary from DB...");
   const { data: emotions, error: emoErr } = await supabase
     .from("emotion_master")
     .select("id, emotion_label")
@@ -355,7 +348,6 @@ async function bulkInsertIntents(intentRows: ProcessedResult["intents"]): Promis
 // FIXED: Self-invoke with proper error handling
 async function invokeNextBatch(): Promise<boolean> {
   try {
-    console.log("🔄 Self-invoking for next batch...");
     const response = await supabase.functions.invoke("classify-title-ai", {
       body: { continuation: true },
     });
@@ -365,7 +357,6 @@ async function invokeNextBatch(): Promise<boolean> {
       return false;
     }
     
-    console.log("✅ Self-invoke successful");
     return true;
   } catch (err) {
     console.error("Failed to self-invoke:", err);
@@ -383,12 +374,10 @@ async function processClassificationBatch(): Promise<{ processed: number; hasMor
   const { status, config } = await getJobConfig();
 
   if (status !== "running") {
-    console.log(`Job status is '${status}', exiting.`);
     return { processed: 0, hasMore: false };
   }
 
   const cursor = config.last_processed_id || null;
-  console.log(`📦 Starting batch with cursor: ${cursor || "(none)"}`);
 
   // Step 2: Load emotion vocabulary (CACHED)
   const { labels: emotionLabels, labelToId: emotionLabelToId } = await getEmotionVocabulary();
@@ -405,17 +394,13 @@ async function processClassificationBatch(): Promise<{ processed: number; hasMor
   }
 
   if (!batch || batch.length === 0) {
-    console.log("✅ No more titles to classify!");
     await markJobComplete();
     return { processed: 0, hasMore: false };
   }
 
-  console.log(`📊 Processing ${batch.length} titles with ${CONCURRENT_AI_CALLS} concurrent AI calls...`);
-
   // Step 4: Re-check job status before processing
   const jobStatus = await getJobConfig();
   if (jobStatus?.status !== "running") {
-    console.log("⚠️ Job stopped by user, aborting.");
     return { processed: 0, hasMore: false };
   }
 
@@ -437,7 +422,6 @@ async function processClassificationBatch(): Promise<{ processed: number; hasMor
   });
 
   const aiDuration = Date.now() - aiStartTime;
-  console.log(`⏱️ AI calls completed in ${aiDuration}ms (${Math.round(aiDuration / batch.length)}ms avg)`);
 
   // Step 6: Process results and prepare bulk insert data
   const allEmotions: ProcessedResult["emotions"] = [];
@@ -458,7 +442,6 @@ async function processClassificationBatch(): Promise<{ processed: number; hasMor
         successfulTitleIds.push(title.id);
       } else {
         emptyResults++;
-        console.log(`📝 Marking ${title.id} (${title.name}) as processed despite empty AI result`);
       }
       processedTitleIds.push(title.id);
     } else {
@@ -466,8 +449,6 @@ async function processClassificationBatch(): Promise<{ processed: number; hasMor
       console.error("❌ Processing failed:", settledResult.reason);
     }
   }
-
-  console.log(`📊 Batch stats: ${successCount} success, ${emptyResults} empty, ${aiFailures} failures`);
 
   // FIXED: If ALL titles failed, report error instead of silently continuing
   if (successCount === 0 && emptyResults === 0) {
@@ -506,8 +487,6 @@ async function processClassificationBatch(): Promise<{ processed: number; hasMor
           .from("viib_intent_classified_titles_staging")
           .upsert(placeholderIntents, { onConflict: "title_id,intent_type", ignoreDuplicates: true }),
       ]);
-      
-      console.log(`📝 Inserted ${emptyTitleIds.length} placeholder records for empty AI results`);
     }
   }
 
@@ -521,7 +500,6 @@ async function processClassificationBatch(): Promise<{ processed: number; hasMor
     ]);
 
     const dbDuration = Date.now() - dbStartTime;
-    console.log(`💾 DB inserts: ${emotionCount} emotions + ${intentCount} intents in ${dbDuration}ms`);
   }
 
   // FIXED: Get the last title ID from the batch for cursor (not just successful ones)
@@ -540,9 +518,6 @@ async function processClassificationBatch(): Promise<{ processed: number; hasMor
   const totalDuration = Date.now() - startTime;
   const hasMore = batch.length === BATCH_SIZE;
 
-  console.log(`✅ Batch complete: ${actualProcessed}/${batch.length} titles in ${totalDuration}ms. Has more: ${hasMore}`);
-  console.log(`   📈 Throughput: ${Math.round((actualProcessed / totalDuration) * 1000)} titles/sec`);
-
   return { processed: actualProcessed, hasMore };
 }
 
@@ -550,15 +525,15 @@ async function processClassificationBatch(): Promise<{ processed: number; hasMor
 // Main handler
 // ---------------------------------------------------------------------
 serve(async (req: Request) => {
+  const corsHeaders = getCorsHeaders(req);
+
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response('ok', { headers: corsHeaders });
   }
 
   if (req.method !== "POST") {
     return new Response("Method Not Allowed", { status: 405, headers: corsHeaders });
   }
-
-  console.log(`▶️ classify-title-ai invoked`);
 
   try {
     const { processed, hasMore, error } = await processClassificationBatch();

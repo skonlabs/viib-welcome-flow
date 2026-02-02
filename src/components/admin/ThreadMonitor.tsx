@@ -6,6 +6,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { CheckCircle2, XCircle, Clock, AlertCircle, Info, Film, Tv, Loader2 } from '@/icons';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 interface WorkUnit {
   languageCode: string;
@@ -45,7 +46,7 @@ export function ThreadMonitor({ jobId, totalWorkUnits, isRunning, titlesProcesse
         .single();
 
       if (error) {
-        console.error('Error fetching thread status:', error);
+        toast.error('Error fetching thread status');
         return;
       }
 

@@ -7,6 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { errorLogger } from '@/lib/services/LoggerService';
 import { User, Mail, Phone, Globe, Calendar } from '@/icons';
 
 interface ProfileModalProps {
@@ -15,7 +16,7 @@ interface ProfileModalProps {
 }
 
 export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
-  const { profile } = useAuth();
+  const { profile, refreshProfile } = useAuth();
   const [fullName, setFullName] = useState('');
   const [username, setUsername] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
@@ -32,9 +33,7 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
     setIsUpdating(true);
 
     try {
-      const userId = localStorage.getItem('viib_user_id');
-      
-      if (!userId) throw new Error('User ID not found');
+      if (!profile?.id) throw new Error('User profile not found');
 
       const { error } = await supabase
         .from('users')
@@ -42,16 +41,17 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
           full_name: fullName.trim() || null,
           username: username.trim() || null,
         })
-        .eq('id', userId);
+        .eq('id', profile.id);
 
       if (error) throw error;
 
       toast.success('Profile updated successfully!');
-      
-      // Refresh user data
-      window.location.reload();
+
+      // Refresh user data via auth context instead of full page reload
+      await refreshProfile();
+      onOpenChange(false);
     } catch (error) {
-      console.error('Error updating profile:', error);
+      await errorLogger.log(error, { operation: 'profile_update' });
       toast.error('Failed to update profile. Please try again.');
     } finally {
       setIsUpdating(false);

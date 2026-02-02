@@ -9,8 +9,12 @@ export const CookieConsentBanner = () => {
   const [showBanner, setShowBanner] = useState(false);
 
   useEffect(() => {
-    // Check if user has already consented
-    const consent = localStorage.getItem(COOKIE_CONSENT_KEY);
+    let consent: string | null = null;
+    try {
+      consent = localStorage.getItem(COOKIE_CONSENT_KEY);
+    } catch {
+      // localStorage unavailable (e.g., private browsing)
+    }
     if (!consent) {
       // Small delay before showing banner
       const timer = setTimeout(() => setShowBanner(true), 1500);
@@ -19,22 +23,22 @@ export const CookieConsentBanner = () => {
   }, []);
 
   const handleAcceptAll = () => {
-    localStorage.setItem(COOKIE_CONSENT_KEY, JSON.stringify({
+    try { localStorage.setItem(COOKIE_CONSENT_KEY, JSON.stringify({
       essential: true,
       analytics: true,
       marketing: false,
       timestamp: new Date().toISOString()
-    }));
+    })); } catch { /* storage unavailable */ }
     setShowBanner(false);
   };
 
   const handleAcceptEssential = () => {
-    localStorage.setItem(COOKIE_CONSENT_KEY, JSON.stringify({
+    try { localStorage.setItem(COOKIE_CONSENT_KEY, JSON.stringify({
       essential: true,
       analytics: false,
       marketing: false,
       timestamp: new Date().toISOString()
-    }));
+    })); } catch { /* storage unavailable */ }
     setShowBanner(false);
   };
 

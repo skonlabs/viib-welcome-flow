@@ -105,8 +105,8 @@ export default function Onboarding() {
             languages: languagesData?.map(l => l.language_code) || [],
           }));
         }
-      } catch (error) {
-        console.error('Error loading saved data:', error);
+      } catch {
+        // Saved data loading is optional; onboarding will work with defaults
       }
     };
 
@@ -235,13 +235,8 @@ export default function Onboarding() {
       .eq('phone_number', fullPhone)
       .maybeSingle();
     
-    if (checkError) {
-      console.error('Error checking existing user:', checkError);
-    }
-    
     // If user exists with verified phone, they're resuming onboarding
     if (existingUser && existingUser.is_phone_verified) {
-      console.log('User exists, resuming onboarding');
       localStorage.setItem('viib_user_id', existingUser.id);
       localStorage.setItem('viib_resume_onboarding', 'true');
       
@@ -276,12 +271,10 @@ export default function Onboarding() {
         .single();
 
       if (error && error.code !== '23505') {
-        console.error('Error creating user record:', error);
         throw error;
       }
 
       if (insertedUser) {
-        console.log('User record created successfully');
         localStorage.setItem('viib_user_id', insertedUser.id);
 
         // NOW mark the phone verification as complete in the database
@@ -317,8 +310,8 @@ export default function Onboarding() {
                 ipCountry = geoData.country_name || 'Unknown';
                 countryCode = geoData.country_code || 'US'; // Get 2-letter code
               }
-            } catch (geoError) {
-              console.error('Failed to fetch geo data:', geoError);
+            } catch {
+              // Geo lookup failed - continue with defaults
             }
 
             // Update user with IP data AND country code for streaming availability
@@ -331,14 +324,12 @@ export default function Onboarding() {
               })
               .eq('id', insertedUser.id);
 
-            console.log('IP/geo data updated for user:', { ipCountry, countryCode });
-          } catch (ipError) {
-            console.error('Failed to fetch IP data:', ipError);
+          } catch {
+            // IP lookup failed - non-critical, user record already created
           }
         })();
       }
     } catch (error) {
-      console.error('Error in handleOTPVerify:', error);
       throw error;
     }
     
@@ -371,7 +362,6 @@ export default function Onboarding() {
       body: { phoneNumber: navPhone },
     });
     if (error) {
-      console.error("Error resending phone OTP:", error);
       throw error;
     }
   };
@@ -387,7 +377,6 @@ export default function Onboarding() {
       body: { email: navEmail },
     });
     if (error) {
-      console.error("Error resending email OTP:", error);
       throw error;
     }
   };
@@ -494,8 +483,6 @@ export default function Onboarding() {
   };
 
   const handleComplete = async () => {
-    console.log("Onboarding completed with data:", onboardingData);
-    
     try {
       let userId: string | null = null;
       let userData: { email: string | null; password_hash: string | null; signup_method: string | null } | null = null;
@@ -504,8 +491,6 @@ export default function Onboarding() {
       const { data: { user: authUser } } = await supabase.auth.getUser();
       
       if (authUser) {
-        console.log('Found authenticated user via auth.uid:', authUser.id);
-        
         // Get the linked user profile from users table
         const { data: profileData, error: profileError } = await supabase
           .from('users')
@@ -513,14 +498,9 @@ export default function Onboarding() {
           .eq('auth_id', authUser.id)
           .maybeSingle();
         
-        if (profileError) {
-          console.error('Error fetching user profile by auth_id:', profileError);
-        }
-        
         if (profileData) {
           userId = profileData.id;
           userData = profileData;
-          console.log('Found user profile linked to auth:', userId);
         }
       }
       
@@ -529,17 +509,11 @@ export default function Onboarding() {
         const storedUserId = localStorage.getItem('viib_user_id');
         
         if (storedUserId) {
-          console.log('Using localStorage user ID:', storedUserId);
-          
           const { data: storedUserData, error: userError } = await supabase
             .from('users')
             .select('id, email, password_hash, signup_method')
             .eq('id', storedUserId)
             .maybeSingle();
-          
-          if (userError) {
-            console.error('Error fetching user data:', userError);
-          }
           
           if (storedUserData) {
             userId = storedUserData.id;
@@ -550,14 +524,11 @@ export default function Onboarding() {
       
       // No user found via either method
       if (!userId || !userData) {
-        console.error('No user found via auth session or localStorage');
         localStorage.removeItem('viib_user_id');
         toast.error('Session expired. Please restart onboarding.');
         navigate('/app/onboarding');
         return;
       }
-      
-      console.log('Completing onboarding for user:', userId);
       
       // Update user record with completion status
       const { error } = await supabase
@@ -569,11 +540,8 @@ export default function Onboarding() {
         .eq('id', userId);
       
       if (error) {
-        console.error('Error updating user record:', error);
         throw error;
       }
-      
-      console.log('Successfully updated onboarding_completed and is_active');
       
       // Clean up localStorage
       localStorage.removeItem('viib_resume_onboarding');
@@ -590,9 +558,7 @@ export default function Onboarding() {
             password,
           });
           
-          if (signInError) {
-            console.warn('Auth sign-in failed, user may need to login manually:', signInError);
-          }
+          // If sign-in fails, user will need to login manually after onboarding
         }
       }
       
@@ -602,8 +568,7 @@ export default function Onboarding() {
       
       // Navigate to home screen
       navigate("/app/home");
-    } catch (error) {
-      console.error('Error in handleComplete:', error);
+    } catch {
       toast.error('Something went wrong. Please try again.');
     }
   };

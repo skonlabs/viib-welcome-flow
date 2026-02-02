@@ -69,29 +69,18 @@ export function useRecommendations(userId: string | undefined): UseRecommendatio
     }
 
     try {
-      console.log("Fetching recommendations for user:", userId);
-
       const { data: recData, error: recError } = await supabase.rpc("get_top_recommendations_v13", {
         p_user_id: userId,
         p_limit: 10,
       });
 
-      console.log("Recommendation RPC response:", {
-        hasData: !!recData,
-        count: recData?.length,
-        error: recError,
-        firstItem: recData?.[0],
-      });
-
       if (recError) {
-        console.error("Recommendation function error:", recError);
         toast.error("Failed to load recommendations");
         setLoading(false);
         return;
       }
 
       if (!recData || recData.length === 0) {
-        console.log("No recommendations returned - keeping existing recommendations");
         setLoading(false);
         return;
       }
@@ -175,8 +164,7 @@ export function useRecommendations(userId: string | undefined): UseRecommendatio
         .filter(Boolean) as RecommendedTitle[];
 
       setRecommendations(enrichedRecs);
-    } catch (error) {
-      console.error("Error in fetchRecommendations:", error);
+    } catch {
       toast.error("Something went wrong");
     } finally {
       setLoading(false);
@@ -280,7 +268,6 @@ export function useRecommendations(userId: string | undefined): UseRecommendatio
         toast.success("Got it! We'll adjust your recommendations");
         return true;
       } else {
-        console.error("Error recording preference:", error);
         toast.error("Failed to record preference");
         return false;
       }

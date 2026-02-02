@@ -94,8 +94,8 @@ export function TitleDetailsModal({ title, open, onOpenChange, onAddToWatchlist,
       
       if (error) throw error;
       setEnrichedData(data);
-    } catch (error) {
-      console.error('Failed to fetch enriched data:', error);
+    } catch {
+      // Enriched data failed to load - will show basic info instead
     } finally {
       setLoading(false);
     }

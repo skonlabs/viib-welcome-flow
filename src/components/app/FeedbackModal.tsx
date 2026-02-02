@@ -6,7 +6,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
+import { errorLogger } from '@/lib/services/LoggerService';
 import { MessageSquare, Bug, Lightbulb, CheckCircle } from '@/icons';
 import { z } from 'zod';
 
@@ -23,6 +25,7 @@ interface FeedbackModalProps {
 }
 
 export const FeedbackModal = ({ open, onOpenChange }: FeedbackModalProps) => {
+  const { profile } = useAuth();
   const [activeTab, setActiveTab] = useState<FeedbackType>('support');
   const [title, setTitle] = useState('');
   const [message, setMessage] = useState('');
@@ -48,12 +51,10 @@ export const FeedbackModal = ({ open, onOpenChange }: FeedbackModalProps) => {
     setIsSubmitting(true);
 
     try {
-      const userId = localStorage.getItem('viib_user_id');
-
       const { error } = await supabase
         .from('feedback')
         .insert({
-          user_id: userId,
+          user_id: profile?.id || null,
           type: activeTab,
           title: title.trim(),
           message: message.trim(),
@@ -73,7 +74,7 @@ export const FeedbackModal = ({ open, onOpenChange }: FeedbackModalProps) => {
         onOpenChange(false);
       }, 2000);
     } catch (error) {
-      console.error('Error submitting feedback:', error);
+      await errorLogger.log(error, { operation: 'submit_feedback' });
       toast.error('Failed to submit feedback. Please try again.');
     } finally {
       setIsSubmitting(false);

@@ -200,7 +200,7 @@ export default function Watchlist() {
         setWatchedTitles(enrichedTitles);
       }
     } catch (error) {
-      console.error('Failed to load watchlist:', error);
+      // Watchlist load failed silently - UI will show empty state
     } finally {
       setLoading(false);
     }
@@ -276,7 +276,7 @@ export default function Watchlist() {
 
       setRecommendedTitles(enrichedTitles);
     } catch (error) {
-      console.error('Failed to load recommended titles:', error);
+      // Recommended titles load failed - non-critical
     } finally {
       setLoading(false);
     }
@@ -321,7 +321,7 @@ export default function Watchlist() {
         }
       }
     } catch (error) {
-      console.error('Failed to calculate stats:', error);
+      // Stats calculation failed - non-critical
     }
   };
 
@@ -371,7 +371,7 @@ export default function Watchlist() {
       loadRecommendedTitles();
       calculateStats();
     } catch (error) {
-      console.error('Failed to rate:', error);
+      // Rating failed - toast shown below
       toast.error('Failed to save rating');
     }
   };
@@ -408,7 +408,7 @@ export default function Watchlist() {
       loadWatchlist('pending');
       loadRecommendedTitles();
     } catch (error) {
-      console.error('Failed to add to watchlist:', error);
+      // Add to watchlist failed - toast shown below
       toast.error('Failed to add to watchlist');
     }
   };
@@ -428,7 +428,7 @@ export default function Watchlist() {
       loadWatchlist('watched');
       calculateStats();
     } catch (error) {
-      console.error('Failed to move:', error);
+      // Move failed - toast shown below
       toast.error('Failed to move');
     }
   };
@@ -462,7 +462,7 @@ export default function Watchlist() {
       setDeleteConfirmOpen(false);
       setItemToDelete(null);
     } catch (error) {
-      console.error('Failed to remove:', error);
+      // Remove failed - toast shown below
       toast.error('Failed to remove');
     }
   };

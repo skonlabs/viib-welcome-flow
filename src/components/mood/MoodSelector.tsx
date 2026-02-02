@@ -130,7 +130,6 @@ export const MoodSelector = ({
         .not('arousal', 'is', null);
       
       if (data) {
-        console.log('[MoodSelector] Loaded user_state emotions:', data.length);
         setEmotions(data);
       }
     };
@@ -151,9 +150,7 @@ export const MoodSelector = ({
         .maybeSingle();
 
       if (data && data.valence !== null && data.arousal !== null) {
-        // DB stores values in 0-1 scale, use isEmotionMaster=true for correct conversion
         const pos = emotionToPosition(data.valence, data.arousal, true);
-        console.log('[MoodSelector] Loaded last mood from DB:', { valence: data.valence, arousal: data.arousal, position: pos });
         setPosition(pos);
       }
     };
@@ -229,10 +226,6 @@ export const MoodSelector = ({
       const uiValence01 = (valence + 1) / 2; // Convert -1..1 to 0..1
       const uiArousal01 = (arousal + 1) / 2; // Convert -1..1 to 0..1
       
-      console.log('[MoodSelector] UI values:', { valence, arousal });
-      console.log('[MoodSelector] Converted to 0-1 scale:', { uiValence01, uiArousal01 });
-      console.log('[MoodSelector] Available emotions count:', emotions.length);
-      
       let closestEmotion = emotions[0];
       let minDistance = Infinity;
 
@@ -249,8 +242,6 @@ export const MoodSelector = ({
         }
       }
       
-      console.log('[MoodSelector] Closest emotion found:', closestEmotion?.emotion_label, 'distance:', minDistance);
-
       if (!closestEmotion) {
         toast.error('Could not determine mood');
         return;
@@ -276,8 +267,7 @@ export const MoodSelector = ({
       window.dispatchEvent(new CustomEvent('viib-mood-changed'));
       
       onMoodSaved({ valence, arousal, label: moodLabel });
-    } catch (error) {
-      console.error('Error saving mood:', error);
+    } catch {
       toast.error('Failed to save mood');
     } finally {
       setIsSaving(false);

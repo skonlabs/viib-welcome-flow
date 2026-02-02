@@ -53,7 +53,6 @@ export default function Login() {
       .single();
 
     if (userError || !user) {
-      console.error('Error fetching user profile:', userError);
       // New auth user without linked profile - go to onboarding
       navigate("/app/onboarding/welcome");
       return;
@@ -69,7 +68,7 @@ export default function Login() {
           lastStep === '/app/onboarding/entry' ||
           lastStep === '/app/onboarding/welcome' ||
           !lastStep) {
-        navigate("/app/onboarding/biometric");
+        navigate("/app/onboarding/identity");
       } else {
         navigate(lastStep);
       }
@@ -125,8 +124,7 @@ export default function Login() {
 
       // Supabase Auth session is now active - navigate based on profile
       await navigateAfterLogin(data.user.id);
-    } catch (err) {
-      console.error('Login error:', err);
+    } catch {
       setError("Something went wrong. Please try again later.");
     } finally {
       setLoading(false);
@@ -192,8 +190,7 @@ export default function Login() {
       }
 
       setOtpSent(true);
-    } catch (err) {
-      console.error('Send OTP error:', err);
+    } catch {
       setError("Something went wrong. Please try again later.");
     } finally {
       setLoading(false);

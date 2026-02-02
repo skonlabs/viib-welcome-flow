@@ -40,7 +40,11 @@ export const AppHeader = () => {
   });
 
   const handleSignOut = async () => {
-    await signOut();
+    try {
+      await signOut();
+    } catch {
+      // signOut handles its own error recovery and redirect
+    }
   };
 
   const getUserInitials = () => {
@@ -68,6 +72,7 @@ export const AppHeader = () => {
             variant="ghost"
             size="icon"
             className="hover:bg-white/5 relative h-8 w-8 sm:h-10 sm:w-10"
+            aria-label="Notifications"
           >
             <Bell className="w-4 h-4 sm:w-5 sm:h-5 text-icon-secondary" />
             {unreadCount > 0 && (
@@ -99,7 +104,7 @@ export const AppHeader = () => {
                 {visibleMenuItems.map((item) => (
               <DropdownMenuItem
                 key={item.label}
-                onClick={() => item.onClick ? item.onClick() : navigate(item.href)}
+                onClick={() => item.onClick ? item.onClick() : item.href && navigate(item.href)}
                 className="flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-muted/50 focus:bg-muted/50 rounded-lg transition-colors"
               >
                     <item.icon className="w-5 h-5 text-icon-secondary" />

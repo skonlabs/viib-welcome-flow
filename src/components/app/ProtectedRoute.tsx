@@ -27,7 +27,7 @@ export const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
     // User authenticated but no profile found
     // This means they're a new Supabase Auth user without a linked profile
     if (!profile) {
-      console.warn('User authenticated but no profile found, redirecting to onboarding');
+      // User authenticated but no profile found, redirecting to onboarding
       navigate('/app/onboarding', { replace: true });
       return;
     }

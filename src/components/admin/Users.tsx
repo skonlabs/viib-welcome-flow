@@ -105,7 +105,6 @@ const Users = () => {
       setUsers(data || []);
       setFilteredUsers(data || []);
     } catch (error) {
-      console.error('Error fetching users:', error);
       toast.error('Failed to load users');
     } finally {
       setLoading(false);
@@ -126,7 +125,6 @@ const Users = () => {
       toast.success(`User ${!userToToggle.currentStatus ? 'activated' : 'deactivated'} successfully`);
       fetchUsers();
     } catch (error) {
-      console.error('Error updating user status:', error);
       toast.error('Failed to update user status');
     } finally {
       setConfirmDialogOpen(false);
@@ -158,7 +156,6 @@ const Users = () => {
       toast.success('User deleted successfully');
       fetchUsers();
     } catch (error) {
-      console.error('Error deleting user:', error);
       toast.error('Failed to delete user');
     } finally {
       setDeleteDialogOpen(false);
