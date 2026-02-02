@@ -10,8 +10,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Switch } from '@/components/ui/switch';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Loader2, Plus, Edit, Trash2 } from '@/icons';
+import { Loader2, Plus, Edit, Trash2, ChevronLeft, ChevronRight } from '@/icons';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
 interface EmailTemplate {
   id?: string;
@@ -28,6 +29,10 @@ export const EmailTemplates = () => {
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<EmailTemplate | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [templateToDelete, setTemplateToDelete] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 25;
   const [formData, setFormData] = useState<EmailTemplate>({
     name: '',
     subject: '',
@@ -99,14 +104,19 @@ export const EmailTemplates = () => {
     setIsDialogOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this template?')) return;
+  const openDeleteDialog = (id: string) => {
+    setTemplateToDelete(id);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDelete = async () => {
+    if (!templateToDelete) return;
 
     try {
       const { error } = await supabase
         .from('email_templates')
         .delete()
-        .eq('id', id);
+        .eq('id', templateToDelete);
 
       if (error) throw error;
       toast.success('Template deleted successfully');
@@ -114,8 +124,16 @@ export const EmailTemplates = () => {
     } catch (error: any) {
       console.error('Error deleting template:', error);
       toast.error('Failed to delete template');
+    } finally {
+      setDeleteDialogOpen(false);
+      setTemplateToDelete(null);
     }
   };
+
+  const totalPages = Math.ceil(templates.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentTemplates = templates.slice(startIndex, endIndex);
 
   return (
     <div className="space-y-6 p-6">
@@ -232,13 +250,13 @@ export const EmailTemplates = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {templates.map((template) => (
+              {currentTemplates.map((template) => (
                 <TableRow key={template.id}>
                   <TableCell className="font-medium">{template.name}</TableCell>
                   <TableCell className="capitalize">{template.template_type}</TableCell>
                   <TableCell>{template.subject}</TableCell>
                   <TableCell>
-                    <span className={`px-2 py-1 rounded-full text-xs ${template.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+                    <span className={`px-2 py-1 rounded-full text-xs ${template.is_active ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200'}`}>
                       {template.is_active ? 'Active' : 'Inactive'}
                     </span>
                   </TableCell>
@@ -266,7 +284,7 @@ export const EmailTemplates = () => {
                               variant="ghost"
                               size="icon"
                               className="h-8 w-8"
-                              onClick={() => template.id && handleDelete(template.id)}
+                              onClick={() => template.id && openDeleteDialog(template.id)}
                             >
                               <Trash2 className="h-4 w-4 text-icon-danger" />
                             </Button>
@@ -280,8 +298,58 @@ export const EmailTemplates = () => {
               ))}
             </TableBody>
           </Table>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between mt-4">
+              <p className="text-sm text-muted-foreground">
+                Showing {startIndex + 1} to {Math.min(endIndex, templates.length)} of {templates.length} templates
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Previous
+                </Button>
+                <span className="text-sm">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the email template.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setTemplateToDelete(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

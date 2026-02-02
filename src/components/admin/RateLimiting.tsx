@@ -9,8 +9,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Switch } from '@/components/ui/switch';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Loader2, Plus, Edit, Trash2 } from '@/icons';
+import { Loader2, Plus, Edit, Trash2, ChevronLeft, ChevronRight } from '@/icons';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
 interface RateLimit {
   id?: string;
@@ -26,6 +27,10 @@ const RateLimiting = () => {
   const [rateLimits, setRateLimits] = useState<RateLimit[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingLimit, setEditingLimit] = useState<RateLimit | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [limitToDelete, setLimitToDelete] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 25;
   const [formData, setFormData] = useState<RateLimit>({
     endpoint: '',
     max_requests: 100,
@@ -97,14 +102,19 @@ const RateLimiting = () => {
     setIsDialogOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this rate limit?')) return;
+  const openDeleteDialog = (id: string) => {
+    setLimitToDelete(id);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDelete = async () => {
+    if (!limitToDelete) return;
 
     try {
       const { error } = await supabase
         .from('rate_limit_config')
         .delete()
-        .eq('id', id);
+        .eq('id', limitToDelete);
 
       if (error) throw error;
       toast.success('Rate limit deleted successfully');
@@ -112,8 +122,16 @@ const RateLimiting = () => {
     } catch (error: any) {
       console.error('Error deleting rate limit:', error);
       toast.error('Failed to delete rate limit');
+    } finally {
+      setDeleteDialogOpen(false);
+      setLimitToDelete(null);
     }
   };
+
+  const totalPages = Math.ceil(rateLimits.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentLimits = rateLimits.slice(startIndex, endIndex);
 
   return (
     <div className="space-y-6 p-6">
@@ -226,13 +244,13 @@ const RateLimiting = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rateLimits.map((limit) => (
+              {currentLimits.map((limit) => (
                 <TableRow key={limit.id}>
                   <TableCell className="font-medium">{limit.endpoint}</TableCell>
                   <TableCell>{limit.max_requests}</TableCell>
                   <TableCell>{limit.window_seconds}s</TableCell>
                   <TableCell>
-                    <span className={`px-2 py-1 rounded-full text-xs ${limit.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+                    <span className={`px-2 py-1 rounded-full text-xs ${limit.is_active ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200'}`}>
                       {limit.is_active ? 'Active' : 'Inactive'}
                     </span>
                   </TableCell>
@@ -260,7 +278,7 @@ const RateLimiting = () => {
                               variant="ghost"
                               size="icon"
                               className="h-8 w-8"
-                              onClick={() => limit.id && handleDelete(limit.id)}
+                              onClick={() => limit.id && openDeleteDialog(limit.id)}
                             >
                               <Trash2 className="h-4 w-4 text-icon-danger" />
                             </Button>
@@ -274,8 +292,58 @@ const RateLimiting = () => {
               ))}
             </TableBody>
           </Table>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between mt-4">
+              <p className="text-sm text-muted-foreground">
+                Showing {startIndex + 1} to {Math.min(endIndex, rateLimits.length)} of {rateLimits.length} rules
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Previous
+                </Button>
+                <span className="text-sm">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the rate limit configuration.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setLimitToDelete(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
