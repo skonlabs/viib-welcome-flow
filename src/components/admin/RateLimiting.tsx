@@ -178,7 +178,7 @@ const RateLimiting = () => {
                     id="max_requests"
                     type="number"
                     value={formData.max_requests}
-                    onChange={(e) => setFormData({ ...formData, max_requests: parseInt(e.target.value) })}
+                    onChange={(e) => setFormData({ ...formData, max_requests: parseInt(e.target.value) || 1 })}
                     placeholder="100"
                   />
                 </div>
@@ -189,7 +189,7 @@ const RateLimiting = () => {
                     id="window_seconds"
                     type="number"
                     value={formData.window_seconds}
-                    onChange={(e) => setFormData({ ...formData, window_seconds: parseInt(e.target.value) })}
+                    onChange={(e) => setFormData({ ...formData, window_seconds: parseInt(e.target.value) || 1 })}
                     placeholder="60"
                   />
                 </div>
