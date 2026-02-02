@@ -3960,11 +3960,19 @@ export type Database = {
       get_top_recommendations_v13: {
         Args: { p_limit?: number; p_user_id: string }
         Returns: {
+          context_score: number
+          emotion_score: number
           final_score: number
+          intent_score: number
+          novelty_score: number
+          pick_prob_est: number
           poster_path: string
+          quality_score: number
           rank: number
           reasons: Json
           slate_slot: string
+          social_score: number
+          taste_score: number
           title_id: string
           title_name: string
           title_type: string
