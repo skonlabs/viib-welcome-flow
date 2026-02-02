@@ -48,7 +48,6 @@ export const EmailSetup = () => {
       if (error) throw error;
       if (data) setConfig(data);
     } catch (error: any) {
-      console.error('Error fetching email config:', error);
       toast.error('Failed to load email configuration');
     }
   };
@@ -83,7 +82,6 @@ export const EmailSetup = () => {
       toast.success('Email configuration saved successfully');
       fetchConfig();
     } catch (error: any) {
-      console.error('Error saving email config:', error);
       toast.error('Failed to save email configuration');
     } finally {
       setLoading(false);

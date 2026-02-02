@@ -142,7 +142,7 @@ export const Jobs = () => {
         });
       }
     } catch (error) {
-      console.error("Error fetching job metrics:", error);
+      // Silently handle - metrics will retry on next poll
     }
   };
 
@@ -200,7 +200,7 @@ export const Jobs = () => {
         totalPending,
       });
     } catch (error) {
-      console.error("Error fetching enrich metrics:", error);
+      // Silently handle - metrics will retry on next poll
     }
   };
 
@@ -210,7 +210,6 @@ export const Jobs = () => {
       const { data: corruptedCount, error } = await supabase.rpc("get_corrupted_streaming_count" as any);
 
       if (error) {
-        console.error("Error calling get_corrupted_streaming_count:", error);
         return;
       }
 
@@ -226,7 +225,7 @@ export const Jobs = () => {
         totalFixed: fixJob?.total_titles_processed || 0,
       });
     } catch (error) {
-      console.error("Error fetching streaming metrics:", error);
+      // Silently handle - metrics will retry on next poll
     }
   };
 
@@ -282,8 +281,7 @@ export const Jobs = () => {
       if (error) throw error;
       setCronJobs(data || []);
     } catch (error) {
-      // Cron jobs might not be accessible, just log silently
-      console.log("Could not fetch cron jobs:", error);
+      // Cron jobs might not be accessible, fall back silently
       setCronJobs([]);
     } finally {
       setCronLoading(false);
@@ -771,7 +769,6 @@ export const Jobs = () => {
               err.message?.includes("network") ||
               err.message?.includes("timeout"))
           ) {
-            console.log(`[fix_streaming] Retrying in ${RETRY_DELAY / 1000}s...`);
             await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY));
             continue;
           }
@@ -842,8 +839,6 @@ export const Jobs = () => {
           break;
         }
 
-        console.log(`[fix_streaming] Running batch ${batchCount} with cursor: ${cursor || "start"}...`);
-
         const data = await invokeWithRetry(cursor, batchSize);
 
         if (data?.stopped) {
@@ -863,10 +858,6 @@ export const Jobs = () => {
         // Update cursor for next batch
         cursor = data?.nextCursor || null;
 
-        console.log(
-          `[fix_streaming] Batch ${batchCount} complete: fixed=${batchFixed}, processed=${batchProcessed}, remaining=${data?.remaining}, nextCursor=${cursor}`,
-        );
-
         // Save cursor to job config every batch so we can resume on failure
         await supabase
           .from("jobs")
@@ -880,7 +871,6 @@ export const Jobs = () => {
         if (batchProcessed === 0) {
           consecutiveEmptyBatches++;
           if (consecutiveEmptyBatches >= MAX_EMPTY_BATCHES) {
-            console.log(`[fix_streaming] ${MAX_EMPTY_BATCHES} consecutive empty batches, stopping`);
             break;
           }
         } else {
@@ -1037,7 +1027,7 @@ export const Jobs = () => {
                 },
               });
             } catch (error) {
-              console.error(`Error invoking batch ${i + 1}:`, error);
+              // Batch invocation failed - will be retried on next run
             }
           }, delayMs);
         }
@@ -1144,7 +1134,6 @@ export const Jobs = () => {
         .eq("id", job.id);
 
       if (updateError) {
-        console.error("Failed to update job status:", updateError);
         toast({
           title: "Failed to Start Job",
           description: "Could not update job status to 'running'. Check console for details.",
@@ -1161,7 +1150,6 @@ export const Jobs = () => {
         .single();
 
       if (verifyError || verifyJob?.status !== "running") {
-        console.error("Job status verification failed:", { status: verifyJob?.status, error: verifyError });
         toast({
           title: "Job Status Update Failed",
           description: `Job status is '${verifyJob?.status}' instead of 'running'. Cannot start threads.`,
@@ -1215,7 +1203,6 @@ export const Jobs = () => {
           description: `Backend is dispatching ${chunks.length - startIndex} threads in batches of 10 with 10s delays. Estimated time: ~1-2 hours.`,
         });
       } catch (error) {
-        console.error("Error starting orchestrator:", error);
         toast({
           title: "Orchestrator Failed",
           description: "Failed to start backend orchestrator. Check logs for details.",
@@ -1279,10 +1266,7 @@ export const Jobs = () => {
 
   const handleStopJob = async (job: Job) => {
     try {
-      // Log that stop was initiated with timestamp and stack trace for debugging
       const stopTimestamp = new Date().toISOString();
-      console.log(`[${stopTimestamp}] handleStopJob called for job: ${job.job_name} (${job.id})`);
-      console.log("Stop job call stack:", new Error().stack);
 
       // Stop the job - use 'idle' status (allowed by check constraint)
       const { data, error } = await supabase
@@ -1296,16 +1280,12 @@ export const Jobs = () => {
         .select();
 
       if (error) {
-        console.error("Stop job error:", error);
         throw error;
       }
 
       if (!data || data.length === 0) {
-        console.error("No rows updated - RLS may be blocking");
         throw new Error("Update failed - no rows modified");
       }
-
-      console.log(`[${stopTimestamp}] Job stopped successfully:`, data);
 
       // Clear parallel progress UI immediately
       setParallelProgress(null);
@@ -1318,7 +1298,6 @@ export const Jobs = () => {
 
       await fetchJobs();
     } catch (error: any) {
-      console.error("Stop job failed:", error?.message || error);
       await errorLogger.log(error, {
         operation: "stop_job",
         jobId: job.id,

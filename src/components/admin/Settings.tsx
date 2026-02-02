@@ -178,7 +178,6 @@ export default function Settings() {
         });
       }
     } catch (error) {
-      console.error('Error loading settings:', error);
       toast.error('Failed to load settings');
     } finally {
       setLoading(false);
@@ -201,7 +200,6 @@ export default function Settings() {
       if (error) throw error;
       toast.success('OTP rate limit saved successfully');
     } catch (error) {
-      console.error('Error saving OTP rate limit:', error);
       toast.error('Failed to save OTP rate limit');
     } finally {
       setSaving(false);
@@ -224,7 +222,6 @@ export default function Settings() {
       if (error) throw error;
       toast.success('Supported countries saved successfully');
     } catch (error) {
-      console.error('Error saving countries:', error);
       toast.error('Failed to save countries');
     } finally {
       setSaving(false);
@@ -264,7 +261,6 @@ export default function Settings() {
       toast.success('ViiB weights saved successfully');
       loadSettings(); // Reload to get the updated ID
     } catch (error) {
-      console.error('Error saving ViiB weights:', error);
       toast.error('Failed to save ViiB weights');
     } finally {
       setSaving(false);

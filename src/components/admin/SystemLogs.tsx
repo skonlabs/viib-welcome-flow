@@ -53,7 +53,6 @@ export default function SystemLogs() {
         severity: log.severity as 'error' | 'warning' | 'info'
       })));
     } catch (error: any) {
-      console.error('Error loading system logs:', error);
       toast.error('Failed to load system logs');
     } finally {
       setLoading(false);
@@ -85,7 +84,6 @@ export default function SystemLogs() {
       setNotes('');
       fetchLogs();
     } catch (error: any) {
-      console.error('Error resolving system log:', error);
       toast.error('Failed to resolve system log');
     }
   };

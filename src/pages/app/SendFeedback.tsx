@@ -68,8 +68,7 @@ export default function SendFeedback() {
 
       setSubmitted(true);
       toast.success('Feedback submitted successfully!');
-    } catch (error) {
-      console.error('Error submitting feedback:', error);
+    } catch {
       toast.error('Failed to submit feedback. Please try again.');
     } finally {
       setIsSubmitting(false);

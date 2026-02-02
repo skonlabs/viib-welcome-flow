@@ -53,7 +53,6 @@ const RateLimiting = () => {
       if (error) throw error;
       setRateLimits(data || []);
     } catch (error: any) {
-      console.error('Error fetching rate limits:', error);
       toast.error('Failed to load rate limits');
     }
   };
@@ -89,7 +88,6 @@ const RateLimiting = () => {
       });
       fetchRateLimits();
     } catch (error: any) {
-      console.error('Error saving rate limit:', error);
       toast.error('Failed to save rate limit');
     } finally {
       setLoading(false);
@@ -120,7 +118,6 @@ const RateLimiting = () => {
       toast.success('Rate limit deleted successfully');
       fetchRateLimits();
     } catch (error: any) {
-      console.error('Error deleting rate limit:', error);
       toast.error('Failed to delete rate limit');
     } finally {
       setDeleteDialogOpen(false);

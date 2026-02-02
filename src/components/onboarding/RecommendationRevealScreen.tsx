@@ -5,6 +5,7 @@ import { BackButton } from "./BackButton";
 import { FloatingParticles } from "./FloatingParticles";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 interface Recommendation {
   title: string;
@@ -25,6 +26,7 @@ const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w200";
 export const RecommendationRevealScreen = ({ userName, recommendations, onContinue, onBack }: RecommendationRevealScreenProps) => {
   const [personalizedRecs, setPersonalizedRecs] = useState<Recommendation[]>([]);
   const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
 
   useEffect(() => {
     const loadPersonalizedFallback = async () => {
@@ -65,7 +67,11 @@ export const RecommendationRevealScreen = ({ userName, recommendations, onContin
         const personalizedMessages = getPersonalizedMessages(userName, vibe, intensity);
         setPersonalizedRecs(personalizedMessages);
       } catch (err) {
-        console.error('Failed to load personalized recommendations:', err);
+        toast({
+          title: "Notice",
+          description: "Couldn't load personalized recommendations. Showing defaults.",
+          variant: "destructive"
+        });
         setPersonalizedRecs(getDefaultRecommendations(userName));
       } finally {
         setLoading(false);

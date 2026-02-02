@@ -11,8 +11,14 @@ export const AppRedirect = () => {
     const checkUserStatus = async () => {
       try {
         // Get user ID from storage
-        const sessionData = localStorage.getItem('viib_session') || sessionStorage.getItem('viib_session');
-        const userId = sessionData ? JSON.parse(sessionData).userId : localStorage.getItem('viib_user_id');
+        let userId: string | null = null;
+        try {
+          const sessionData = localStorage.getItem('viib_session') || sessionStorage.getItem('viib_session');
+          userId = sessionData ? JSON.parse(sessionData).userId : localStorage.getItem('viib_user_id');
+        } catch {
+          // Corrupted session data - fall through to login redirect
+          userId = localStorage.getItem('viib_user_id');
+        }
 
         if (!userId) {
           navigate('/login');
@@ -38,7 +44,7 @@ export const AppRedirect = () => {
         // If onboarding not completed, redirect to onboarding
         if (!user.onboarding_completed) {
           localStorage.setItem('viib_resume_onboarding', 'true');
-          navigate('/app/onboarding/biometric');
+          navigate('/app/onboarding/identity');
           return;
         }
 

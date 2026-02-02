@@ -95,8 +95,8 @@ const UserSocialGraph = () => {
           
         if (usersData) setUsers(usersData);
       }
-    } catch (error) {
-      console.error('Error loading data:', error);
+    } catch {
+      // Social graph data load failed - UI shows empty state
     } finally {
       setLoading(false);
     }

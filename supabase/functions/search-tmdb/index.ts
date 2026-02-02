@@ -1,12 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { getCorsHeaders } from '../_shared/cors.ts';
 
 const TMDB_API_KEY = Deno.env.get('TMDB_API_KEY');
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
 
 // TMDB Genre ID to Name mapping
 const GENRE_MAP: Record<number, string> = {
@@ -40,9 +36,11 @@ const GENRE_MAP: Record<number, string> = {
 };
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response('ok', { headers: corsHeaders });
   }
 
   try {

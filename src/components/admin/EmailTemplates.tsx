@@ -55,7 +55,6 @@ export const EmailTemplates = () => {
       if (error) throw error;
       setTemplates(data || []);
     } catch (error: any) {
-      console.error('Error fetching templates:', error);
       toast.error('Failed to load templates');
     }
   };
@@ -91,7 +90,6 @@ export const EmailTemplates = () => {
       });
       fetchTemplates();
     } catch (error: any) {
-      console.error('Error saving template:', error);
       toast.error('Failed to save template');
     } finally {
       setLoading(false);
@@ -122,7 +120,6 @@ export const EmailTemplates = () => {
       toast.success('Template deleted successfully');
       fetchTemplates();
     } catch (error: any) {
-      console.error('Error deleting template:', error);
       toast.error('Failed to delete template');
     } finally {
       setDeleteDialogOpen(false);

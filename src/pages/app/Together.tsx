@@ -151,8 +151,7 @@ export default function Together() {
 
         setSharedTitles(shared);
       }
-    } catch (error) {
-      console.error('Failed to load together data:', error);
+    } catch {
       toast.error('Failed to load data');
     } finally {
       setLoading(false);

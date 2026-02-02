@@ -46,7 +46,6 @@ export default function ActivationCodes() {
       if (error) throw error;
       setCodes(data || []);
     } catch (error) {
-      console.error('Error fetching activation codes:', error);
       toast.error('Failed to load activation codes');
     } finally {
       setLoading(false);
@@ -94,7 +93,6 @@ export default function ActivationCodes() {
       resetForm();
       fetchCodes();
     } catch (error) {
-      console.error('Error creating activation code:', error);
       toast.error('Failed to create activation code');
     } finally {
       setGenerating(false);
@@ -113,7 +111,6 @@ export default function ActivationCodes() {
       toast.success('Activation code deleted successfully');
       fetchCodes();
     } catch (error) {
-      console.error('Error deleting activation code:', error);
       toast.error('Failed to delete activation code');
     } finally {
       setDeleteDialogOpen(false);
@@ -177,7 +174,6 @@ export default function ActivationCodes() {
         throw new Error(data?.error || 'Failed to send invitation');
       }
     } catch (error: any) {
-      console.error('Error sending invite:', error);
       toast.error(error.message || 'Failed to send invitation email');
     } finally {
       setSending(false);

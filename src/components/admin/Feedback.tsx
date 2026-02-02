@@ -38,7 +38,6 @@ const Feedback = ({ type }: FeedbackProps) => {
       if (error) throw error;
       setFeedback(data || []);
     } catch (error) {
-      console.error('Error fetching feedback:', error);
       toast.error('Failed to load feedback');
     } finally {
       setLoading(false);
@@ -65,7 +64,6 @@ const Feedback = ({ type }: FeedbackProps) => {
       setConfirmStatusChange(null);
       fetchFeedback();
     } catch (error) {
-      console.error('Error updating status:', error);
       toast.error('Failed to update status');
     }
   };

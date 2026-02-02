@@ -154,7 +154,6 @@ export default function Social() {
       setConnections(enrichedAccepted);
       setPendingReceived(enrichedPending);
     } catch (error) {
-      console.error('Failed to load connections:', error);
       toast.error("Failed to load connections");
     } finally {
       setLoadingConnections(false);
@@ -217,7 +216,6 @@ export default function Social() {
         setActivityPage(page + 1);
       }
     } catch (error) {
-      console.error('Failed to load activity feed:', error);
       toast.error("Failed to load activity");
     } finally {
       setLoadingActivity(false);
@@ -243,7 +241,6 @@ export default function Social() {
       toast.success('Friend request accepted!');
       loadConnections();
     } catch (error) {
-      console.error('Failed to accept request:', error);
       toast.error('Failed to accept request');
     }
   };
@@ -262,7 +259,6 @@ export default function Social() {
       setRejectDialogOpen(false);
       setRequestToReject(null);
     } catch (error) {
-      console.error('Failed to reject request:', error);
       toast.error('Failed to reject request');
     }
   };
@@ -279,7 +275,6 @@ export default function Social() {
       toast.success('Connection removed');
       loadConnections();
     } catch (error) {
-      console.error('Failed to remove connection:', error);
       toast.error('Failed to remove connection');
     }
   };

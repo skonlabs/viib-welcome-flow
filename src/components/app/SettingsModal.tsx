@@ -386,7 +386,6 @@ export const SettingsModal = ({ open, onOpenChange }: SettingsModalProps) => {
     }
 
     if (error) {
-      console.error('Vibe save error:', error);
       toast.error('Failed to save vibe preference');
     } else {
       setSelectedVibe(canonicalKey);

@@ -37,7 +37,6 @@ export const EmailOTPVerificationScreen = ({
     });
 
     if (invokeError) {
-      console.error("Edge function error:", invokeError);
       throw new Error("Unable to verify code. Please try again.");
     }
 

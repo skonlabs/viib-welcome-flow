@@ -68,8 +68,7 @@ export function useTitleActions(onSuccess?: () => void) {
       toast.success(seasonNumber ? `Season ${seasonNumber} added to watchlist!` : "Added to watchlist!");
       onSuccess?.();
       return true;
-    } catch (error) {
-      console.error('Failed to add to watchlist:', error);
+    } catch {
       toast.error("Failed to add to watchlist");
       return false;
     }
@@ -148,8 +147,7 @@ export function useTitleActions(onSuccess?: () => void) {
       setRatingDialogOpen(false);
       setTitleToRate(null);
       onSuccess?.();
-    } catch (error) {
-      console.error('Failed to rate:', error);
+    } catch {
       toast.error("Failed to save rating");
     }
   };

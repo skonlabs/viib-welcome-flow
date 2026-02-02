@@ -91,7 +91,7 @@ export default function Search() {
       (entries) => {
         const state = stateRef.current;
         if (entries[0].isIntersecting && state.hasMore && !state.loadingMore && !state.loading && state.resultsLength > 0) {
-          loadMoreCallbackRef.current();
+          loadMoreCallbackRef.current?.();
         }
       },
       { threshold: 0.1 }
@@ -132,7 +132,7 @@ export default function Search() {
         setUserWatchlist(new Set(watchlistResult.data.map(d => d.title_id)));
       }
     } catch (error) {
-      console.error('Failed to load user preferences:', error);
+      // silently handled
     }
   }, [profile]);
 
@@ -205,7 +205,6 @@ export default function Search() {
           setSuggestions(sortedSuggestions);
           setShowDropdown(true);
         } catch (error) {
-          console.error('Suggestions error:', error);
           setSuggestions([]);
         } finally {
           setLoadingSuggestions(false);
@@ -295,7 +294,7 @@ export default function Search() {
       setResults(sortedResults);
       setHasMore((data.titles || []).length >= 20);
     } catch (error) {
-      console.error('Search error:', error);
+      toast.error('Search failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -327,7 +326,7 @@ export default function Search() {
       setPage(nextPage);
       setHasMore(newTitles.length >= 20);
     } catch (error) {
-      console.error('Load more error:', error);
+      toast.error('Failed to load more results.');
     } finally {
       setLoadingMore(false);
     }

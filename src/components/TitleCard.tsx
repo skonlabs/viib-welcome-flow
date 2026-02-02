@@ -140,8 +140,7 @@ export function TitleCard({
         reasons: reasons.length > 0 ? reasons : ['Recommended based on your preferences.'], 
         scores 
       });
-    } catch (err) {
-      console.error('Failed to load explanation:', err);
+    } catch {
       setFetchedExplanation({ reasons: ['Unable to load explanation'], scores: {} });
     } finally {
       setLoadingExplanation(false);
@@ -257,7 +256,6 @@ export function TitleCard({
                 className="h-7 w-7 sm:h-8 sm:w-8 p-0 bg-black/60 hover:bg-black/80 backdrop-blur-sm"
                 onClick={(e) => {
                   e.stopPropagation();
-                  console.log('Share clicked');
                 }}
               >
                 <Share2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />

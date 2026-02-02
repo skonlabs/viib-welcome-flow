@@ -334,8 +334,7 @@ export default function ViiBList() {
       .single();
 
     if (error) {
-      console.error('Create list error:', error);
-      toast.error(error.message || 'Failed to create list');
+      toast.error('Failed to create list');
       return;
     }
 
@@ -387,8 +386,7 @@ export default function ViiBList() {
       .eq('id', editingList.id);
 
     if (error) {
-      console.error('Update list error:', error);
-      toast.error(error.message || 'Failed to update list');
+      toast.error('Failed to update list');
       return;
     }
 
@@ -435,7 +433,6 @@ export default function ViiBList() {
       setRemoveTitleDialogOpen(false);
       setTitleToRemove(null);
     } catch (error) {
-      console.error('Remove title error:', error);
       toast.error('Failed to remove title');
     }
   };
@@ -472,7 +469,6 @@ export default function ViiBList() {
         toast.success('Following list');
       }
     } catch (error) {
-      console.error('Toggle follow error:', error);
       toast.error('Failed to update follow status');
     }
   };
