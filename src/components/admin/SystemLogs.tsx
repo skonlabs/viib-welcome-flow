@@ -11,6 +11,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Textarea } from '@/components/ui/textarea';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
+import { logger } from '@/lib/services/LoggerService';
 
 interface SystemLog {
   id: string;
@@ -54,7 +55,9 @@ export default function SystemLogs() {
         ...log,
         severity: log.severity as 'error' | 'warning' | 'info'
       })));
-    } catch (error: any) {
+    } catch (error) {
+      // Don't log this to system_logs to avoid infinite loop
+      console.error('Failed to load system logs:', error);
       toast.error('Failed to load system logs');
     } finally {
       setLoading(false);
@@ -83,7 +86,9 @@ export default function SystemLogs() {
       setConfirmResolveLog(null);
       setNotes('');
       fetchLogs();
-    } catch (error: any) {
+    } catch (error) {
+      // Don't log this to system_logs to avoid infinite loop
+      console.error('Failed to resolve system log:', error);
       toast.error('Failed to resolve system log');
     }
   };

@@ -325,7 +325,22 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
-    console.error('Error fetching analytics');
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    
+    console.error('Error fetching analytics:', errorMessage);
+    
+    // Log error to system_logs
+    const supabase = createAdminClient();
+    await supabase.from('system_logs').insert([{
+      error_message: errorMessage,
+      error_stack: errorStack || null,
+      severity: 'error',
+      operation: 'get-analytics',
+      context: { source: 'edge-function' },
+      resolved: false
+    }]);
+    
     return new Response(
       JSON.stringify({ error: 'Internal server error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

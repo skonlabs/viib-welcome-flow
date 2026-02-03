@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { invokeEdgeFunction } from '@/lib/edgeFunctionClient';
-
+import { logger } from '@/lib/services/LoggerService';
 export interface AnalyticsData {
   activeUsers: {
     daily: number;
