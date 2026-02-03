@@ -2350,16 +2350,25 @@ export type Database = {
       }
       user_reco_refresh_queue: {
         Row: {
+          attempts: number | null
+          last_error: string | null
+          locked_at: string | null
           reason: string | null
           requested_at: string
           user_id: string
         }
         Insert: {
+          attempts?: number | null
+          last_error?: string | null
+          locked_at?: string | null
           reason?: string | null
           requested_at?: string
           user_id: string
         }
         Update: {
+          attempts?: number | null
+          last_error?: string | null
+          locked_at?: string | null
           reason?: string | null
           requested_at?: string
           user_id?: string
