@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { invokeEdgeFunction } from '@/lib/edgeFunctionClient';
 
 export interface AnalyticsData {
   activeUsers: {
@@ -54,9 +55,8 @@ export const useAnalytics = () => {
   return useQuery({
     queryKey: ['admin-analytics'],
     queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke('get-analytics');
-      if (error) throw error;
-      return data as AnalyticsData;
+      const data = await invokeEdgeFunction<AnalyticsData>('get-analytics');
+      return data;
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
     refetchOnWindowFocus: false,
