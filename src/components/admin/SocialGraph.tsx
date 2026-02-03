@@ -6,6 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { motion, AnimatePresence } from 'framer-motion';
 import { RefreshCw, Users, Link2, Trash2, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { logger } from '@/lib/services/LoggerService';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -142,9 +143,17 @@ const SocialGraph = () => {
         supabase.from('friend_connections').select('*'),
       ]);
 
+      if (usersRes.error) {
+        await logger.error(usersRes.error, { operation: 'social-graph-load-users', component: 'SocialGraph' });
+      }
+      if (connectionsRes.error) {
+        await logger.error(connectionsRes.error, { operation: 'social-graph-load-connections', component: 'SocialGraph' });
+      }
+
       if (usersRes.data) setUsers(usersRes.data);
       if (connectionsRes.data) setConnections(connectionsRes.data);
     } catch (error) {
+      await logger.error(error, { operation: 'social-graph-load', component: 'SocialGraph' });
       toast.error('Failed to load social graph data');
     } finally {
       setLoading(false);
@@ -287,6 +296,7 @@ const SocialGraph = () => {
       toast.success('5-level sample data generated successfully!');
       await loadData();
     } catch (error) {
+      await logger.error(error, { operation: 'social-graph-generate-sample', component: 'SocialGraph' });
       toast.error('Failed to generate sample data');
     } finally {
       setGenerating(false);
@@ -321,6 +331,7 @@ const SocialGraph = () => {
       setShowDeleteDialog(false);
       await loadData();
     } catch (error) {
+      await logger.error(error, { operation: 'social-graph-delete-sample', component: 'SocialGraph' });
       toast.error('Failed to delete sample data');
     } finally {
       setDeleting(false);

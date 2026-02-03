@@ -105,13 +105,14 @@ serve(async (req) => {
 
         // Log invite for tracking (don't block on errors)
         try {
-          await supabase.from('system_logs').insert({
+          await supabase.from('system_logs').insert([{
             error_message: `Invite sent to ${method === 'email' ? 'email' : 'phone'}`,
             severity: 'info',
             user_id: userId,
-            operation: 'send_invite',
-            context: { method, success: true }
-          });
+            operation: 'send-invites',
+            context: { method, success: true },
+            resolved: false
+          }]);
         } catch {
           // Silent fail for logging
         }
@@ -136,8 +137,23 @@ serve(async (req) => {
       }
     );
 
-  } catch (error: any) {
-    console.error('Error in send-invites function:', error.message);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    
+    console.error('Error in send-invites function:', errorMessage);
+    
+    // Log error to system_logs
+    const supabase = createAdminClient();
+    await supabase.from('system_logs').insert([{
+      severity: 'error',
+      operation: 'send-invites',
+      error_message: errorMessage,
+      error_stack: errorStack,
+      context: { source: 'edge-function' },
+      resolved: false
+    }]);
+    
     return new Response(
       JSON.stringify({ error: 'Internal server error' }),
       {

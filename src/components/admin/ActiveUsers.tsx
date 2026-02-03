@@ -30,7 +30,7 @@ const ActiveUsers = () => {
         <div className="mb-6 text-left pl-6">
           <h1 className="text-3xl font-bold">Active Users</h1>
         </div>
-        <Card><CardContent className="p-6 text-destructive">Error loading analytics: {error.message}</CardContent></Card>
+        <Card><CardContent className="p-6 text-destructive">Failed to load analytics data. Please try again later.</CardContent></Card>
       </div>
     );
   }

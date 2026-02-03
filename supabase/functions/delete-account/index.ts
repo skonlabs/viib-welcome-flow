@@ -112,15 +112,17 @@ serve(async (req) => {
 
     // Log the deletion request before proceeding (for audit purposes)
     // Note: Don't log email, only user_id
-    await supabase.from('system_logs').insert({
-      level: 'info',
-      message: 'Account deletion initiated',
+    await supabase.from('system_logs').insert([{
+      severity: 'info',
+      error_message: 'Account deletion initiated',
+      operation: 'delete-account',
+      user_id: userId,
       context: {
-        user_id: userId,
         reason: reason || 'Not specified',
         timestamp: new Date().toISOString()
-      }
-    });
+      },
+      resolved: false
+    }]);
 
     // Begin deletion process - order matters due to foreign key constraints
     // Delete in reverse dependency order
@@ -264,14 +266,16 @@ serve(async (req) => {
     }
 
     // Log successful deletion
-    await supabase.from('system_logs').insert({
-      level: 'info',
-      message: 'Account deletion completed',
+    await supabase.from('system_logs').insert([{
+      severity: 'info',
+      error_message: 'Account deletion completed',
+      operation: 'delete-account',
       context: {
         deleted_user_id: userId,
         timestamp: new Date().toISOString()
-      }
-    });
+      },
+      resolved: false
+    }]);
 
     return new Response(
       JSON.stringify({
@@ -282,7 +286,22 @@ serve(async (req) => {
     );
 
   } catch (error: unknown) {
-    console.error('Error in delete-account function');
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    
+    console.error('Error in delete-account function:', errorMessage);
+    
+    // Log error to system_logs
+    const supabase = createAdminClient();
+    await supabase.from('system_logs').insert([{
+      severity: 'error',
+      operation: 'delete-account',
+      error_message: errorMessage,
+      error_stack: errorStack,
+      context: { source: 'edge-function' },
+      resolved: false
+    }]);
+    
     return new Response(
       JSON.stringify({
         success: false,

@@ -273,6 +273,18 @@ serve(async (req) => {
     );
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    
+    // Log error to system_logs
+    await supabase.from('system_logs').insert([{
+      severity: 'error',
+      operation: 'full-refresh-orchestrator',
+      error_message: msg,
+      error_stack: errorStack,
+      context: { source: 'edge-function' },
+      resolved: false
+    }]);
+    
     return new Response(JSON.stringify({ success: false, error: msg }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

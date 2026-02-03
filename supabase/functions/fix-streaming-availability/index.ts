@@ -326,12 +326,14 @@ serve(async (req) => {
     
     console.error('Error in fix-streaming-availability:', errorMessage);
     
-    await supabase.from('system_logs').insert({
+    await supabase.from('system_logs').insert([{
       severity: 'error',
       operation: 'fix-streaming-availability',
       error_message: errorMessage,
-      error_stack: errorStack
-    });
+      error_stack: errorStack,
+      context: { source: 'edge-function' },
+      resolved: false
+    }]);
 
     // Mark job as failed
     await supabase

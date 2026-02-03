@@ -3,9 +3,11 @@
  * Utility for calling Supabase Edge Functions with proper authentication
  * 
  * This ensures the Authorization header is explicitly included in all requests
+ * All errors are logged to the system_logs table for admin visibility
  */
 
 import { supabase } from '@/integrations/supabase/client';
+import type { Json } from '@/integrations/supabase/types';
 
 const SUPABASE_URL = 'https://ibrjwldvyuhwcfzdmimv.supabase.co';
 
@@ -27,7 +29,40 @@ export class EdgeFunctionError extends Error {
 }
 
 /**
+ * Log error to system_logs table
+ */
+async function logErrorToSystemLogs(
+  error: Error | EdgeFunctionError,
+  context: Record<string, unknown>
+): Promise<void> {
+  try {
+    const viibUserId = localStorage.getItem('viib_user_id');
+    
+    const { error: insertError } = await supabase.from('system_logs').insert([{
+      error_message: error.message,
+      error_stack: error.stack || null,
+      severity: 'error',
+      user_id: viibUserId || null,
+      context: context as Json,
+      operation: (context.operation as string) || 'edge-function-call',
+      screen: typeof window !== 'undefined' ? window.location.pathname : null,
+      resolved: false
+    }]);
+    
+    if (insertError && import.meta.env.DEV) {
+      console.error('Failed to log error to system_logs:', insertError);
+    }
+  } catch (loggingError) {
+    // Silently fail - don't break the app if logging fails
+    if (import.meta.env.DEV) {
+      console.error('Failed to log error to system_logs:', loggingError);
+    }
+  }
+}
+
+/**
  * Invoke a Supabase Edge Function with proper authentication
+ * All errors are automatically logged to system_logs
  * @param functionName - The name of the edge function to call
  * @param options - Optional request options (method, body, headers)
  * @returns The response data from the edge function
@@ -42,13 +77,25 @@ export async function invokeEdgeFunction<T = unknown>(
   const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
   
   if (sessionError) {
-    throw new EdgeFunctionError('Failed to get session', 401, sessionError);
+    const error = new EdgeFunctionError('Failed to get session', 401, sessionError);
+    await logErrorToSystemLogs(error, {
+      operation: `edge-function-${functionName}`,
+      functionName,
+      errorType: 'session_error'
+    });
+    throw error;
   }
 
   const accessToken = sessionData?.session?.access_token;
   
   if (!accessToken) {
-    throw new EdgeFunctionError('No active session. Please sign in again.', 401);
+    const error = new EdgeFunctionError('No active session. Please sign in again.', 401);
+    await logErrorToSystemLogs(error, {
+      operation: `edge-function-${functionName}`,
+      functionName,
+      errorType: 'no_session'
+    });
+    throw error;
   }
 
   // Build headers with explicit Authorization
@@ -81,11 +128,23 @@ export async function invokeEdgeFunction<T = unknown>(
         errorDetails = await response.text();
       }
       
-      throw new EdgeFunctionError(
+      const error = new EdgeFunctionError(
         `Edge function returned ${response.status}: ${response.statusText}`,
         response.status,
         errorDetails
       );
+      
+      // Log error to system_logs
+      await logErrorToSystemLogs(error, {
+        operation: `edge-function-${functionName}`,
+        functionName,
+        method,
+        httpStatus: response.status,
+        errorDetails,
+        errorType: 'http_error'
+      });
+      
+      throw error;
     }
 
     const data = await response.json();
@@ -95,10 +154,21 @@ export async function invokeEdgeFunction<T = unknown>(
       throw error;
     }
     
-    throw new EdgeFunctionError(
+    const wrappedError = new EdgeFunctionError(
       error instanceof Error ? error.message : 'Unknown error calling edge function',
       500,
       error
     );
+    
+    // Log error to system_logs
+    await logErrorToSystemLogs(wrappedError, {
+      operation: `edge-function-${functionName}`,
+      functionName,
+      method,
+      errorType: 'network_error',
+      originalError: error instanceof Error ? error.message : String(error)
+    });
+    
+    throw wrappedError;
   }
 }
