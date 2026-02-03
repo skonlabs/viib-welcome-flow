@@ -14,6 +14,27 @@ export type Database = {
   }
   public: {
     Tables: {
+      _persona_map: {
+        Row: {
+          genre_name: string
+          lang_code: string
+          persona_key: string
+          service_name: string
+        }
+        Insert: {
+          genre_name: string
+          lang_code: string
+          persona_key: string
+          service_name: string
+        }
+        Update: {
+          genre_name?: string
+          lang_code?: string
+          persona_key?: string
+          service_name?: string
+        }
+        Relationships: []
+      }
       activation_codes: {
         Row: {
           code: string
@@ -3893,6 +3914,10 @@ export type Database = {
       }
       mark_user_reco_stale: {
         Args: { p_reason?: string; p_user_id: string }
+        Returns: undefined
+      }
+      process_user_reco_refresh_queue: {
+        Args: { p_limit?: number }
         Returns: undefined
       }
       promote_title_ai: { Args: never; Returns: undefined }
