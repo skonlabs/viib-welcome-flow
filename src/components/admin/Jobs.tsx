@@ -1596,6 +1596,28 @@ export const Jobs = () => {
     return <Badge variant={variants[status] || "secondary"}>{status.charAt(0).toUpperCase() + status.slice(1)}</Badge>;
   };
 
+  const getLastRunStatusBadge = (job: Job) => {
+    // If job has never run, return N/A
+    if (!job.last_run_at) {
+      return <Badge variant="outline">Never Run</Badge>;
+    }
+    // Determine status based on error_message and current status
+    if (job.error_message && job.status === "failed") {
+      return <Badge variant="destructive">Failed</Badge>;
+    }
+    if (job.status === "completed" || (!job.error_message && job.last_run_at)) {
+      return <Badge variant="default" className="bg-green-600 hover:bg-green-700">Completed</Badge>;
+    }
+    if (job.status === "running") {
+      return <Badge variant="default">In Progress</Badge>;
+    }
+    // If there's an error message but status is idle (stopped manually)
+    if (job.error_message) {
+      return <Badge variant="outline">Stopped</Badge>;
+    }
+    return <Badge variant="secondary">Unknown</Badge>;
+  };
+
   const formatDuration = (seconds: number | null) => {
     if (!seconds) return "N/A";
     const hours = Math.floor(seconds / 3600);
@@ -1852,7 +1874,7 @@ export const Jobs = () => {
                     </div>
                   </div>
                   {/* Last run info */}
-                  <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div className="grid grid-cols-3 gap-4 text-sm">
                     <div className="space-y-1">
                       <div className="flex items-center text-muted-foreground">
                         <CalendarIcon className="w-4 h-4 mr-2" />
@@ -1863,9 +1885,13 @@ export const Jobs = () => {
                     <div className="space-y-1">
                       <div className="flex items-center text-muted-foreground">
                         <Clock className="w-4 h-4 mr-2" />
-                        Duration
+                        Next Run
                       </div>
-                      <div className="font-medium">{formatDuration(job.last_run_duration_seconds)}</div>
+                      <div className="font-medium">{formatDate(job.next_run_at)}</div>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="text-muted-foreground">Last Run Status</div>
+                      <div className="font-medium">{getLastRunStatusBadge(job)}</div>
                     </div>
                   </div>
                 </div>
@@ -1890,7 +1916,7 @@ export const Jobs = () => {
                     </div>
                   </div>
                   {/* Last run info */}
-                  <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div className="grid grid-cols-3 gap-4 text-sm">
                     <div className="space-y-1">
                       <div className="flex items-center text-muted-foreground">
                         <CalendarIcon className="w-4 h-4 mr-2" />
@@ -1901,9 +1927,13 @@ export const Jobs = () => {
                     <div className="space-y-1">
                       <div className="flex items-center text-muted-foreground">
                         <Clock className="w-4 h-4 mr-2" />
-                        Duration
+                        Next Run
                       </div>
-                      <div className="font-medium">{formatDuration(job.last_run_duration_seconds)}</div>
+                      <div className="font-medium">{formatDate(job.next_run_at)}</div>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="text-muted-foreground">Last Run Status</div>
+                      <div className="font-medium">{getLastRunStatusBadge(job)}</div>
                     </div>
                   </div>
                 </div>
@@ -1914,7 +1944,7 @@ export const Jobs = () => {
                 job.job_type !== "promote_ai" &&
                 job.job_type !== "enrich_details" &&
                 job.job_type !== "fix_streaming" && (
-                  <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div className="grid grid-cols-3 gap-4 text-sm">
                     <div className="space-y-1">
                       <div className="flex items-center text-muted-foreground">
                         <CalendarIcon className="w-4 h-4 mr-2" />
@@ -1925,12 +1955,8 @@ export const Jobs = () => {
                     <div className="space-y-1">
                       <div className="flex items-center text-muted-foreground">
                         <Clock className="w-4 h-4 mr-2" />
-                        Duration
+                        Next Run
                       </div>
-                      <div className="font-medium">{formatDuration(job.last_run_duration_seconds)}</div>
-                    </div>
-                    <div className="space-y-1">
-                      <div className="text-muted-foreground">Next Run</div>
                       <div className="font-medium">
                         {formatDate(job.next_run_at)}
                         {job.configuration?.recurrence && (
@@ -1941,15 +1967,15 @@ export const Jobs = () => {
                       </div>
                     </div>
                     <div className="space-y-1">
-                      <div className="text-muted-foreground">Titles Processed</div>
-                      <div className="font-medium">{job.total_titles_processed.toLocaleString()}</div>
+                      <div className="text-muted-foreground">Last Run Status</div>
+                      <div className="font-medium">{getLastRunStatusBadge(job)}</div>
                     </div>
                   </div>
                 )}
 
               {/* Last Run info for emotion, intent, and classify_ai/promote_ai jobs */}
               {(job.job_type === "classify_ai" || job.job_type === "promote_ai") && (
-                <div className="grid grid-cols-2 gap-4 text-sm">
+                <div className="grid grid-cols-3 gap-4 text-sm">
                   <div className="space-y-1">
                     <div className="flex items-center text-muted-foreground">
                       <CalendarIcon className="w-4 h-4 mr-2" />
@@ -1960,9 +1986,13 @@ export const Jobs = () => {
                   <div className="space-y-1">
                     <div className="flex items-center text-muted-foreground">
                       <Clock className="w-4 h-4 mr-2" />
-                      Duration
+                      Next Run
                     </div>
-                    <div className="font-medium">{formatDuration(job.last_run_duration_seconds)}</div>
+                    <div className="font-medium">{formatDate(job.next_run_at)}</div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-muted-foreground">Last Run Status</div>
+                    <div className="font-medium">{getLastRunStatusBadge(job)}</div>
                   </div>
                 </div>
               )}
