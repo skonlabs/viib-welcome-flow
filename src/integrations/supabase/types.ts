@@ -3729,6 +3729,9 @@ export type Database = {
           database: string
           jobid: number
           jobname: string
+          last_run_at: string
+          last_status: string
+          next_run_at: string
           schedule: string
         }[]
       }
