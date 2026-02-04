@@ -57,6 +57,9 @@ interface CronJob {
   command: string;
   database: string;
   active: boolean;
+  last_run_at?: string | null;
+  next_run_at?: string | null;
+  last_status?: 'succeeded' | 'failed' | null;
 }
 
 interface ParallelProgress {
@@ -2178,6 +2181,39 @@ export const Jobs = () => {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  {/* Execution Metrics */}
+                  <div className="grid grid-cols-3 gap-4 text-sm">
+                    <div>
+                      <div className="text-muted-foreground text-xs">Last Run</div>
+                      <div className="font-medium">
+                        {(cronJob as any).last_run_at 
+                          ? format(new Date((cronJob as any).last_run_at), "MMM d, HH:mm")
+                          : "Never"}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-muted-foreground text-xs">Next Run</div>
+                      <div className="font-medium">
+                        {(cronJob as any).next_run_at 
+                          ? format(new Date((cronJob as any).next_run_at), "MMM d, HH:mm")
+                          : cronJob.active ? "Scheduled" : "Paused"}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-muted-foreground text-xs">Last Run Status</div>
+                      <div className="font-medium">
+                        {runningCronJobs.has(cronJob.jobid) ? (
+                          <Badge variant="default">In Progress</Badge>
+                        ) : (cronJob as any).last_status === 'failed' ? (
+                          <Badge variant="destructive">Failed</Badge>
+                        ) : (cronJob as any).last_run_at ? (
+                          <Badge variant="success">Completed</Badge>
+                        ) : (
+                          <Badge variant="secondary">Never Run</Badge>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                   <div className="text-sm">
                     <div className="text-muted-foreground mb-1">Command</div>
                     <code className="block text-xs bg-muted p-2 rounded overflow-x-auto">{cronJob.command}</code>
