@@ -3971,7 +3971,7 @@ export type Database = {
         Args: { p_batch_size?: number }
         Returns: {
           has_more: boolean
-          processed_count: number
+          processed: number
         }[]
       }
       refresh_title_quality_metrics_batch: {
