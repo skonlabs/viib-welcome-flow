@@ -4042,6 +4042,7 @@ export type Database = {
         Args: { p_days?: number }
         Returns: undefined
       }
+      sync_jobs_with_cron_status: { Args: never; Returns: undefined }
       sync_titles_delta: { Args: never; Returns: undefined }
       title_age_years: {
         Args: { p_first_air: string; p_release: string }
