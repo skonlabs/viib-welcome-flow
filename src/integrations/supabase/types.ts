@@ -1981,6 +1981,7 @@ export type Database = {
           rt_cscore: number | null
           runtime: number | null
           status: string | null
+          tagline: string | null
           title_genres: Json | null
           title_type: string | null
           tmdb_id: number | null
@@ -2029,6 +2030,7 @@ export type Database = {
           rt_cscore?: number | null
           runtime?: number | null
           status?: string | null
+          tagline?: string | null
           title_genres?: Json | null
           title_type?: string | null
           tmdb_id?: number | null
@@ -2077,6 +2079,7 @@ export type Database = {
           rt_cscore?: number | null
           runtime?: number | null
           status?: string | null
+          tagline?: string | null
           title_genres?: Json | null
           title_type?: string | null
           tmdb_id?: number | null
